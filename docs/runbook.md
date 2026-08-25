@@ -66,9 +66,15 @@ sudo ss -tlnp | grep -E ':(5080|5081)\b' || echo "5080 и 5081 свободны"
 
 ```bash
 sudo apt update
-sudo apt install -y aspnetcore-runtime-8.0 redis-server
+sudo apt install -y aspnetcore-runtime-8.0
+sudo apt install -y redis-server
 sudo systemctl enable --now redis-server
 ```
+
+Двумя командами, а не одной: `apt` при неудаче не ставит **ничего**, поэтому
+из общей команды нельзя понять, что именно не встало. Если на этой машине
+уже работает сервер ключей, рантайм .NET там наверняка стоит — тогда первая
+команда просто ничего не изменит.
 
 Проверьте, что рантайм встал и где лежит исполняемый файл:
 
@@ -100,23 +106,34 @@ sudo mkdir -p /var/www/schoolpiboard
 
 ## Шаг 5. База данных `[СЕРВЕР]`
 
-База отдельная от лицензионной: это разные продукты, общих данных нет.
+И база, и роль отдельные от лицензионных: это разные продукты, общих данных
+нет. Роль своя не только ради порядка — утечка `.env` одного сервиса тогда
+не даёт доступа к базе другого.
+
+Интерактивный psql не открываем: при вставке нескольких строк разом часть
+из них уходит в оболочку вместо psql. Каждая команда — отдельная, через `-c`.
 
 ```bash
-sudo -u postgres psql
+cd /tmp
+PGPASS=$(openssl rand -hex 24)
+sudo -u postgres psql -c "CREATE ROLE schoolpi_board WITH LOGIN PASSWORD '$PGPASS'"
+sudo -u postgres psql -c "CREATE DATABASE schoolpiboard_online OWNER schoolpi_board"
 ```
 
-В psql (придумайте пароль и запомните — он нужен на шаге 6):
+`cd /tmp` убирает предупреждение `could not change directory to "/root"`:
+пользователь `postgres` не может зайти в домашнюю папку root.
 
-```sql
-CREATE ROLE schoolpi WITH LOGIN PASSWORD 'ПРИДУМАННЫЙ_ПАРОЛЬ';
-CREATE DATABASE schoolpiboard_online OWNER schoolpi;
-\q
+Пароль хранится в переменной и на шаге 6 попадёт в `.env` прямо оттуда —
+копировать его руками не придётся, поэтому **не закрывайте это окно
+терминала** до конца шага 6 и не запускайте `PGPASS=...` повторно.
+
+Если роль уже существует с прошлой попытки, `CREATE ROLE` ответит
+`already exists` и пароль останется прежним — тогда переназначьте его,
+чтобы переменная и реальный пароль сошлись:
+
+```bash
+sudo -u postgres psql -c "ALTER ROLE schoolpi_board WITH LOGIN PASSWORD '$PGPASS'"
 ```
-
-Если роль `schoolpi` уже заведена под другой сервис, `CREATE ROLE` ругнётся
-«already exists» — это нормально, просто пропустите её и выполните только
-`CREATE DATABASE`.
 
 Владельцем базы роль быть обязана: схему сервис создаёт сам при каждом
 старте идемпотентными скриптами из `sql/`, и для этого ему нужно право
@@ -125,7 +142,7 @@ CREATE DATABASE schoolpiboard_online OWNER schoolpi;
 Проверить подключение:
 
 ```bash
-psql "postgresql://schoolpi:ПРИДУМАННЫЙ_ПАРОЛЬ@localhost/schoolpiboard_online" -c '\conninfo'
+PGPASSWORD="$PGPASS" psql -h localhost -U schoolpi_board -d schoolpiboard_online -c '\conninfo'
 ```
 
 ## Шаг 6. Секреты `[СЕРВЕР]`
@@ -133,16 +150,19 @@ psql "postgresql://schoolpi:ПРИДУМАННЫЙ_ПАРОЛЬ@localhost/school
 Секреты живут в отдельном файле с правами `600`, а не в unit-файле службы:
 unit читается любым пользователем системы.
 
-```bash
-openssl rand -hex 32          # это значение пойдёт в AUTH_TOKEN_SECRET
-sudo nano /etc/schoolpiboard.env
-```
+Пишем файл целиком одной вставкой, **в том же окне**, где жива `$PGPASS`
+с шага 5: пароль базы подставится сам, `AUTH_TOKEN_SECRET` сгенерируется
+на месте. Так секреты не проходят через буфер обмена и не попадают в историю
+команд. `umask 077` — чтобы файл сразу создался закрытым, без промежутка,
+в который он читаем всем.
 
-```ini
+```bash
+umask 077
+cat > /etc/schoolpiboard.env <<EOF
 ASPNETCORE_ENVIRONMENT=Production
 ASPNETCORE_URLS=http://127.0.0.1:5081
-ConnectionStrings__Postgres=Host=localhost;Database=schoolpiboard_online;Username=schoolpi;Password=ПАРОЛЬ_БАЗЫ
-AUTH_TOKEN_SECRET=ТО_ЧТО_СГЕНЕРИРОВАЛИ
+ConnectionStrings__Postgres=Host=localhost;Database=schoolpiboard_online;Username=schoolpi_board;Password=$PGPASS
+AUTH_TOKEN_SECRET=$(openssl rand -hex 32)
 REDIS_CONNECTION_STRING=localhost:6379
 Site__BaseUrl=https://board.school-pi.online
 Site__AppOrigins__0=https://board.school-pi.online
@@ -151,17 +171,56 @@ Smtp__Host=smtp.yandex.ru
 Smtp__Port=465
 Smtp__User=info@school-pi.online
 Smtp__FromEmail=info@school-pi.online
-SMTP_PASSWORD=ПАРОЛЬ_ПРИЛОЖЕНИЯ_ИЗ_ШАГА_2
-Payments__MerchantLogin=ЛОГИН_МАГАЗИНА
-ROBOKASSA_PASSWORD1=ПАРОЛЬ1
-ROBOKASSA_PASSWORD2=ПАРОЛЬ2
+SMTP_PASSWORD=
+Payments__MerchantLogin=
+ROBOKASSA_PASSWORD1=
+ROBOKASSA_PASSWORD2=
 Payments__IsTest=true
+EOF
+chown root:root /etc/schoolpiboard.env && chmod 600 /etc/schoolpiboard.env
 ```
 
+Здесь `EOF` **без кавычек** — это намеренно: иначе `$PGPASS` и `$(openssl …)`
+попали бы в файл текстом вместо значений.
+
+Проверка, секретов не печатает:
+
 ```bash
-sudo chmod 600 /etc/schoolpiboard.env
-sudo chown root:root /etc/schoolpiboard.env
+wc -l /etc/schoolpiboard.env      # 17 — блок не оборвался при вставке
+grep -c PGPASS /etc/schoolpiboard.env   # 0 — переменная подставилась
+ls -l /etc/schoolpiboard.env      # -rw------- root root
 ```
+
+### Пароль приложения для почты
+
+`SMTP_PASSWORD` оставлен пустым: с ним сервис стартует нормально, но письма
+подтверждения отправляться не будут, а без подтверждения учётная запись не
+создаётся. Заполняется вслепую, чтобы не осветить пароль на экране и в
+истории команд:
+
+```bash
+read -rsp "Пароль приложения Яндекс: " SMTPPASS; echo
+umask 077
+{ grep -v '^SMTP_PASSWORD=' /etc/schoolpiboard.env; echo "SMTP_PASSWORD=$SMTPPASS"; } > /etc/schoolpiboard.env.new
+mv /etc/schoolpiboard.env.new /etc/schoolpiboard.env
+chown root:root /etc/schoolpiboard.env && chmod 600 /etc/schoolpiboard.env
+unset SMTPPASS
+```
+
+Вводить без пробелов: Яндекс показывает пароль группами по четыре символа,
+сами пробелы в него не входят. Через файл-времянку с `mv`, а не правкой
+на месте, — чтобы при обрыве не остаться с покалеченным файлом секретов.
+Порядок строк в env-файле роли не играет, поэтому строка просто дописывается
+в конец.
+
+Проверить, что сервис принял почту (после перезапуска на шаге 7):
+
+```bash
+journalctl -u schoolpiboard -n 15 --no-pager | grep -i smtp
+```
+
+Пусто — хорошо. Строка «SMTP не настроен: письма пишутся в лог» означает,
+что пароль не подхватился.
 
 `Site__BaseUrl` — из него собираются ссылки в письмах: ошибётесь здесь, и
 письма уйдут со ссылками в никуда. `Payments__IsTest=true` оставляем до
@@ -175,26 +234,39 @@ sudo chown root:root /etc/schoolpiboard.env
 Архив собран GitHub Actions и уже разложен внутри на `api/` и `web/`,
 поэтому распаковывается прямо в корень проекта.
 
+**Репозиторий должен быть публичным.** Ссылка на файл релиза скачивается без
+токена, и у приватного репозитория `curl` получает `404 Not Found` — на диск
+ложатся девять байт текста вместо архива. Секретов в репозитории нет (они
+живут только в `/etc/schoolpiboard.env`), поэтому публичность здесь ничего
+не раскрывает. Если репозиторий понадобится закрыть, скачивание придётся
+переводить на токен с правом `Contents: Read-only`.
+
 ```bash
-cd /tmp
+cd /tmp && rm -f ob.tar.gz
 curl -sL -o ob.tar.gz https://github.com/pootymoty/schoolpiboard_online/releases/download/online-board-latest/online-board.tar.gz
+tar -tzf ob.tar.gz | head -5
+```
+
+Третья команда показывает содержимое архива, ничего не распаковывая, —
+дешёвая страховка от молчаливой ошибки. Ожидаются пути `./api/…` и `./web/…`.
+Ответ `not in gzip format` означает, что скачалась страница с ошибкой,
+а не архив: проверьте, публичен ли репозиторий и есть ли релиз.
+
+Только после этого:
+
+```bash
 sudo tar -xzf ob.tar.gz -C /var/www/schoolpiboard
 sudo chown -R www-data:www-data /var/www/schoolpiboard
+ls -l /var/www/schoolpiboard/api/SchoolPiBoard.Online.dll /var/www/schoolpiboard/web/index.html
 ```
 
-Проверьте, что распаковалось ожидаемое:
+Найтись должны обе строки — это подтверждает, что в архиве были обе части.
+
+Служба. Здесь `EOF` **в кавычках** — в отличие от env-файла, подставлять
+сюда нечего, и кавычки страхуют от случайной подстановки:
 
 ```bash
-ls /var/www/schoolpiboard/api/SchoolPiBoard.Online.dll /var/www/schoolpiboard/web/index.html
-```
-
-Служба:
-
-```bash
-sudo nano /etc/systemd/system/schoolpiboard.service
-```
-
-```ini
+cat > /etc/systemd/system/schoolpiboard.service <<'EOF'
 [Unit]
 Description=SchoolPiBoard online API
 After=network.target postgresql.service redis-server.service
@@ -209,14 +281,20 @@ User=www-data
 
 [Install]
 WantedBy=multi-user.target
+EOF
+chmod 644 /etc/systemd/system/schoolpiboard.service
 ```
 
 `ExecStart` должен начинаться с пути из `which dotnet` (шаг 4).
 
+`chmod` не формальность: после `umask 077` с шага 6 файл создался бы с
+правами `600`. Работать бы служба всё равно работала — systemd читает юнит
+от root, — но права выглядели бы необъяснимо.
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now schoolpiboard
-sudo systemctl status schoolpiboard --no-pager
+sudo systemctl is-active schoolpiboard
 curl -s http://127.0.0.1:5081/health; echo
 ```
 
