@@ -14,8 +14,6 @@ public class User
 
     public string FirstName { get; set; } = string.Empty;
 
-    public DateOnly BirthDate { get; set; }
-
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Когда был взят пробный период. Он даётся один раз.</summary>
@@ -40,8 +38,6 @@ public class PendingRegistration
     public string LastName { get; set; } = string.Empty;
 
     public string FirstName { get; set; } = string.Empty;
-
-    public DateOnly BirthDate { get; set; }
 
     /// <summary>Хеш кода из письма — сам код есть только у получателя письма.</summary>
     public string TokenHash { get; set; } = string.Empty;

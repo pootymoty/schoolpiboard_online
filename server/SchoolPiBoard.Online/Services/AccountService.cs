@@ -31,8 +31,6 @@ public sealed record AccountResult(AccountOutcome Outcome, User? User = null, st
 public sealed class AccountService
 {
     public const int MinPasswordLength = 8;
-    private const int MinAgeYears = 6;
-    private const int MaxAgeYears = 120;
 
     private readonly AppDbContext _db;
     private readonly AuthTokenService _tokens;
@@ -57,7 +55,6 @@ public sealed class AccountService
     public async Task<AccountResult> RegisterAsync(
         string? lastName,
         string? firstName,
-        DateOnly? birthDate,
         string? email,
         string? password,
         string? passwordConfirm,
@@ -72,9 +69,6 @@ public sealed class AccountService
 
         if (last.Length is 0 or > 100 || first.Length is 0 or > 100)
             return Bad("Укажите фамилию и имя.");
-
-        if (birthDate is null || !IsPlausibleBirthDate(birthDate.Value))
-            return Bad("Проверьте дату рождения.");
 
         if (string.IsNullOrEmpty(password) || password.Length < MinPasswordLength)
             return Bad($"Пароль должен быть не короче {MinPasswordLength} символов.");
@@ -110,7 +104,6 @@ public sealed class AccountService
             PasswordHash = PasswordHasher.Hash(password),
             LastName = last,
             FirstName = first,
-            BirthDate = birthDate.Value,
             TokenHash = SecurityTokens.HashOf(token),
             CreatedAt = now,
             ExpiresAt = now.AddMinutes(_options.Auth.RegistrationTtlMinutes)
@@ -167,7 +160,6 @@ public sealed class AccountService
             PasswordHash = pending.PasswordHash,
             LastName = pending.LastName,
             FirstName = pending.FirstName,
-            BirthDate = pending.BirthDate,
             CreatedAt = now
         };
 
@@ -326,12 +318,6 @@ public sealed class AccountService
 
         _logger.LogInformation("Удалена учётная запись {UserId}.", action.UserId);
         return new AccountResult(AccountOutcome.Ok);
-    }
-
-    private static bool IsPlausibleBirthDate(DateOnly birthDate)
-    {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        return birthDate <= today.AddYears(-MinAgeYears) && birthDate >= today.AddYears(-MaxAgeYears);
     }
 
     private static AccountResult Bad(string message) => new(AccountOutcome.BadRequest, Message: message);

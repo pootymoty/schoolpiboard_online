@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash text        NOT NULL,
     last_name     text        NOT NULL,
     first_name    text        NOT NULL,
-    birth_date    date        NOT NULL,
     created_at    timestamptz NOT NULL,
     -- Пробный период даётся один раз; здесь отметка о том, что он уже был.
     trial_used_at timestamptz NULL
@@ -24,7 +23,6 @@ CREATE TABLE IF NOT EXISTS pending_registrations (
     password_hash text        NOT NULL,
     last_name     text        NOT NULL,
     first_name    text        NOT NULL,
-    birth_date    date        NOT NULL,
     -- В базе только хеш кода из письма: утечка таблицы не даёт подтвердить чужую почту.
     token_hash    text        NOT NULL,
     created_at    timestamptz NOT NULL,

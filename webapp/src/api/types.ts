@@ -5,7 +5,6 @@ export interface User {
   email: string;
   lastName: string;
   firstName: string;
-  birthDate: string;
   trialUsed: boolean;
 }
 

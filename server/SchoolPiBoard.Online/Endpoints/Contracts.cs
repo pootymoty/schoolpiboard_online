@@ -7,7 +7,6 @@ namespace SchoolPiBoard.Online.Endpoints;
 public sealed record RegisterRequest(
     string? LastName,
     string? FirstName,
-    DateOnly? BirthDate,
     string? Email,
     string? Password,
     string? PasswordConfirm,
@@ -24,7 +23,7 @@ public sealed record CreateInviteRequest(string? Role, int? LifetimeDays);
 public sealed record CheckoutRequest(int PlanDays);
 public sealed record AutoRenewRequest(bool Enabled);
 
-public sealed record UserDto(Guid Id, string Email, string LastName, string FirstName, DateOnly BirthDate, bool TrialUsed);
+public sealed record UserDto(Guid Id, string Email, string LastName, string FirstName, bool TrialUsed);
 
 public sealed record SubscriptionDto(string Kind, int PlanDays, string Status, bool Active, DateTime ExpiresAt, bool AutoRenew);
 
@@ -49,7 +48,7 @@ public sealed record InviteDto(Guid Id, string Role, DateTime CreatedAt, DateTim
 public static class Mapping
 {
     public static UserDto ToDto(this User user)
-        => new(user.Id, user.Email, user.LastName, user.FirstName, user.BirthDate, user.TrialUsedAt is not null);
+        => new(user.Id, user.Email, user.LastName, user.FirstName, user.TrialUsedAt is not null);
 
     public static SubscriptionDto? ToDto(this Subscription? subscription)
         => subscription is null

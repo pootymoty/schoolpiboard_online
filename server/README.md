@@ -63,7 +63,7 @@ dotnet run
 ## Регистрация и вход
 
 ```
-POST /auth/register  { lastName, firstName, birthDate, email, password, passwordConfirm, captchaToken }
+POST /auth/register  { lastName, firstName, email, password, passwordConfirm, captchaToken }
 POST /auth/confirm   { token }
 POST /auth/login     { email, password }
 GET  /auth/me

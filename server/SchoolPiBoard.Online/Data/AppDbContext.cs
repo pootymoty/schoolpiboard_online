@@ -34,7 +34,6 @@ public class AppDbContext : DbContext
             entity.Property(x => x.PasswordHash).HasColumnName("password_hash").IsRequired();
             entity.Property(x => x.LastName).HasColumnName("last_name").IsRequired();
             entity.Property(x => x.FirstName).HasColumnName("first_name").IsRequired();
-            entity.Property(x => x.BirthDate).HasColumnName("birth_date");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.TrialUsedAt).HasColumnName("trial_used_at");
             entity.HasIndex(x => x.Email).IsUnique();
@@ -49,7 +48,6 @@ public class AppDbContext : DbContext
             entity.Property(x => x.PasswordHash).HasColumnName("password_hash").IsRequired();
             entity.Property(x => x.LastName).HasColumnName("last_name").IsRequired();
             entity.Property(x => x.FirstName).HasColumnName("first_name").IsRequired();
-            entity.Property(x => x.BirthDate).HasColumnName("birth_date");
             entity.Property(x => x.TokenHash).HasColumnName("token_hash").IsRequired();
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.ExpiresAt).HasColumnName("expires_at");

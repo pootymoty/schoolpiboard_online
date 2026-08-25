@@ -30,7 +30,7 @@ public static class AuthEndpoints
                 return Answers.BadRequest("Не пройдена проверка «я не робот». Попробуйте ещё раз.");
 
             var result = await accounts.RegisterAsync(
-                request.LastName, request.FirstName, request.BirthDate,
+                request.LastName, request.FirstName,
                 request.Email, request.Password, request.PasswordConfirm, cancellationToken);
 
             return result.Outcome switch

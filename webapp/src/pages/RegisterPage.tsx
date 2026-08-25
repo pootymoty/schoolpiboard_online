@@ -12,7 +12,6 @@ export function RegisterPage(): ReactElement {
 
   const [lastName, setLastName] = useState('');
   const [firstName, setFirstName] = useState('');
-  const [birthDate, setBirthDate] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -41,7 +40,7 @@ export function RegisterPage(): ReactElement {
     try {
       await api('/auth/register', {
         method: 'POST',
-        body: { lastName, firstName, birthDate, email, password, passwordConfirm, captchaToken },
+        body: { lastName, firstName, email, password, passwordConfirm, captchaToken },
       });
 
       // Учётной записи ещё нет — она появится после перехода по ссылке из письма.
@@ -65,10 +64,6 @@ export function RegisterPage(): ReactElement {
         <label htmlFor="firstName">Имя</label>
         <input id="firstName" type="text" required autoComplete="given-name"
                value={firstName} onChange={(event) => setFirstName(event.target.value)} />
-
-        <label htmlFor="birthDate">Дата рождения</label>
-        <input id="birthDate" type="date" required
-               value={birthDate} onChange={(event) => setBirthDate(event.target.value)} />
 
         <label htmlFor="email">Почта</label>
         <input id="email" type="email" required autoComplete="email"
