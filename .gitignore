@@ -1,0 +1,9 @@
+# .NET
+server/**/bin/
+server/**/obj/
+pack/
+*.tar.gz
+
+# Node / Vite (webapp/.gitignore also covers this for that folder)
+webapp/node_modules/
+webapp/dist/

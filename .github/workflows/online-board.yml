@@ -1,0 +1,69 @@
+# Сборка сайта онлайн-доски на стороне GitHub.
+#
+# Сервер, на котором сервис работает, остаётся чистым: только рантайм
+# ASP.NET Core, PostgreSQL, Redis и nginx — ни SDK, ни Node.js, ни исходников,
+# ни git. Здесь собирается готовый архив с готовыми api/ и web/, который
+# на сервере остаётся только распаковать.
+name: online-board
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'webapp/**'
+      - '.github/workflows/online-board.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Publish API
+        run: >
+          dotnet publish server/SchoolPiBoard.Online/SchoolPiBoard.Online.csproj
+          -c Release -o pack/api
+
+      - name: Build web
+        working-directory: webapp
+        env:
+          VITE_API_URL: /api
+        run: |
+          npm ci
+          npm run build
+
+      - name: Pack
+        run: |
+          mkdir -p pack/web
+          cp -r webapp/dist/. pack/web/
+          tar -czf online-board.tar.gz -C pack .
+
+      # Готовый архив кладём в релиз: по такой ссылке его можно забрать
+      # обычным curl, без токенов и без установки чего-либо на сервер.
+      # Внутри уже разложено на api/ и web/ — распаковывать прямо в
+      # /var/www/schoolpiboardon.
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete online-board-latest --yes --cleanup-tag || true
+          gh release create online-board-latest online-board.tar.gz \
+            --title "Онлайн-доска — последняя сборка" \
+            --notes "Собрано из ${{ github.sha }}. Распаковывается в /var/www/schoolpiboardon." \
+            --prerelease
