@@ -62,7 +62,7 @@
 
 Сервер остаётся чистым: только рантайм ASP.NET Core, PostgreSQL, Redis и
 nginx — ни SDK, ни Node.js, ни исходников, ни git. Сборка идёт на стороне
-GitHub Actions (`.github/workflows/online-board.yml`): каждый пуш в `main`,
+GitHub Actions (`.github/workflows/online-board.yml`): каждый пуш,
 затрагивающий `server/` или `webapp/`, собирает бэкенд и фронтенд и кладёт
 готовый архив в релиз `online-board-latest`. На сервере обновление — три
 шага:

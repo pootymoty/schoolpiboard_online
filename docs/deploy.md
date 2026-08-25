@@ -3,8 +3,9 @@
 Сайт живёт в `/var/www/schoolpiboardon` на домене school-pi-board.online.
 
 **Обновление в норме идёт не так.** Сборка — на стороне GitHub Actions
-(`.github/workflows/online-board.yml`): пуш в `main` собирает и бэкенд,
-и фронтенд, и кладёт архив в релиз `online-board-latest`. На сервере
+(`.github/workflows/online-board.yml`): пуш, затрагивающий `server/` или
+`webapp/`, собирает и бэкенд, и фронтенд, и кладёт архив в релиз
+`online-board-latest`. На сервере
 достаточно `curl` + `tar` + `systemctl restart` — команды в корневом
 `README.md`. Ручная сборка и `rsync` ниже — как это устроено внутри
 и запасной путь, если GitHub недоступен.

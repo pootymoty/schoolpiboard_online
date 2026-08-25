@@ -9,7 +9,6 @@ name: online-board
 on:
   workflow_dispatch:
   push:
-    branches: [main]
     paths:
       - 'server/**'
       - 'webapp/**'
