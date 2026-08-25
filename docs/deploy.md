@@ -1,6 +1,6 @@
 # Развёртывание сайта онлайн-доски
 
-Сайт живёт в `/var/www/schoolpiboardon` на домене school-pi-board.online.
+Сайт живёт в `/var/www/schoolpiboard` на домене board.school-pi.online.
 
 **Обновление в норме идёт не так.** Сборка — на стороне GitHub Actions
 (`.github/workflows/online-board.yml`): пуш, затрагивающий `server/` или
@@ -25,7 +25,7 @@
 ### Раскладка
 
 ```
-/var/www/schoolpiboardon/
+/var/www/schoolpiboard/
   api/   <- dotnet publish -c Release из server/SchoolPiBoard.Online
   web/   <- содержимое webapp/dist
 ```
@@ -42,15 +42,15 @@ npm ci
 VITE_API_URL=/api npm run build
 
 # на сервер
-rsync -a server/SchoolPiBoard.Online/publish/ user@server:/var/www/schoolpiboardon/api/
-rsync -a webapp/dist/            user@server:/var/www/schoolpiboardon/web/
+rsync -a server/SchoolPiBoard.Online/publish/ user@server:/var/www/schoolpiboard/api/
+rsync -a webapp/dist/            user@server:/var/www/schoolpiboard/web/
 ```
 
 `VITE_API_URL=/api` — ключевой момент. API и сайт живут на одном домене,
 nginx проксирует путь `/api` в приложение. Тогда браузер считает запросы
 своими, и CORS не нужен вовсе — меньше настроек и нечему ломаться.
 
-### systemd: `/etc/systemd/system/schoolpiboardon.service`
+### systemd: `/etc/systemd/system/schoolpiboard.service`
 
 ```ini
 [Unit]
@@ -58,8 +58,8 @@ Description=SchoolPiBoard online API
 After=network.target postgresql.service redis-server.service
 
 [Service]
-WorkingDirectory=/var/www/schoolpiboardon/api
-ExecStart=/usr/bin/dotnet /var/www/schoolpiboardon/api/SchoolPiBoard.Online.dll
+WorkingDirectory=/var/www/schoolpiboard/api
+ExecStart=/usr/bin/dotnet /var/www/schoolpiboard/api/SchoolPiBoard.Online.dll
 Restart=always
 RestartSec=5
 User=www-data
@@ -68,8 +68,8 @@ Environment=ASPNETCORE_URLS=http://127.0.0.1:5081
 Environment=ConnectionStrings__Postgres=Host=localhost;Database=schoolpiboard_online;Username=schoolpiboard;Password=СЕКРЕТ
 Environment=AUTH_TOKEN_SECRET=СЕКРЕТ
 Environment=REDIS_CONNECTION_STRING=localhost:6379
-Environment=Site__BaseUrl=https://school-pi-board.online
-Environment=Site__AppOrigins__0=https://school-pi-board.online
+Environment=Site__BaseUrl=https://board.school-pi.online
+Environment=Site__AppOrigins__0=https://board.school-pi.online
 Environment=Smtp__Host=smtp.yandex.ru
 Environment=Smtp__Port=465
 Environment=Smtp__User=info@school-pi.online
@@ -84,13 +84,13 @@ WantedBy=multi-user.target
 ```
 
 Секреты в unit-файле видны любому, кто может его прочитать. Если это
-неприемлемо — вынести их в `/etc/schoolpiboardon.env` с правами `600`
+неприемлемо — вынести их в `/etc/schoolpiboard.env` с правами `600`
 и подключить через `EnvironmentFile=`.
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now schoolpiboardon
-sudo journalctl -u schoolpiboardon -f
+sudo systemctl enable --now schoolpiboard
+sudo journalctl -u schoolpiboard -f
 ```
 
 Схема базы применяется при старте сервиса сама — отдельной команды нет.
@@ -100,12 +100,12 @@ sudo journalctl -u schoolpiboardon -f
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name school-pi-board.online;
+    server_name board.school-pi.online;
 
-    ssl_certificate     /etc/letsencrypt/live/school-pi-board.online/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/school-pi-board.online/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/board.school-pi.online/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/board.school-pi.online/privkey.pem;
 
-    root /var/www/schoolpiboardon/web;
+    root /var/www/schoolpiboard/web;
     index index.html;
 
     # Приложение одностраничное: любой адрес отдаём index.html,
@@ -140,7 +140,7 @@ server {
 
 server {
     listen 80;
-    server_name school-pi-board.online;
+    server_name board.school-pi.online;
     return 301 https://$host$request_uri;
 }
 ```
@@ -154,14 +154,15 @@ server {
 ## Сервер ключей десктопной версии
 
 Это отдельный продукт: свой домен, свой сервис, своя база, свой магазин
-Робокассы. Здесь он не разворачивается — см. `offline/docs/runbook.md`.
-Общего с сайтом онлайн-доски у него только машина и почтовый ящик.
+Робокассы. Здесь он не разворачивается — см. документацию в его собственном
+репозитории. Общего с сайтом онлайн-доски у него только машина и почтовый
+ящик.
 
 ## Порядок первого запуска
 
 1. Создать базу и пользователя PostgreSQL.
 2. Поднять Redis.
 3. Выпустить сертификаты, настроить nginx.
-4. Запустить сервисы, проверить `curl https://school-pi-board.online/api/health`.
+4. Запустить сервисы, проверить `curl https://board.school-pi.online/api/health`.
 5. Зарегистрироваться на сайте и убедиться, что письмо дошло.
 6. Провести тестовую оплату с `Payments__IsTest=true`.

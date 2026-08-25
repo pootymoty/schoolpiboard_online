@@ -1,6 +1,6 @@
 # SchoolPiBoard — онлайн-доска
 
-Сайт с онлайн-доской для совместной работы: school-pi-board.online.
+Сайт с онлайн-доской для совместной работы: board.school-pi.online.
 
 Самостоятельный продукт. С десктопным приложением (другой репозиторий) его
 связывают только тема, автор и потенциальная аудитория — общего кода, общей
@@ -40,10 +40,10 @@
 
 ## Развёртывание
 
-Планируемое место на сервере: `/var/www/schoolpiboardon`.
+Планируемое место на сервере: `/var/www/schoolpiboard`.
 
 ```
-/var/www/schoolpiboardon/
+/var/www/schoolpiboard/
   api/     <- результат dotnet publish из server/SchoolPiBoard.Online
   web/     <- содержимое webapp/dist
 ```
@@ -69,9 +69,9 @@ GitHub Actions (`.github/workflows/online-board.yml`): каждый пуш,
 
 ```bash
 curl -sL -o ob.tar.gz https://github.com/pootymoty/schoolpiboard_online/releases/download/online-board-latest/online-board.tar.gz
-sudo tar -xzf ob.tar.gz -C /var/www/schoolpiboardon
-sudo systemctl restart schoolpiboardon
+sudo tar -xzf ob.tar.gz -C /var/www/schoolpiboard
+sudo systemctl restart schoolpiboard
 ```
 
 Архив внутри уже разложен на `api/` и `web/`, поэтому распаковывается прямо
-в корень `/var/www/schoolpiboardon`.
+в корень `/var/www/schoolpiboard`.

@@ -1,7 +1,7 @@
 # SchoolPiBoard — сервер онлайн-доски
 
 ASP.NET Core 8 (minimal API + SignalR), PostgreSQL, Redis.
-Бэкенд сайта school-pi-board.online.
+Бэкенд сайта board.school-pi.online.
 
 **С сервером лицензий десктопной версии (`offline/server`) не связан ничем:**
 своя база, свои учётные записи, свои настройки и свой домен. Общего кода нет

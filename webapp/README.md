@@ -1,6 +1,6 @@
 # SchoolPiBoard — веб-приложение
 
-React + TypeScript + Vite. Сайт онлайн-доски school-pi-board.online.
+React + TypeScript + Vite. Сайт онлайн-доски board.school-pi.online.
 
 С десктопным приложением и его сервером лицензий этот проект не связан
 ничем: отдельный домен, отдельный бэкенд, отдельная база, отдельные

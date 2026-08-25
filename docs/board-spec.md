@@ -1,7 +1,7 @@
 # Онлайн-доска: что готово и что осталось сделать
 
 Задание для того, кто продолжает работу над этим репозиторием. Продукт —
-сайт school-pi-board.online: совместная доска в браузере по подписке.
+сайт board.school-pi.online: совместная доска в браузере по подписке.
 
 ## Главное правило
 
@@ -20,8 +20,8 @@
 
 | | |
 |---|---|
-| Домен | school-pi-board.online |
-| Папка на сервере | `/var/www/schoolpiboardon` |
+| Домен | board.school-pi.online |
+| Папка на сервере | `/var/www/schoolpiboard` |
 | Бэкенд | `server/SchoolPiBoard.Online` — ASP.NET Core 8, minimal API, SignalR |
 | Фронтенд | `webapp` — React 18 + TypeScript + Vite |
 | База | PostgreSQL, `schoolpiboard_online`, схема применяется при старте из `sql/*.sql` |

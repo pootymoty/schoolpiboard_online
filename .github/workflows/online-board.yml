@@ -56,7 +56,7 @@ jobs:
       # Готовый архив кладём в релиз: по такой ссылке его можно забрать
       # обычным curl, без токенов и без установки чего-либо на сервер.
       # Внутри уже разложено на api/ и web/ — распаковывать прямо в
-      # /var/www/schoolpiboardon.
+      # /var/www/schoolpiboard.
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -64,5 +64,5 @@ jobs:
           gh release delete online-board-latest --yes --cleanup-tag || true
           gh release create online-board-latest online-board.tar.gz \
             --title "Онлайн-доска — последняя сборка" \
-            --notes "Собрано из ${{ github.sha }}. Распаковывается в /var/www/schoolpiboardon." \
+            --notes "Собрано из ${{ github.sha }}. Распаковывается в /var/www/schoolpiboard." \
             --prerelease
