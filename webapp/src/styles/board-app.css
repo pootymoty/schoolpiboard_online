@@ -1,0 +1,318 @@
+/* ==========================================================================
+   Своё поверх темы.
+
+   Здесь только то, чего в schoolpi-theme.css нет: раскладка страниц доски,
+   список досок, участники и комната ожидания. Всё остальное — кнопки,
+   карточки, поля, метки — берётся из темы как есть.
+
+   Цвета только через переменные темы. Прямой #hex здесь означал бы, что
+   в тёмной теме он останется прежним, — это самая частая причина
+   «тёмная тема почти работает».
+   ========================================================================== */
+
+/* --- Каркас страницы ------------------------------------------------------ */
+
+.app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.app__main {
+    flex: 1;
+    width: 100%;
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: var(--sp-5) var(--sp-4) var(--sp-7);
+}
+
+.app__main--narrow {
+    max-width: var(--field-max);
+}
+
+.app__footer {
+    background: var(--header-bg);
+    color: var(--text-on-dark);
+    padding: var(--sp-5) var(--sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    align-items: center;
+    text-align: center;
+}
+
+.app__footer a { color: var(--text-on-dark); }
+
+/* Экран загрузки до того, как стало известно, вошёл человек или нет. */
+.app__splash {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* --- Ряды и вспомогательное ----------------------------------------------- */
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+}
+
+.row--between {
+    justify-content: space-between;
+    width: 100%;
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+
+.small { font-size: var(--fs-sm); }
+
+/* --- Список досок --------------------------------------------------------- */
+
+.board-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.board-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.board-item__title {
+    flex: 1;
+    font-family: var(--font-head);
+    font-weight: 700;
+    color: var(--text);
+    text-decoration: none;
+    /* Длинное название не должно выдавливать кнопки за край строки. */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.board-item__title:hover { color: var(--accent); }
+
+/* --- Меню на три точки ---------------------------------------------------- */
+
+.menu { position: relative; }
+
+.menu__list {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--sp-1));
+    z-index: 20;
+    min-width: 200px;
+    padding: var(--sp-1);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+}
+
+.menu__item {
+    justify-content: flex-start;
+    width: 100%;
+    background: transparent;
+    border-color: transparent;
+    min-height: 40px;
+    font-weight: 500;
+}
+
+.menu__item:hover { background: var(--surface-2); }
+.menu__item--danger { color: var(--danger); }
+
+/* --- Всплывающее окно ------------------------------------------------------ */
+
+.modal__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: var(--shadow-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--sp-4);
+}
+
+.modal {
+    width: 100%;
+    max-width: var(--field-max);
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: var(--sp-5);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+}
+
+.modal__title {
+    font-family: var(--font-head);
+    margin: 0 0 var(--sp-4);
+}
+
+/* --- Страница доски -------------------------------------------------------- */
+
+.board-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    /* Вычитаем шапку: холст должен занимать остальное, а не выталкивать
+       страницу в прокрутку. */
+    min-height: calc(100vh - var(--header-h));
+}
+
+.board-page__bar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+}
+
+.board-page__title {
+    font-family: var(--font-head);
+    font-size: var(--fs-h3);
+    font-weight: 700;
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.board-page__canvas {
+    flex: 1;
+    min-height: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: var(--sp-6);
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+}
+
+/* --- Участники ------------------------------------------------------------- */
+
+.people {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+}
+
+.people__item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2);
+    border-radius: var(--radius-sm);
+}
+
+.people__item:hover { background: var(--surface-2); }
+
+.people__name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Значок роли перед именем. Размер тот же, что у строки, чтобы значки
+   выстроились в колонку и читались как столбец, а не как разнобой. */
+.people__icon {
+    width: 20px;
+    display: inline-flex;
+    justify-content: center;
+    flex: none;
+    color: var(--text-muted);
+}
+
+.people__group {
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted);
+    margin: var(--sp-3) 0 var(--sp-1);
+}
+
+/* Заявка в комнате ожидания: видна только владельцу доски. */
+.people__item--waiting {
+    background: var(--warning-soft);
+    flex-wrap: wrap;
+}
+
+/* --- Комната ожидания (то, что видит гость) -------------------------------- */
+
+.waiting {
+    text-align: center;
+    padding: var(--sp-6) var(--sp-4);
+}
+
+.waiting__dots {
+    display: inline-flex;
+    gap: var(--sp-1);
+    margin-top: var(--sp-3);
+}
+
+.waiting__dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: waiting-pulse 1.4s ease-in-out infinite;
+}
+
+.waiting__dots span:nth-child(2) { animation-delay: .2s; }
+.waiting__dots span:nth-child(3) { animation-delay: .4s; }
+
+@keyframes waiting-pulse {
+    0%, 60%, 100% { opacity: .25; }
+    30% { opacity: 1; }
+}
+
+/* Уважаем настройку «меньше движения»: анимация ожидания — украшение,
+   и человеку, которому она мешает, она не нужна. */
+@media (prefers-reduced-motion: reduce) {
+    .waiting__dots span { animation: none; opacity: .6; }
+}
+
+/* --- Ссылка на доску -------------------------------------------------------- */
+
+.link-box {
+    display: flex;
+    gap: var(--sp-2);
+    align-items: stretch;
+}
+
+.link-box input {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+}

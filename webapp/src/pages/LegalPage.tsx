@@ -57,7 +57,7 @@ export function LegalPage(): ReactElement {
 
   return (
     <Page>
-      <article className="card legal">
+      <article className="card reading">
         <h1>{document.title}</h1>
         {document.paragraphs.map((paragraph, index) => (
           <p key={index}>{paragraph}</p>

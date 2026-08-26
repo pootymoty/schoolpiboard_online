@@ -42,22 +42,22 @@ export function MembersPanel({ boardId }: { boardId: number }): ReactElement {
   return (
     <section className="card panel">
       <h2>Участники</h2>
-      <p className="muted small">
+      <p className="text-muted small">
         Здесь те, кто вошёл под своей учётной записью. Гости в списке не
         появляются: о них ничего не сохраняется.
       </p>
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="note note-danger">{error}</p> : null}
 
       {members.length === 0 ? (
-        <p className="muted">Пока никого.</p>
+        <p className="text-muted">Пока никого.</p>
       ) : (
         <ul className="member-list">
           {members.map((member) => (
             <li className="member-row" key={member.userId}>
               <div>
                 <span className="member-name">{member.displayName}</span>
-                <span className="muted small"> {member.email}</span>
+                <span className="text-muted small"> {member.email}</span>
                 {member.banned ? <span className="badge"> доступ закрыт</span> : null}
               </div>
 
@@ -74,7 +74,7 @@ export function MembersPanel({ boardId }: { boardId: number }): ReactElement {
                   </select>
 
                   <button
-                    className="button ghost"
+                    className="btn-quiet"
                     type="button"
                     onClick={() => setBanned(member.userId, !member.banned)}
                   >

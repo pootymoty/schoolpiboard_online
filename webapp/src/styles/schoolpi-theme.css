@@ -1,0 +1,722 @@
+/* ==========================================================================
+   Тема «Переплёт и бумага» — SchoolPiBoard Web
+
+   Перенесена из school-pi.online, чтобы доска выглядела частью того же
+   продукта. Здесь только то, что переносимо: токены, основа, кнопки,
+   поля, карточки, таблицы. Разметка сайта (шапка, меню, карточки
+   преподавателей) не перенесена — у доски она своя.
+
+   Зависимостей нет. Bootstrap не нужен: на сайте он остался с прежних
+   времён и половина стилей написана, чтобы его переопределять.
+
+   Правила, которые не стоит нарушать:
+
+   * Ни одного цвета с альфа-каналом в палитре. Полупрозрачный цвет
+     зависит от того, что под ним, и контраст становится
+     непредсказуемым. На сайте из-за этого ни одна кнопка не проходила
+     норму WCAG, пока цвета не сделали непрозрачными.
+   * Цвет берётся только из переменной. Прямой #hex в правиле означает,
+     что в тёмной теме он останется прежним.
+   * Тёмная тема задана дважды: по настройке системы и по явному выбору.
+     Оба блока нужны, см. раздел 2.
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. ШРИФТ
+
+   Manrope, переменный: одно начертание покрывает вес от 500 до 800,
+   отдельных файлов на полужирный не нужно.
+
+   Разбит по алфавитам — браузер скачивает только то, что встретилось на
+   странице. Греческий кусок нужен из-за буквы π в названии: 9 КБ вместо
+   всего набора.
+
+   font-display: swap — текст виден сразу системным шрифтом и
+   подменяется, когда шрифт дойдёт. Иначе заголовки пустуют.
+
+   Файлы лежат рядом, в папке fonts/. Лицензия — OFL, файл OFL.txt
+   приложен и должен остаться.
+   ========================================================================== */
+@font-face {
+    font-family: 'Manrope';
+    font-style: normal;
+    font-weight: 500 800;
+    font-display: swap;
+    src: url('./fonts/manrope-cyrillic.woff2') format('woff2');
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+    font-family: 'Manrope';
+    font-style: normal;
+    font-weight: 500 800;
+    font-display: swap;
+    src: url('./fonts/manrope-cyrillic-ext.woff2') format('woff2');
+    unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+    font-family: 'Manrope';
+    font-style: normal;
+    font-weight: 500 800;
+    font-display: swap;
+    src: url('./fonts/manrope-greek.woff2') format('woff2');
+    unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+    font-family: 'Manrope';
+    font-style: normal;
+    font-weight: 500 800;
+    font-display: swap;
+    src: url('./fonts/manrope-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+        U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Manrope';
+    font-style: normal;
+    font-weight: 500 800;
+    font-display: swap;
+    src: url('./fonts/manrope-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+        U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+        U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+
+/* ==========================================================================
+   2. ТОКЕНЫ
+   ========================================================================== */
+:root {
+    /* --- Светлая тема: кремовая бумага и кирпичный корешок учебника ---- */
+    --background: #F5F0E6;      /* фон страницы */
+    --surface: #FFFBF2;         /* карточки, панели, поля ввода */
+    --surface-2: #EDE5D6;       /* приглушённые блоки, вторичные кнопки */
+    --surface-3: #E3D9C6;       /* наведение на приглушённое */
+    --line: #E0D8C9;            /* границы и разделители */
+    /* Граница поля ввода. Контраст к поверхности не ниже 3:1 по WCAG
+       1.4.11, иначе не видно, где начинается поле. Прежнее значение
+       давало 1.69 — рамка сливалась с карточкой. */
+    --line-strong: #8E7E67;
+
+    --text: #2A211C;
+    --text-muted: #5E5148;
+    --text-on-accent: #FFFFFF;
+    --text-on-dark: #F7F0E8;
+
+    --accent: #7A2E1E;
+    --accent-hover: #632518;
+    --accent-soft: #F2E4DC;
+
+    --danger: #A32118;
+    --danger-hover: #871B14;
+    --danger-soft: #F8E3E0;
+    --success: #3A6B3C;
+    --success-soft: #E4EDDF;
+    --warning: #8A5209;
+    --warning-soft: #F7EBD8;
+    --info: #2A4E8F;
+    --info-soft: #E2E8F5;
+
+    --header-bg: #4A2018;       /* шапка и подвал */
+
+    /* Холст доски. Намеренно светлее фона страницы и почти без оттенка:
+       на нём рисуют, и кремовый подмешивался бы в каждый цвет. */
+    --canvas: #FFFFFF;
+    --canvas-grid: #E8E2D6;
+
+    --shadow-color: rgba(42, 33, 28, .12);
+    --shadow-sm: 0 1px 2px rgba(42, 33, 28, .06);
+    --shadow: 0 1px 2px rgba(42, 33, 28, .06), 0 4px 12px rgba(42, 33, 28, .08);
+    --shadow-lg: 0 8px 32px rgba(42, 33, 28, .16);
+
+    /* --- Отступы: шаг 4 пикселя ---------------------------------------- */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 24px;
+    --sp-6: 32px;
+    --sp-7: 48px;
+    --sp-8: 64px;
+
+    /* --- Размеры -------------------------------------------------------- */
+    --radius-sm: 6px;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --radius-pill: 999px;
+
+    --header-h: 84px;
+    --content-max: 1200px;
+    --reading-max: 68ch;
+    --field-max: 34rem;
+
+    /* --- Типографика ---------------------------------------------------- */
+    --font-body: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-head: 'Manrope', "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    --fs-xs: 13px;
+    --fs-sm: 14px;
+    --fs-base: 16px;
+    --fs-lg: 18px;
+    --fs-h3: 20px;
+    --fs-h2: 25px;
+    --fs-h1: 32px;
+
+    --lh-tight: 1.25;
+    --lh-base: 1.6;
+
+    --transition: .15s ease;
+}
+
+/* --- Тёмная тема ----------------------------------------------------------
+   Задана дважды, и оба раза нужны.
+
+   Настройка «как в системе» не ставит на странице никакой отметки — там
+   работает только prefers-color-scheme. Явный выбор ставит атрибут
+   data-theme на корневой элемент.
+
+   :not([data-theme="light"]) нужен, чтобы явный выбор светлой темы
+   победил тёмную настройку системы. Без него человек, выбравший
+   светлую, всё равно получил бы тёмную.
+
+   Значения перечислены дважды намеренно: собрать их в одно место можно
+   только через препроцессор, а лишняя сборка ради экономии тридцати
+   строк того не стоит. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --background: #1A1512;
+        --surface: #241D18;
+        --surface-2: #322820;
+        --surface-3: #3E3228;
+        --line: #3B2F27;
+        --line-strong: #877162;
+
+        --text: #F2E9E0;
+        --text-muted: #B5A597;
+        --text-on-accent: #1A1512;
+        --text-on-dark: #F2E9E0;
+
+        --accent: #E39C86;
+        --accent-hover: #EDB39F;
+        --accent-soft: #33241E;
+
+        --danger: #F08A7C;
+        --danger-hover: #F5A296;
+        --danger-soft: #3A241F;
+        --success: #8FC490;
+        --success-soft: #23301F;
+        --warning: #E0A951;
+        --warning-soft: #332818;
+        --info: #93A4F2;
+        --info-soft: #22253A;
+
+        --header-bg: #241D18;
+
+        /* Холст в тёмной теме не чёрный: рисуют обычно тёмным по
+           светлому, и чёрный холст заставил бы менять все цвета пера.
+           Тёмно-серый гасит свечение, оставляя фон светлым. */
+        --canvas: #2E2A26;
+        --canvas-grid: #3E3830;
+
+        --shadow-color: rgba(0, 0, 0, .5);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
+        --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 12px rgba(0, 0, 0, .35);
+        --shadow-lg: 0 8px 32px rgba(0, 0, 0, .5);
+    }
+}
+
+:root[data-theme="dark"] {
+    --background: #1A1512;
+    --surface: #241D18;
+    --surface-2: #322820;
+    --surface-3: #3E3228;
+    --line: #3B2F27;
+    --line-strong: #877162;
+
+    --text: #F2E9E0;
+    --text-muted: #B5A597;
+    --text-on-accent: #1A1512;
+    --text-on-dark: #F2E9E0;
+
+    --accent: #E39C86;
+    --accent-hover: #EDB39F;
+    --accent-soft: #33241E;
+
+    --danger: #F08A7C;
+    --danger-hover: #F5A296;
+    --danger-soft: #3A241F;
+    --success: #8FC490;
+    --success-soft: #23301F;
+    --warning: #E0A951;
+    --warning-soft: #332818;
+    --info: #93A4F2;
+    --info-soft: #22253A;
+
+    --header-bg: #241D18;
+
+    --canvas: #2E2A26;
+    --canvas-grid: #3E3830;
+
+    --shadow-color: rgba(0, 0, 0, .5);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 12px rgba(0, 0, 0, .35);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, .5);
+}
+
+
+/* ==========================================================================
+   3. ОСНОВА
+   ========================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: var(--fs-base);
+    line-height: var(--lh-base);
+    color: var(--text);
+    background-color: var(--background);
+    -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: underline; }
+a:hover { color: var(--accent-hover); }
+
+img, svg, video { max-width: 100%; height: auto; }
+
+hr {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: var(--sp-5) 0;
+}
+
+code, pre, kbd { font-family: var(--font-mono); font-size: .9em; }
+
+/* Видимый фокус с клавиатуры. На сайте когда-то стоял
+   outline: none !important — при навигации табом было не понять, где
+   находишься. :focus-visible не мешает тем, кто с мышью. */
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+::selection { background: var(--accent-soft); color: var(--text); }
+
+/* Уважать системную настройку «меньше движения». */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+
+/* ==========================================================================
+   4. ТИПОГРАФИКА
+   ========================================================================== */
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-head);
+    line-height: var(--lh-tight);
+    color: var(--text);
+    text-wrap: balance;
+    /* Крупный кегль всегда выглядит разреженным: промежутки между
+       буквами растут вместе с размером, а глаз ждёт их прежними. */
+    letter-spacing: -.01em;
+}
+
+h1 { font-size: var(--fs-h1); margin: 0 0 var(--sp-4); }
+h2 { font-size: var(--fs-h2); margin: 0 0 var(--sp-3); }
+h3 { font-size: var(--fs-h3); margin: 0 0 var(--sp-2); }
+h4 { font-size: var(--fs-lg); margin: 0 0 var(--sp-2); }
+
+p { margin: 0 0 var(--sp-3); }
+p:last-child { margin-bottom: 0; }
+
+small, .small { font-size: var(--fs-sm); }
+strong, b { font-weight: 600; }
+
+.text-muted { color: var(--text-muted); }
+.reading { max-width: var(--reading-max); }
+
+
+/* ==========================================================================
+   5. РАСКЛАДКА
+   ========================================================================== */
+.container {
+    max-width: var(--content-max);
+    margin: 0 auto var(--sp-5);
+    padding: var(--sp-5);
+}
+
+/* Панель — основная поверхность: список досок, настройки, вход. */
+.panel {
+    padding: var(--sp-5);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Вложенная панель рамку не рисует.
+   На сайте это была заметная беда: панель внутри панели внутри панели
+   давала коробку в коробке. Рамку держит внешний блок и конечная
+   карточка с содержимым; всё между ними служит только раскладке. */
+.panel .panel {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    border-radius: 0;
+}
+
+.page-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--sp-5);
+}
+.page-header h1 { margin-bottom: var(--sp-1); }
+.page-header__sub { color: var(--text-muted); font-size: var(--fs-sm); margin: 0; }
+.page-header__actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    align-items: center;
+    margin: 0 0 var(--sp-5);
+}
+
+
+/* ==========================================================================
+   6. КНОПКИ
+   ========================================================================== */
+button, .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    min-height: 44px;          /* сенсорная цель */
+    padding: 10px 18px;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: var(--fs-base);
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+    background-color: var(--surface-2);
+    color: var(--text);
+    transition: background-color var(--transition), border-color var(--transition), color var(--transition);
+    /* Долгое нажатие на телефоне вызывало системное меню и позволяло
+       утащить кнопку-ссылку в поисковую строку. */
+    -webkit-touch-callout: none;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+button:hover, .btn:hover { background-color: var(--surface-3); text-decoration: none; }
+button:disabled, .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Отклик на само нажатие. На сенсорном экране это единственная честная
+   обратная связь: :hover там срабатывает от касания и остаётся висеть. */
+button:active, .btn:active { transform: scale(.98); }
+button:disabled:active, .btn:disabled:active { transform: none; }
+
+/* Главное действие */
+.btn-primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: var(--text-on-accent);
+}
+.btn-primary:hover {
+    background-color: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: var(--text-on-accent);
+}
+
+/* Опасное действие */
+.btn-danger {
+    background-color: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+}
+.btn-danger:hover {
+    background-color: var(--danger-hover);
+    border-color: var(--danger-hover);
+    color: #fff;
+}
+
+/* Вторичное — контур */
+.btn-outline {
+    background-color: transparent;
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.btn-outline:hover {
+    background-color: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Третичное — нейтральный фон */
+.btn-quiet {
+    background-color: var(--surface-2);
+    border-color: var(--line);
+    color: var(--text);
+}
+.btn-quiet:hover { background-color: var(--surface-3); }
+
+/* Мелкая кнопка. Высота задана явно: одних отступов мало — выходил
+   31 пиксель, и попасть пальцем в «Удалить» рядом с «Изменить»
+   получалось не с первого раза. */
+.btn-sm { padding: 6px 12px; font-size: var(--fs-sm); min-height: 36px; }
+.btn-lg { padding: 13px 24px; font-size: var(--fs-lg); }
+.btn-block { width: 100%; }
+
+/* Кнопка на панели инструментов доски: квадратная, только значок. */
+.btn-tool {
+    min-height: 44px;
+    width: 44px;
+    padding: 0;
+    background: transparent;
+    border-color: transparent;
+}
+.btn-tool:hover { background: var(--surface-2); }
+.btn-tool[aria-pressed="true"] {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+
+/* ==========================================================================
+   7. ПОЛЯ ВВОДА
+   ========================================================================== */
+.field { margin-bottom: var(--sp-4); }
+
+label {
+    display: block;
+    font-weight: 600;
+    font-size: var(--fs-sm);
+    color: var(--text);
+    margin-bottom: var(--sp-1);
+}
+
+input[type="text"], input[type="email"], input[type="password"],
+input[type="number"], input[type="tel"], input[type="search"],
+input[type="date"], input[type="time"], input[type="url"],
+input[type="file"], textarea, select {
+    display: block;
+    width: 100%;
+    max-width: var(--field-max);
+    padding: 10px 12px;
+    margin-bottom: var(--sp-3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    /* Меньше 16px — iOS увеличивает страницу при получении фокуса. */
+    font-size: var(--fs-base);
+    font-family: inherit;
+    background-color: var(--surface);
+    color: var(--text);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+textarea { max-width: none; min-height: 120px; resize: vertical; }
+
+input:focus, textarea:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    outline: none;
+}
+
+input::placeholder, textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+/* Автозаполнение. Браузер подставляет собственный ярко-белый фон и
+   тёмный текст — в тёмной теме поле вспыхивало белым, а текст оставался
+   нечитаемым. Заливка внутренней тенью — единственный способ перебить. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px var(--surface) inset !important;
+    box-shadow: 0 0 0 1000px var(--surface) inset !important;
+    -webkit-text-fill-color: var(--text) !important;
+    caret-color: var(--text);
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* В тёмной теме системный выпадающий список остаётся светлым, поэтому
+   цвет задаётся и на самом пункте. */
+select option { background-color: var(--surface); color: var(--text); }
+
+/* Флажки и переключатели.
+   Размер задан явно и крупнее принятого: браузер рисует флажок примерно
+   в 13 пикселей — на телефоне это полоска, в которую тяжело попасть.
+
+   accent-color красит галочку в цвет темы, оставляя браузеру его
+   собственную отрисовку. Своя разметка из span и псевдоэлементов
+   выглядит так же, но ломает поведение с клавиатуры и в программах
+   чтения с экрана. */
+input[type="checkbox"], input[type="radio"] {
+    width: 22px;
+    height: 22px;
+    max-width: none;
+    flex-shrink: 0;
+    margin: 0 var(--sp-2) 0 0;
+    accent-color: var(--accent);
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+.check { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.check label { margin: 0; font-weight: 400; cursor: pointer; }
+
+fieldset {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--sp-4);
+    margin: 0 0 var(--sp-4);
+}
+
+
+/* ==========================================================================
+   8. КАРТОЧКИ, ТАБЛИЦЫ, МЕТКИ
+   ========================================================================== */
+.card {
+    padding: var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+.card-title { font-family: var(--font-head); margin-bottom: var(--sp-2); }
+
+/* Широкая таблица прокручивается внутри своей обёртки, а не растягивает
+   страницу вбок. */
+.table-wrap { overflow-x: auto; }
+
+table { width: 100%; border-collapse: collapse; }
+
+th, td {
+    padding: var(--sp-3);
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+}
+th {
+    font-family: var(--font-head);
+    font-weight: 700;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+}
+tbody tr:last-child td { border-bottom: none; }
+
+.badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: var(--radius-pill);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    background: var(--surface-2);
+    color: var(--text);
+}
+.badge-success { background: var(--success-soft); color: var(--success); }
+.badge-danger  { background: var(--danger-soft);  color: var(--danger); }
+.badge-warning { background: var(--warning-soft); color: var(--warning); }
+.badge-info    { background: var(--info-soft);    color: var(--info); }
+
+/* Сообщение о результате действия */
+.note {
+    padding: var(--sp-3) var(--sp-4);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    margin-bottom: var(--sp-4);
+}
+.note-success { background: var(--success-soft); border-color: var(--success); }
+.note-danger  { background: var(--danger-soft);  border-color: var(--danger); }
+.note-warning { background: var(--warning-soft); border-color: var(--warning); }
+.note-info    { background: var(--info-soft);    border-color: var(--info); }
+
+/* Пустое состояние: список, в котором пока ничего нет. */
+.empty {
+    padding: var(--sp-7) var(--sp-4);
+    text-align: center;
+    color: var(--text-muted);
+}
+
+
+/* ==========================================================================
+   9. ШАПКА
+   ========================================================================== */
+.header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    min-height: var(--header-h);
+    padding: 0 var(--sp-5);
+    background: var(--header-bg);
+    color: var(--text-on-dark);
+}
+.header a { color: var(--text-on-dark); text-decoration: none; }
+.header a:hover { text-decoration: underline; }
+.header__brand { font-family: var(--font-head); font-weight: 800; font-size: var(--fs-h3); }
+.header__spacer { flex: 1; }
+
+
+/* ==========================================================================
+   10. ХОЛСТ ДОСКИ
+
+   Здесь только то, без чего рисование ломается. Остальное — за react-konva.
+   ========================================================================== */
+.board {
+    position: relative;
+    background: var(--canvas);
+    /* Без этого браузер прокрутит страницу вместо рисования, а на
+       планшете ещё и увеличит масштаб двойным касанием. */
+    touch-action: none;
+    /* Указатель не должен выделять текст при протягивании. */
+    user-select: none;
+    overscroll-behavior: none;
+}
+
+/* Панель инструментов поверх холста */
+.board-tools {
+    position: absolute;
+    top: var(--sp-4);
+    left: var(--sp-4);
+    display: flex;
+    gap: var(--sp-1);
+    padding: var(--sp-1);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+/* Подпись у чужого курсора */
+.cursor-label {
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    pointer-events: none;
+}

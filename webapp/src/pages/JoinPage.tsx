@@ -77,10 +77,10 @@ export function JoinPage(): ReactElement {
   if (error && !info) {
     return (
       <Page>
-        <div className="card form">
+        <div className="card">
           <h1>Приглашение на доску</h1>
-          <p className="error">{error}</p>
-          <p className="muted small">
+          <p className="note note-danger">{error}</p>
+          <p className="text-muted small">
             Возможно, ссылку отозвали или у неё истёк срок. Попросите новую
             у того, кто вас позвал.
           </p>
@@ -91,7 +91,7 @@ export function JoinPage(): ReactElement {
 
   return (
     <Page>
-      <div className="card form">
+      <div className="card">
         <h1>Приглашение на доску</h1>
 
         {info ? (
@@ -100,18 +100,18 @@ export function JoinPage(): ReactElement {
             {info.role === 'viewer' ? ' — смотреть, без права рисовать' : ''}.
           </p>
         ) : (
-          <p className="muted">Загружаем…</p>
+          <p className="text-muted">Загружаем…</p>
         )}
 
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="note note-danger">{error}</p> : null}
 
         {loading || !info ? null : user ? (
           <>
-            <p className="muted">
+            <p className="text-muted">
               Вы вошли как {user.displayName}. Доска появится в вашем списке —
               и останется там, даже если ссылку потом отзовут.
             </p>
-            <button className="button" type="button" onClick={joinAsUser} disabled={busy}>
+            <button className="btn-primary" type="button" onClick={joinAsUser} disabled={busy}>
               {busy ? 'Открываем…' : 'Открыть доску'}
             </button>
           </>
@@ -123,17 +123,17 @@ export function JoinPage(): ReactElement {
                      placeholder="Имя увидят другие на доске"
                      value={name} onChange={(event) => setName(event.target.value)} />
 
-              <button className="button" type="submit" disabled={busy}>
+              <button className="btn-primary" type="submit" disabled={busy}>
                 {busy ? 'Входим…' : 'Войти на доску'}
               </button>
             </form>
 
-            <p className="muted small">
+            <p className="text-muted small">
               Регистрироваться не нужно. Имя нужно только чтобы вас узнавали
               на доске — оно нигде не сохраняется.
             </p>
 
-            <p className="muted small">
+            <p className="text-muted small">
               Если у вас есть учётная запись, <Link to={`/login?next=/join/${token ?? ''}`}>войдите</Link> —
               тогда доска останется в вашем списке.
             </p>

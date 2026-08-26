@@ -63,7 +63,7 @@ export function LoginPage(): ReactElement {
 
   return (
     <Page>
-      <form className="card form" onSubmit={submit}>
+      <form className="card" onSubmit={submit}>
         <h1>Вход</h1>
 
         <label htmlFor="email">Почта</label>
@@ -74,23 +74,23 @@ export function LoginPage(): ReactElement {
         <input id="password" type="password" required autoComplete="current-password"
                value={password} onChange={(event) => setPassword(event.target.value)} />
 
-        {error ? <p className="error">{error}</p> : null}
-        {notice ? <p className="muted">{notice}</p> : null}
+        {error ? <p className="note note-danger">{error}</p> : null}
+        {notice ? <p className="text-muted">{notice}</p> : null}
 
         {needsConfirmation ? (
-          <button className="button ghost" type="button" onClick={resend} disabled={busy}>
+          <button className="btn-quiet" type="button" onClick={resend} disabled={busy}>
             Выслать письмо ещё раз
           </button>
         ) : null}
 
-        <button className="button" type="submit" disabled={busy}>
+        <button className="btn-primary" type="submit" disabled={busy}>
           {busy ? 'Входим…' : 'Войти'}
         </button>
 
-        <p className="muted small">
+        <p className="text-muted small">
           <Link to="/forgot-password">Забыли пароль?</Link>
         </p>
-        <p className="muted small">
+        <p className="text-muted small">
           Нет учётной записи? <Link to="/register">Зарегистрироваться</Link>
         </p>
       </form>

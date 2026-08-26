@@ -60,7 +60,7 @@ export function LinksPanel({ boardId }: { boardId: number }): ReactElement {
   return (
     <section className="card panel">
       <h2>Ссылки на доску</h2>
-      <p className="muted small">
+      <p className="text-muted small">
         Кто откроет ссылку, войдёт с её ролью. Регистрация для этого не нужна.
       </p>
 
@@ -73,13 +73,13 @@ export function LinksPanel({ boardId }: { boardId: number }): ReactElement {
         <input type="text" maxLength={100} placeholder="Подпись: для кого эта ссылка"
                value={label} onChange={(event) => setLabel(event.target.value)} />
 
-        <button className="button" type="button" onClick={create}>Создать ссылку</button>
+        <button className="btn-primary" type="button" onClick={create}>Создать ссылку</button>
       </div>
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="note note-danger">{error}</p> : null}
 
       {links.length === 0 ? (
-        <p className="muted">Ссылок пока нет.</p>
+        <p className="text-muted">Ссылок пока нет.</p>
       ) : (
         <ul className="invite-list">
           {links.map((link) => (
@@ -88,16 +88,16 @@ export function LinksPanel({ boardId }: { boardId: number }): ReactElement {
                 <span className={`badge badge-${link.role}`}>
                   {link.role === 'editor' ? 'работает' : 'смотрит'}
                 </span>
-                {link.label ? <span className="muted small">{link.label}</span> : null}
+                {link.label ? <span className="text-muted small">{link.label}</span> : null}
               </div>
 
               <code className="fresh-invite">{link.url}</code>
 
               <div className="row">
-                <button className="button ghost" type="button" onClick={() => copy(link)}>
+                <button className="btn-quiet" type="button" onClick={() => copy(link)}>
                   {copied === link.id ? 'Скопировано' : 'Копировать'}
                 </button>
-                <button className="button ghost danger-zone" type="button" onClick={() => revoke(link.id)}>
+                <button className="btn-danger btn-sm" type="button" onClick={() => revoke(link.id)}>
                   Отозвать
                 </button>
               </div>
@@ -106,7 +106,7 @@ export function LinksPanel({ boardId }: { boardId: number }): ReactElement {
         </ul>
       )}
 
-      <p className="muted small">
+      <p className="text-muted small">
         Отозванная ссылка перестаёт работать сразу. Те, кто успел войти под
         своей учётной записью, доску не теряют — у них доступ держится не на
         ссылке. Гости отключаются.

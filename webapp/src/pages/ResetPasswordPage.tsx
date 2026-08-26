@@ -55,10 +55,10 @@ export function ResetPasswordPage(): ReactElement {
   if (!token) {
     return (
       <Page>
-        <div className="card form">
+        <div className="card">
           <h1>Новый пароль</h1>
-          <p className="error">Ссылка неполная. Откройте её из письма целиком.</p>
-          <Link className="button" to="/forgot-password">Запросить ссылку заново</Link>
+          <p className="note note-danger">Ссылка неполная. Откройте её из письма целиком.</p>
+          <Link className="btn-primary" to="/forgot-password">Запросить ссылку заново</Link>
         </div>
       </Page>
     );
@@ -66,7 +66,7 @@ export function ResetPasswordPage(): ReactElement {
 
   return (
     <Page>
-      <form className="card form" onSubmit={submit}>
+      <form className="card" onSubmit={submit}>
         <h1>Новый пароль</h1>
 
         <label htmlFor="password">Пароль</label>
@@ -77,9 +77,9 @@ export function ResetPasswordPage(): ReactElement {
         <input id="passwordConfirm" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password"
                value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} />
 
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="note note-danger">{error}</p> : null}
 
-        <button className="button" type="submit" disabled={busy}>
+        <button className="btn-primary" type="submit" disabled={busy}>
           {busy ? 'Сохраняем…' : 'Задать пароль'}
         </button>
       </form>

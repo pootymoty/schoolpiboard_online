@@ -1,44 +1,82 @@
+import { useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { IconMoon, IconSun } from './Icons';
 
-/** Шапка с логотипом и названием платформы — общая для всех страниц. */
+type Theme = 'light' | 'dark';
+
+/**
+ * Переключатель темы.
+ *
+ * Начальное значение читается из атрибута, который проставил скрипт в
+ * index.html: если бы тему ставило приложение, между показом страницы и
+ * запуском кода мелькал бы светлый фон.
+ */
+function useTheme(): { theme: Theme; toggle: () => void } {
+  const [theme, setTheme] = useState<Theme>(
+    () => (document.documentElement.getAttribute('data-theme') as Theme) || 'light',
+  );
+
+  const toggle = () => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try {
+      localStorage.setItem('theme', next);
+    } catch {
+      // В приватном режиме хранилище недоступно — тема продержится до
+      // перезагрузки страницы, и это лучше, чем падение.
+    }
+    setTheme(next);
+  };
+
+  return { theme, toggle };
+}
+
 export function Header(): ReactElement {
   const { user, logout } = useAuth();
+  const { theme, toggle } = useTheme();
 
   return (
-    <header className="site-header">
-      <Link className="logo" to={user ? '/boards' : '/'}>
-        <span className="logo-mark" aria-hidden="true">π</span>
-        <span className="logo-text">SchoolPiBoard</span>
-      </Link>
+    <header className="header">
+      <Link className="header__brand" to={user ? '/boards' : '/'}>SchoolPiBoard</Link>
 
-      <nav className="row">
-        {user ? (
-          <>
-            <Link className="nav-link" to="/boards">Мои доски</Link>
-            <button className="button ghost" type="button" onClick={logout}>Выйти</button>
-          </>
-        ) : (
-          <>
-            <Link className="nav-link" to="/login">Войти</Link>
-            <Link className="button" to="/register">Регистрация</Link>
-          </>
-        )}
-      </nav>
+      <span className="header__spacer" />
+
+      <button
+        className="btn-tool"
+        type="button"
+        onClick={toggle}
+        title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+        aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+      >
+        {theme === 'dark' ? <IconSun /> : <IconMoon />}
+      </button>
+
+      {user ? (
+        <>
+          <Link to="/boards">Мои доски</Link>
+          <button className="btn-quiet btn-sm" type="button" onClick={logout}>Выйти</button>
+        </>
+      ) : (
+        <>
+          <Link to="/login">Войти</Link>
+          <Link className="btn-primary btn-sm" to="/register">Регистрация</Link>
+        </>
+      )}
     </header>
   );
 }
 
 export function Footer(): ReactElement {
   return (
-    <footer className="site-footer">
+    <footer className="app__footer">
       <div className="row">
         <Link to="/legal/terms">Условия использования</Link>
-        <Link to="/legal/privacy">Обработка персональных данных</Link>
+        <Link to="/legal/privacy">Персональные данные</Link>
         <Link to="/legal/offer">Оферта</Link>
       </div>
-      <p className="muted small">
+      <p className="small" style={{ margin: 0 }}>
         SchoolPiBoard · board.school-pi.online · ЗАГЛУШКА: реквизиты продавца
       </p>
     </footer>
@@ -46,12 +84,25 @@ export function Footer(): ReactElement {
 }
 
 /** Обычная страница: шапка, содержимое, подвал. */
-export function Page({ children, wide }: { children: ReactNode; wide?: boolean }): ReactElement {
+export function Page({ children, narrow }: { children: ReactNode; narrow?: boolean }): ReactElement {
   return (
-    <div className="site">
+    <div className="app">
       <Header />
-      <main className={wide ? 'main wide' : 'main'}>{children}</main>
+      <main className={narrow ? 'app__main app__main--narrow' : 'app__main'}>{children}</main>
       <Footer />
+    </div>
+  );
+}
+
+/**
+ * Страница доски: без подвала и с содержимым во всю высоту.
+ * На доске рисуют — правовые ссылки под холстом только отнимали бы место.
+ */
+export function BoardShell({ children }: { children: ReactNode }): ReactElement {
+  return (
+    <div className="app">
+      <Header />
+      <main className="app__main">{children}</main>
     </div>
   );
 }

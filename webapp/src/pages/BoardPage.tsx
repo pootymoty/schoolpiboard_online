@@ -72,10 +72,10 @@ export function BoardPage(): ReactElement {
   if (error && !state) {
     return (
       <Page>
-        <div className="card form">
+        <div className="card">
           <h1>Доска</h1>
-          <p className="error">{error}</p>
-          <p className="muted small">
+          <p className="note note-danger">{error}</p>
+          <p className="text-muted small">
             Возможно, вас удалили с доски или закрыли доступ. Если вы заходили
             по ссылке, попросите новую.
           </p>
@@ -87,7 +87,7 @@ export function BoardPage(): ReactElement {
   if (!state) {
     return (
       <Page>
-        <p className="muted">Загружаем доску…</p>
+        <p className="text-muted">Загружаем доску…</p>
       </Page>
     );
   }
@@ -95,7 +95,7 @@ export function BoardPage(): ReactElement {
   const { board, me } = state;
 
   return (
-    <Page wide>
+    <Page>
       <div className="page-header">
         <h1>{board.title}</h1>
 
@@ -108,16 +108,16 @@ export function BoardPage(): ReactElement {
         </div>
       </div>
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="note note-danger">{error}</p> : null}
 
       <section className="card canvas-placeholder">
         <h2>Здесь появится холст</h2>
-        <p className="muted">
+        <p className="text-muted">
           Рисование, фигуры и совместная работа — следующий этап. Сейчас
           готово всё вокруг холста: доступ, роли и ссылки.
         </p>
         {!board.canEdit ? (
-          <p className="muted small">
+          <p className="text-muted small">
             У вас доступ только на просмотр: рисовать вы не сможете, и сервер
             это проверяет — не только интерфейс.
           </p>
@@ -133,15 +133,15 @@ export function BoardPage(): ReactElement {
             <h2>Управление доской</h2>
 
             <div className="row">
-              <button className="button ghost" type="button" onClick={toggleLock} disabled={busy}>
+              <button className="btn-quiet" type="button" onClick={toggleLock} disabled={busy}>
                 {board.locked ? 'Впускать новых' : 'Не впускать новых'}
               </button>
-              <button className="button ghost" type="button" onClick={remove} disabled={busy}>
+              <button className="btn-quiet" type="button" onClick={remove} disabled={busy}>
                 Удалить доску
               </button>
             </div>
 
-            <p className="muted small">
+            <p className="text-muted small">
               Замок не выгоняет тех, кто уже на доске, — он закрывает вход
               новым, даже по действующей ссылке.
             </p>
@@ -150,10 +150,10 @@ export function BoardPage(): ReactElement {
       ) : null}
 
       {me.isGuest ? (
-        <p className="muted small">
+        <p className="text-muted small">
           Вы на доске как гость. Чтобы доска сохранилась у вас в списке,
           нужна учётная запись.{' '}
-          <button className="button ghost" type="button" onClick={leaveGuest}>Выйти с доски</button>
+          <button className="btn-quiet" type="button" onClick={leaveGuest}>Выйти с доски</button>
         </p>
       ) : !user ? null : null}
     </Page>

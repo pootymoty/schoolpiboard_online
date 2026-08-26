@@ -31,25 +31,25 @@ export function ForgotPasswordPage(): ReactElement {
   return (
     <Page>
       {sent ? (
-        <div className="card form">
+        <div className="card">
           <h1>Проверьте почту</h1>
           <p>{sent}</p>
-          <Link className="button" to="/login">На страницу входа</Link>
+          <Link className="btn-primary" to="/login">На страницу входа</Link>
         </div>
       ) : (
-        <form className="card form" onSubmit={submit}>
+        <form className="card" onSubmit={submit}>
           <h1>Восстановление пароля</h1>
-          <p className="muted">Пришлём ссылку, по которой можно задать новый пароль.</p>
+          <p className="text-muted">Пришлём ссылку, по которой можно задать новый пароль.</p>
 
           <label htmlFor="email">Почта</label>
           <input id="email" type="email" required autoComplete="email"
                  value={email} onChange={(event) => setEmail(event.target.value)} />
 
-          <button className="button" type="submit" disabled={busy}>
+          <button className="btn-primary" type="submit" disabled={busy}>
             {busy ? 'Отправляем…' : 'Прислать ссылку'}
           </button>
 
-          <p className="muted small"><Link to="/login">Вернуться ко входу</Link></p>
+          <p className="text-muted small"><Link to="/login">Вернуться ко входу</Link></p>
         </form>
       )}
     </Page>

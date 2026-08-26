@@ -51,13 +51,13 @@ export function RegisterPage(): ReactElement {
   if (done) {
     return (
       <Page>
-        <div className="card form">
+        <div className="card">
           <h1>Проверьте почту</h1>
           <p>{done}</p>
-          <p className="muted small">
+          <p className="text-muted small">
             Письмо не пришло? Загляните в «Спам», а затем запросите его заново на странице входа.
           </p>
-          <Link className="button" to="/login">На страницу входа</Link>
+          <Link className="btn-primary" to="/login">На страницу входа</Link>
         </div>
       </Page>
     );
@@ -65,9 +65,9 @@ export function RegisterPage(): ReactElement {
 
   return (
     <Page>
-      <form className="card form" onSubmit={submit}>
+      <form className="card" onSubmit={submit}>
         <h1>Регистрация</h1>
-        <p className="muted">
+        <p className="text-muted">
           Учётная запись нужна преподавателю — тому, кто создаёт доски.
           Обучающемуся регистрироваться не нужно: он заходит по ссылке.
         </p>
@@ -89,13 +89,13 @@ export function RegisterPage(): ReactElement {
         <input id="passwordConfirm" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password"
                value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} />
 
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="note note-danger">{error}</p> : null}
 
-        <button className="button" type="submit" disabled={busy}>
+        <button className="btn-primary" type="submit" disabled={busy}>
           {busy ? 'Отправляем…' : 'Зарегистрироваться'}
         </button>
 
-        <p className="muted small">
+        <p className="text-muted small">
           Уже есть учётная запись? <Link to="/login">Войти</Link>
         </p>
       </form>

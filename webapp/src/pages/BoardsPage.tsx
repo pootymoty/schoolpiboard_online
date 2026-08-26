@@ -55,16 +55,16 @@ export function BoardsPage(): ReactElement {
           <input id="title" type="text" required maxLength={200}
                  placeholder="Например: Алгебра, 9 класс"
                  value={title} onChange={(event) => setTitle(event.target.value)} />
-          <button className="button" type="submit" disabled={busy}>Создать</button>
+          <button className="btn-primary" type="submit" disabled={busy}>Создать</button>
         </div>
       </form>
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="note note-danger">{error}</p> : null}
 
       {loading ? (
-        <p className="muted">Загружаем…</p>
+        <p className="text-muted">Загружаем…</p>
       ) : boards.length === 0 ? (
-        <p className="muted">
+        <p className="text-muted">
           Досок пока нет. Создайте первую — потом дадите на неё ссылку тем,
           кого ждёте на занятии.
         </p>
