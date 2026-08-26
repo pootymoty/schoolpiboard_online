@@ -35,6 +35,12 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   signal?: AbortSignal;
+  /**
+   * Токен гостя. Уезжает отдельным заголовком, а не в Authorization:
+   * там лежит токен учётной записи, и смешивать их значило бы разбирать
+   * на сервере, чей именно токен пришёл.
+   */
+  guestToken?: string | null;
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -46,6 +52,9 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (options.guestToken) {
+    headers['X-Guest-Token'] = options.guestToken;
   }
 
   let response: Response;

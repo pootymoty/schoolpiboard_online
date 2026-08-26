@@ -8,6 +8,8 @@ import { ConfirmPage } from './pages/ConfirmPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { BoardsPage } from './pages/BoardsPage';
+import { BoardPage } from './pages/BoardPage';
+import { JoinPage } from './pages/JoinPage';
 import { LegalPage } from './pages/LegalPage';
 
 export function App(): ReactElement {
@@ -19,11 +21,15 @@ export function App(): ReactElement {
 
   return (
     <Routes>
-      {/* Страницы из писем и правовые тексты открыты всем: по ссылке из
-          письма человек приходит ещё не войдя. */}
+      {/* Открыты всем, независимо от входа. Страницы из писем — потому что по
+          такой ссылке человек приходит ещё не войдя. Приглашение и сама доска —
+          потому что на доску пускают гостя, у которого учётной записи нет
+          и не будет. */}
       <Route path="/legal/:page" element={<LegalPage />} />
       <Route path="/confirm" element={<ConfirmPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/join/:token" element={<JoinPage />} />
+      <Route path="/boards/:boardId" element={<BoardPage />} />
 
       {user ? (
         <>

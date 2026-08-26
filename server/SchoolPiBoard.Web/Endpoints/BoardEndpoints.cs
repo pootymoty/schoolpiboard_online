@@ -31,7 +31,7 @@ public sealed record MemberDto(long UserId, string DisplayName, string Email, st
 
 public sealed record JoinInfoDto(string BoardTitle, string Role);
 
-public sealed record GuestSessionDto(string GuestToken, long BoardId, string BoardTitle, string Role);
+public sealed record GuestSessionDto(string GuestToken, string GuestId, long BoardId, string BoardTitle, string Role);
 
 public static class BoardEndpoints
 {
@@ -229,7 +229,8 @@ public static class BoardEndpoints
 
             return result.Outcome == BoardOutcome.Ok
                 ? Results.Ok(new GuestSessionDto(
-                    result.Value.Token, result.Value.Board.Id, result.Value.Board.Title, result.Value.Role))
+                    result.Value.Token, result.Value.GuestId,
+                    result.Value.Board.Id, result.Value.Board.Title, result.Value.Role))
                 : Answer(result.Outcome, result.Message);
         });
 

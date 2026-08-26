@@ -279,16 +279,16 @@ public sealed class BoardService
     /// в его токен. Возвращает этот токен и метку, по которой гостя можно
     /// выгнать.
     /// </summary>
-    public async Task<BoardResult<(string Token, Board Board, string Role)>> JoinAsGuestAsync(
+    public async Task<BoardResult<(string Token, Board Board, string Role, string GuestId)>> JoinAsGuestAsync(
         string? token, string? displayName, string? previousGuestId, CancellationToken cancellationToken)
     {
         var name = (displayName ?? string.Empty).Trim();
         if (name.Length is 0 or > MaxGuestNameLength)
-            return BoardResult<(string, Board, string)>.Bad($"Имя — от 1 до {MaxGuestNameLength} символов.");
+            return BoardResult<(string, Board, string, string)>.Bad($"Имя — от 1 до {MaxGuestNameLength} символов.");
 
         var link = await FindUsableLinkAsync(token, cancellationToken);
         if (link?.Board is null)
-            return BoardResult<(string, Board, string)>.NotFound("Ссылка недействительна или отозвана.");
+            return BoardResult<(string, Board, string, string)>.NotFound("Ссылка недействительна или отозвана.");
 
         // Метка сохраняется между заходами, если браузер её вернул: иначе
         // выгнанный обходил бы отказ простым обновлением страницы.
@@ -301,17 +301,21 @@ public sealed class BoardService
             var left = await _kicks.RemainingAsync(link.BoardId, guestId);
             var minutes = left is null ? 15 : Math.Max(1, (int)Math.Ceiling(left.Value.TotalMinutes));
 
-            return new BoardResult<(string, Board, string)>(
+            return new BoardResult<(string, Board, string, string)>(
                 BoardOutcome.Kicked,
                 Message: $"Вас удалили с этой доски. Попробовать снова можно через {minutes} мин.");
         }
 
         if (link.Board.Locked)
-            return new BoardResult<(string, Board, string)>(BoardOutcome.Locked, Message: "Доска закрыта для новых участников.");
+            return new BoardResult<(string, Board, string, string)>(
+                BoardOutcome.Locked, Message: "Доска закрыта для новых участников.");
 
         var guestToken = _guestTokens.Create(link.BoardId, link.Role, name, guestId);
 
-        return BoardResult<(string, Board, string)>.Ok((guestToken, link.Board, link.Role));
+        // Метка возвращается клиенту, чтобы он прислал её при следующем заходе:
+        // без этого выгнанный обходил бы отказ обновлением страницы, получая
+        // каждый раз новую метку.
+        return BoardResult<(string, Board, string, string)>.Ok((guestToken, link.Board, link.Role, guestId));
     }
 
     // ---------- Участники ----------
