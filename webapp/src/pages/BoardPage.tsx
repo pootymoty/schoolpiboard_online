@@ -187,7 +187,7 @@ export function BoardPage(): ReactElement {
           >
             <IconPeople />
             <span>Участники{presentCount ? ` · ${presentCount}` : ''}</span>
-            {!showPeople && waitingCount > 0 ? (
+            {waitingCount > 0 ? (
               <span className="badge-dot" aria-label={`Ждут допуска: ${waitingCount}`}>{waitingCount}</span>
             ) : null}
           </button>

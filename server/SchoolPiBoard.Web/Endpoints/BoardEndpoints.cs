@@ -258,14 +258,14 @@ public static class BoardEndpoints
             if (board is null || board.DeletedAt is not null)
                 return Results.NotFound(new { message = "Доска не найдена." });
 
-            var members = await service.ListMembersAsync(boardId, user?.Id ?? 0, ct);
+            var members = await service.ListMembersAsync(boardId, ct);
             var guests = await service.ListActiveGuestsAsync(boardId);
 
             return Results.Ok(new
             {
                 board = ToDto(board, actor.Role, options, actor.CanManage),
                 me = new { actor.DisplayName, actor.IsGuest, actor.Role, actor.GuestId },
-                members = (members.Value ?? new List<BoardMember>())
+                members = members
                     .Select(m => new MemberDto(m.UserId, m.User?.DisplayName ?? "", m.User?.Email ?? "", m.Role, m.JoinedAt)),
                 guests = guests.Select(g => new GuestDto(g.GuestId, g.DisplayName, g.Role))
             });

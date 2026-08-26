@@ -379,22 +379,18 @@ public sealed class BoardService
 
     // ---------- Участники ----------
 
-    public async Task<BoardResult<List<BoardMember>>> ListMembersAsync(long boardId, long userId, CancellationToken cancellationToken)
-    {
-        // Список участников видит любой, кто на доске: понимать, с кем
-        // работаешь, нужно всем. Управлять ими — только владельцу.
-        var actor = await ResolveActorAsync(boardId, userId, guestToken: null, cancellationToken);
-        if (actor is null)
-            return BoardResult<List<BoardMember>>.Forbidden("Нет доступа к этой доске.");
-
-        var members = await _db.BoardMembers
+    /// <summary>
+    /// Список участников видит любой, кто на доске: понимать, с кем
+    /// работаешь, нужно всем. Доступ здесь не проверяется — вызывающий
+    /// (эндпойнт /state) уже прошёл через <see cref="ResolveActorAsync"/>,
+    /// и гостя вторая проверка по <c>userId</c> только выгоняла бы напрасно.
+    /// </summary>
+    public Task<List<BoardMember>> ListMembersAsync(long boardId, CancellationToken cancellationToken)
+        => _db.BoardMembers
             .Include(x => x.User)
             .Where(x => x.BoardId == boardId && x.BannedAt == null)
             .OrderBy(x => x.JoinedAt)
             .ToListAsync(cancellationToken);
-
-        return BoardResult<List<BoardMember>>.Ok(members);
-    }
 
     /// <summary>Гости, впущенные на доску и активные прямо сейчас.</summary>
     public Task<List<ActiveGuest>> ListActiveGuestsAsync(long boardId)
