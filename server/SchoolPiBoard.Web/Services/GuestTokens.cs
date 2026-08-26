@@ -45,9 +45,28 @@ public sealed class GuestTokenService
     /// </summary>
     private const int LifetimeHours = 12;
 
+    /// <summary>
+    /// Имена претензий намеренно свои, а не «role» и «name».
+    ///
+    /// JwtSecurityTokenHandler по умолчанию переименовывает стандартные
+    /// короткие имена в длинные URI Microsoft при разборе токена. Из-за
+    /// этого поиск по «role» возвращал пустоту, токен считался
+    /// недействительным, и гость по ссылке получал «нет доступа».
+    /// Маппинг ниже отключён, но собственные имена снимают вопрос
+    /// окончательно — в том числе для того, кто будет править это позже.
+    /// </summary>
+    private const string ClaimBoard = "spb_board";
+    private const string ClaimRole = "spb_role";
+    private const string ClaimName = "spb_name";
+    private const string ClaimGuestId = "spb_gid";
+
     private readonly AppOptions _options;
 
     public GuestTokenService(AppOptions options) => _options = options;
+
+    /// <summary>Обработчик без переименования претензий — см. комментарий выше.</summary>
+    private static JwtSecurityTokenHandler CreateHandler()
+        => new() { MapInboundClaims = false };
 
     public string Create(long boardId, string role, string displayName, string guestId)
     {
@@ -58,17 +77,17 @@ public sealed class GuestTokenService
             audience: Issuer,
             claims: new[]
             {
-                new Claim("board", boardId.ToString()),
-                new Claim("role", role),
-                new Claim("name", displayName),
+                new Claim(ClaimBoard, boardId.ToString()),
+                new Claim(ClaimRole, role),
+                new Claim(ClaimName, displayName),
                 // Метка гостя. По ней он попадает в список отказа при выгоне —
                 // это единственное, чем гость опознаётся между заходами.
-                new Claim("gid", guestId)
+                new Claim(ClaimGuestId, guestId)
             },
             expires: DateTime.UtcNow.AddHours(LifetimeHours),
             signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return CreateHandler().WriteToken(token);
     }
 
     /// <summary>
@@ -94,12 +113,12 @@ public sealed class GuestTokenService
 
         try
         {
-            var principal = new JwtSecurityTokenHandler().ValidateToken(token, parameters, out _);
+            var principal = CreateHandler().ValidateToken(token, parameters, out _);
 
-            var board = principal.FindFirst("board")?.Value;
-            var role = principal.FindFirst("role")?.Value;
-            var name = principal.FindFirst("name")?.Value;
-            var guestId = principal.FindFirst("gid")?.Value;
+            var board = principal.FindFirst(ClaimBoard)?.Value;
+            var role = principal.FindFirst(ClaimRole)?.Value;
+            var name = principal.FindFirst(ClaimName)?.Value;
+            var guestId = principal.FindFirst(ClaimGuestId)?.Value;
 
             if (!long.TryParse(board, out var tokenBoardId) || tokenBoardId != boardId)
                 return null;
