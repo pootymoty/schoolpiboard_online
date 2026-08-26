@@ -15,6 +15,8 @@ interface Props {
   /** Гость на доске — он в базе не хранится, поэтому приходит отдельно. */
   guestName?: string | null;
   onChanged: () => void;
+  /** Сколько человек в очереди — родителю нужно для значка на своей кнопке. */
+  onWaitingCount?: (count: number) => void;
 }
 
 /**
@@ -23,7 +25,7 @@ interface Props {
  * Ожидающих видит только владелец: остальным знать, кто ещё не впущен,
  * незачем.
  */
-export function PeoplePanel({ boardId, canManage, members, guestName, onChanged }: Props): ReactElement {
+export function PeoplePanel({ boardId, canManage, members, guestName, onChanged, onWaitingCount }: Props): ReactElement {
   const [waiting, setWaiting] = useState<WaitingRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,11 +33,13 @@ export function PeoplePanel({ boardId, canManage, members, guestName, onChanged 
     if (!canManage) return;
 
     try {
-      setWaiting(await api<WaitingRequest[]>(`/boards/${boardId}/waiting`));
+      const rows = await api<WaitingRequest[]>(`/boards/${boardId}/waiting`);
+      setWaiting(rows);
+      onWaitingCount?.(rows.length);
     } catch {
       // Очередь — не главное на странице: молчим и пробуем снова.
     }
-  }, [boardId, canManage]);
+  }, [boardId, canManage, onWaitingCount]);
 
   useEffect(() => {
     if (!canManage) return;
@@ -48,7 +52,11 @@ export function PeoplePanel({ boardId, canManage, members, guestName, onChanged 
   const admit = async (requestId: string, role: BoardRole) => {
     try {
       await api(`/boards/${boardId}/waiting/admit`, { method: 'POST', body: { requestId, role } });
-      setWaiting((current) => current.filter((item) => item.requestId !== requestId));
+      setWaiting((current) => {
+        const next = current.filter((item) => item.requestId !== requestId);
+        onWaitingCount?.(next.length);
+        return next;
+      });
       onChanged();
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось впустить.');
@@ -58,7 +66,11 @@ export function PeoplePanel({ boardId, canManage, members, guestName, onChanged 
   const reject = async (requestId: string) => {
     try {
       await api(`/boards/${boardId}/waiting/reject`, { method: 'POST', body: { requestId } });
-      setWaiting((current) => current.filter((item) => item.requestId !== requestId));
+      setWaiting((current) => {
+        const next = current.filter((item) => item.requestId !== requestId);
+        onWaitingCount?.(next.length);
+        return next;
+      });
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось отклонить.');
     }
@@ -131,7 +143,7 @@ export function PeoplePanel({ boardId, canManage, members, guestName, onChanged 
         </>
       ) : null}
 
-      <p className="people__group">На доске</p>
+      <p className="people__group">На доске · {members.length + (guestName ? 1 : 0)}</p>
       <ul className="people">
         {members.map((member) => (
           <li className="people__item" key={member.userId}>

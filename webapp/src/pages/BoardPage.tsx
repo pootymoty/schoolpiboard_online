@@ -29,6 +29,8 @@ export function BoardPage(): ReactElement {
   const [showLink, setShowLink] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const [waitingCount, setWaitingCount] = useState(0);
+
   const load = useCallback(async () => {
     try {
       setState(await api<BoardState>(`/boards/${id}/state`, { guestToken: readGuestToken(id) }));
@@ -38,8 +40,15 @@ export function BoardPage(): ReactElement {
     }
   }, [id]);
 
+  // Хаба с живым присутствием пока нет (появится вместе с холстом), поэтому
+  // список участников и состояние доски держим свежими опросом: иначе
+  // подключившийся не появится у остальных, пока кто-то не обновит страницу.
   useEffect(() => {
-    if (Number.isFinite(id)) void load();
+    if (!Number.isFinite(id)) return;
+
+    void load();
+    const timer = window.setInterval(load, 5000);
+    return () => window.clearInterval(timer);
   }, [id, load]);
 
   const toggleLock = async () => {
@@ -128,7 +137,7 @@ export function BoardPage(): ReactElement {
           {board.canManage ? (
             <>
               <button
-                className="btn-tool"
+                className="btn-tool btn-tool--wide"
                 type="button"
                 onClick={toggleLock}
                 disabled={busy}
@@ -138,27 +147,33 @@ export function BoardPage(): ReactElement {
                   : 'Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть'}
               >
                 {board.locked ? <IconLockClosed /> : <IconLockOpen />}
+                <span>{board.locked ? 'Закрыта' : 'Открыта'}</span>
               </button>
 
               <button
-                className="btn-tool"
+                className="btn-tool btn-tool--wide"
                 type="button"
                 onClick={() => setShowLink(true)}
                 title="Ссылка на доску"
               >
                 <IconLink />
+                <span>Ссылка</span>
               </button>
             </>
           ) : null}
 
           <button
-            className="btn-tool"
+            className="btn-tool btn-tool--wide"
             type="button"
             onClick={() => setShowPeople((current) => !current)}
             aria-pressed={showPeople}
             title="Участники"
           >
             <IconPeople />
+            <span>Участники{members.length ? ` · ${members.length}` : ''}</span>
+            {!showPeople && waitingCount > 0 ? (
+              <span className="badge-dot" aria-label={`Ждут допуска: ${waitingCount}`}>{waitingCount}</span>
+            ) : null}
           </button>
         </div>
 
@@ -196,6 +211,7 @@ export function BoardPage(): ReactElement {
                 members={members}
                 guestName={me.isGuest ? me.displayName : null}
                 onChanged={load}
+                onWaitingCount={setWaitingCount}
               />
             </aside>
           ) : null}

@@ -199,6 +199,36 @@
     flex-wrap: wrap;
 }
 
+/* Кнопки на панели доски подписаны текстом: значок без подписи не
+   объясняет себя сам, особенно замок — «открыт» и «закрыт» иначе
+   различить можно только по форме дужки. */
+.btn-tool--wide {
+    position: relative;
+    width: auto;
+    padding: 0 var(--sp-3);
+    gap: var(--sp-2);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+}
+
+/* Значок числа ждущих в очереди — виден, только пока панель участников
+   свёрнута: открытую панель и так видно. */
+.badge-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+}
+
 .board-page__title {
     font-family: var(--font-head);
     font-size: var(--fs-h3);
