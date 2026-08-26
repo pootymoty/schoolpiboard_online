@@ -41,9 +41,21 @@ jobs:
         run: dotnet tool install --global dotnet-ef --version 8.*
 
       # Миграции пишутся вручную: у среды, где готовятся правки, нет доступа
-      # к пакетам .NET, а значит и к `dotnet ef migrations add`. Эта проверка
-      # закрывает возникающий риск: если модель и миграции разошлись, сборка
-      # падает здесь, а не база расходится со схемой в бою.
+      # к пакетам .NET, а значит и к `dotnet ef migrations add`. Отсюда две
+      # проверки вместо одной.
+      #
+      # Первая: миграции вообще находятся. Без атрибута [DbContext] миграция
+      # не привязана к контексту, и EF её не видит — но не жалуется, а
+      # сообщает «база уже актуальна» и создаёт пустую таблицу истории.
+      # Схема при этом не создаётся, и узнать об этом можно только по
+      # отсутствующим таблицам. Один раз так и вышло.
+      - name: Check migrations are discoverable
+        run: |
+          dotnet ef migrations list --project ${{ env.PROJECT }} --no-connect \
+            | tee /tmp/migrations.txt
+          grep -qE '^[0-9]{14}_' /tmp/migrations.txt
+
+      # Вторая: модель и миграции описывают одну и ту же схему.
       - name: Check migrations match the model
         run: dotnet ef migrations has-pending-model-changes --project ${{ env.PROJECT }}
 

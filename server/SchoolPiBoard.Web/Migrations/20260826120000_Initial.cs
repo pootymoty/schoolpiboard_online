@@ -1,6 +1,9 @@
 using System;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using SchoolPiBoard.Web.Data;
 
 #nullable disable
 
@@ -14,6 +17,12 @@ namespace SchoolPiBoard.Web.Migrations;
 /// не всплыло в бою, сборка в CI выполняет
 /// dotnet ef migrations has-pending-model-changes и падает при расхождении.
 /// </summary>
+// [DbContext] обязателен наравне с [Migration]: он связывает миграцию с
+// контекстом. Обычно оба атрибута кладёт в файл .Designer.cs команда
+// dotnet ef; здесь миграция написана вручную, и без этой строки EF не
+// находит её вовсе — сообщает «база уже актуальна», заводит пустую таблицу
+// истории и не создаёт ни одной таблицы.
+[DbContext(typeof(AppDbContext))]
 [Migration("20260826120000_Initial")]
 public partial class Initial : Migration
 {
