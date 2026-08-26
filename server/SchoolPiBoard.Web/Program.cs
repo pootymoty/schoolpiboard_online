@@ -31,7 +31,7 @@ builder.Services.AddScoped<BoardService>();
 // недоступен, узнать об этом надо сейчас, а не посреди занятия.
 var redis = await ConnectionMultiplexer.ConnectAsync(options.RedisUrl);
 builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
-builder.Services.AddSingleton<KickList>();
+builder.Services.AddSingleton<WaitingRoom>();
 
 builder.Services.AddSignalR().AddStackExchangeRedis(options.RedisUrl);
 
