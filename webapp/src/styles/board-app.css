@@ -181,6 +181,59 @@
     margin: 0 0 var(--sp-4);
 }
 
+/* --- Боковая панель --------------------------------------------------------- */
+
+.drawer__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: var(--shadow-color);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.drawer {
+    width: 100%;
+    max-width: 360px;
+    height: 100%;
+    background: var(--surface);
+    border-left: 1px solid var(--line);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    animation: drawer-in .18s ease-out;
+}
+
+.drawer__head {
+    padding: var(--sp-4) var(--sp-4) 0;
+}
+
+.drawer__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--sp-4);
+}
+
+@keyframes drawer-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .drawer { animation: none; }
+}
+
+/* Листалка списка участников: страницами по пять, а не бесконечной
+   прокруткой — на маленьком экране длинный список иначе выталкивает
+   кнопку закрытия за край. */
+.people__pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    margin-top: var(--sp-3);
+}
+
 /* --- Страница доски -------------------------------------------------------- */
 
 .board-page {

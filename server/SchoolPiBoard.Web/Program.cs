@@ -26,6 +26,7 @@ builder.Services.AddSingleton<GuestTokenService>();
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<BoardService>();
+builder.Services.AddHostedService<RetentionCleanupService>();
 
 // Redis подключается при старте, а не при первом обращении: если он
 // недоступен, узнать об этом надо сейчас, а не посреди занятия.

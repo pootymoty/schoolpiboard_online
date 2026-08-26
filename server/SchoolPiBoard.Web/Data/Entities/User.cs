@@ -29,4 +29,12 @@ public class User
     public DateTime CreatedAt { get; set; }
 
     public DateTime? LastSeenAt { get; set; }
+
+    /// <summary>
+    /// Учётная запись удалена человеком. Строка не стирается сразу: доски
+    /// остаются рабочими для остальных участников ещё полгода — до
+    /// автоматической зачистки, которая заберёт с собой и их (раздел про
+    /// хранение данных).
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
 }

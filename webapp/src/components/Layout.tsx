@@ -56,6 +56,7 @@ export function Header(): ReactElement {
       {user ? (
         <>
           <Link to="/boards">Мои доски</Link>
+          <Link to="/profile">{user.displayName}</Link>
           <button className="btn-quiet btn-sm" type="button" onClick={logout}>Выйти</button>
         </>
       ) : (

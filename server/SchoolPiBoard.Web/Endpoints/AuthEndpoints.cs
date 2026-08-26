@@ -12,6 +12,8 @@ public sealed record LoginRequest(string? Email, string? Password);
 public sealed record TokenRequest(string? Token);
 public sealed record EmailRequest(string? Email);
 public sealed record ResetPasswordRequest(string? Token, string? Password, string? PasswordConfirm);
+public sealed record UpdateProfileRequest(string? DisplayName);
+public sealed record DeleteAccountRequest(string? Password);
 
 public sealed record UserDto(long Id, string Email, string DisplayName);
 
@@ -114,6 +116,36 @@ public static class AuthEndpoints
             var user = await CurrentUser(principal, db, cancellationToken);
             return user is null ? Results.Unauthorized() : Results.Ok(ToDto(user));
         }).RequireAuthorization();
+
+        app.MapPatch("/api/auth/me", async (
+            [FromBody] UpdateProfileRequest request,
+            ClaimsPrincipal principal, AppDbContext db, AccountService accounts, CancellationToken ct) =>
+        {
+            var user = await CurrentUser(principal, db, ct);
+            if (user is null) return Results.Unauthorized();
+
+            var result = await accounts.ChangeDisplayNameAsync(user.Id, request.DisplayName, ct);
+            return result.Outcome == AccountOutcome.Ok && result.User is not null
+                ? Results.Ok(ToDto(result.User))
+                : Results.BadRequest(new { message = result.Message });
+        }).RequireAuthorization();
+
+        app.MapDelete("/api/auth/me", async (
+            [FromBody] DeleteAccountRequest request,
+            ClaimsPrincipal principal, AppDbContext db, AccountService accounts, CancellationToken ct) =>
+        {
+            var user = await CurrentUser(principal, db, ct);
+            if (user is null) return Results.Unauthorized();
+
+            var result = await accounts.DeleteAccountAsync(user.Id, request.Password, ct);
+
+            return result.Outcome switch
+            {
+                AccountOutcome.Ok => Results.NoContent(),
+                AccountOutcome.InvalidCredentials => Results.Json(new { message = result.Message }, statusCode: 401),
+                _ => Results.BadRequest(new { message = result.Message })
+            };
+        }).RequireAuthorization();
     }
 
     public static UserDto ToDto(User user) => new(user.Id, user.Email, user.DisplayName);
@@ -123,7 +155,10 @@ public static class AuthEndpoints
         var raw = principal.FindFirstValue("sub");
 
         return long.TryParse(raw, out var id)
-            ? await db.Users.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            // Удалённый аккаунт не должен проходить по ещё живому токену:
+            // без этого условия десятичасовой JWT продолжал бы работать
+            // после того, как человек нажал «Удалить».
+            ? await db.Users.FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, cancellationToken)
             : null;
     }
 }

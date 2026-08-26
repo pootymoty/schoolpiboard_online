@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client';
 import { readGuestToken, writeGuestToken } from '../api/guest';
 import type { BoardState } from '../api/types';
 import { BoardShell } from '../components/Layout';
+import { Drawer } from '../components/Drawer';
 import { Modal } from '../components/Modal';
 import { PeoplePanel } from '../components/PeoplePanel';
 import { IconLink, IconLockClosed, IconLockOpen, IconPeople } from '../components/Icons';
@@ -213,37 +214,35 @@ export function BoardPage(): ReactElement {
           </p>
         ) : null}
 
-        <div className="row" style={{ alignItems: 'flex-start', gap: 'var(--sp-4)' }}>
-          <section className="board-page__canvas" style={{ flex: 1 }}>
-            <div>
-              <h2 className="card-title">Здесь появится холст</h2>
-              <p className="text-muted">
-                Рисование и совместная работа — следующий этап. Сейчас готово
-                всё вокруг холста: доступ, роли и участники.
+        <section className="board-page__canvas">
+          <div>
+            <h2 className="card-title">Здесь появится холст</h2>
+            <p className="text-muted">
+              Рисование и совместная работа — следующий этап. Сейчас готово
+              всё вокруг холста: доступ, роли и участники.
+            </p>
+            {!board.canEdit ? (
+              <p className="text-muted small">
+                У вас доступ только на просмотр. Это проверяет сервер,
+                а не только интерфейс.
               </p>
-              {!board.canEdit ? (
-                <p className="text-muted small">
-                  У вас доступ только на просмотр. Это проверяет сервер,
-                  а не только интерфейс.
-                </p>
-              ) : null}
-            </div>
-          </section>
+            ) : null}
+          </div>
+        </section>
 
-          {showPeople ? (
-            <aside className="card" style={{ width: '300px', flex: 'none' }}>
-              <PeoplePanel
-                boardId={id}
-                canManage={board.canManage}
-                members={members}
-                guests={otherGuests}
-                guestName={me.isGuest ? me.displayName : null}
-                onChanged={load}
-                onWaitingCount={setWaitingCount}
-              />
-            </aside>
-          ) : null}
-        </div>
+        {showPeople ? (
+          <Drawer title="Участники" onClose={() => setShowPeople(false)}>
+            <PeoplePanel
+              boardId={id}
+              canManage={board.canManage}
+              members={members}
+              guests={otherGuests}
+              guestName={me.isGuest ? me.displayName : null}
+              onChanged={load}
+              onWaitingCount={setWaitingCount}
+            />
+          </Drawer>
+        ) : null}
 
         {me.isGuest ? (
           <p className="text-muted small">

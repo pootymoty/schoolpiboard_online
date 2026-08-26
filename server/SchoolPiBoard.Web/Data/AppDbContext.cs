@@ -32,6 +32,7 @@ public class AppDbContext : DbContext
             entity.Property(x => x.EmailConfirmed).HasColumnName("email_confirmed").HasDefaultValue(false);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.LastSeenAt).HasColumnName("last_seen_at");
+            entity.Property(x => x.DeletedAt).HasColumnName("deleted_at");
 
             entity.HasIndex(x => x.Email).IsUnique();
         });

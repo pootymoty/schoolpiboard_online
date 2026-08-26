@@ -121,7 +121,9 @@ public sealed class AccountService
         var address = NormalizeEmail(email);
         var user = address is null
             ? null
-            : await _db.Users.FirstOrDefaultAsync(x => x.Email == address, cancellationToken);
+            // Удалённая учётная запись входит в силу «такой нет»: строка
+            // ещё полгода лежит в базе ради досок, но пользоваться ею нельзя.
+            : await _db.Users.FirstOrDefaultAsync(x => x.Email == address && x.DeletedAt == null, cancellationToken);
 
         // Хеш проверяется всегда, даже когда учётной записи нет: см. DummyHash.
         var matches = PasswordHasher.Verify(password ?? string.Empty, user?.PasswordHash ?? DummyHash);
@@ -196,6 +198,46 @@ public sealed class AccountService
 
         _logger.LogInformation("Сменён пароль учётной записи {UserId}.", record.UserId);
         return new AccountResult(AccountOutcome.Ok, record.User);
+    }
+
+    public async Task<AccountResult> ChangeDisplayNameAsync(long userId, string? displayName, CancellationToken cancellationToken)
+    {
+        var name = (displayName ?? string.Empty).Trim();
+        if (name.Length is 0 or > 100)
+            return Bad("Имя — от 1 до 100 символов.");
+
+        var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId && x.DeletedAt == null, cancellationToken);
+        if (user is null)
+            return Bad("Учётная запись не найдена.");
+
+        user.DisplayName = name;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return new AccountResult(AccountOutcome.Ok, user);
+    }
+
+    /// <summary>
+    /// Удаление — по паролю, а не по одному нажатию кнопки: последствие
+    /// необратимо для входа, и подтвердить его должен тот, кто знает пароль,
+    /// а не тот, кто просто не закрыл сессию в чужом браузере.
+    ///
+    /// Строка не стирается: раздел о хранении данных даёт доскам ещё
+    /// полгода жить для остальных участников. Их зачистит фоновая служба.
+    /// </summary>
+    public async Task<AccountResult> DeleteAccountAsync(long userId, string? password, CancellationToken cancellationToken)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId && x.DeletedAt == null, cancellationToken);
+        if (user is null)
+            return Bad("Учётная запись не найдена.");
+
+        if (!PasswordHasher.Verify(password ?? string.Empty, user.PasswordHash))
+            return new AccountResult(AccountOutcome.InvalidCredentials, Message: "Пароль не подошёл.");
+
+        user.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Удалена учётная запись {UserId}.", userId);
+        return new AccountResult(AccountOutcome.Ok, user);
     }
 
     public string CreateAuthToken(User user) => _tokens.Create(user);

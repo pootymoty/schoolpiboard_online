@@ -114,6 +114,16 @@ export const IconMore = (props: Props): ReactElement => (
   </Svg>
 );
 
+/** Листалка списка участников: назад. */
+export const IconChevronLeft = (props: Props): ReactElement => (
+  <Svg {...props}><path d="M15 18l-6-6 6-6" /></Svg>
+);
+
+/** Листалка списка участников: вперёд. */
+export const IconChevronRight = (props: Props): ReactElement => (
+  <Svg {...props}><path d="M9 18l6-6-6-6" /></Svg>
+);
+
 export const IconCheck = (props: Props): ReactElement => (
   <Svg {...props}><path d="M20 6L9 17l-5-5" /></Svg>
 );
