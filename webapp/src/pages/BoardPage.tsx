@@ -138,7 +138,11 @@ export function BoardPage(): ReactElement {
     );
   }
 
-  const { board, me, members } = state;
+  const { board, me, members, guests } = state;
+  // Свой собственный гостевой вход отдельной строкой ниже — из общего
+  // списка его убираем, иначе человек видел бы себя дважды.
+  const otherGuests = guests.filter((guest) => guest.guestId !== me.guestId);
+  const presentCount = members.length + otherGuests.length + (me.isGuest ? 1 : 0);
 
   return (
     <BoardShell>
@@ -182,7 +186,7 @@ export function BoardPage(): ReactElement {
             title="Участники"
           >
             <IconPeople />
-            <span>Участники{members.length ? ` · ${members.length}` : ''}</span>
+            <span>Участники{presentCount ? ` · ${presentCount}` : ''}</span>
             {!showPeople && waitingCount > 0 ? (
               <span className="badge-dot" aria-label={`Ждут допуска: ${waitingCount}`}>{waitingCount}</span>
             ) : null}
@@ -221,6 +225,7 @@ export function BoardPage(): ReactElement {
                 boardId={id}
                 canManage={board.canManage}
                 members={members}
+                guests={otherGuests}
                 guestName={me.isGuest ? me.displayName : null}
                 onChanged={load}
                 onWaitingCount={setWaitingCount}

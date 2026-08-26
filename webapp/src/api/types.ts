@@ -31,13 +31,23 @@ export interface Board {
   updatedAt: string;
 }
 
-/** Участник с учётной записью. Гостей здесь нет — они нигде не хранятся. */
+/** Участник с учётной записью. Роль и доступ сохранены за ним навсегда. */
 export interface BoardMember {
   userId: number;
   displayName: string;
   email: string;
   role: BoardRole;
   joinedAt: string;
+}
+
+/**
+ * Гость, впущенный на доску прямо сейчас. Не хранится — присылается
+ * заново с каждым опросом состояния, пока человек на доске.
+ */
+export interface ActiveGuest {
+  guestId: string;
+  displayName: string;
+  role: BoardRole;
 }
 
 /** Заявка в комнате ожидания. Видна только владельцу доски. */
@@ -74,4 +84,5 @@ export interface BoardState {
     guestId: string | null;
   };
   members: BoardMember[];
+  guests: ActiveGuest[];
 }

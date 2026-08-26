@@ -28,6 +28,8 @@ public sealed record BoardDto(
 
 public sealed record MemberDto(long UserId, string DisplayName, string Email, string Role, DateTime JoinedAt);
 
+public sealed record GuestDto(string GuestId, string DisplayName, string Role);
+
 public sealed record WaitingDto(string RequestId, string DisplayName, bool IsGuest, DateTime RequestedAt);
 
 /// <summary>Ответ на попытку войти по ссылке — общий для гостя и для входа под учётной записью.</summary>
@@ -257,13 +259,15 @@ public static class BoardEndpoints
                 return Results.NotFound(new { message = "Доска не найдена." });
 
             var members = await service.ListMembersAsync(boardId, user?.Id ?? 0, ct);
+            var guests = await service.ListActiveGuestsAsync(boardId);
 
             return Results.Ok(new
             {
                 board = ToDto(board, actor.Role, options, actor.CanManage),
                 me = new { actor.DisplayName, actor.IsGuest, actor.Role, actor.GuestId },
                 members = (members.Value ?? new List<BoardMember>())
-                    .Select(m => new MemberDto(m.UserId, m.User?.DisplayName ?? "", m.User?.Email ?? "", m.Role, m.JoinedAt))
+                    .Select(m => new MemberDto(m.UserId, m.User?.DisplayName ?? "", m.User?.Email ?? "", m.Role, m.JoinedAt)),
+                guests = guests.Select(g => new GuestDto(g.GuestId, g.DisplayName, g.Role))
             });
         });
     }

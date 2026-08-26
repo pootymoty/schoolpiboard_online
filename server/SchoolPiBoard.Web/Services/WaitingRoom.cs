@@ -13,6 +13,11 @@ public sealed record WaitingRequest(
     public bool IsGuest => UserId is null;
 }
 
+/// <summary>Гость, впущенный на доску прямо сейчас.</summary>
+public sealed record ActiveGuest(string GuestId, string DisplayName, string Role);
+
+file sealed record ActiveGuestInfo(string DisplayName, string Role);
+
 /// <summary>
 /// Комната ожидания и выданные допуски.
 ///
@@ -80,8 +85,14 @@ public sealed class WaitingRoom
     // ---------- Допуски ----------
 
     /// <summary>Впустить гостя с указанной ролью.</summary>
-    public Task AdmitAsync(long boardId, string guestId, string role)
-        => _redis.GetDatabase().StringSetAsync(AdmissionKey(boardId, guestId), role, AdmissionLifetime);
+    public async Task AdmitAsync(long boardId, string guestId, string displayName, string role)
+    {
+        var db = _redis.GetDatabase();
+
+        await db.StringSetAsync(AdmissionKey(boardId, guestId), role, AdmissionLifetime);
+        await db.HashSetAsync(ActiveInfoKey(boardId), guestId, JsonSerializer.Serialize(new ActiveGuestInfo(displayName, role)));
+        await Touch(db, boardId, guestId);
+    }
 
     /// <summary>
     /// Роль впущенного гостя, если допуск ещё действует. Заодно продлевает
@@ -97,12 +108,60 @@ public sealed class WaitingRoom
             return null;
 
         await db.KeyExpireAsync(key, AdmissionLifetime);
+        // Опрос состояния доски — единственный «пинг», который присылает
+        // подключённый гость: он же продлевает его присутствие в списке
+        // участников, пока хаб (11c) не даст этого делать напрямую.
+        await Touch(db, boardId, guestId);
         return role!;
     }
 
     /// <summary>Отобрать допуск: гость отключается и просится заново.</summary>
-    public Task RevokeAdmissionAsync(long boardId, string guestId)
-        => _redis.GetDatabase().KeyDeleteAsync(AdmissionKey(boardId, guestId));
+    public async Task RevokeAdmissionAsync(long boardId, string guestId)
+    {
+        var db = _redis.GetDatabase();
+
+        await db.KeyDeleteAsync(AdmissionKey(boardId, guestId));
+        await db.HashDeleteAsync(ActiveInfoKey(boardId), guestId);
+        await db.SortedSetRemoveAsync(ActiveSeenKey(boardId), guestId);
+    }
+
+    /// <summary>
+    /// Гости, впущенные на доску и не пропадавшие дольше времени жизни
+    /// допуска. Список живёт в Redis, а не в базе — по той же причине, что
+    /// и сама заявка: гость нигде не хранится (раздел 5.3).
+    /// </summary>
+    public async Task<List<ActiveGuest>> ListActiveGuestsAsync(long boardId)
+    {
+        var db = _redis.GetDatabase();
+        var seenKey = ActiveSeenKey(boardId);
+        var infoKey = ActiveInfoKey(boardId);
+
+        // Кто не подавал признаков жизни дольше срока допуска — тот отключился;
+        // чистим здесь же, а не фоновой задачей, которой в проекте нет.
+        var cutoff = DateTimeOffset.UtcNow.Subtract(AdmissionLifetime).ToUnixTimeMilliseconds();
+        await db.SortedSetRemoveRangeByScoreAsync(seenKey, double.NegativeInfinity, cutoff);
+
+        var guestIds = await db.SortedSetRangeByScoreAsync(seenKey);
+        if (guestIds.Length == 0)
+            return new List<ActiveGuest>();
+
+        var infos = await db.HashGetAsync(infoKey, guestIds);
+
+        var result = new List<ActiveGuest>();
+        for (var i = 0; i < guestIds.Length; i++)
+        {
+            if (infos[i].IsNullOrEmpty) continue;
+
+            var info = JsonSerializer.Deserialize<ActiveGuestInfo>(infos[i]!);
+            if (info is not null)
+                result.Add(new ActiveGuest(guestIds[i]!, info.DisplayName, info.Role));
+        }
+
+        return result;
+    }
+
+    private static Task Touch(IDatabase db, long boardId, string guestId)
+        => db.SortedSetAddAsync(ActiveSeenKey(boardId), guestId, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
     // ---------- Отказы ----------
 
@@ -126,6 +185,10 @@ public sealed class WaitingRoom
     private static string RequestsKey(long boardId) => $"waiting:{boardId}";
 
     private static string AdmissionKey(long boardId, string guestId) => $"admitted:{boardId}:{guestId}";
+
+    private static string ActiveInfoKey(long boardId) => $"activeinfo:{boardId}";
+
+    private static string ActiveSeenKey(long boardId) => $"activeseen:{boardId}";
 
     private static string RejectedKey(long boardId, string requestId) => $"rejected:{boardId}:{requestId}";
 }

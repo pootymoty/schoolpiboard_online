@@ -236,7 +236,7 @@ public sealed class BoardService
         {
             // Без спроса пускаем только смотреть: право рисовать выдаётся
             // осознанно, иначе ссылка, ушедшая в чат, дала бы его всем.
-            await _waiting.AdmitAsync(board.Id, marker, BoardMember.RoleViewer);
+            await _waiting.AdmitAsync(board.Id, marker, name, BoardMember.RoleViewer);
             return Admitted(board, BoardMember.RoleViewer, name, marker);
         }
 
@@ -358,7 +358,7 @@ public sealed class BoardService
         }
         else
         {
-            await _waiting.AdmitAsync(boardId, requestId, role);
+            await _waiting.AdmitAsync(boardId, requestId, request.DisplayName, role);
         }
 
         await _waiting.RemoveAsync(boardId, requestId);
@@ -395,6 +395,10 @@ public sealed class BoardService
 
         return BoardResult<List<BoardMember>>.Ok(members);
     }
+
+    /// <summary>Гости, впущенные на доску и активные прямо сейчас.</summary>
+    public Task<List<ActiveGuest>> ListActiveGuestsAsync(long boardId)
+        => _waiting.ListActiveGuestsAsync(boardId);
 
     public async Task<BoardResult<bool>> SetMemberRoleAsync(
         long boardId, long userId, long memberUserId, string? role, CancellationToken cancellationToken)

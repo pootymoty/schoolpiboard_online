@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
 import { api, ApiError } from '../api/client';
-import type { BoardMember, BoardRole, WaitingRequest } from '../api/types';
+import type { ActiveGuest, BoardMember, BoardRole, WaitingRequest } from '../api/types';
 import { IconCheck, IconClose, IconEditor, IconGuest, IconOwner, IconViewer } from './Icons';
 import { Menu } from './Menu';
 
@@ -12,6 +12,8 @@ interface Props {
   boardId: number;
   canManage: boolean;
   members: BoardMember[];
+  /** Другие гости на доске прямо сейчас — сам зашедший в этот список не входит. */
+  guests: ActiveGuest[];
   /** Гость на доске — он в базе не хранится, поэтому приходит отдельно. */
   guestName?: string | null;
   onChanged: () => void;
@@ -25,7 +27,7 @@ interface Props {
  * Ожидающих видит только владелец: остальным знать, кто ещё не впущен,
  * незачем.
  */
-export function PeoplePanel({ boardId, canManage, members, guestName, onChanged, onWaitingCount }: Props): ReactElement {
+export function PeoplePanel({ boardId, canManage, members, guests, guestName, onChanged, onWaitingCount }: Props): ReactElement {
   const [waiting, setWaiting] = useState<WaitingRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +98,17 @@ export function PeoplePanel({ boardId, canManage, members, guestName, onChanged,
     }
   };
 
+  const removeGuest = async (guestId: string, name: string) => {
+    if (!window.confirm(`Убрать ${name} с доски?`)) return;
+
+    try {
+      await api(`/boards/${boardId}/guests/remove`, { method: 'POST', body: { requestId: guestId } });
+      onChanged();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось убрать гостя.');
+    }
+  };
+
   return (
     <div>
       {error ? <p className="note note-danger">{error}</p> : null}
@@ -143,7 +156,7 @@ export function PeoplePanel({ boardId, canManage, members, guestName, onChanged,
         </>
       ) : null}
 
-      <p className="people__group">На доске · {members.length + (guestName ? 1 : 0)}</p>
+      <p className="people__group">На доске · {members.length + guests.length + (guestName ? 1 : 0)}</p>
       <ul className="people">
         {members.map((member) => (
           <li className="people__item" key={member.userId}>
@@ -169,6 +182,30 @@ export function PeoplePanel({ boardId, canManage, members, guestName, onChanged,
                   Убрать с доски
                 </button>
               </Menu>
+            ) : null}
+          </li>
+        ))}
+
+        {guests.map((guest) => (
+          <li className="people__item" key={guest.guestId}>
+            <span className="people__icon" title="Гость: зашёл по ссылке, без учётной записи">
+              <IconGuest />
+            </span>
+            <span className="people__name">{guest.displayName}</span>
+            <span className="people__icon" title={roleTitle(guest.role)}>
+              <RoleIcon role={guest.role} />
+            </span>
+
+            {canManage ? (
+              <button
+                className="btn-tool"
+                type="button"
+                onClick={() => removeGuest(guest.guestId, guest.displayName)}
+                aria-label={`Убрать ${guest.displayName} с доски`}
+                title="Убрать с доски"
+              >
+                <IconClose size={16} />
+              </button>
             ) : null}
           </li>
         ))}
