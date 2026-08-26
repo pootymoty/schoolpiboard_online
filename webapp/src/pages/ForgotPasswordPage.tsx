@@ -29,12 +29,12 @@ export function ForgotPasswordPage(): ReactElement {
   };
 
   return (
-    <Page>
+    <Page narrow>
       {sent ? (
         <div className="card">
           <h1>Проверьте почту</h1>
           <p>{sent}</p>
-          <Link className="btn-primary" to="/login">На страницу входа</Link>
+          <Link className="btn btn-primary" to="/login">На страницу входа</Link>
         </div>
       ) : (
         <form className="card" onSubmit={submit}>

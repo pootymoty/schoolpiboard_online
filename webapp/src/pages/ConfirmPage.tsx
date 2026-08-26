@@ -40,14 +40,14 @@ export function ConfirmPage(): ReactElement {
   }, [params, accept]);
 
   return (
-    <Page>
+    <Page narrow>
       <div className="card">
         <h1>Подтверждение почты</h1>
 
         {done ? (
           <>
             <p>Почта подтверждена, вы вошли.</p>
-            <Link className="btn-primary" to="/boards">К доскам</Link>
+            <Link className="btn btn-primary" to="/boards">К доскам</Link>
           </>
         ) : error ? (
           <>
@@ -56,7 +56,7 @@ export function ConfirmPage(): ReactElement {
               Ссылка действует сутки и срабатывает один раз. Если срок вышел,
               запросите новое письмо на странице входа.
             </p>
-            <Link className="btn-primary" to="/login">На страницу входа</Link>
+            <Link className="btn btn-primary" to="/login">На страницу входа</Link>
           </>
         ) : (
           <p className="text-muted">Подтверждаем…</p>

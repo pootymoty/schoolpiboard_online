@@ -50,21 +50,21 @@ export function RegisterPage(): ReactElement {
 
   if (done) {
     return (
-      <Page>
+      <Page narrow>
         <div className="card">
           <h1>Проверьте почту</h1>
           <p>{done}</p>
           <p className="text-muted small">
             Письмо не пришло? Загляните в «Спам», а затем запросите его заново на странице входа.
           </p>
-          <Link className="btn-primary" to="/login">На страницу входа</Link>
+          <Link className="btn btn-primary" to="/login">На страницу входа</Link>
         </div>
       </Page>
     );
   }
 
   return (
-    <Page>
+    <Page narrow>
       <form className="card" onSubmit={submit}>
         <h1>Регистрация</h1>
         <p className="text-muted">

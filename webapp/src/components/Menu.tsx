@@ -8,7 +8,15 @@ import { IconMore } from './Icons';
  * Действия над доской живут здесь, а не кнопками в строке: переименование
  * и удаление нужны изредка, а места в строке они занимают постоянно.
  */
-export function Menu({ label, children }: { label: string; children: ReactNode }): ReactElement {
+interface Props {
+  label: string;
+  children: ReactNode;
+  /** Свой вид кнопки-триггера вместо трёх точек — например, имя в шапке. */
+  trigger?: ReactNode;
+  triggerClassName?: string;
+}
+
+export function Menu({ label, children, trigger, triggerClassName = 'btn-tool' }: Props): ReactElement {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement | null>(null);
 
@@ -36,13 +44,13 @@ export function Menu({ label, children }: { label: string; children: ReactNode }
   return (
     <div className="menu" ref={box}>
       <button
-        className="btn-tool"
+        className={triggerClassName}
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-label={label}
         aria-expanded={open}
       >
-        <IconMore />
+        {trigger ?? <IconMore />}
       </button>
 
       {open ? (

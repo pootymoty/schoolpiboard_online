@@ -103,6 +103,16 @@ export const IconPeople = (props: Props): ReactElement => (
   </Svg>
 );
 
+/** Учётная запись — свёрнутое меню профиля в шапке. */
+export const IconUser = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21v-1a8 8 0 0 1 16 0v1" />
+    </g>
+  </Svg>
+);
+
 /** Три точки: меню действий. */
 export const IconMore = (props: Props): ReactElement => (
   <Svg {...props}>

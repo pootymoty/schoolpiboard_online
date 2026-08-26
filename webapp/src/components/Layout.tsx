@@ -2,7 +2,8 @@ import { useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { IconMoon, IconSun } from './Icons';
+import { IconMoon, IconSun, IconUser } from './Icons';
+import { Menu } from './Menu';
 
 type Theme = 'light' | 'dark';
 
@@ -56,13 +57,21 @@ export function Header(): ReactElement {
       {user ? (
         <>
           <Link to="/boards">Мои доски</Link>
-          <Link to="/profile">{user.displayName}</Link>
-          <button className="btn-quiet btn-sm" type="button" onClick={logout}>Выйти</button>
+          <Menu
+            label={`Аккаунт: ${user.displayName}`}
+            trigger={<><IconUser size={18} /> {user.displayName}</>}
+            triggerClassName="btn-tool btn-tool--wide"
+          >
+            <Link className="btn btn-quiet menu__item" to="/profile">Профиль</Link>
+            <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={logout}>
+              Выйти
+            </button>
+          </Menu>
         </>
       ) : (
         <>
           <Link to="/login">Войти</Link>
-          <Link className="btn-primary btn-sm" to="/register">Регистрация</Link>
+          <Link className="btn btn-primary btn-sm" to="/register">Регистрация</Link>
         </>
       )}
     </header>

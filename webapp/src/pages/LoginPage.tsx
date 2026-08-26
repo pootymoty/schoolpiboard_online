@@ -62,7 +62,7 @@ export function LoginPage(): ReactElement {
   };
 
   return (
-    <Page>
+    <Page narrow>
       <form className="card" onSubmit={submit}>
         <h1>Вход</h1>
 

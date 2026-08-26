@@ -14,8 +14,8 @@ export function LandingPage(): ReactElement {
         </p>
 
         <div className="row" style={{ justifyContent: 'center' }}>
-          <Link className="btn-primary btn-lg" to="/register">Зарегистрироваться</Link>
-          <Link className="btn-outline btn-lg" to="/login">Войти</Link>
+          <Link className="btn btn-primary btn-lg" to="/register">Зарегистрироваться</Link>
+          <Link className="btn btn-outline btn-lg" to="/login">Войти</Link>
         </div>
       </section>
 

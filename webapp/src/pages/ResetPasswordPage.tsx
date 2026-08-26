@@ -54,18 +54,18 @@ export function ResetPasswordPage(): ReactElement {
 
   if (!token) {
     return (
-      <Page>
+      <Page narrow>
         <div className="card">
           <h1>Новый пароль</h1>
           <p className="note note-danger">Ссылка неполная. Откройте её из письма целиком.</p>
-          <Link className="btn-primary" to="/forgot-password">Запросить ссылку заново</Link>
+          <Link className="btn btn-primary" to="/forgot-password">Запросить ссылку заново</Link>
         </div>
       </Page>
     );
   }
 
   return (
-    <Page>
+    <Page narrow>
       <form className="card" onSubmit={submit}>
         <h1>Новый пароль</h1>
 
