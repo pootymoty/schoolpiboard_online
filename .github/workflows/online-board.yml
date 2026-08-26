@@ -76,12 +76,40 @@ jobs:
       # обычным curl, без токенов и без установки чего-либо на сервер.
       # Внутри уже разложено на api/ и web/ — распаковывать прямо в
       # /var/www/schoolpiboard.
+      #
+      # Релиз обновляется, а не пересоздаётся. Прежний вариант удалял его
+      # вместе с тегом и создавал заново — и время от времени `create` не
+      # успевал за удалением тега, молча сваливаясь в черновик. Черновик
+      # публично ассетов не отдаёт, поэтому сборка была зелёной, а ссылка
+      # на сервере отвечала 404.
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          NOTES: "Собрано из ${{ github.sha }}. Распаковывается в /var/www/schoolpiboard."
         run: |
-          gh release delete online-board-latest --yes --cleanup-tag || true
-          gh release create online-board-latest online-board.tar.gz \
-            --title "Онлайн-доска — последняя сборка" \
-            --notes "Собрано из ${{ github.sha }}. Распаковывается в /var/www/schoolpiboard." \
-            --prerelease
+          set -euo pipefail
+
+          # Подчищаем черновики, оставшиеся от прежней схемы публикации:
+          # они занимают имя и сбивают с толку при разборе.
+          gh api "repos/${{ github.repository }}/releases" \
+            --jq '.[] | select(.draft and .tag_name == "online-board-latest") | .id' \
+            | xargs -r -I{} gh api -X DELETE "repos/${{ github.repository }}/releases/{}"
+
+          if gh release view online-board-latest >/dev/null 2>&1; then
+            gh release edit online-board-latest --notes "$NOTES" --prerelease
+          else
+            gh release create online-board-latest \
+              --title "Онлайн-доска — последняя сборка" \
+              --notes "$NOTES" \
+              --prerelease \
+              --target "${{ github.sha }}"
+          fi
+
+          # --clobber заменяет файл, если он уже приложен к релизу.
+          gh release upload online-board-latest online-board.tar.gz --clobber
+
+          # Проверяем, что ассет действительно доступен: молчаливая потеря
+          # архива один раз уже стоила разбирательства.
+          gh release view online-board-latest --json assets \
+            --jq '.assets[] | select(.name == "online-board.tar.gz") | .size' \
+            | grep -qE '^[0-9]+$'
