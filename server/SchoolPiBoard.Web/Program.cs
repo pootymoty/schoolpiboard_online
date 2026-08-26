@@ -22,13 +22,16 @@ builder.Services.AddSingleton(options);
 builder.Services.AddDbContext<AppDbContext>(db => db.UseNpgsql(options.DatabaseUrl));
 
 builder.Services.AddSingleton<AuthTokenService>();
+builder.Services.AddSingleton<GuestTokenService>();
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<BoardService>();
 
 // Redis подключается при старте, а не при первом обращении: если он
 // недоступен, узнать об этом надо сейчас, а не посреди занятия.
 var redis = await ConnectionMultiplexer.ConnectAsync(options.RedisUrl);
 builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+builder.Services.AddSingleton<KickList>();
 
 builder.Services.AddSignalR().AddStackExchangeRedis(options.RedisUrl);
 
@@ -74,6 +77,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapAuthEndpoints();
+app.MapBoardEndpoints();
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 

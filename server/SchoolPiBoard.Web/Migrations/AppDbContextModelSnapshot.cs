@@ -115,6 +115,153 @@ namespace SchoolPiBoard.Web.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.Board", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BytesUsed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("bytes_used");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("Locked")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("locked");
+
+                    b.Property<long>("OwnerId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("owner_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("boards", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardLink", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BoardId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("board_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Label")
+                        .HasColumnType("text")
+                        .HasColumnName("label");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("role");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("token");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BoardId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("board_links", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardMember", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("BannedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("banned_at");
+
+                    b.Property<long>("BoardId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("board_id");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("joined_at");
+
+                    b.Property<long?>("LinkId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("link_id");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("role");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("BoardId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("board_members", (string)null);
+                });
+
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.EmailToken", b =>
                 {
                     b.HasOne("SchoolPiBoard.Web.Data.Entities.User", "User")
@@ -122,6 +269,47 @@ namespace SchoolPiBoard.Web.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.Board", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.User", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardLink", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.Board", "Board")
+                        .WithMany()
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Board");
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardMember", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.Board", "Board")
+                        .WithMany()
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Board");
 
                     b.Navigation("User");
                 });
