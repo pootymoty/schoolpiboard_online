@@ -1,9 +1,9 @@
-# Сборка сайта онлайн-доски на стороне GitHub.
+# Сборка доски на стороне GitHub.
 #
-# Сервер, на котором сервис работает, остаётся чистым: только рантайм
+# Сервер, на котором служба работает, остаётся чистым: только рантайм
 # ASP.NET Core, PostgreSQL, Redis и nginx — ни SDK, ни Node.js, ни исходников,
-# ни git. Здесь собирается готовый архив с готовыми api/ и web/, который
-# на сервере остаётся только распаковать.
+# ни git. Здесь собирается готовый архив с api/ и web/, который на сервере
+# остаётся только распаковать.
 name: online-board
 
 on:
@@ -16,6 +16,9 @@ on:
 
 permissions:
   contents: write
+
+env:
+  PROJECT: server/SchoolPiBoard.Web/SchoolPiBoard.Web.csproj
 
 jobs:
   build:
@@ -34,10 +37,26 @@ jobs:
           cache: 'npm'
           cache-dependency-path: webapp/package-lock.json
 
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 8.*
+
+      # Миграции пишутся вручную: у среды, где готовятся правки, нет доступа
+      # к пакетам .NET, а значит и к `dotnet ef migrations add`. Эта проверка
+      # закрывает возникающий риск: если модель и миграции разошлись, сборка
+      # падает здесь, а не база расходится со схемой в бою.
+      - name: Check migrations match the model
+        run: dotnet ef migrations has-pending-model-changes --project ${{ env.PROJECT }}
+
       - name: Publish API
+        run: dotnet publish ${{ env.PROJECT }} -c Release -o pack/api
+
+      # Самодостаточный исполняемый файл, применяющий миграции. Нужен потому,
+      # что задание требует применять их командой при выкладке, а SDK на
+      # сервере нет и быть не должно.
+      - name: Build migration bundle
         run: >
-          dotnet publish server/SchoolPiBoard.Online/SchoolPiBoard.Online.csproj
-          -c Release -o pack/api
+          dotnet ef migrations bundle --project ${{ env.PROJECT }}
+          --self-contained -r linux-x64 --force -o pack/api/migrate
 
       - name: Build web
         working-directory: webapp
@@ -46,8 +65,7 @@ jobs:
           # Ключ сайта SmartCaptcha вшивается в бандл при сборке, а не читается
           # на сервере: задать его через .env постфактум нельзя. Он не секрет —
           # виден в исходниках страницы, — поэтому лежит в переменной
-          # репозитория, а не в секретах. Пока переменная не задана, значение
-          # пустое, виджет не показывается и сервер такой запрос принимает.
+          # репозитория, а не в секретах.
           VITE_CAPTCHA_SITEKEY: ${{ vars.VITE_CAPTCHA_SITEKEY }}
         run: |
           npm ci
