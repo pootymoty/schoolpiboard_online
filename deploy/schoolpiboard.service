@@ -1,0 +1,45 @@
+# Юнит службы доски. Ставится в /etc/systemd/system/schoolpiboard.service.
+#
+# Работает от boardsvc, а не от www-data и не от пользователя основного
+# сайта: ошибка в доске тогда физически не прочитает почтовый пароль сайта.
+# Сайт (my_portfolio_project, юнит gunicorn) этот файл не затрагивает.
+
+[Unit]
+Description=SchoolPiBoard Web — доска для занятий
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+# notify, а не simple: приложение вызывает UseSystemd() и сообщает о
+# готовности само. Иначе systemd считал бы службу поднятой в момент запуска
+# процесса — до того, как она достучалась до базы и Redis.
+Type=notify
+User=boardsvc
+Group=boardsvc
+WorkingDirectory=/var/www/schoolpiboard/api
+ExecStart=/usr/bin/dotnet /var/www/schoolpiboard/api/SchoolPiBoard.Web.dll
+EnvironmentFile=/var/www/schoolpiboard/.env
+Restart=always
+RestartSec=5
+
+# Служба слушает только петлевой адрес, наружу её выпускает nginx.
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5081
+
+# Ограничения из раздела 10.2. Доске нужны только своя папка, сеть и
+# временный каталог: всё остальное закрыто, чтобы захваченный процесс
+# не дотянулся до чужих файлов на этой же машине.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+ReadWritePaths=/var/www/schoolpiboard
+
+[Install]
+WantedBy=multi-user.target

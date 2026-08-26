@@ -18,6 +18,9 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.8" />
+    <!-- Готовность службы сообщается systemd: иначе он считает её поднятой
+         в момент запуска процесса, до подключения к базе и Redis. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="8.0.1" />
     <!-- Шина SignalR и общая память под присутствие и блокировки. Включается
          с самого начала намеренно: код, который никогда не запускался, при
          срочной активации не работает. -->

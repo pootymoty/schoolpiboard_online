@@ -10,6 +10,10 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Под systemd служба сообщает о готовности сама, и юнит объявлен Type=notify.
+// Вне systemd вызов ничего не делает, поэтому запуск из консоли не меняется.
+builder.Host.UseSystemd();
+
 // Настройки читаются один раз и сразу проверяются. Если ключа подписи нет
 // или он похож на заглушку — служба не поднимается: пункт 13.6 приёмки.
 var options = AppOptions.Load(builder.Configuration);
