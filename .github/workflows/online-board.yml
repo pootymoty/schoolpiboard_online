@@ -62,11 +62,6 @@ jobs:
         working-directory: webapp
         env:
           VITE_API_URL: /api
-          # Ключ сайта SmartCaptcha вшивается в бандл при сборке, а не читается
-          # на сервере: задать его через .env постфактум нельзя. Он не секрет —
-          # виден в исходниках страницы, — поэтому лежит в переменной
-          # репозитория, а не в секретах.
-          VITE_CAPTCHA_SITEKEY: ${{ vars.VITE_CAPTCHA_SITEKEY }}
         run: |
           npm ci
           npm run build

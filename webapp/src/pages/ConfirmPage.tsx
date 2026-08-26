@@ -2,60 +2,65 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import type { AuthResponse } from '../api/types';
+import { useAuth } from '../auth/AuthContext';
 import { Page } from '../components/Layout';
 
-type State = 'checking' | 'done' | 'failed';
-
-/** Страница, на которую ведёт ссылка из письма о регистрации. */
+/** Страница из письма: подтверждает почту и сразу впускает. */
 export function ConfirmPage(): ReactElement {
   const [params] = useSearchParams();
-  const [state, setState] = useState<State>('checking');
-  const [message, setMessage] = useState('');
+  const { accept } = useAuth();
+
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  // В строгом режиме React вызывает эффект дважды. Код одноразовый, поэтому
+  // второй вызов получил бы отказ и показал бы ошибку на удачном подтверждении.
   const started = useRef(false);
 
   useEffect(() => {
-    // В StrictMode эффект выполняется дважды — второй запрос уже не нужен.
-    if (started.current) return;
-    started.current = true;
-
     const token = params.get('token');
+
     if (!token) {
-      setState('failed');
-      setMessage('Ссылка неполная. Откройте её из письма целиком.');
+      setError('Ссылка неполная. Откройте её из письма целиком.');
       return;
     }
 
-    api<{ message: string }>('/auth/confirm', { method: 'POST', body: { token } })
+    if (started.current) return;
+    started.current = true;
+
+    api<AuthResponse>('/auth/confirm', { method: 'POST', body: { token } })
       .then((result) => {
-        setState('done');
-        setMessage(result.message);
+        accept(result);
+        setDone(true);
       })
       .catch((reason: unknown) => {
-        setState('failed');
-        setMessage(reason instanceof ApiError ? reason.message : 'Не удалось подтвердить почту.');
+        setError(reason instanceof ApiError ? reason.message : 'Не удалось подтвердить почту.');
       });
-  }, [params]);
+  }, [params, accept]);
 
   return (
     <Page>
       <div className="card form">
         <h1>Подтверждение почты</h1>
 
-        {state === 'checking' ? <p className="muted">Проверяем ссылку…</p> : null}
-
-        {state === 'done' ? (
+        {done ? (
           <>
-            <p>{message}</p>
-            <Link className="button" to="/login?confirmed=1">Войти</Link>
+            <p>Почта подтверждена, вы вошли.</p>
+            <Link className="button" to="/boards">К доскам</Link>
           </>
-        ) : null}
-
-        {state === 'failed' ? (
+        ) : error ? (
           <>
-            <p className="error">{message}</p>
-            <Link className="button" to="/register">Зарегистрироваться заново</Link>
+            <p className="error">{error}</p>
+            <p className="muted small">
+              Ссылка действует сутки и срабатывает один раз. Если срок вышел,
+              запросите новое письмо на странице входа.
+            </p>
+            <Link className="button" to="/login">На страницу входа</Link>
           </>
-        ) : null}
+        ) : (
+          <p className="muted">Подтверждаем…</p>
+        )}
       </div>
     </Page>
   );

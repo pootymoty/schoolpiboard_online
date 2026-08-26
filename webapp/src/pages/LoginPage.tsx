@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent, ReactElement } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ApiError } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Page } from '../components/Layout';
 
@@ -13,22 +13,49 @@ export function LoginPage(): ReactElement {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const justRegistered = params.get('registered') === '1';
-  const justConfirmed = params.get('confirmed') === '1';
+  // Почта не подтверждена — предлагаем выслать письмо заново прямо здесь,
+  // а не отправляем человека искать, где это делается.
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+
   const next = params.get('next');
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
+    setNeedsConfirmation(false);
 
     try {
       await login(email, password);
-      navigate(next ?? '/subscribe');
+      navigate(next ?? '/boards');
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось войти.');
+      if (reason instanceof ApiError) {
+        setError(reason.message);
+        if (reason.code === 'email_not_confirmed') setNeedsConfirmation(true);
+      } else {
+        setError('Не удалось войти.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resend = async () => {
+    setBusy(true);
+    try {
+      const result = await api<{ message: string }>('/auth/resend-confirmation', {
+        method: 'POST',
+        body: { email },
+      });
+      setError(null);
+      setNeedsConfirmation(false);
+      setNotice(result.message);
+    } catch {
+      setError('Не удалось отправить письмо. Попробуйте позже.');
     } finally {
       setBusy(false);
     }
@@ -39,16 +66,6 @@ export function LoginPage(): ReactElement {
       <form className="card form" onSubmit={submit}>
         <h1>Вход</h1>
 
-        {justRegistered ? (
-          <p className="banner">
-            Мы отправили письмо со ссылкой подтверждения. Перейдите по ней —
-            учётная запись создастся, и можно будет войти.
-            Ссылка действует час, потом регистрацию нужно пройти заново.
-          </p>
-        ) : null}
-
-        {justConfirmed ? <p className="banner">Почта подтверждена. Теперь можно войти.</p> : null}
-
         <label htmlFor="email">Почта</label>
         <input id="email" type="email" required autoComplete="email"
                value={email} onChange={(event) => setEmail(event.target.value)} />
@@ -58,11 +75,21 @@ export function LoginPage(): ReactElement {
                value={password} onChange={(event) => setPassword(event.target.value)} />
 
         {error ? <p className="error">{error}</p> : null}
+        {notice ? <p className="muted">{notice}</p> : null}
+
+        {needsConfirmation ? (
+          <button className="button ghost" type="button" onClick={resend} disabled={busy}>
+            Выслать письмо ещё раз
+          </button>
+        ) : null}
 
         <button className="button" type="submit" disabled={busy}>
-          {busy ? 'Проверяем…' : 'Войти'}
+          {busy ? 'Входим…' : 'Войти'}
         </button>
 
+        <p className="muted small">
+          <Link to="/forgot-password">Забыли пароль?</Link>
+        </p>
         <p className="muted small">
           Нет учётной записи? <Link to="/register">Зарегистрироваться</Link>
         </p>

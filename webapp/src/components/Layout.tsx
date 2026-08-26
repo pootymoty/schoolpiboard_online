@@ -17,7 +17,6 @@ export function Header(): ReactElement {
         {user ? (
           <>
             <Link className="nav-link" to="/boards">Мои доски</Link>
-            <Link className="nav-link" to="/profile">Профиль</Link>
             <button className="button ghost" type="button" onClick={logout}>Выйти</button>
           </>
         ) : (
@@ -40,7 +39,7 @@ export function Footer(): ReactElement {
         <Link to="/legal/offer">Оферта</Link>
       </div>
       <p className="muted small">
-        SchoolPiBoard · school-pi-board.online · ЗАГЛУШКА: реквизиты продавца
+        SchoolPiBoard · board.school-pi.online · ЗАГЛУШКА: реквизиты продавца
       </p>
     </footer>
   );

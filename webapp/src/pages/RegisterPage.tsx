@@ -1,25 +1,20 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent, ReactElement } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { Captcha } from '../components/Captcha';
+import type { RegisterResponse } from '../api/types';
 import { Page } from '../components/Layout';
 
 const MIN_PASSWORD_LENGTH = 8;
 
 export function RegisterPage(): ReactElement {
-  const navigate = useNavigate();
-
-  const [lastName, setLastName] = useState('');
-  const [firstName, setFirstName] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
-  const [captchaToken, setCaptchaToken] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const onToken = useCallback((token: string) => setCaptchaToken(token), []);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -38,13 +33,14 @@ export function RegisterPage(): ReactElement {
     setError(null);
 
     try {
-      await api('/auth/register', {
+      const result = await api<RegisterResponse>('/auth/register', {
         method: 'POST',
-        body: { lastName, firstName, email, password, passwordConfirm, captchaToken },
+        body: { displayName, email, password, passwordConfirm },
       });
 
-      // Учётной записи ещё нет — она появится после перехода по ссылке из письма.
-      navigate('/login?registered=1');
+      // Пользоваться учётной записью нельзя до перехода по ссылке из письма,
+      // поэтому на страницу входа не уводим — человек всё равно не войдёт.
+      setDone(result.message);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось зарегистрироваться.');
     } finally {
@@ -52,18 +48,34 @@ export function RegisterPage(): ReactElement {
     }
   };
 
+  if (done) {
+    return (
+      <Page>
+        <div className="card form">
+          <h1>Проверьте почту</h1>
+          <p>{done}</p>
+          <p className="muted small">
+            Письмо не пришло? Загляните в «Спам», а затем запросите его заново на странице входа.
+          </p>
+          <Link className="button" to="/login">На страницу входа</Link>
+        </div>
+      </Page>
+    );
+  }
+
   return (
     <Page>
       <form className="card form" onSubmit={submit}>
         <h1>Регистрация</h1>
+        <p className="muted">
+          Учётная запись нужна преподавателю — тому, кто создаёт доски.
+          Обучающемуся регистрироваться не нужно: он заходит по ссылке.
+        </p>
 
-        <label htmlFor="lastName">Фамилия</label>
-        <input id="lastName" type="text" required autoComplete="family-name"
-               value={lastName} onChange={(event) => setLastName(event.target.value)} />
-
-        <label htmlFor="firstName">Имя</label>
-        <input id="firstName" type="text" required autoComplete="given-name"
-               value={firstName} onChange={(event) => setFirstName(event.target.value)} />
+        <label htmlFor="displayName">Как вас называть</label>
+        <input id="displayName" type="text" required maxLength={100} autoComplete="name"
+               placeholder="Имя, которое увидят на доске"
+               value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
 
         <label htmlFor="email">Почта</label>
         <input id="email" type="email" required autoComplete="email"
@@ -73,22 +85,15 @@ export function RegisterPage(): ReactElement {
         <input id="password" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password"
                value={password} onChange={(event) => setPassword(event.target.value)} />
 
-        <label htmlFor="passwordConfirm">Повторите пароль</label>
-        <input id="passwordConfirm" type="password" required autoComplete="new-password"
+        <label htmlFor="passwordConfirm">Пароль ещё раз</label>
+        <input id="passwordConfirm" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password"
                value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} />
-
-        <Captcha onToken={onToken} />
 
         {error ? <p className="error">{error}</p> : null}
 
         <button className="button" type="submit" disabled={busy}>
           {busy ? 'Отправляем…' : 'Зарегистрироваться'}
         </button>
-
-        <p className="muted small">
-          Регистрируясь, вы соглашаетесь с <Link to="/legal/terms">условиями использования</Link> и{' '}
-          <Link to="/legal/privacy">обработкой персональных данных</Link>.
-        </p>
 
         <p className="muted small">
           Уже есть учётная запись? <Link to="/login">Войти</Link>

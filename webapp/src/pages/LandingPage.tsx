@@ -1,98 +1,66 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { BookshelfBackground } from '../components/BookshelfBackground';
-import { Footer, Header } from '../components/Layout';
+import { Page } from '../components/Layout';
 
-/**
- * Главная страница. Единственная, где есть фон с книжными полками —
- * на остальных страницах он только мешал бы работать.
- */
 export function LandingPage(): ReactElement {
   return (
-    <div className="site landing">
+    <Page wide>
       <BookshelfBackground />
 
-      <div className="landing-content">
-        <Header />
+      <section className="hero">
+        <h1>Доска для занятий в браузере</h1>
+        <p className="lead">
+          Откройте доску, дайте ссылку — и объясняйте, рисуйте и разбирайте
+          задачи вместе, на одном холсте и в реальном времени.
+        </p>
 
-        <main className="main">
-          <section className="hero">
-            <h1 className="hero-title">Онлайн-доска для занятий</h1>
-            <p className="hero-lead">
-              Объясняйте, рисуйте и разбирайте задачи вместе с учениками —
-              прямо в браузере, всем классом на одной доске.
-            </p>
+        <div className="row">
+          <Link className="button large" to="/register">ЗАРЕГИСТРИРОВАТЬСЯ</Link>
+          <Link className="button large ghost" to="/login">ВОЙТИ</Link>
+        </div>
+      </section>
 
-            <div className="hero-actions">
-              <Link className="hero-button" to="/login">ВОЙТИ</Link>
-              <Link className="hero-button outline" to="/register">ЗАРЕГИСТРИРОВАТЬСЯ</Link>
-            </div>
+      <section className="cards">
+        <article className="card">
+          <h2>Преподавателю</h2>
+          <p>
+            Создавайте доски, выпускайте на них ссылки с нужной ролью —
+            рисовать или только смотреть. Ссылку можно отозвать и выпустить
+            заново, а доску закрыть для новых участников.
+          </p>
+        </article>
 
-            <p className="muted small">Первые 7 дней бесплатно, карта не нужна.</p>
-          </section>
+        <article className="card">
+          <h2>Обучающемуся</h2>
+          <p>
+            Регистрация не нужна. Достаточно перейти по ссылке и назвать имя —
+            чтобы остальные понимали, чей курсор на доске.
+          </p>
+        </article>
 
-          <section className="cards">
-            <article className="card">
-              <h2>Для репетиторов</h2>
-              <p className="muted">
-                Ученик видит доску в реальном времени: не нужно фотографировать
-                тетрадь и пересылать в мессенджер.
-              </p>
-            </article>
+        <article className="card">
+          <h2>Перо и планшет</h2>
+          <p>
+            Доска рассчитана на перо: линия слушается нажима, ладонь на
+            экране следа не оставляет, а пальцем двигается сам холст.
+          </p>
+        </article>
+      </section>
 
-            <article className="card">
-              <h2>Для учителей</h2>
-              <p className="muted">
-                Пригласите класс ссылкой. До двадцати участников на одной доске,
-                у каждого свой курсор.
-              </p>
-            </article>
-
-            <article className="card">
-              <h2>Для учеников</h2>
-              <p className="muted">
-                Подписка нужна только тому, кто создаёт доски. Чтобы работать
-                на чужой доске, достаточно приглашения.
-              </p>
-            </article>
-          </section>
-
-          <section className="section">
-            <h2>Как это работает</h2>
-            <ol className="steps">
-              <li>Зарегистрируйтесь и подтвердите почту.</li>
-              <li>Возьмите 7 бесплатных дней или сразу оформите подписку.</li>
-              <li>Создайте доску и пригласите участников по почте или ссылкой.</li>
-              <li>Рисуйте вместе: правки видны всем сразу.</li>
-            </ol>
-          </section>
-
-          <section className="section">
-            <h2>Сколько стоит</h2>
-            <div className="cards">
-              <div className="card price-card"><b>30 дней</b><span>499 ₽</span></div>
-              <div className="card price-card"><b>90 дней</b><span>1449 ₽</span></div>
-              <div className="card price-card"><b>180 дней</b><span>2799 ₽</span></div>
-              <div className="card price-card"><b>365 дней</b><span>5399 ₽</span></div>
-            </div>
-            <p className="muted small">
-              Оплата разовая за выбранный срок. Автопродление можно включить
-              и отключить в настройках профиля.
-            </p>
-          </section>
-
-          <section className="section">
-            <h2>Правовая информация</h2>
-            <p className="muted">
-              <Link to="/legal/terms">Условия использования</Link> ·{' '}
-              <Link to="/legal/privacy">Обработка персональных данных</Link> ·{' '}
-              <Link to="/legal/offer">Оферта</Link>
-            </p>
-          </section>
-        </main>
-
-        <Footer />
-      </div>
-    </div>
+      <section className="card">
+        <h2>Как это работает</h2>
+        <ol>
+          <li>Зарегистрируйтесь и подтвердите почту.</li>
+          <li>Возьмите семь дней бесплатно, без привязки карты.</li>
+          <li>Создайте доску и отправьте ссылку тем, кого ждёте на занятии.</li>
+          <li>Работайте вместе: до двадцати человек на одной доске.</li>
+        </ol>
+        <p className="muted small">
+          Платит только тот, кто создаёт доски. Тем, кто приходит по ссылке,
+          подписка не нужна.
+        </p>
+      </section>
+    </Page>
   );
 }
