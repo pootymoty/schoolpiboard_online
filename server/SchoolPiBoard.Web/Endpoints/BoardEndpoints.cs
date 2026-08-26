@@ -270,6 +270,18 @@ public static class BoardEndpoints
                 guests = guests.Select(g => new GuestDto(g.GuestId, g.DisplayName, g.Role))
             });
         });
+
+        // Гость уходит сам. Без этого запись о нём висела бы у владельца в
+        // списке присутствующих ещё до пятнадцати минут — до истечения
+        // допуска, — хотя человек уже закрыл вкладку. Учётной записи у
+        // маршрута нет: он и для того, кто аутентифицирован не был.
+        app.MapPost("/api/boards/{boardId:long}/leave", async (
+            long boardId, HttpContext http, BoardService service, CancellationToken ct) =>
+        {
+            var guestToken = http.Request.Headers[GuestHeader].ToString();
+            await service.LeaveAsGuestAsync(boardId, guestToken, ct);
+            return Results.NoContent();
+        });
     }
 
     /// <summary>

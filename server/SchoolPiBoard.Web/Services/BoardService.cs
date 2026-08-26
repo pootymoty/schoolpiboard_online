@@ -426,6 +426,19 @@ public sealed class BoardService
         return BoardResult<bool>.Ok(true);
     }
 
+    /// <summary>
+    /// Гость уходит сам: допуск отбирается сразу, а не по истечении срока.
+    /// Для участника с учётной записью это не имеет смысла — доступ у него
+    /// сохранён и без того, поэтому вызов для не-гостя просто ничего не делает.
+    /// </summary>
+    public Task LeaveAsGuestAsync(long boardId, string? guestToken, CancellationToken cancellationToken)
+    {
+        var guest = _guestTokens.Read(guestToken, boardId);
+        return guest?.GuestId is null
+            ? Task.CompletedTask
+            : _waiting.RevokeAdmissionAsync(boardId, guest.GuestId);
+    }
+
     /// <summary>Убрать гостя: допуск отбирается, и он снова просится в очередь.</summary>
     public async Task<BoardResult<bool>> RemoveGuestAsync(
         long boardId, long userId, string guestId, CancellationToken cancellationToken)

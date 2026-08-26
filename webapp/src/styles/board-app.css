@@ -357,3 +357,12 @@
     font-family: var(--font-mono);
     font-size: var(--fs-sm);
 }
+
+/* Ссылка целиком видна над кнопкой, а не обрезана вполовину рядом с ней —
+   особенно важно на телефоне, где строка узкая. */
+.link-box--stack {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.link-box--stack input { width: 100%; }

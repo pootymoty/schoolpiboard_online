@@ -26,7 +26,10 @@ export function BoardPage(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [showPeople, setShowPeople] = useState(true);
+  // Свёрнута по умолчанию: на телефоне список участников занимает весь
+  // экран и закрывает холст, а бейдж на кнопке всё равно сообщит о новых
+  // заявках в очереди, даже пока панель скрыта.
+  const [showPeople, setShowPeople] = useState(false);
   // Сразу после создания доски открываем окно со ссылкой сами: доска на
   // пустом экране обещает, что ссылка появится сразу, а не через три клика.
   const [showLink, setShowLink] = useState(() => Boolean((location.state as { openLink?: boolean } | null)?.openLink));
@@ -110,9 +113,17 @@ export function BoardPage(): ReactElement {
     }
   };
 
-  const leaveGuest = () => {
-    writeGuestToken(id, null);
-    navigate('/', { replace: true });
+  const leaveGuest = async () => {
+    try {
+      // Владелец не должен видеть ушедшего гостя ещё до истечения допуска —
+      // сообщаем серверу явно, а не ждём, пока запись протухнет сама.
+      await api(`/boards/${id}/leave`, { method: 'POST', guestToken: readGuestToken(id) });
+    } catch {
+      // Сеть подвела — не страшно: запись пропадёт сама по истечении допуска.
+    } finally {
+      writeGuestToken(id, null);
+      navigate('/', { replace: true });
+    }
   };
 
   if (error && !state) {
@@ -249,9 +260,9 @@ export function BoardPage(): ReactElement {
             а вы решите, впускать ли его и с какой ролью.
           </p>
 
-          <div className="link-box">
+          <div className="link-box link-box--stack">
             <input type="text" readOnly value={board.linkUrl} onFocus={(e) => e.target.select()} />
-            <button className="btn-primary" type="button" onClick={() => copy(board.linkUrl!)}>
+            <button className="btn-primary btn-block" type="button" onClick={() => copy(board.linkUrl!)}>
               {copied ? 'Скопировано' : 'Копировать'}
             </button>
           </div>
