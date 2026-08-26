@@ -13,6 +13,7 @@ public sealed record FlagRequest(bool Value);
 public sealed record RoleRequest(string? Role);
 public sealed record AdmitRequest(string? RequestId, string? Role);
 public sealed record RequestIdRequest(string? RequestId);
+public sealed record GuestRoleRequest(string? GuestId, string? Role);
 public sealed record GuestJoinRequest(string? DisplayName, string? GuestId);
 
 public sealed record BoardDto(
@@ -180,13 +181,25 @@ public static class BoardEndpoints
             return result.Outcome == BoardOutcome.Ok ? Results.NoContent() : Fail(result.Outcome, result.Message);
         });
 
+        // Выгнать — не то же, что забанить: выгнанный вернётся по ссылке
+        // через комнату ожидания, забаненный не войдёт вовсе.
         boards.MapDelete("/{boardId:long}/members/{memberUserId:long}", async (
             long boardId, long memberUserId, ClaimsPrincipal principal, AppDbContext db, BoardService service, CancellationToken ct) =>
         {
             var user = await AuthEndpoints.CurrentUser(principal, db, ct);
             if (user is null) return Results.Unauthorized();
 
-            var result = await service.RemoveMemberAsync(boardId, user.Id, memberUserId, ct);
+            var result = await service.KickMemberAsync(boardId, user.Id, memberUserId, ct);
+            return result.Outcome == BoardOutcome.Ok ? Results.NoContent() : Fail(result.Outcome, result.Message);
+        });
+
+        boards.MapPost("/{boardId:long}/members/{memberUserId:long}/ban", async (
+            long boardId, long memberUserId, ClaimsPrincipal principal, AppDbContext db, BoardService service, CancellationToken ct) =>
+        {
+            var user = await AuthEndpoints.CurrentUser(principal, db, ct);
+            if (user is null) return Results.Unauthorized();
+
+            var result = await service.BanMemberAsync(boardId, user.Id, memberUserId, ct);
             return result.Outcome == BoardOutcome.Ok ? Results.NoContent() : Fail(result.Outcome, result.Message);
         });
 
@@ -198,6 +211,17 @@ public static class BoardEndpoints
             if (user is null) return Results.Unauthorized();
 
             var result = await service.RemoveGuestAsync(boardId, user.Id, request.RequestId ?? "", ct);
+            return result.Outcome == BoardOutcome.Ok ? Results.NoContent() : Fail(result.Outcome, result.Message);
+        });
+
+        boards.MapPost("/{boardId:long}/guests/role", async (
+            long boardId, [FromBody] GuestRoleRequest request,
+            ClaimsPrincipal principal, AppDbContext db, BoardService service, CancellationToken ct) =>
+        {
+            var user = await AuthEndpoints.CurrentUser(principal, db, ct);
+            if (user is null) return Results.Unauthorized();
+
+            var result = await service.SetGuestRoleAsync(boardId, user.Id, request.GuestId ?? "", request.Role, ct);
             return result.Outcome == BoardOutcome.Ok ? Results.NoContent() : Fail(result.Outcome, result.Message);
         });
 
@@ -257,6 +281,12 @@ public static class BoardEndpoints
             var board = await db.Boards.FindAsync(new object[] { boardId }, ct);
             if (board is null || board.DeletedAt is not null)
                 return Results.NotFound(new { message = "Доска не найдена." });
+
+            // Страница доски опрашивает состояние каждые несколько секунд,
+            // поэтому владелец получит перевыпущенную ссылку сам, не
+            // перезагружая страницу.
+            if (actor.CanManage)
+                await service.RefreshLinkAsync(board, ct);
 
             var members = await service.ListMembersAsync(boardId, ct);
             var guests = await service.ListActiveGuestsAsync(boardId);

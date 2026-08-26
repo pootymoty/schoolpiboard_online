@@ -5,7 +5,7 @@ import { api, ApiError } from '../api/client';
 import { readGuestToken, writeGuestToken } from '../api/guest';
 import type { BoardState } from '../api/types';
 import { BoardShell } from '../components/Layout';
-import { Drawer } from '../components/Drawer';
+import { CanvasPanel } from '../components/CanvasPanel';
 import { Modal } from '../components/Modal';
 import { PeoplePanel } from '../components/PeoplePanel';
 import { IconLink, IconLockClosed, IconLockOpen, IconPeople } from '../components/Icons';
@@ -228,21 +228,21 @@ export function BoardPage(): ReactElement {
               </p>
             ) : null}
           </div>
-        </section>
 
-        {showPeople ? (
-          <Drawer title="Участники" onClose={() => setShowPeople(false)}>
-            <PeoplePanel
-              boardId={id}
-              canManage={board.canManage}
-              members={members}
-              guests={otherGuests}
-              guestName={me.isGuest ? me.displayName : null}
-              onChanged={load}
-              onWaitingCount={setWaitingCount}
-            />
-          </Drawer>
-        ) : null}
+          {showPeople ? (
+            <CanvasPanel title="Участники" onClose={() => setShowPeople(false)}>
+              <PeoplePanel
+                boardId={id}
+                canManage={board.canManage}
+                members={members}
+                guests={otherGuests}
+                guestName={me.isGuest ? me.displayName : null}
+                onChanged={load}
+                onWaitingCount={setWaitingCount}
+              />
+            </CanvasPanel>
+          ) : null}
+        </section>
 
         {me.isGuest ? (
           <p className="text-muted small">
@@ -254,10 +254,7 @@ export function BoardPage(): ReactElement {
 
       {showLink && board.linkUrl ? (
         <Modal title="Ссылка на доску" onClose={() => setShowLink(false)}>
-          <p className="text-muted small">
-            Отправьте её тем, кого ждёте. Кто перейдёт — попросится на доску,
-            а вы решите, впускать ли его и с какой ролью.
-          </p>
+          <p className="text-muted small">Действует час, потом обновляется сама.</p>
 
           <div className="link-box link-box--stack">
             <input type="text" readOnly value={board.linkUrl} onFocus={(e) => e.target.select()} />
@@ -276,9 +273,7 @@ export function BoardPage(): ReactElement {
             <label htmlFor="autoAdmit">Впускать сразу, без спроса</label>
           </div>
           <p className="text-muted small">
-            Пришедшие по ссылке попадут на доску наблюдателями, минуя очередь.
-            Удобно для лекции на много человек; для обычного занятия лучше
-            оставить выключенным.
+            Пришедшие попадут на доску наблюдателями, минуя очередь.
           </p>
 
           <button
@@ -289,10 +284,7 @@ export function BoardPage(): ReactElement {
           >
             Выпустить новую ссылку
           </button>
-          <p className="text-muted small">
-            Прежняя перестанет работать сразу. Те, кого вы уже впустили под
-            учётной записью, доску не потеряют.
-          </p>
+          <p className="text-muted small">Прежняя перестанет работать сразу.</p>
         </Modal>
       ) : null}
     </BoardShell>

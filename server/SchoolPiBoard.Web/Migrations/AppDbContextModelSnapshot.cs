@@ -148,6 +148,10 @@ namespace SchoolPiBoard.Web.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
+                    b.Property<DateTime>("LinkIssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("link_issued_at");
+
                     b.Property<string>("LinkToken")
                         .IsRequired()
                         .HasColumnType("text")

@@ -69,6 +69,7 @@ public class AppDbContext : DbContext
             entity.Property(x => x.OwnerId).HasColumnName("owner_id");
             entity.Property(x => x.Title).HasColumnName("title").IsRequired();
             entity.Property(x => x.LinkToken).HasColumnName("link_token").IsRequired();
+            entity.Property(x => x.LinkIssuedAt).HasColumnName("link_issued_at");
             entity.Property(x => x.AutoAdmit).HasColumnName("auto_admit").HasDefaultValue(false);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");

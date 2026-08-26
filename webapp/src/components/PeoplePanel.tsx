@@ -94,25 +94,45 @@ export function PeoplePanel({ boardId, canManage, members, guests, guestName, on
     }
   };
 
-  const removeMember = async (userId: number, name: string) => {
-    if (!window.confirm(`Убрать ${name} с доски?`)) return;
+  const kickMember = async (userId: number, name: string) => {
+    if (!window.confirm(`Выгнать ${name}? По ссылке он сможет попроситься снова.`)) return;
 
     try {
       await api(`/boards/${boardId}/members/${userId}`, { method: 'DELETE' });
       onChanged();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось убрать участника.');
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось выгнать участника.');
+    }
+  };
+
+  const banMember = async (userId: number, name: string) => {
+    if (!window.confirm(`Забанить ${name}? Он больше не войдёт на доску, даже по ссылке.`)) return;
+
+    try {
+      await api(`/boards/${boardId}/members/${userId}/ban`, { method: 'POST' });
+      onChanged();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось забанить участника.');
+    }
+  };
+
+  const changeGuestRole = async (guestId: string, role: BoardRole) => {
+    try {
+      await api(`/boards/${boardId}/guests/role`, { method: 'POST', body: { guestId, role } });
+      onChanged();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось изменить роль.');
     }
   };
 
   const removeGuest = async (guestId: string, name: string) => {
-    if (!window.confirm(`Убрать ${name} с доски?`)) return;
+    if (!window.confirm(`Выгнать ${name} с доски?`)) return;
 
     try {
       await api(`/boards/${boardId}/guests/remove`, { method: 'POST', body: { requestId: guestId } });
       onChanged();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось убрать гостя.');
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось выгнать гостя.');
     }
   };
 
@@ -136,11 +156,18 @@ export function PeoplePanel({ boardId, canManage, members, guests, guestName, on
             {member.role === 'editor' ? 'Сделать наблюдателем' : 'Сделать редактором'}
           </button>
           <button
+            className="btn-quiet menu__item"
+            type="button"
+            onClick={() => kickMember(member.userId, member.displayName)}
+          >
+            Выгнать
+          </button>
+          <button
             className="btn-quiet menu__item menu__item--danger"
             type="button"
-            onClick={() => removeMember(member.userId, member.displayName)}
+            onClick={() => banMember(member.userId, member.displayName)}
           >
-            Убрать с доски
+            Забанить
           </button>
         </Menu>
       ) : null}
@@ -157,16 +184,25 @@ export function PeoplePanel({ boardId, canManage, members, guests, guestName, on
         <RoleIcon role={guest.role} />
       </span>
 
+      {/* Забанить гостя нельзя: опознаётся он только меткой браузера,
+          а она стирается вместе с данными сайта. */}
       {canManage ? (
-        <button
-          className="btn-tool"
-          type="button"
-          onClick={() => removeGuest(guest.guestId, guest.displayName)}
-          aria-label={`Убрать ${guest.displayName} с доски`}
-          title="Убрать с доски"
-        >
-          <IconClose size={16} />
-        </button>
+        <Menu label={`Действия: ${guest.displayName}`}>
+          <button
+            className="btn-quiet menu__item"
+            type="button"
+            onClick={() => changeGuestRole(guest.guestId, guest.role === 'editor' ? 'viewer' : 'editor')}
+          >
+            {guest.role === 'editor' ? 'Сделать наблюдателем' : 'Сделать редактором'}
+          </button>
+          <button
+            className="btn-quiet menu__item menu__item--danger"
+            type="button"
+            onClick={() => removeGuest(guest.guestId, guest.displayName)}
+          >
+            Выгнать
+          </button>
+        </Menu>
       ) : null}
     </li>
   ));
@@ -197,37 +233,42 @@ export function PeoplePanel({ boardId, canManage, members, guests, guestName, on
           <ul className="people">
             {waiting.map((request) => (
               <li className="people__item people__item--waiting" key={request.requestId}>
-                <span className="people__icon">
-                  {request.isGuest ? <IconGuest /> : <IconViewer />}
-                </span>
-                <span className="people__name">{request.displayName}</span>
+                <div className="people__row">
+                  <span className="people__icon">
+                    {request.isGuest ? <IconGuest /> : <IconViewer />}
+                  </span>
+                  <span className="people__name">{request.displayName}</span>
+                </div>
 
-                <button
-                  className="btn-primary btn-sm"
-                  type="button"
-                  onClick={() => admit(request.requestId, 'editor')}
-                  title="Впустить с правом рисовать"
-                >
-                  <IconCheck size={16} /> Редактор
-                </button>
+                {/* Роль выбирается прямо здесь: «впустить», а потом отдельно
+                    «назначить роль» — два действия там, где нужно одно. */}
+                <div className="people__row people__row--actions">
+                  <button
+                    className="btn-primary btn-sm"
+                    type="button"
+                    onClick={() => admit(request.requestId, 'editor')}
+                  >
+                    <IconCheck size={16} /> Редактор
+                  </button>
 
-                <button
-                  className="btn-quiet btn-sm"
-                  type="button"
-                  onClick={() => admit(request.requestId, 'viewer')}
-                  title="Впустить только смотреть"
-                >
-                  Наблюдатель
-                </button>
+                  <button
+                    className="btn-quiet btn-sm"
+                    type="button"
+                    onClick={() => admit(request.requestId, 'viewer')}
+                  >
+                    Наблюдатель
+                  </button>
 
-                <button
-                  className="btn-tool"
-                  type="button"
-                  onClick={() => reject(request.requestId)}
-                  aria-label="Отклонить"
-                >
-                  <IconClose size={16} />
-                </button>
+                  <button
+                    className="btn-tool"
+                    type="button"
+                    onClick={() => reject(request.requestId)}
+                    aria-label={`Отклонить: ${request.displayName}`}
+                    title="Отклонить"
+                  >
+                    <IconClose size={16} />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

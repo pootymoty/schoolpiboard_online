@@ -56,7 +56,7 @@ function NameCard({ user, onSaved }: { user: User; onSaved: () => Promise<void> 
   return (
     <form className="card" onSubmit={submit}>
       <h2 className="card-title">Имя</h2>
-      <p className="text-muted small">Так вас видят остальные на досках.</p>
+      <p className="text-muted small">Так вас видят на досках.</p>
 
       <div className="field">
         <label htmlFor="displayName">Имя</label>
@@ -90,17 +90,13 @@ function PasswordCard({ email }: { email: string }): ReactElement {
   return (
     <div className="card">
       <h2 className="card-title">Пароль</h2>
-      <p className="text-muted small">
-        Пришлём на {email} ссылку — перейдёте по ней и зададите новый пароль.
-        Так подтверждается, что меняет его владелец почты, а не тот, кто
-        просто зашёл в чужой браузер.
-      </p>
+      <p className="text-muted small">Пришлём на {email} ссылку для смены.</p>
 
       {sent ? (
         <p className="note note-success">Письмо отправлено — проверьте почту.</p>
       ) : (
         <button className="btn-outline" type="button" onClick={request} disabled={busy}>
-          {busy ? 'Отправляем…' : 'Прислать ссылку для смены пароля'}
+          {busy ? 'Отправляем…' : 'Сменить пароль'}
         </button>
       )}
     </div>
@@ -133,9 +129,8 @@ function DangerCard({ onDeleted }: { onDeleted: () => void }): ReactElement {
     <div className="card">
       <h2 className="card-title">Удаление аккаунта</h2>
       <p className="text-muted small">
-        Войти в аккаунт станет нельзя. Доски, которые вы создали, ещё
-        полгода останутся рабочими для тех, кто на них уже есть — потом
-        будут удалены вместе с ними.
+        Войти станет нельзя. Ваши доски проработают у остальных участников
+        ещё полгода.
       </p>
 
       {open ? (

@@ -37,8 +37,15 @@ public sealed class WaitingRoom
     /// <summary>Сколько заявка ждёт решения, если владельца нет на месте.</summary>
     private static readonly TimeSpan RequestLifetime = TimeSpan.FromMinutes(30);
 
-    /// <summary>Сколько действует допуск после того, как человек ушёл с доски.</summary>
-    private static readonly TimeSpan AdmissionLifetime = TimeSpan.FromMinutes(15);
+    /// <summary>
+    /// Сколько действует допуск после того, как человек ушёл с доски.
+    ///
+    /// Пять минут — это запас на вылет, а не на перерыв: у гостя ничего не
+    /// сохраняется, и роль вместе с местом на доске существует ровно пока
+    /// он на ней. Оборвалась связь или закрылась вкладка — успеет вернуться
+    /// молча; ушёл насовсем — попросится заново, как и должен.
+    /// </summary>
+    private static readonly TimeSpan AdmissionLifetime = TimeSpan.FromMinutes(5);
 
     private readonly IConnectionMultiplexer _redis;
 
@@ -113,6 +120,30 @@ public sealed class WaitingRoom
         // участников, пока хаб (11c) не даст этого делать напрямую.
         await Touch(db, boardId, guestId);
         return role!;
+    }
+
+    /// <summary>
+    /// Сменить роль впущенного гостя. Возвращает false, если допуска уже
+    /// нет: гость успел уйти, и менять нечего.
+    /// </summary>
+    public async Task<bool> SetRoleAsync(long boardId, string guestId, string role)
+    {
+        var db = _redis.GetDatabase();
+
+        var info = await db.HashGetAsync(ActiveInfoKey(boardId), guestId);
+        if (info.IsNullOrEmpty)
+            return false;
+
+        var current = JsonSerializer.Deserialize<ActiveGuestInfo>(info!);
+        if (current is null)
+            return false;
+
+        await db.StringSetAsync(AdmissionKey(boardId, guestId), role, AdmissionLifetime);
+        await db.HashSetAsync(
+            ActiveInfoKey(boardId), guestId,
+            JsonSerializer.Serialize(current with { Role = role }));
+
+        return true;
     }
 
     /// <summary>Отобрать допуск: гость отключается и просится заново.</summary>

@@ -45,6 +45,15 @@ public sealed class BoardService
     private const int MaxTitleLength = 200;
     private const int MaxGuestNameLength = 60;
 
+    /// <summary>
+    /// Сколько живёт ссылка, прежде чем перевыпуститься сама.
+    ///
+    /// Час — примерно занятие. Ссылка, разосланная в чат, за это время
+    /// доходит до всех, кому предназначалась, а назавтра уже не открывает
+    /// доску тому, кто её случайно сохранил.
+    /// </summary>
+    private static readonly TimeSpan LinkLifetime = TimeSpan.FromHours(1);
+
     private readonly AppDbContext _db;
     private readonly GuestTokenService _guestTokens;
     private readonly WaitingRoom _waiting;
@@ -79,6 +88,7 @@ public sealed class BoardService
             // Ссылка рождается вместе с доской: перед занятием не должно быть
             // лишнего шага «сначала создайте ссылку».
             LinkToken = SecurityTokens.Create(),
+            LinkIssuedAt = now,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -110,6 +120,11 @@ public sealed class BoardService
             .Where(x => x.UserId == userId && x.BannedAt == null && x.Board!.DeletedAt == null)
             .OrderByDescending(x => x.Board!.UpdatedAt)
             .ToListAsync(cancellationToken);
+
+        // Свои доски заодно обновляют ссылку, если та отжила час: список
+        // досок — то место, откуда владелец её и копирует.
+        foreach (var row in rows.Where(x => x.Role == BoardMember.RoleOwner))
+            await RefreshLinkAsync(row.Board!, cancellationToken);
 
         return rows.Select(x => (x.Board!, x)).ToList();
     }
@@ -181,11 +196,33 @@ public sealed class BoardService
             return BoardResult<Board>.NotFound();
 
         board.LinkToken = SecurityTokens.Create();
+        board.LinkIssuedAt = DateTime.UtcNow;
         board.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Перевыпущена ссылка на доску {BoardId}.", boardId);
         return BoardResult<Board>.Ok(board);
+    }
+
+    /// <summary>
+    /// Перевыпускает ссылку, если та отжила своё.
+    ///
+    /// Делается лениво, при чтении доски владельцем, а не по расписанию:
+    /// фоновая задача перебирала бы все доски сервиса ради тех немногих,
+    /// которые кто-то в этот час открыл. Просроченная ссылка всё равно
+    /// никого не впустит — <see cref="FindByLinkAsync"/> её не найдёт, —
+    /// так что до прихода владельца перевыпускать нечего.
+    /// </summary>
+    public async Task<Board> RefreshLinkAsync(Board board, CancellationToken cancellationToken)
+    {
+        if (DateTime.UtcNow - board.LinkIssuedAt < LinkLifetime)
+            return board;
+
+        board.LinkToken = SecurityTokens.Create();
+        board.LinkIssuedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return board;
     }
 
     // ---------- Вход по ссылке ----------
@@ -412,8 +449,31 @@ public sealed class BoardService
         return BoardResult<bool>.Ok(true);
     }
 
-    /// <summary>Убрать участника с доски совсем.</summary>
-    public async Task<BoardResult<bool>> RemoveMemberAsync(
+    /// <summary>
+    /// Выгнать: участник уходит с доски, но не наказан — по действующей
+    /// ссылке он попросится снова и, если владелец передумал, вернётся.
+    /// Это ответ на «сейчас не нужен», а не на «больше не приходи».
+    /// </summary>
+    public async Task<BoardResult<bool>> KickMemberAsync(
+        long boardId, long userId, long memberUserId, CancellationToken cancellationToken)
+    {
+        var member = await ManageableMemberAsync(boardId, userId, memberUserId, cancellationToken);
+        if (member is null)
+            return BoardResult<bool>.NotFound("Участник не найден.");
+
+        _db.BoardMembers.Remove(member);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return BoardResult<bool>.Ok(true);
+    }
+
+    /// <summary>
+    /// Забанить: доступ закрыт до отмены, ссылка не помогает. Только для
+    /// тех, у кого есть учётная запись: гостя опознаёт лишь метка браузера,
+    /// а она стирается вместе с данными сайта — запрет по ней был бы
+    /// обещанием, которого сервис не сдержит.
+    /// </summary>
+    public async Task<BoardResult<bool>> BanMemberAsync(
         long boardId, long userId, long memberUserId, CancellationToken cancellationToken)
     {
         var member = await ManageableMemberAsync(boardId, userId, memberUserId, cancellationToken);
@@ -424,6 +484,25 @@ public sealed class BoardService
         await _db.SaveChangesAsync(cancellationToken);
 
         return BoardResult<bool>.Ok(true);
+    }
+
+    /// <summary>
+    /// Роль гостя. Живёт в допуске, а не в базе, поэтому и меняется там же —
+    /// и пропадает вместе с допуском, когда гость уходит с доски.
+    /// </summary>
+    public async Task<BoardResult<bool>> SetGuestRoleAsync(
+        long boardId, long userId, string guestId, string? role, CancellationToken cancellationToken)
+    {
+        if (role is not (BoardMember.RoleEditor or BoardMember.RoleViewer))
+            return BoardResult<bool>.Bad("Роль — редактор или наблюдатель.");
+
+        var board = await OwnedAsync(boardId, userId, cancellationToken);
+        if (board is null)
+            return BoardResult<bool>.NotFound();
+
+        return await _waiting.SetRoleAsync(boardId, guestId, role)
+            ? BoardResult<bool>.Ok(true)
+            : BoardResult<bool>.NotFound("Этого гостя уже нет на доске.");
     }
 
     /// <summary>
@@ -564,7 +643,13 @@ public sealed class BoardService
         if (string.IsNullOrWhiteSpace(token))
             return null;
 
-        return await _db.Boards
-            .FirstOrDefaultAsync(x => x.LinkToken == token && x.DeletedAt == null, cancellationToken);
+        // Просроченная ссылка не находится вовсе — для пришедшего по ней это
+        // неотличимо от перевыпущенной, и правильно: в обоих случаях ответ
+        // один — попросите новую.
+        var issuedAfter = DateTime.UtcNow - LinkLifetime;
+
+        return await _db.Boards.FirstOrDefaultAsync(
+            x => x.LinkToken == token && x.DeletedAt == null && x.LinkIssuedAt > issuedAfter,
+            cancellationToken);
     }
 }

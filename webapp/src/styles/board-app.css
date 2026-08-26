@@ -29,6 +29,18 @@
     color: var(--text-on-dark);
 }
 
+/* ...но выпадающее меню шапки лежит на светлой подложке `--surface`,
+   и правило `.header a` красило его пункты в цвет для тёмного фона —
+   «Профиль» получался почти невидимым. Внутри меню цвета обычные. */
+.header .menu__list a,
+.header .menu__list .menu__item {
+    color: var(--text);
+}
+
+.header .menu__list .menu__item--danger {
+    color: var(--danger);
+}
+
 /* --- Каркас страницы ------------------------------------------------------ */
 
 .app {
@@ -43,6 +55,14 @@
     max-width: var(--content-max);
     margin: 0 auto;
     padding: var(--sp-5) var(--sp-4) var(--sp-7);
+
+    /* Единый вертикальный ритм для всех страниц. У `.card` в теме нет
+       внешних отступов — карточки, положенные подряд, слипались боками
+       (профиль, лендинг). Расстояние задаётся здесь один раз, а не
+       отступом на каждой странице по-своему. */
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
 }
 
 .app__main--narrow {
@@ -189,46 +209,52 @@
     margin: 0 0 var(--sp-4);
 }
 
-/* --- Боковая панель --------------------------------------------------------- */
+/* --- Панель поверх холста --------------------------------------------------- */
 
-.drawer__backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    background: var(--shadow-color);
-    display: flex;
-    justify-content: flex-end;
-}
-
-.drawer {
-    width: 100%;
-    max-width: 360px;
-    height: 100%;
-    background: var(--surface);
-    border-left: 1px solid var(--line);
-    box-shadow: var(--shadow-lg);
+.canvas-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    width: min(320px, 100%);
     display: flex;
     flex-direction: column;
-    animation: drawer-in .18s ease-out;
+    background: var(--surface);
+    border-left: 1px solid var(--line);
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    box-shadow: var(--shadow-lg);
+    animation: canvas-panel-in .18s ease-out;
 }
 
-.drawer__head {
-    padding: var(--sp-4) var(--sp-4) 0;
+.canvas-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-3) 0 var(--sp-4);
 }
 
-.drawer__body {
+.canvas-panel__title {
+    font-family: var(--font-head);
+    font-size: var(--fs-lg);
+    font-weight: 700;
+    margin: 0;
+}
+
+.canvas-panel__body {
     flex: 1;
     overflow-y: auto;
-    padding: var(--sp-4);
+    padding: var(--sp-3) var(--sp-4) var(--sp-4);
 }
 
-@keyframes drawer-in {
+@keyframes canvas-panel-in {
     from { transform: translateX(100%); }
     to { transform: translateX(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .drawer { animation: none; }
+    .canvas-panel { animation: none; }
 }
 
 /* Листалка списка участников: страницами по пять, а не бесконечной
@@ -248,9 +274,12 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-3);
-    /* Вычитаем шапку: холст должен занимать остальное, а не выталкивать
-       страницу в прокрутку. */
-    min-height: calc(100vh - var(--header-h));
+    /* Занимаем ровно остаток высоты. Раньше здесь было
+       `100vh - высота шапки`, но это не учитывало отступы самой `.app__main`,
+       и страница доски всегда была чуть выше экрана — с лишней прокруткой
+       на пустом месте. */
+    flex: 1;
+    min-height: 0;
 }
 
 .board-page__bar {
@@ -303,6 +332,11 @@
 }
 
 .board-page__canvas {
+    /* Точка отсчёта для панели участников: она лежит поверх холста,
+       а не рядом с ним, и не меняет его ширину при открытии. */
+    position: relative;
+    overflow: hidden;
+
     flex: 1;
     min-height: 320px;
     display: flex;
@@ -363,10 +397,31 @@
     margin: var(--sp-3) 0 var(--sp-1);
 }
 
-/* Заявка в комнате ожидания: видна только владельцу доски. */
+/* Заявка в комнате ожидания: видна только владельцу доски.
+   Имя и кнопки — разными строками: в узкой панели они иначе не помещаются
+   и «Наблюдатель» уезжает за край. */
 .people__item--waiting {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
     background: var(--warning-soft);
+    border: 1px solid var(--warning);
+    border-radius: var(--radius);
+}
+
+.people__item--waiting:hover { background: var(--warning-soft); }
+
+.people__row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-width: 0;
+}
+
+.people__row--actions {
     flex-wrap: wrap;
+    gap: var(--sp-2);
 }
 
 /* --- Комната ожидания (то, что видит гость) -------------------------------- */
