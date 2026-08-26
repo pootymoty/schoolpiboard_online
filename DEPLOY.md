@@ -81,16 +81,29 @@ sudo chown -R boardsvc:boardsvc /var/www/schoolpiboard
 
 ## 4. База
 
-Своя база и свой пользователь — не те, под которыми работает сайт. Пароль
-придумайте заранее; он понадобится на шаге 6.
+Своя база и свой пользователь — не те, под которыми работает сайт.
+
+Пароль вводится вслепую и остаётся в переменной до шага 6, где попадёт в
+файл секретов: копировать его руками не придётся.
 
 ```bash
-sudo -u postgres psql -c "CREATE ROLE boardsvc WITH LOGIN PASSWORD 'ПАРОЛЬ'"
+read -rsp "Пароль для базы: " DBPASS; echo
+```
+
+```bash
+sudo -u postgres psql -c "CREATE ROLE boardsvc WITH LOGIN PASSWORD '$DBPASS'"
 ```
 
 ```bash
 sudo -u postgres psql -c "CREATE DATABASE schoolpiboard OWNER boardsvc"
 ```
+
+```bash
+PGPASSWORD="$DBPASS" psql -h localhost -U boardsvc -d schoolpiboard -c '\conninfo'
+```
+
+Предупреждение `could not change directory to "/root"` безобидно: пользователь
+`postgres` не может зайти в домашнюю папку root.
 
 Владельцем базы роль быть обязана: миграции создают таблицы.
 
@@ -99,20 +112,32 @@ sudo -u postgres psql -c "CREATE DATABASE schoolpiboard OWNER boardsvc"
 Redis должен слушать только петлевой адрес и требовать пароль — иначе любой
 процесс на машине читает присутствие и блокировки чужой службы.
 
+Пароль вводится вслепую, чтобы не осесть в истории команд:
+
 ```bash
-sudo sed -i 's/^# *requirepass .*/requirepass ПАРОЛЬ_REDIS/' /etc/redis/redis.conf
+read -rsp "Пароль для Redis: " REDISPASS; echo
 ```
 
 ```bash
-grep -E '^(bind|requirepass)' /etc/redis/redis.conf
+sudo sed -i "/^\s*requirepass /d; /^\s*# *requirepass /d" /etc/redis/redis.conf
 ```
 
-Ожидается `bind 127.0.0.1 ::1` и строка `requirepass`. Если `requirepass` не
-появилась, допишите её вручную — в разных сборках строка-образец выглядит
-по-разному.
+```bash
+echo "requirepass $REDISPASS" | sudo tee -a /etc/redis/redis.conf > /dev/null
+```
+
+Через удаление и дописывание, а не заменой по образцу: в разных сборках
+Redis строка-образец закомментирована по-разному, и замена молча не
+сработала бы — а молча незащищённый Redis хуже, чем явная ошибка.
 
 ```bash
-sudo systemctl restart redis-server && redis-cli -a ПАРОЛЬ_REDIS ping
+grep -nE '^\s*(bind|requirepass|protected-mode)' /etc/redis/redis.conf
+```
+
+Ожидается `bind 127.0.0.1 ::1`, `protected-mode yes` и строка `requirepass`.
+
+```bash
+sudo systemctl restart redis-server; redis-cli -a "$REDISPASS" --no-auth-warning ping
 ```
 
 Ожидается `PONG`.
@@ -122,21 +147,51 @@ sudo systemctl restart redis-server && redis-cli -a ПАРОЛЬ_REDIS ping
 
 ## 6. Секреты
 
-Образец с пояснениями — `deploy/env.example`. Скопируйте его на сервер и
-заполните: в репозитории значений нет и быть не должно.
+Состав переменных с пояснениями — `deploy/env.example`; значений там нет и
+быть не должно.
+
+Файл собирается одной командой из переменных этой же сессии — так секреты не
+проходят через буфер обмена и не оседают в истории. Пароль базы должен быть
+в `$DBPASS` с шага 4, пароль Redis — в `$REDISPASS` с шага 5, поэтому все
+три шага делаются **в одном окне терминала**.
+
+Ключ подписи и общий секрет с сервером ключей генерируются на месте:
 
 ```bash
-sudo -u boardsvc nano /var/www/schoolpiboard/.env
+JWTKEY=$(openssl rand -hex 32); LICSECRET=$(openssl rand -hex 32); echo "готово"
+```
+
+```bash
+read -rsp "Пароль приложения Яндекс: " MAILPASS; echo
+```
+
+В `MAIL_PASSWORD` кладётся **пароль приложения** из Яндекс ID, а не пароль от
+ящика: обычный пароль SMTP не примет.
+
+Команда длинная, но однострочная — многострочные вставки в терминале ломаются
+на конструкциях с `$( )`:
+
+```bash
+printf '%s\n' 'ASPNETCORE_ENVIRONMENT=Production' "DATABASE_URL=Host=localhost;Database=schoolpiboard;Username=boardsvc;Password=$DBPASS" "REDIS_URL=localhost:6379,password=$REDISPASS,defaultDatabase=1" "JWT_SIGNING_KEY=$JWTKEY" 'PUBLIC_URL=https://board.school-pi.online' 'LICENSE_SERVER_URL=https://keys.school-pi.online' "LICENSE_SHARED_SECRET=$LICSECRET" 'MAIL_SERVER=smtp.yandex.ru' 'MAIL_PORT=465' 'MAIL_USERNAME=info@school-pi.online' "MAIL_PASSWORD=$MAILPASS" 'MAIL_FROM=info@school-pi.online' 'S3_ENDPOINT=' 'S3_BUCKET=' 'S3_ACCESS_KEY=' 'S3_SECRET_KEY=' 'TRIAL_DAYS=7' 'GRACE_DAYS=60' | sudo tee /var/www/schoolpiboard/.env > /dev/null
 ```
 
 ```bash
 sudo chown boardsvc:boardsvc /var/www/schoolpiboard/.env && sudo chmod 600 /var/www/schoolpiboard/.env
 ```
 
-Ключ подписи генерируется так:
+Проверка, секретов не печатает:
 
 ```bash
-openssl rand -hex 32
+wc -l /var/www/schoolpiboard/.env; cut -d= -f1 /var/www/schoolpiboard/.env | tr '\n' ' '; echo; ls -l /var/www/schoolpiboard/.env
+```
+
+Ожидается `18`, список из восемнадцати имён и права `-rw------- boardsvc boardsvc`.
+
+`LICENSE_SHARED_SECRET` понадобится в `.env` сервера ключей, когда дойдёт до
+оплаты. Прочитать его оттуда:
+
+```bash
+sudo grep '^LICENSE_SHARED_SECRET=' /var/www/schoolpiboard/.env
 ```
 
 **Служба не поднимется, если `JWT_SIGNING_KEY` короче 32 символов или похож
@@ -176,10 +231,20 @@ sudo chown -R boardsvc:boardsvc /var/www/schoolpiboard
 случайном перезапуске.
 
 ```bash
-sudo -u boardsvc bash -c 'set -a; . /var/www/schoolpiboard/.env; set +a; /var/www/schoolpiboard/api/migrate'
+sudo -u boardsvc bash -c 'set -a; . /var/www/schoolpiboard/.env; set +a; export DOTNET_BUNDLE_EXTRACT_BASE_DIR=/var/www/schoolpiboard/.bundle; mkdir -p "$DOTNET_BUNDLE_EXTRACT_BASE_DIR"; /var/www/schoolpiboard/api/migrate'
 ```
 
 Ожидается `Applying migration '20260826120000_Initial'` и `Done`.
+
+Строка подключения передаётся через окружение, а не аргументом: аргумент был
+бы виден в `ps` любому пользователю машины вместе с паролем базы.
+
+`DOTNET_BUNDLE_EXTRACT_BASE_DIR` обязателен. `migrate` — однофайловая сборка,
+она распаковывает себя во временный каталог внутри домашней папки, а у
+`boardsvc` домашней папки нет намеренно. Без этой переменной команда падает
+с `Failed to determine location for extracting embedded files`. Каталог задан
+внутри папки проекта, а не в `/tmp`: `/tmp` очищается при перезагрузке и
+доступен на запись всем.
 
 Юнит службы — содержимое `deploy/schoolpiboard.service`. Репозиторий на
 сервере не разворачивается, поэтому файл переносится вручную:
@@ -280,7 +345,7 @@ sudo tar -xzf board.tar.gz -C /var/www/schoolpiboard && sudo chown -R boardsvc:b
 ```
 
 ```bash
-sudo -u boardsvc bash -c 'set -a; . /var/www/schoolpiboard/.env; set +a; /var/www/schoolpiboard/api/migrate'
+sudo -u boardsvc bash -c 'set -a; . /var/www/schoolpiboard/.env; set +a; export DOTNET_BUNDLE_EXTRACT_BASE_DIR=/var/www/schoolpiboard/.bundle; mkdir -p "$DOTNET_BUNDLE_EXTRACT_BASE_DIR"; /var/www/schoolpiboard/api/migrate'
 ```
 
 ```bash
