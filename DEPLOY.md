@@ -172,7 +172,7 @@ read -rsp "Пароль приложения Яндекс: " MAILPASS; echo
 на конструкциях с `$( )`:
 
 ```bash
-printf '%s\n' 'ASPNETCORE_ENVIRONMENT=Production' "DATABASE_URL=Host=localhost;Database=schoolpiboard;Username=boardsvc;Password=$DBPASS" "REDIS_URL=localhost:6379,password=$REDISPASS,defaultDatabase=1" "JWT_SIGNING_KEY=$JWTKEY" 'PUBLIC_URL=https://board.school-pi.online' 'LICENSE_SERVER_URL=https://keys.school-pi.online' "LICENSE_SHARED_SECRET=$LICSECRET" 'MAIL_SERVER=smtp.yandex.ru' 'MAIL_PORT=465' 'MAIL_USERNAME=info@school-pi.online' "MAIL_PASSWORD=$MAILPASS" 'MAIL_FROM=info@school-pi.online' 'S3_ENDPOINT=' 'S3_BUCKET=' 'S3_ACCESS_KEY=' 'S3_SECRET_KEY=' 'TRIAL_DAYS=7' 'GRACE_DAYS=60' | sudo tee /var/www/schoolpiboard/.env > /dev/null
+printf '%s\n' 'ASPNETCORE_ENVIRONMENT=Production' "DATABASE_URL=\"Host=localhost;Database=schoolpiboard;Username=boardsvc;Password=$DBPASS\"" "REDIS_URL=\"localhost:6379,password=$REDISPASS,defaultDatabase=1\"" "JWT_SIGNING_KEY=$JWTKEY" 'PUBLIC_URL=https://board.school-pi.online' 'LICENSE_SERVER_URL=https://keys.school-pi.online' "LICENSE_SHARED_SECRET=$LICSECRET" 'MAIL_SERVER=smtp.yandex.ru' 'MAIL_PORT=465' 'MAIL_USERNAME=info@school-pi.online' "MAIL_PASSWORD=$MAILPASS" 'MAIL_FROM=info@school-pi.online' 'S3_ENDPOINT=' 'S3_BUCKET=' 'S3_ACCESS_KEY=' 'S3_SECRET_KEY=' 'TRIAL_DAYS=7' 'GRACE_DAYS=60' | sudo tee /var/www/schoolpiboard/.env > /dev/null
 ```
 
 ```bash
@@ -186,6 +186,12 @@ wc -l /var/www/schoolpiboard/.env; cut -d= -f1 /var/www/schoolpiboard/.env | tr 
 ```
 
 Ожидается `18`, список из восемнадцати имён и права `-rw------- boardsvc boardsvc`.
+
+Строки подключения — в кавычках, и это обязательно. Systemd читает
+`EnvironmentFile` построчно и кавычки снимает сам, а вот команда применения
+миграций читает тот же файл через `. .env`, то есть **выполняет его как
+скрипт**: без кавычек точка с запятой в строке подключения разделила бы её
+на четыре присваивания, и `DATABASE_URL` остался бы без пароля.
 
 `LICENSE_SHARED_SECRET` понадобится в `.env` сервера ключей, когда дойдёт до
 оплаты. Прочитать его оттуда:
