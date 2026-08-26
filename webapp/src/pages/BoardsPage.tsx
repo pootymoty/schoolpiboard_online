@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent, ReactElement } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { Board } from '../api/types';
 import { Page } from '../components/Layout';
@@ -9,6 +9,7 @@ import { Modal } from '../components/Modal';
 import { IconEditor, IconOwner, IconViewer } from '../components/Icons';
 
 export function BoardsPage(): ReactElement {
+  const navigate = useNavigate();
   const [boards, setBoards] = useState<Board[]>([]);
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -40,12 +41,12 @@ export function BoardsPage(): ReactElement {
 
     try {
       const board = await api<Board>('/boards', { method: 'POST', body: { title } });
-      setBoards((current) => [board, ...current]);
-      setTitle('');
-      setError(null);
+      // Сразу на доску, с открытой ссылкой: обещание с пустого экрана —
+      // «ссылка появится сразу» — должно выполняться буквально, без
+      // дополнительных кликов «открыть доску → найти иконку ссылки».
+      navigate(`/boards/${board.id}`, { state: { openLink: true } });
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось создать доску.');
-    } finally {
       setBusy(false);
     }
   };

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { readGuestToken, writeGuestToken } from '../api/guest';
 import type { BoardState } from '../api/types';
@@ -18,6 +18,7 @@ import { IconLink, IconLockClosed, IconLockOpen, IconPeople } from '../component
 export function BoardPage(): ReactElement {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const id = Number(boardId);
 
@@ -26,8 +27,19 @@ export function BoardPage(): ReactElement {
   const [busy, setBusy] = useState(false);
 
   const [showPeople, setShowPeople] = useState(true);
-  const [showLink, setShowLink] = useState(false);
+  // Сразу после создания доски открываем окно со ссылкой сами: доска на
+  // пустом экране обещает, что ссылка появится сразу, а не через три клика.
+  const [showLink, setShowLink] = useState(() => Boolean((location.state as { openLink?: boolean } | null)?.openLink));
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    // Флаг нужен только один раз, сразу после перехода: убираем его из
+    // истории, иначе окно снова откроется при возврате кнопкой «назад».
+    if ((location.state as { openLink?: boolean } | null)?.openLink) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // Срабатывает один раз при монтировании: id доски в пути не меняется.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [waitingCount, setWaitingCount] = useState(0);
 
