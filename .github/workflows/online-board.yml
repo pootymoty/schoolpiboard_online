@@ -50,13 +50,16 @@ jobs:
       - name: Publish API
         run: dotnet publish ${{ env.PROJECT }} -c Release -o pack/api
 
-      # Самодостаточный исполняемый файл, применяющий миграции. Нужен потому,
-      # что задание требует применять их командой при выкладке, а SDK на
-      # сервере нет и быть не должно.
+      # Исполняемый файл, применяющий миграции: задание требует применять их
+      # командой при выкладке, а SDK на сервере нет и быть не должно.
+      #
+      # Без --self-contained: рантайм ASP.NET Core на сервере уже стоит ради
+      # самой службы, и вторая его копия раздувала бы каждое обновление
+      # со считанных мегабайт до шестидесяти с лишним.
       - name: Build migration bundle
         run: >
           dotnet ef migrations bundle --project ${{ env.PROJECT }}
-          --self-contained -r linux-x64 --force -o pack/api/migrate
+          -r linux-x64 --force -o pack/api/migrate
 
       - name: Build web
         working-directory: webapp
