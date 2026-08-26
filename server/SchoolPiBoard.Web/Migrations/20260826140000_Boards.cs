@@ -10,7 +10,11 @@ using SchoolPiBoard.Web.Data;
 namespace SchoolPiBoard.Web.Migrations;
 
 /// <summary>
-/// Доски, ссылки на них и участники — этап 11b.
+/// Доски и участники — этап 11b.
+///
+/// Ссылка живёт в самой доске: она одна и роли не несёт — роль назначает
+/// владелец, когда впускает. Отдельной таблицы под неё нет, потому что
+/// хранить в ней было бы нечего, кроме одного токена на доску.
 ///
 /// Гостей среди участников нет: они нигде не хранятся, у гостя нет ничего,
 /// что переживёт закрытие вкладки.
@@ -29,6 +33,8 @@ public partial class Boards : Migration
                     .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                 owner_id = table.Column<long>(type: "bigint", nullable: false),
                 title = table.Column<string>(type: "text", nullable: false),
+                link_token = table.Column<string>(type: "text", nullable: false),
+                auto_admit = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                 created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                 updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                 locked = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
@@ -47,31 +53,6 @@ public partial class Boards : Migration
             });
 
         migrationBuilder.CreateTable(
-            name: "board_links",
-            columns: table => new
-            {
-                id = table.Column<long>(type: "bigint", nullable: false)
-                    .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                board_id = table.Column<long>(type: "bigint", nullable: false),
-                token = table.Column<string>(type: "text", nullable: false),
-                role = table.Column<string>(type: "text", nullable: false),
-                label = table.Column<string>(type: "text", nullable: true),
-                created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                expires_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                revoked_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
-            },
-            constraints: table =>
-            {
-                table.PrimaryKey("PK_board_links", x => x.id);
-                table.ForeignKey(
-                    name: "FK_board_links_boards_board_id",
-                    column: x => x.board_id,
-                    principalTable: "boards",
-                    principalColumn: "id",
-                    onDelete: ReferentialAction.Cascade);
-            });
-
-        migrationBuilder.CreateTable(
             name: "board_members",
             columns: table => new
             {
@@ -81,7 +62,6 @@ public partial class Boards : Migration
                 user_id = table.Column<long>(type: "bigint", nullable: false),
                 role = table.Column<string>(type: "text", nullable: false),
                 source = table.Column<string>(type: "text", nullable: false),
-                link_id = table.Column<long>(type: "bigint", nullable: true),
                 joined_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                 banned_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
             },
@@ -107,15 +87,12 @@ public partial class Boards : Migration
             table: "boards",
             column: "owner_id");
 
+        // Вход по ссылке — это поиск по токену, и он должен быть быстрым
+        // и однозначным.
         migrationBuilder.CreateIndex(
-            name: "IX_board_links_board_id",
-            table: "board_links",
-            column: "board_id");
-
-        migrationBuilder.CreateIndex(
-            name: "IX_board_links_token",
-            table: "board_links",
-            column: "token",
+            name: "IX_boards_link_token",
+            table: "boards",
+            column: "link_token",
             unique: true);
 
         // Один человек — одна строка на доске. Индексом, а не проверкой перед
@@ -135,7 +112,6 @@ public partial class Boards : Migration
     protected override void Down(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.DropTable(name: "board_members");
-        migrationBuilder.DropTable(name: "board_links");
         migrationBuilder.DropTable(name: "boards");
     }
 }

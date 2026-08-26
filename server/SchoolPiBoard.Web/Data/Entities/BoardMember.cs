@@ -32,9 +32,6 @@ public class BoardMember
     /// <summary>owner — создал доску, link — вошёл по ссылке.</summary>
     public string Source { get; set; } = string.Empty;
 
-    /// <summary>По какой именно ссылке вошёл. Нужно, чтобы понимать, кого привела отозванная ссылка.</summary>
-    public long? LinkId { get; set; }
-
     public DateTime JoinedAt { get; set; }
 
     /// <summary>

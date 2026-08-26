@@ -15,8 +15,6 @@ public class AppDbContext : DbContext
 
     public DbSet<Board> Boards => Set<Board>();
 
-    public DbSet<BoardLink> BoardLinks => Set<BoardLink>();
-
     public DbSet<BoardMember> BoardMembers => Set<BoardMember>();
 
     protected override void OnModelCreating(ModelBuilder model)
@@ -69,6 +67,8 @@ public class AppDbContext : DbContext
             entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
             entity.Property(x => x.OwnerId).HasColumnName("owner_id");
             entity.Property(x => x.Title).HasColumnName("title").IsRequired();
+            entity.Property(x => x.LinkToken).HasColumnName("link_token").IsRequired();
+            entity.Property(x => x.AutoAdmit).HasColumnName("auto_admit").HasDefaultValue(false);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
             entity.Property(x => x.Locked).HasColumnName("locked").HasDefaultValue(false);
@@ -77,32 +77,13 @@ public class AppDbContext : DbContext
 
             entity.HasIndex(x => x.OwnerId);
 
+            // Вход по ссылке — это поиск по токену, и он должен быть
+            // быстрым и однозначным.
+            entity.HasIndex(x => x.LinkToken).IsUnique();
+
             entity.HasOne(x => x.Owner)
                 .WithMany()
                 .HasForeignKey(x => x.OwnerId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        model.Entity<BoardLink>(entity =>
-        {
-            entity.ToTable("board_links");
-            entity.HasKey(x => x.Id);
-
-            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
-            entity.Property(x => x.BoardId).HasColumnName("board_id");
-            entity.Property(x => x.Token).HasColumnName("token").IsRequired();
-            entity.Property(x => x.Role).HasColumnName("role").IsRequired();
-            entity.Property(x => x.Label).HasColumnName("label");
-            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
-            entity.Property(x => x.ExpiresAt).HasColumnName("expires_at");
-            entity.Property(x => x.RevokedAt).HasColumnName("revoked_at");
-
-            entity.HasIndex(x => x.Token).IsUnique();
-            entity.HasIndex(x => x.BoardId);
-
-            entity.HasOne(x => x.Board)
-                .WithMany()
-                .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -116,7 +97,6 @@ public class AppDbContext : DbContext
             entity.Property(x => x.UserId).HasColumnName("user_id");
             entity.Property(x => x.Role).HasColumnName("role").IsRequired();
             entity.Property(x => x.Source).HasColumnName("source").IsRequired();
-            entity.Property(x => x.LinkId).HasColumnName("link_id");
             entity.Property(x => x.JoinedAt).HasColumnName("joined_at");
             entity.Property(x => x.BannedAt).HasColumnName("banned_at");
 

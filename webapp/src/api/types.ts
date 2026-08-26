@@ -5,7 +5,6 @@ export interface User {
   displayName: string;
 }
 
-/** Ответ на вход, подтверждение почты и смену пароля. */
 export interface AuthResponse {
   token: string;
   user: User;
@@ -26,47 +25,43 @@ export interface Board {
   canEdit: boolean;
   canManage: boolean;
   locked: boolean;
+  autoAdmit: boolean;
+  /** Только у владельца: остальным раздавать доступ не положено. */
+  linkUrl: string | null;
   updatedAt: string;
 }
 
-/** Ссылка на доску. Показывается владельцу целиком и сколько угодно раз. */
-export interface BoardLink {
-  id: number;
-  url: string;
-  role: 'editor' | 'viewer';
-  label: string | null;
-  createdAt: string;
-  expiresAt: string | null;
-}
-
+/** Участник с учётной записью. Гостей здесь нет — они нигде не хранятся. */
 export interface BoardMember {
   userId: number;
   displayName: string;
   email: string;
   role: BoardRole;
-  source: 'owner' | 'link';
-  banned: boolean;
   joinedAt: string;
 }
 
-/** Что за доска — видно до входа, чтобы человек понимал, куда его зовут. */
-export interface JoinInfo {
-  boardTitle: string;
-  role: 'editor' | 'viewer';
+/** Заявка в комнате ожидания. Видна только владельцу доски. */
+export interface WaitingRequest {
+  requestId: string;
+  displayName: string;
+  isGuest: boolean;
+  requestedAt: string;
 }
 
-/** Гостевой вход: токен привязан к одной доске и больше ничего не даёт. */
-export interface GuestSession {
-  guestToken: string;
-  /**
-   * Метка браузера. Сохраняется и присылается при следующем заходе: по ней
-   * владелец выгоняет гостя на пятнадцать минут. Без неё выгнанный обходил
-   * бы отказ простым обновлением страницы, получая каждый раз новую метку.
-   */
-  guestId: string;
+/**
+ * Чем закончилась попытка войти по ссылке.
+ *
+ * Один ответ на все случаи: впустили, ждём решения, отказали, доска закрыта.
+ * Разными полями это разошлось бы на четыре почти одинаковых обработчика.
+ */
+export interface JoinResult {
+  status: 'admitted' | 'waiting' | 'rejected' | 'locked';
   boardId: number;
   boardTitle: string;
-  role: 'editor' | 'viewer';
+  role: BoardRole | null;
+  guestToken: string | null;
+  guestId: string | null;
+  message: string | null;
 }
 
 /** Состояние доски для того, кто на ней. */
@@ -76,5 +71,7 @@ export interface BoardState {
     displayName: string;
     isGuest: boolean;
     role: BoardRole;
+    guestId: string | null;
   };
+  members: BoardMember[];
 }

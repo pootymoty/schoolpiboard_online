@@ -11,7 +11,8 @@ public enum BoardOutcome
     Forbidden,
     BadRequest,
     Locked,
-    Kicked
+    Waiting,
+    Rejected
 }
 
 public sealed record BoardResult<T>(BoardOutcome Outcome, T? Value = default, string? Message = null)
@@ -22,8 +23,18 @@ public sealed record BoardResult<T>(BoardOutcome Outcome, T? Value = default, st
     public static BoardResult<T> Bad(string message) => new(BoardOutcome.BadRequest, Message: message);
 }
 
+/// <summary>Чем закончилась попытка войти по ссылке.</summary>
+public sealed record JoinAttempt(
+    BoardOutcome Outcome,
+    long BoardId,
+    string BoardTitle,
+    string? Role = null,
+    string? GuestToken = null,
+    string? RequestId = null,
+    string? Message = null);
+
 /// <summary>
-/// Доски, ссылки на них и участники.
+/// Доски, ссылка на них и участники.
 ///
 /// Права проверяются здесь, а не в интерфейсе: скрытая кнопка ничего не
 /// запрещает, и наблюдатель, обратившийся к API напрямую, обязан получить
@@ -36,18 +47,18 @@ public sealed class BoardService
 
     private readonly AppDbContext _db;
     private readonly GuestTokenService _guestTokens;
-    private readonly KickList _kicks;
+    private readonly WaitingRoom _waiting;
     private readonly ILogger<BoardService> _logger;
 
     public BoardService(
         AppDbContext db,
         GuestTokenService guestTokens,
-        KickList kicks,
+        WaitingRoom waiting,
         ILogger<BoardService> logger)
     {
         _db = db;
         _guestTokens = guestTokens;
-        _kicks = kicks;
+        _waiting = waiting;
         _logger = logger;
     }
 
@@ -65,6 +76,9 @@ public sealed class BoardService
         {
             OwnerId = userId,
             Title = name,
+            // Ссылка рождается вместе с доской: перед занятием не должно быть
+            // лишнего шага «сначала создайте ссылку».
+            LinkToken = SecurityTokens.Create(),
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -88,14 +102,12 @@ public sealed class BoardService
         return BoardResult<Board>.Ok(board);
     }
 
-    /// <summary>Доски, где человек — участник: и свои, и те, куда он вошёл по ссылке.</summary>
+    /// <summary>Доски, где человек — участник: и свои, и те, куда его впустили.</summary>
     public async Task<List<(Board Board, BoardMember Member)>> ListAsync(long userId, CancellationToken cancellationToken)
     {
         var rows = await _db.BoardMembers
             .Include(x => x.Board)
-            .Where(x => x.UserId == userId
-                        && x.BannedAt == null
-                        && x.Board!.DeletedAt == null)
+            .Where(x => x.UserId == userId && x.BannedAt == null && x.Board!.DeletedAt == null)
             .OrderByDescending(x => x.Board!.UpdatedAt)
             .ToListAsync(cancellationToken);
 
@@ -119,17 +131,29 @@ public sealed class BoardService
         return BoardResult<Board>.Ok(board);
     }
 
-    public async Task<BoardResult<bool>> SetLockedAsync(long boardId, long userId, bool locked, CancellationToken cancellationToken)
+    public async Task<BoardResult<Board>> SetLockedAsync(long boardId, long userId, bool locked, CancellationToken cancellationToken)
     {
         var board = await OwnedAsync(boardId, userId, cancellationToken);
         if (board is null)
-            return BoardResult<bool>.NotFound();
+            return BoardResult<Board>.NotFound();
 
         board.Locked = locked;
         board.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        return BoardResult<bool>.Ok(locked);
+        return BoardResult<Board>.Ok(board);
+    }
+
+    public async Task<BoardResult<Board>> SetAutoAdmitAsync(long boardId, long userId, bool autoAdmit, CancellationToken cancellationToken)
+    {
+        var board = await OwnedAsync(boardId, userId, cancellationToken);
+        if (board is null)
+            return BoardResult<Board>.NotFound();
+
+        board.AutoAdmit = autoAdmit;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return BoardResult<Board>.Ok(board);
     }
 
     public async Task<BoardResult<bool>> DeleteAsync(long boardId, long userId, CancellationToken cancellationToken)
@@ -146,226 +170,265 @@ public sealed class BoardService
         return BoardResult<bool>.Ok(true);
     }
 
-    // ---------- Ссылки ----------
-
-    public async Task<BoardResult<BoardLink>> CreateLinkAsync(
-        long boardId, long userId, string? role, string? label, int? lifetimeDays, CancellationToken cancellationToken)
+    /// <summary>
+    /// Новая ссылка вместо прежней. Старая перестаёт работать немедленно —
+    /// это и есть ответ на «ссылка ушла не туда» (пункт 13.5 приёмки).
+    /// </summary>
+    public async Task<BoardResult<Board>> ReissueLinkAsync(long boardId, long userId, CancellationToken cancellationToken)
     {
-        if (role is not (BoardMember.RoleEditor or BoardMember.RoleViewer))
-            return BoardResult<BoardLink>.Bad("Роль ссылки — editor или viewer.");
-
         var board = await OwnedAsync(boardId, userId, cancellationToken);
         if (board is null)
-            return BoardResult<BoardLink>.NotFound();
+            return BoardResult<Board>.NotFound();
 
-        var now = DateTime.UtcNow;
-
-        var link = new BoardLink
-        {
-            BoardId = boardId,
-            Token = SecurityTokens.Create(),
-            Role = role,
-            Label = string.IsNullOrWhiteSpace(label) ? null : label.Trim(),
-            CreatedAt = now,
-            ExpiresAt = lifetimeDays is > 0 ? now.AddDays(lifetimeDays.Value) : null
-        };
-
-        _db.BoardLinks.Add(link);
+        board.LinkToken = SecurityTokens.Create();
+        board.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        return BoardResult<BoardLink>.Ok(link);
-    }
-
-    public async Task<BoardResult<List<BoardLink>>> ListLinksAsync(long boardId, long userId, CancellationToken cancellationToken)
-    {
-        var board = await OwnedAsync(boardId, userId, cancellationToken);
-        if (board is null)
-            return BoardResult<List<BoardLink>>.NotFound();
-
-        var links = await _db.BoardLinks
-            .Where(x => x.BoardId == boardId && x.RevokedAt == null)
-            .OrderByDescending(x => x.CreatedAt)
-            .ToListAsync(cancellationToken);
-
-        return BoardResult<List<BoardLink>>.Ok(links);
-    }
-
-    public async Task<BoardResult<bool>> RevokeLinkAsync(long boardId, long userId, long linkId, CancellationToken cancellationToken)
-    {
-        var board = await OwnedAsync(boardId, userId, cancellationToken);
-        if (board is null)
-            return BoardResult<bool>.NotFound();
-
-        var link = await _db.BoardLinks
-            .FirstOrDefaultAsync(x => x.Id == linkId && x.BoardId == boardId, cancellationToken);
-
-        if (link is null)
-            return BoardResult<bool>.NotFound("Ссылка не найдена.");
-
-        // Отзыв действует немедленно: проверка идёт по этому полю при каждом
-        // входе, кеша ссылок нигде нет. Пункт 13.5 приёмки.
-        link.RevokedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Отозвана ссылка {LinkId} на доску {BoardId}.", linkId, boardId);
-        return BoardResult<bool>.Ok(true);
+        _logger.LogInformation("Перевыпущена ссылка на доску {BoardId}.", boardId);
+        return BoardResult<Board>.Ok(board);
     }
 
     // ---------- Вход по ссылке ----------
 
     /// <summary>Что за доска — видно и до входа: человек должен понимать, куда его зовут.</summary>
-    public async Task<BoardResult<(Board Board, BoardLink Link)>> PeekLinkAsync(string? token, CancellationToken cancellationToken)
+    public async Task<BoardResult<Board>> PeekAsync(string? token, CancellationToken cancellationToken)
     {
-        var link = await FindUsableLinkAsync(token, cancellationToken);
-        if (link?.Board is null)
-            return BoardResult<(Board, BoardLink)>.NotFound("Ссылка недействительна или отозвана.");
-
-        return BoardResult<(Board, BoardLink)>.Ok((link.Board, link));
+        var board = await FindByLinkAsync(token, cancellationToken);
+        return board is null
+            ? BoardResult<Board>.NotFound("Ссылка недействительна или её перевыпустили.")
+            : BoardResult<Board>.Ok(board);
     }
 
     /// <summary>
-    /// Вход по ссылке под своей учётной записью. Заводит участника: дальше
-    /// доступ держится на нём, и отзыв ссылки доску уже не забирает.
+    /// Гость просится на доску.
+    ///
+    /// Роль здесь не назначается: её задаёт владелец, когда впускает. Гость
+    /// либо получает токен сразу (если доска пускает без спроса или его уже
+    /// впускали недавно), либо встаёт в очередь.
     /// </summary>
-    public async Task<BoardResult<Board>> JoinAsUserAsync(string? token, long userId, CancellationToken cancellationToken)
+    public async Task<JoinAttempt> RequestAsGuestAsync(
+        string? token, string? displayName, string? guestId, CancellationToken cancellationToken)
     {
-        var link = await FindUsableLinkAsync(token, cancellationToken);
-        if (link?.Board is null)
-            return BoardResult<Board>.NotFound("Ссылка недействительна или отозвана.");
+        var board = await FindByLinkAsync(token, cancellationToken);
+        if (board is null)
+            return new JoinAttempt(BoardOutcome.NotFound, 0, "", Message: "Ссылка недействительна или её перевыпустили.");
 
-        var existing = await _db.BoardMembers
-            .FirstOrDefaultAsync(x => x.BoardId == link.BoardId && x.UserId == userId, cancellationToken);
-
-        if (existing is not null)
-        {
-            if (existing.BannedAt is not null)
-                return BoardResult<Board>.Forbidden("Владелец закрыл вам доступ к этой доске.");
-
-            // Уже участник — повторный переход по ссылке роль не меняет:
-            // иначе понижённый в наблюдатели вернул бы себе право правки
-            // сам, просто открыв ссылку ещё раз.
-            return BoardResult<Board>.Ok(link.Board);
-        }
-
-        if (link.Board.Locked)
-            return new BoardResult<Board>(BoardOutcome.Locked, Message: "Доска закрыта для новых участников.");
-
-        _db.BoardMembers.Add(new BoardMember
-        {
-            BoardId = link.BoardId,
-            UserId = userId,
-            Role = link.Role,
-            Source = BoardMember.SourceLink,
-            LinkId = link.Id,
-            JoinedAt = DateTime.UtcNow
-        });
-
-        try
-        {
-            await _db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException)
-        {
-            // Уникальный индекс (board_id, user_id):два одновременных перехода
-            // по ссылке. Второй просто получает уже созданного участника.
-            _db.ChangeTracker.Clear();
-        }
-
-        return BoardResult<Board>.Ok(link.Board);
-    }
-
-    /// <summary>
-    /// Вход гостем. Ничего не сохраняет: всё, что о госте известно, уезжает
-    /// в его токен. Возвращает этот токен и метку, по которой гостя можно
-    /// выгнать.
-    /// </summary>
-    public async Task<BoardResult<(string Token, Board Board, string Role, string GuestId)>> JoinAsGuestAsync(
-        string? token, string? displayName, string? previousGuestId, CancellationToken cancellationToken)
-    {
         var name = (displayName ?? string.Empty).Trim();
         if (name.Length is 0 or > MaxGuestNameLength)
-            return BoardResult<(string, Board, string, string)>.Bad($"Имя — от 1 до {MaxGuestNameLength} символов.");
+            return new JoinAttempt(BoardOutcome.BadRequest, board.Id, board.Title,
+                Message: $"Имя — от 1 до {MaxGuestNameLength} символов.");
 
-        var link = await FindUsableLinkAsync(token, cancellationToken);
-        if (link?.Board is null)
-            return BoardResult<(string, Board, string, string)>.NotFound("Ссылка недействительна или отозвана.");
+        // Метка браузера переживает уход со страницы: без неё человек,
+        // случайно закрывший вкладку, просился бы заново, а выгнанный —
+        // обходил бы отказ обновлением.
+        var marker = string.IsNullOrWhiteSpace(guestId) ? SecurityTokens.Create() : guestId;
 
-        // Метка сохраняется между заходами, если браузер её вернул: иначе
-        // выгнанный обходил бы отказ простым обновлением страницы.
-        var guestId = string.IsNullOrWhiteSpace(previousGuestId)
-            ? SecurityTokens.Create()
-            : previousGuestId;
+        // Уже впущен и допуск не истёк — пускаем молча.
+        var admitted = await _waiting.AdmittedRoleAsync(board.Id, marker);
+        if (admitted is not null)
+            return Admitted(board, admitted, name, marker);
 
-        if (await _kicks.ContainsAsync(link.BoardId, guestId))
+        if (board.Locked)
+            return new JoinAttempt(BoardOutcome.Locked, board.Id, board.Title,
+                Message: "Доска закрыта: сейчас на неё не пускают.");
+
+        if (board.AutoAdmit)
         {
-            var left = await _kicks.RemainingAsync(link.BoardId, guestId);
-            var minutes = left is null ? 15 : Math.Max(1, (int)Math.Ceiling(left.Value.TotalMinutes));
-
-            return new BoardResult<(string, Board, string, string)>(
-                BoardOutcome.Kicked,
-                Message: $"Вас удалили с этой доски. Попробовать снова можно через {minutes} мин.");
+            // Без спроса пускаем только смотреть: право рисовать выдаётся
+            // осознанно, иначе ссылка, ушедшая в чат, дала бы его всем.
+            await _waiting.AdmitAsync(board.Id, marker, BoardMember.RoleViewer);
+            return Admitted(board, BoardMember.RoleViewer, name, marker);
         }
 
-        if (link.Board.Locked)
-            return new BoardResult<(string, Board, string, string)>(
-                BoardOutcome.Locked, Message: "Доска закрыта для новых участников.");
+        await _waiting.ClearRejectionAsync(board.Id, marker);
+        await _waiting.RequestAsync(board.Id, new WaitingRequest(marker, name, UserId: null, DateTime.UtcNow));
 
-        var guestToken = _guestTokens.Create(link.BoardId, link.Role, name, guestId);
+        return new JoinAttempt(BoardOutcome.Waiting, board.Id, board.Title, RequestId: marker,
+            Message: "Ждём, пока преподаватель впустит вас на доску.");
+    }
 
-        // Метка возвращается клиенту, чтобы он прислал её при следующем заходе:
-        // без этого выгнанный обходил бы отказ обновлением страницы, получая
-        // каждый раз новую метку.
-        return BoardResult<(string, Board, string, string)>.Ok((guestToken, link.Board, link.Role, guestId));
+    /// <summary>
+    /// Человек с учётной записью просится на доску.
+    ///
+    /// Уже участник — входит сразу со своей ролью: она сохранена за ним
+    /// и повторного разрешения не требует.
+    /// </summary>
+    public async Task<JoinAttempt> RequestAsUserAsync(string? token, User user, CancellationToken cancellationToken)
+    {
+        var board = await FindByLinkAsync(token, cancellationToken);
+        if (board is null)
+            return new JoinAttempt(BoardOutcome.NotFound, 0, "", Message: "Ссылка недействительна или её перевыпустили.");
+
+        var member = await _db.BoardMembers
+            .FirstOrDefaultAsync(x => x.BoardId == board.Id && x.UserId == user.Id, cancellationToken);
+
+        if (member is not null)
+        {
+            return member.BannedAt is not null
+                ? new JoinAttempt(BoardOutcome.Forbidden, board.Id, board.Title,
+                    Message: "Владелец закрыл вам доступ к этой доске.")
+                : new JoinAttempt(BoardOutcome.Ok, board.Id, board.Title, Role: member.Role);
+        }
+
+        if (board.Locked)
+            return new JoinAttempt(BoardOutcome.Locked, board.Id, board.Title,
+                Message: "Доска закрыта: сейчас на неё не пускают.");
+
+        var requestId = $"u{user.Id}";
+
+        if (board.AutoAdmit)
+        {
+            await AddMemberAsync(board.Id, user.Id, BoardMember.RoleViewer, cancellationToken);
+            return new JoinAttempt(BoardOutcome.Ok, board.Id, board.Title, Role: BoardMember.RoleViewer);
+        }
+
+        await _waiting.ClearRejectionAsync(board.Id, requestId);
+        await _waiting.RequestAsync(board.Id, new WaitingRequest(requestId, user.DisplayName, user.Id, DateTime.UtcNow));
+
+        return new JoinAttempt(BoardOutcome.Waiting, board.Id, board.Title, RequestId: requestId,
+            Message: "Ждём, пока преподаватель впустит вас на доску.");
+    }
+
+    /// <summary>
+    /// Что с моей заявкой. Опрашивается страницей ожидания, пока владелец
+    /// не примет решение.
+    /// </summary>
+    public async Task<JoinAttempt> CheckRequestAsync(
+        string? token, string requestId, string? displayName, long? userId, CancellationToken cancellationToken)
+    {
+        var board = await FindByLinkAsync(token, cancellationToken);
+        if (board is null)
+            return new JoinAttempt(BoardOutcome.NotFound, 0, "", Message: "Ссылка недействительна или её перевыпустили.");
+
+        if (userId is not null)
+        {
+            var member = await _db.BoardMembers
+                .FirstOrDefaultAsync(x => x.BoardId == board.Id && x.UserId == userId, cancellationToken);
+
+            if (member is not null && member.BannedAt is null)
+                return new JoinAttempt(BoardOutcome.Ok, board.Id, board.Title, Role: member.Role);
+        }
+        else
+        {
+            var admitted = await _waiting.AdmittedRoleAsync(board.Id, requestId);
+            if (admitted is not null)
+                return Admitted(board, admitted, displayName ?? "Гость", requestId);
+        }
+
+        if (await _waiting.IsRejectedAsync(board.Id, requestId))
+            return new JoinAttempt(BoardOutcome.Rejected, board.Id, board.Title,
+                Message: "Преподаватель не впустил вас на доску.");
+
+        return await _waiting.IsWaitingAsync(board.Id, requestId)
+            ? new JoinAttempt(BoardOutcome.Waiting, board.Id, board.Title, RequestId: requestId)
+            : new JoinAttempt(BoardOutcome.Rejected, board.Id, board.Title,
+                Message: "Заявка больше не действует. Откройте ссылку заново.");
+    }
+
+    // ---------- Комната ожидания глазами владельца ----------
+
+    public async Task<BoardResult<List<WaitingRequest>>> ListWaitingAsync(long boardId, long userId, CancellationToken cancellationToken)
+    {
+        var board = await OwnedAsync(boardId, userId, cancellationToken);
+        if (board is null)
+            return BoardResult<List<WaitingRequest>>.NotFound();
+
+        return BoardResult<List<WaitingRequest>>.Ok(await _waiting.ListAsync(boardId));
+    }
+
+    public async Task<BoardResult<bool>> AdmitAsync(
+        long boardId, long userId, string requestId, string? role, CancellationToken cancellationToken)
+    {
+        if (role is not (BoardMember.RoleEditor or BoardMember.RoleViewer))
+            return BoardResult<bool>.Bad("Роль — редактор или наблюдатель.");
+
+        var board = await OwnedAsync(boardId, userId, cancellationToken);
+        if (board is null)
+            return BoardResult<bool>.NotFound();
+
+        var request = await _waiting.FindAsync(boardId, requestId);
+        if (request is null)
+            return BoardResult<bool>.NotFound("Заявка уже неактуальна.");
+
+        if (request.UserId is not null)
+        {
+            // У человека с учётной записью роль сохраняется навсегда: доска
+            // остаётся у него в списке, и второй раз проситься не нужно.
+            await AddMemberAsync(boardId, request.UserId.Value, role, cancellationToken);
+        }
+        else
+        {
+            await _waiting.AdmitAsync(boardId, requestId, role);
+        }
+
+        await _waiting.RemoveAsync(boardId, requestId);
+        return BoardResult<bool>.Ok(true);
+    }
+
+    public async Task<BoardResult<bool>> RejectAsync(long boardId, long userId, string requestId, CancellationToken cancellationToken)
+    {
+        var board = await OwnedAsync(boardId, userId, cancellationToken);
+        if (board is null)
+            return BoardResult<bool>.NotFound();
+
+        await _waiting.RejectAsync(boardId, requestId);
+        await _waiting.RemoveAsync(boardId, requestId);
+
+        return BoardResult<bool>.Ok(true);
     }
 
     // ---------- Участники ----------
 
     public async Task<BoardResult<List<BoardMember>>> ListMembersAsync(long boardId, long userId, CancellationToken cancellationToken)
     {
-        var board = await OwnedAsync(boardId, userId, cancellationToken);
-        if (board is null)
-            return BoardResult<List<BoardMember>>.NotFound();
+        // Список участников видит любой, кто на доске: понимать, с кем
+        // работаешь, нужно всем. Управлять ими — только владельцу.
+        var actor = await ResolveActorAsync(boardId, userId, guestToken: null, cancellationToken);
+        if (actor is null)
+            return BoardResult<List<BoardMember>>.Forbidden("Нет доступа к этой доске.");
 
         var members = await _db.BoardMembers
             .Include(x => x.User)
-            .Where(x => x.BoardId == boardId)
+            .Where(x => x.BoardId == boardId && x.BannedAt == null)
             .OrderBy(x => x.JoinedAt)
             .ToListAsync(cancellationToken);
 
         return BoardResult<List<BoardMember>>.Ok(members);
     }
 
-    public async Task<BoardResult<BoardMember>> SetMemberRoleAsync(
+    public async Task<BoardResult<bool>> SetMemberRoleAsync(
         long boardId, long userId, long memberUserId, string? role, CancellationToken cancellationToken)
     {
         if (role is not (BoardMember.RoleEditor or BoardMember.RoleViewer))
-            return BoardResult<BoardMember>.Bad("Роль — editor или viewer.");
+            return BoardResult<bool>.Bad("Роль — редактор или наблюдатель.");
 
         var member = await ManageableMemberAsync(boardId, userId, memberUserId, cancellationToken);
         if (member is null)
-            return BoardResult<BoardMember>.NotFound("Участник не найден.");
+            return BoardResult<bool>.NotFound("Участник не найден.");
 
         member.Role = role;
         await _db.SaveChangesAsync(cancellationToken);
 
-        return BoardResult<BoardMember>.Ok(member);
+        return BoardResult<bool>.Ok(true);
     }
 
-    public async Task<BoardResult<bool>> SetMemberBannedAsync(
-        long boardId, long userId, long memberUserId, bool banned, CancellationToken cancellationToken)
+    /// <summary>Убрать участника с доски совсем.</summary>
+    public async Task<BoardResult<bool>> RemoveMemberAsync(
+        long boardId, long userId, long memberUserId, CancellationToken cancellationToken)
     {
         var member = await ManageableMemberAsync(boardId, userId, memberUserId, cancellationToken);
         if (member is null)
             return BoardResult<bool>.NotFound("Участник не найден.");
 
-        member.BannedAt = banned ? DateTime.UtcNow : null;
+        member.BannedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        return BoardResult<bool>.Ok(banned);
+        return BoardResult<bool>.Ok(true);
     }
 
-    /// <summary>Выгнать гостя: отключение плюс отказ на пятнадцать минут.</summary>
-    public async Task<BoardResult<bool>> KickGuestAsync(long boardId, long userId, string guestId, CancellationToken cancellationToken)
+    /// <summary>Убрать гостя: допуск отбирается, и он снова просится в очередь.</summary>
+    public async Task<BoardResult<bool>> RemoveGuestAsync(
+        long boardId, long userId, string guestId, CancellationToken cancellationToken)
     {
         var board = await OwnedAsync(boardId, userId, cancellationToken);
         if (board is null)
@@ -374,7 +437,7 @@ public sealed class BoardService
         if (string.IsNullOrWhiteSpace(guestId))
             return BoardResult<bool>.Bad("Не указано, кого удалять.");
 
-        await _kicks.AddAsync(boardId, guestId);
+        await _waiting.RevokeAdmissionAsync(boardId, guestId);
         return BoardResult<bool>.Ok(true);
     }
 
@@ -406,18 +469,62 @@ public sealed class BoardService
         }
 
         var guest = _guestTokens.Read(guestToken, boardId);
-        if (guest is null)
+        if (guest?.GuestId is null)
             return null;
 
-        // Выгнанный гость перестаёт быть участником сразу, не дожидаясь
-        // истечения токена: токен ему никто не отзывал, отказ живёт отдельно.
-        if (guest.GuestId is not null && await _kicks.ContainsAsync(boardId, guest.GuestId))
+        // Допуск проверяется на каждом обращении и заодно продлевается.
+        // Токен гостя живёт двенадцать часов, но доска у него открыта ровно
+        // столько, сколько владелец не передумал.
+        var role = await _waiting.AdmittedRoleAsync(boardId, guest.GuestId);
+        if (role is null)
             return null;
 
-        return guest;
+        // Роль берём из допуска, а не из токена: владелец мог её поменять
+        // после того, как токен был выдан.
+        return guest with { Role = role };
     }
 
     // ---------- Вспомогательное ----------
+
+    private JoinAttempt Admitted(Board board, string role, string name, string marker)
+        => new(BoardOutcome.Ok, board.Id, board.Title,
+            Role: role,
+            GuestToken: _guestTokens.Create(board.Id, role, name, marker),
+            RequestId: marker);
+
+    private async Task AddMemberAsync(long boardId, long userId, string role, CancellationToken cancellationToken)
+    {
+        var existing = await _db.BoardMembers
+            .FirstOrDefaultAsync(x => x.BoardId == boardId && x.UserId == userId, cancellationToken);
+
+        if (existing is not null)
+        {
+            existing.Role = role;
+            existing.BannedAt = null;
+        }
+        else
+        {
+            _db.BoardMembers.Add(new BoardMember
+            {
+                BoardId = boardId,
+                UserId = userId,
+                Role = role,
+                Source = BoardMember.SourceLink,
+                JoinedAt = DateTime.UtcNow
+            });
+        }
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // Уникальный индекс (board_id, user_id): два одновременных
+            // принятия одной заявки. Второе просто ничего не добавляет.
+            _db.ChangeTracker.Clear();
+        }
+    }
 
     private async Task<Board?> OwnedAsync(long boardId, long userId, CancellationToken cancellationToken)
         => await _db.Boards.FirstOrDefaultAsync(
@@ -430,8 +537,8 @@ public sealed class BoardService
         if (board is null)
             return null;
 
-        // Владельца нельзя понизить или закрыть ему доступ — в том числе
-        // самому себе: доска осталась бы без хозяина.
+        // Владельца нельзя понизить или убрать — в том числе самому себе:
+        // доска осталась бы без хозяина.
         if (memberUserId == board.OwnerId)
             return null;
 
@@ -439,18 +546,12 @@ public sealed class BoardService
             .FirstOrDefaultAsync(x => x.BoardId == boardId && x.UserId == memberUserId, cancellationToken);
     }
 
-    private async Task<BoardLink?> FindUsableLinkAsync(string? token, CancellationToken cancellationToken)
+    private async Task<Board?> FindByLinkAsync(string? token, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(token))
             return null;
 
-        var link = await _db.BoardLinks
-            .Include(x => x.Board)
-            .FirstOrDefaultAsync(x => x.Token == token, cancellationToken);
-
-        if (link?.Board is null || link.Board.DeletedAt is not null)
-            return null;
-
-        return link.IsUsable(DateTime.UtcNow) ? link : null;
+        return await _db.Boards
+            .FirstOrDefaultAsync(x => x.LinkToken == token && x.DeletedAt == null, cancellationToken);
     }
 }

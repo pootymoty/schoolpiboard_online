@@ -4,18 +4,19 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { readGuestToken, writeGuestToken } from '../api/guest';
 import type { BoardState } from '../api/types';
-import { useAuth } from '../auth/AuthContext';
-import { Page } from '../components/Layout';
-import { LinksPanel } from '../components/LinksPanel';
-import { MembersPanel } from '../components/MembersPanel';
+import { BoardShell } from '../components/Layout';
+import { Modal } from '../components/Modal';
+import { PeoplePanel } from '../components/PeoplePanel';
+import { IconLink, IconLockClosed, IconLockOpen, IconPeople } from '../components/Icons';
 
 /**
- * Страница доски. Открывается и участником с учётной записью, и гостем:
- * состояние приходит одним запросом, а кто именно смотрит — решает сервер.
+ * Страница доски.
+ *
+ * На виду только холст и участники: на доске рисуют, и всё, что нужно
+ * изредка — ссылка, замок, настройки — убрано в кнопки и всплывающие окна.
  */
 export function BoardPage(): ReactElement {
   const { boardId } = useParams<{ boardId: string }>();
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const id = Number(boardId);
@@ -23,6 +24,10 @@ export function BoardPage(): ReactElement {
   const [state, setState] = useState<BoardState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const [showPeople, setShowPeople] = useState(true);
+  const [showLink, setShowLink] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -42,7 +47,7 @@ export function BoardPage(): ReactElement {
     setBusy(true);
 
     try {
-      await api(`/boards/${id}/lock`, { method: 'POST', body: { locked: !state.board.locked } });
+      await api(`/boards/${id}/lock`, { method: 'POST', body: { value: !state.board.locked } });
       await load();
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось изменить замок.');
@@ -51,16 +56,36 @@ export function BoardPage(): ReactElement {
     }
   };
 
-  const remove = async () => {
-    if (!window.confirm('Удалить доску? Она пропадёт у всех участников.')) return;
-    setBusy(true);
+  const toggleAutoAdmit = async () => {
+    if (!state) return;
 
     try {
-      await api(`/boards/${id}`, { method: 'DELETE' });
-      navigate('/boards', { replace: true });
+      await api(`/boards/${id}/auto-admit`, { method: 'POST', body: { value: !state.board.autoAdmit } });
+      await load();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось удалить доску.');
-      setBusy(false);
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось изменить настройку.');
+    }
+  };
+
+  const reissue = async () => {
+    if (!window.confirm('Выпустить новую ссылку? Прежняя перестанет работать сразу.')) return;
+
+    try {
+      await api(`/boards/${id}/reissue-link`, { method: 'POST' });
+      await load();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось перевыпустить ссылку.');
+    }
+  };
+
+  const copy = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Буфер может быть недоступен — ссылка видна, её можно выделить руками.
+      setError('Скопировать не вышло. Выделите ссылку и скопируйте вручную.');
     }
   };
 
@@ -71,91 +96,162 @@ export function BoardPage(): ReactElement {
 
   if (error && !state) {
     return (
-      <Page>
+      <BoardShell>
         <div className="card">
           <h1>Доска</h1>
           <p className="note note-danger">{error}</p>
           <p className="text-muted small">
-            Возможно, вас удалили с доски или закрыли доступ. Если вы заходили
-            по ссылке, попросите новую.
+            Возможно, вас убрали с доски или ссылку перевыпустили. Попросите
+            новую у того, кто вас позвал.
           </p>
         </div>
-      </Page>
+      </BoardShell>
     );
   }
 
   if (!state) {
     return (
-      <Page>
+      <BoardShell>
         <p className="text-muted">Загружаем доску…</p>
-      </Page>
+      </BoardShell>
     );
   }
 
-  const { board, me } = state;
+  const { board, me, members } = state;
 
   return (
-    <Page>
-      <div className="page-header">
-        <h1>{board.title}</h1>
+    <BoardShell>
+      <div className="board-page">
+        <div className="board-page__bar">
+          <h1 className="board-page__title">{board.title}</h1>
 
-        <div className="row">
-          <span className={`badge badge-${board.role}`}>
-            {board.role === 'owner' ? 'владелец' : board.canEdit ? 'работает' : 'смотрит'}
-          </span>
-          {board.locked ? <span className="badge">🔒 закрыта для новых</span> : null}
-          {me.isGuest ? <span className="badge">гость: {me.displayName}</span> : null}
+          {board.canManage ? (
+            <>
+              <button
+                className="btn-tool"
+                type="button"
+                onClick={toggleLock}
+                disabled={busy}
+                aria-pressed={board.locked}
+                title={board.locked
+                  ? 'Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть'
+                  : 'Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть'}
+              >
+                {board.locked ? <IconLockClosed /> : <IconLockOpen />}
+              </button>
+
+              <button
+                className="btn-tool"
+                type="button"
+                onClick={() => setShowLink(true)}
+                title="Ссылка на доску"
+              >
+                <IconLink />
+              </button>
+            </>
+          ) : null}
+
+          <button
+            className="btn-tool"
+            type="button"
+            onClick={() => setShowPeople((current) => !current)}
+            aria-pressed={showPeople}
+            title="Участники"
+          >
+            <IconPeople />
+          </button>
         </div>
-      </div>
 
-      {error ? <p className="note note-danger">{error}</p> : null}
+        {error ? <p className="note note-danger">{error}</p> : null}
 
-      <section className="card canvas-placeholder">
-        <h2>Здесь появится холст</h2>
-        <p className="text-muted">
-          Рисование, фигуры и совместная работа — следующий этап. Сейчас
-          готово всё вокруг холста: доступ, роли и ссылки.
-        </p>
-        {!board.canEdit ? (
-          <p className="text-muted small">
-            У вас доступ только на просмотр: рисовать вы не сможете, и сервер
-            это проверяет — не только интерфейс.
+        {board.locked && board.canManage ? (
+          <p className="note note-warning">
+            Доска закрыта: новые по ссылке войти не могут. Те, кто уже здесь,
+            остаются.
           </p>
         ) : null}
-      </section>
 
-      {board.canManage ? (
-        <>
-          <LinksPanel boardId={id} />
-          <MembersPanel boardId={id} />
-
-          <section className="card panel danger-zone">
-            <h2>Управление доской</h2>
-
-            <div className="row">
-              <button className="btn-quiet" type="button" onClick={toggleLock} disabled={busy}>
-                {board.locked ? 'Впускать новых' : 'Не впускать новых'}
-              </button>
-              <button className="btn-quiet" type="button" onClick={remove} disabled={busy}>
-                Удалить доску
-              </button>
+        <div className="row" style={{ alignItems: 'flex-start', gap: 'var(--sp-4)' }}>
+          <section className="board-page__canvas" style={{ flex: 1 }}>
+            <div>
+              <h2 className="card-title">Здесь появится холст</h2>
+              <p className="text-muted">
+                Рисование и совместная работа — следующий этап. Сейчас готово
+                всё вокруг холста: доступ, роли и участники.
+              </p>
+              {!board.canEdit ? (
+                <p className="text-muted small">
+                  У вас доступ только на просмотр. Это проверяет сервер,
+                  а не только интерфейс.
+                </p>
+              ) : null}
             </div>
-
-            <p className="text-muted small">
-              Замок не выгоняет тех, кто уже на доске, — он закрывает вход
-              новым, даже по действующей ссылке.
-            </p>
           </section>
-        </>
-      ) : null}
 
-      {me.isGuest ? (
-        <p className="text-muted small">
-          Вы на доске как гость. Чтобы доска сохранилась у вас в списке,
-          нужна учётная запись.{' '}
-          <button className="btn-quiet" type="button" onClick={leaveGuest}>Выйти с доски</button>
-        </p>
-      ) : !user ? null : null}
-    </Page>
+          {showPeople ? (
+            <aside className="card" style={{ width: '300px', flex: 'none' }}>
+              <PeoplePanel
+                boardId={id}
+                canManage={board.canManage}
+                members={members}
+                guestName={me.isGuest ? me.displayName : null}
+                onChanged={load}
+              />
+            </aside>
+          ) : null}
+        </div>
+
+        {me.isGuest ? (
+          <p className="text-muted small">
+            Вы на доске как гость — доска у вас не сохранится.{' '}
+            <button className="btn-quiet btn-sm" type="button" onClick={leaveGuest}>Выйти</button>
+          </p>
+        ) : null}
+      </div>
+
+      {showLink && board.linkUrl ? (
+        <Modal title="Ссылка на доску" onClose={() => setShowLink(false)}>
+          <p className="text-muted small">
+            Отправьте её тем, кого ждёте. Кто перейдёт — попросится на доску,
+            а вы решите, впускать ли его и с какой ролью.
+          </p>
+
+          <div className="link-box">
+            <input type="text" readOnly value={board.linkUrl} onFocus={(e) => e.target.select()} />
+            <button className="btn-primary" type="button" onClick={() => copy(board.linkUrl!)}>
+              {copied ? 'Скопировано' : 'Копировать'}
+            </button>
+          </div>
+
+          <div className="check" style={{ marginTop: 'var(--sp-5)' }}>
+            <input
+              id="autoAdmit"
+              type="checkbox"
+              checked={board.autoAdmit}
+              onChange={toggleAutoAdmit}
+            />
+            <label htmlFor="autoAdmit">Впускать сразу, без спроса</label>
+          </div>
+          <p className="text-muted small">
+            Пришедшие по ссылке попадут на доску наблюдателями, минуя очередь.
+            Удобно для лекции на много человек; для обычного занятия лучше
+            оставить выключенным.
+          </p>
+
+          <button
+            className="btn-danger btn-block"
+            type="button"
+            onClick={reissue}
+            style={{ marginTop: 'var(--sp-5)' }}
+          >
+            Выпустить новую ссылку
+          </button>
+          <p className="text-muted small">
+            Прежняя перестанет работать сразу. Те, кого вы уже впустили под
+            учётной записью, доску не потеряют.
+          </p>
+        </Modal>
+      ) : null}
+    </BoardShell>
   );
 }
