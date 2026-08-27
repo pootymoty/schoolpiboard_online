@@ -140,6 +140,37 @@ public sealed class BoardHub : Hub
         });
     }
 
+    /// <summary>
+    /// Прислать доску заново.
+    ///
+    /// Догон по журналу закрывает обрыв, о котором клиент знает. Но
+    /// вкладка может провисеть в фоне, где браузер приглушает и таймеры,
+    /// и сокет, — и вернуться в уверенности, что ничего не пропустила.
+    /// Поэтому при возврате к доске состояние берётся у сервера целиком:
+    /// он тут единственный, кто знает правду.
+    /// </summary>
+    public async Task Sync()
+    {
+        var presence = _presence.Find(Context.ConnectionId);
+        if (presence is null)
+        {
+            await Clients.Caller.SendAsync("Error", "not_joined", "Сначала откройте доску.");
+            return;
+        }
+
+        var items = await _items.ListAsync(presence.BoardId, Context.ConnectionAborted);
+
+        await Clients.Caller.SendAsync(
+            "Synced",
+            new
+            {
+                seq = await _log.CurrentSeqAsync(presence.BoardId),
+                items = items.Select(ToDto),
+                participants = Participants(presence.BoardId)
+            },
+            Context.ConnectionAborted);
+    }
+
     public async Task LeaveBoard() => await DepartAsync();
 
     public override async Task OnDisconnectedAsync(Exception? exception)

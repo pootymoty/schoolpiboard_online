@@ -13,6 +13,9 @@ import { BoardCanvas } from '../board/BoardCanvas';
 import type { Tool } from '../board/BoardCanvas';
 import { BoardToolbar } from '../board/BoardToolbar';
 import { useBoardHub } from '../board/useBoardHub';
+import { useWaitingQueue } from '../board/useWaitingQueue';
+import { INITIAL_VIEWPORT, fitToContent, zoomAt } from '../board/viewport';
+import type { Viewport } from '../board/viewport';
 
 /**
  * Страница доски.
@@ -49,13 +52,32 @@ export function BoardPage(): ReactElement {
     // Срабатывает один раз при монтировании: id доски в пути не меняется.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [waitingCount, setWaitingCount] = useState(0);
-
   const [tool, setTool] = useState<Tool>('pen');
   const [color, setColor] = useState('#2A211C');
   const [penWidth, setPenWidth] = useState(4);
 
+  const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEWPORT);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+
   const hub = useBoardHub(id);
+  const queue = useWaitingQueue(id, hub.canManage);
+
+  // Наблюдателю рисующие инструменты недоступны — оставляем ему руку,
+  // иначе выбранное «перо» просто ничего не делало бы (пункт про роли).
+  useEffect(() => {
+    if (!hub.canEdit && tool !== 'hand') setTool('hand');
+  }, [hub.canEdit, tool]);
+
+  const zoomBy = (factor: number) => {
+    // От середины холста: кнопкой масштабируют, не целясь в точку.
+    setViewport((current) => zoomAt(current, canvasSize.width / 2, canvasSize.height / 2, factor));
+  };
+
+  const fitToAll = () => {
+    const points = hub.items.flatMap((item) => item.data.points ?? []);
+    const next = fitToContent(points, canvasSize.width, canvasSize.height);
+    if (next) setViewport(next);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -215,8 +237,10 @@ export function BoardPage(): ReactElement {
             {/* Считаем подключённых сейчас, а не записанных в участники:
                 на занятии важно, кто здесь, а не кто когда-то заходил. */}
             <span>Участники{presentCount ? ` · ${presentCount}` : ''}</span>
-            {waitingCount > 0 ? (
-              <span className="badge-dot" aria-label={`Ждут допуска: ${waitingCount}`}>{waitingCount}</span>
+            {queue.waiting.length > 0 ? (
+              <span className="badge-dot" aria-label={`Ждут допуска: ${queue.waiting.length}`}>
+                {queue.waiting.length}
+              </span>
             ) : null}
           </button>
         </div>
@@ -230,23 +254,36 @@ export function BoardPage(): ReactElement {
           </p>
         ) : null}
 
-        {hub.canEdit ? (
-          <BoardToolbar
+        {/* Панель показывается всем: наблюдателю нужны рука и масштаб,
+            а рисующие кнопки у него просто заблокированы. */}
+        <BoardToolbar
+          tool={tool}
+          color={color}
+          width={penWidth}
+          canEdit={hub.canEdit}
+          canManage={hub.canManage}
+          scale={viewport.scale}
+          onTool={setTool}
+          onColor={setColor}
+          onWidth={setPenWidth}
+          onZoom={zoomBy}
+          onResetZoom={() => setViewport((current) => ({ ...current, scale: 1 }))}
+          onFit={fitToAll}
+          onClear={() => {
+            if (window.confirm('Очистить доску? Всё нарисованное пропадёт у всех.')) hub.clearBoard();
+          }}
+        />
+
+        <section className="board-page__canvas">
+          <BoardCanvas
+            hub={hub}
             tool={tool}
             color={color}
             width={penWidth}
-            canManage={hub.canManage}
-            onTool={setTool}
-            onColor={setColor}
-            onWidth={setPenWidth}
-            onClear={() => {
-              if (window.confirm('Очистить доску? Всё нарисованное пропадёт у всех.')) hub.clearBoard();
-            }}
+            viewport={viewport}
+            onViewport={setViewport}
+            onSize={setCanvasSize}
           />
-        ) : null}
-
-        <section className="board-page__canvas">
-          <BoardCanvas hub={hub} tool={tool} color={color} width={penWidth} />
 
           {hub.status !== 'ready' ? (
             <p className="canvas-status">
@@ -259,7 +296,7 @@ export function BoardPage(): ReactElement {
           ) : null}
 
           {hub.status === 'ready' && !hub.canEdit ? (
-            <p className="canvas-status">Вы наблюдаете: рисовать нельзя.</p>
+            <p className="canvas-status">Вы наблюдаете: доступны только просмотр и масштаб.</p>
           ) : null}
 
           {showPeople ? (
@@ -270,8 +307,8 @@ export function BoardPage(): ReactElement {
                 members={members}
                 guests={otherGuests}
                 guestName={me.isGuest ? me.displayName : null}
+                queue={queue}
                 onChanged={load}
-                onWaitingCount={setWaitingCount}
               />
             </CanvasPanel>
           ) : null}

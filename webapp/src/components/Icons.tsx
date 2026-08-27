@@ -103,6 +103,13 @@ export const IconPeople = (props: Props): ReactElement => (
   </Svg>
 );
 
+/** Рука: двигать холст. */
+export const IconHand = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12m0-1.5a1.5 1.5 0 0 1 3 0V12m0-1a1.5 1.5 0 0 1 3 0v1m0 0a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-2a6 6 0 0 1-5.2-3L5 15.5a1.5 1.5 0 0 1 2.6-1.5l.9 1.5" />
+  </Svg>
+);
+
 /** Ластик. */
 export const IconEraser = (props: Props): ReactElement => (
   <Svg {...props}>

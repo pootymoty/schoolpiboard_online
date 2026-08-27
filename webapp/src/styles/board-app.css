@@ -374,6 +374,8 @@
 
 .canvas-host__surface--pen { cursor: crosshair; }
 .canvas-host__surface--eraser { cursor: cell; }
+.canvas-host__surface--hand { cursor: grab; }
+.canvas-host__surface--hand:active { cursor: grabbing; }
 
 /* Чужой курсор. `pointer-events: none` обязателен: иначе метка чужого
    курсора перехватывала бы нажатия у того, кто под ней рисует. */
@@ -381,18 +383,24 @@
     position: absolute;
     pointer-events: none;
     z-index: 5;
-    transform: translate(2px, 2px);
+    display: flex;
+    align-items: flex-start;
+    gap: 2px;
+    /* Остриё стрелки — в самой точке курсора, а не в углу значка. */
+    transform: translate(-2px, -2px);
 }
 
+/* Цвет приходит из разметки: он закреплён за человеком, а не за темой.
+   Белый текст — потому что фон всегда из насыщенной части палитры. */
 .canvas-cursor__name {
     display: inline-block;
     padding: 2px 6px;
     border-radius: var(--radius-sm);
-    background: var(--accent);
-    color: var(--text-on-accent);
+    color: #fff;
     font-size: var(--fs-xs);
     font-weight: 600;
     white-space: nowrap;
+    box-shadow: var(--shadow-sm);
 }
 
 /* Сообщение о состоянии связи — поверх холста, не занимая его места. */
@@ -431,6 +439,30 @@
     margin: var(--sp-1) var(--sp-2);
     background: var(--line);
 }
+
+/* Отодвигает масштаб к правому краю. На узком экране панель переносится,
+   и распорка схлопывается — иначе она рвала бы строку пополам. */
+.toolbar__spacer {
+    flex: 1;
+    min-width: 0;
+}
+
+.zoom {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+}
+
+.zoom__value {
+    min-width: 68px;
+    padding: 0 var(--sp-2);
+    background: transparent;
+    border-color: transparent;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--fs-sm);
+}
+
+.zoom__value:hover { background: var(--surface-2); }
 
 /* Образец цвета. Обводка вместо заливки в состоянии «выбран»: заливка
    у образца и есть его цвет, ею отметить выбор нельзя. */

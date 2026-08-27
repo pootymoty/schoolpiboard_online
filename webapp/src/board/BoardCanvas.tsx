@@ -2,15 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import type { BoardHub } from './useBoardHub';
 import type { BoardItem, ItemData, Point } from './protocol';
+import { cursorColor } from './cursorColors';
+import { clampScale, toScreen, toWorld, zoomAt } from './viewport';
+import type { Viewport } from './viewport';
 
-/** Инструменты этапа 11c. Фигуры и текст добавятся следующим заходом. */
-export type Tool = 'pen' | 'eraser';
+/** Инструменты. Фигуры, текст и выделение добавятся следующим заходом. */
+export type Tool = 'hand' | 'pen' | 'eraser';
 
 interface Props {
   hub: BoardHub;
   tool: Tool;
   color: string;
   width: number;
+  viewport: Viewport;
+  onViewport: (viewport: Viewport) => void;
+  onSize: (size: { width: number; height: number }) => void;
 }
 
 /** Не чаще двадцати раз в секунду — предел из раздела 7.1. */
@@ -19,76 +25,165 @@ const CURSOR_INTERVAL_MS = 50;
 /** Точки штриха копятся и уходят пачками, а не по одной. */
 const POINT_BATCH_MS = 50;
 
-/** Насколько близко нужно ткнуть, чтобы стереть штрих. */
+/** Насколько близко нужно ткнуть, чтобы стереть штрих, в экранных пикселях. */
 const ERASE_RADIUS = 8;
 
 /**
  * Холст доски.
  *
+ * Объекты хранятся в мировых координатах, а окно смотрит на них через
+ * <see cref="Viewport" />: холст бесконечен, и экранные координаты у
+ * двоих с разными окнами означали бы разные места.
+ *
  * Рисование идёт точками по ходу движения и закрепляется одним объектом
  * по завершении штриха: промежуточные точки только рассылаются, в базу
- * не пишутся — иначе на один штрих приходились бы сотни записей
- * (раздел 7.3).
+ * не пишутся (раздел 7.3).
  */
-export function BoardCanvas({ hub, tool, color, width }: Props): ReactElement {
+export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onSize }: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
 
   /** Свой штрих, пока он рисуется. В состоянии не держим: перерисовка на
       каждую точку заставляла бы React работать чаще, чем движется рука. */
   const drawing = useRef<{ tempId: string; points: Point[]; sent: number } | null>(null);
+
+  /** Перетаскивание холста: чем и откуда тащат. */
+  const panning = useRef<{ pointerId: number; startX: number; startY: number; origin: Viewport } | null>(null);
+
   const lastCursor = useRef(0);
   const lastBatch = useRef(0);
   const frame = useRef(0);
 
+  /** Пробел временно включает перемещение при любом инструменте. */
+  const [spaceHeld, setSpaceHeld] = useState(false);
+
   const [size, setSize] = useState({ width: 0, height: 0 });
 
-  // Холст должен занимать всё, что ему отвели, и быть чётким на экранах
-  // с удвоенными точками — иначе линия выглядит размытой.
+  // Свежие значения для обработчиков указателя: они живут вне React-цикла
+  // и иначе видели бы состояние на момент подписки.
+  const latest = useRef({ viewport, tool, color, width, spaceHeld });
+  latest.current = { viewport, tool, color, width, spaceHeld };
+
   useEffect(() => {
     const element = box.current;
     if (!element) return;
 
     const observer = new ResizeObserver(([entry]) => {
-      setSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+      const next = { width: entry.contentRect.width, height: entry.contentRect.height };
+      setSize(next);
+      onSize(next);
     });
 
     observer.observe(element);
     return () => observer.disconnect();
+  }, [onSize]);
+
+  // Пробел — как в десктопной версии: держат, чтобы подвигать холст, и
+  // отпускают, возвращаясь к рисованию.
+  useEffect(() => {
+    const down = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat) return;
+      const target = event.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+
+      event.preventDefault();
+      setSpaceHeld(true);
+    };
+
+    const up = (event: KeyboardEvent) => {
+      if (event.code === 'Space') setSpaceHeld(false);
+    };
+
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
   }, []);
 
-  /** Полная перерисовка. Дёшево, пока объектов немного. */
+  /** Полная перерисовка. */
   const redraw = useCallback(() => {
     const element = canvas.current;
     const context = element?.getContext('2d');
     if (!element || !context) return;
 
     const ratio = window.devicePixelRatio || 1;
+    const view = latest.current.viewport;
+
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, element.width, element.height);
+
+    // Мир переводится в экран одним преобразованием, а не пересчётом
+    // каждой точки: так толщина линии масштабируется вместе с рисунком.
+    context.setTransform(
+      ratio * view.scale, 0, 0, ratio * view.scale,
+      ratio * view.x, ratio * view.y,
+    );
 
     for (const item of hub.items) strokePath(context, item.data);
     for (const stroke of hub.live.values()) strokePath(context, stroke.data);
 
     if (drawing.current) {
-      strokePath(context, { points: drawing.current.points, color, width });
+      strokePath(context, {
+        points: drawing.current.points,
+        color: latest.current.color,
+        width: latest.current.width,
+      });
     }
-  }, [hub.items, hub.live, color, width]);
+  }, [hub.items, hub.live]);
 
-  // Перерисовываем в такт кадрам экрана, а не по каждому событию: подряд
-  // пришедшие точки от нескольких человек иначе дали бы десятки лишних
-  // проходов за один кадр.
-  useEffect(() => {
+  const schedule = useCallback(() => {
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(redraw);
-    return () => cancelAnimationFrame(frame.current);
-  }, [redraw, size]);
+  }, [redraw]);
 
-  const positionOf = (event: ReactPointerEvent<HTMLCanvasElement>): Point => {
+  // Перерисовываем в такт кадрам экрана: подряд пришедшие точки от
+  // нескольких человек иначе дали бы десятки лишних проходов за кадр.
+  useEffect(() => {
+    schedule();
+    return () => cancelAnimationFrame(frame.current);
+  }, [schedule, size, viewport, color, width]);
+
+  // Колесо — масштаб с привязкой к точке под курсором. Слушатель вешаем
+  // сами и не пассивным: иначе браузер не даст отменить прокрутку страницы.
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element) return;
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+
+      const bounds = element.getBoundingClientRect();
+      // Коэффициент пропорционален величине прокрутки — примерно 1.15
+      // за щелчок, как в десктопной версии.
+      const factor = Math.exp(-event.deltaY * 0.0015);
+
+      onViewport(zoomAt(
+        latest.current.viewport,
+        event.clientX - bounds.left,
+        event.clientY - bounds.top,
+        factor,
+      ));
+    };
+
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, [onViewport]);
+
+  const screenPoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
+    return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+  };
+
+  const worldPoint = (event: ReactPointerEvent<HTMLCanvasElement>): Point => {
+    const screen = screenPoint(event);
+    const world = toWorld(latest.current.viewport, screen.x, screen.y);
+
     return {
-      x: Math.round(event.clientX - bounds.left),
-      y: Math.round(event.clientY - bounds.top),
+      x: world.x,
+      y: world.y,
       // Нажим есть только у пера. У мыши браузер отдаёт 0.5 при нажатой
       // кнопке — принимать это за половинный нажим значило бы рисовать
       // мышью вдвое тоньше, чем просили.
@@ -96,17 +191,33 @@ export function BoardCanvas({ hub, tool, color, width }: Props): ReactElement {
     };
   };
 
-  const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (!hub.canEdit) return;
+  /** Тащат ли сейчас холст: рукой, пробелом или средней кнопкой. */
+  const wantsPan = (event: ReactPointerEvent<HTMLCanvasElement>) =>
+    latest.current.tool === 'hand' || latest.current.spaceHeld || event.button === 1 || !hub.canEdit;
 
+  const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     // Иначе Safari на касании начинает выделять текст и показывает
     // системное меню поверх доски.
     event.preventDefault();
 
-    const point = positionOf(event);
+    if (wantsPan(event)) {
+      const screen = screenPoint(event);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      panning.current = {
+        pointerId: event.pointerId,
+        startX: screen.x,
+        startY: screen.y,
+        origin: latest.current.viewport,
+      };
+      return;
+    }
 
-    if (tool === 'eraser') {
-      const hit = topmostAt(hub.items, point);
+    if (!hub.canEdit) return;
+
+    const point = worldPoint(event);
+
+    if (latest.current.tool === 'eraser') {
+      const hit = topmostAt(hub.items, point, ERASE_RADIUS / latest.current.viewport.scale);
       if (hit) hub.deleteItems([hit.id]);
       return;
     }
@@ -116,11 +227,27 @@ export function BoardCanvas({ hub, tool, color, width }: Props): ReactElement {
     const tempId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     drawing.current = { tempId, points: [point], sent: 0 };
 
-    hub.beginItem(tempId, 'stroke', { points: [point], color, width });
+    hub.beginItem(tempId, 'stroke', {
+      points: [point],
+      color: latest.current.color,
+      width: latest.current.width,
+    });
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    const point = positionOf(event);
+    const pan = panning.current;
+
+    if (pan && pan.pointerId === event.pointerId) {
+      const screen = screenPoint(event);
+      onViewport({
+        ...pan.origin,
+        x: pan.origin.x + (screen.x - pan.startX),
+        y: pan.origin.y + (screen.y - pan.startY),
+      });
+      return;
+    }
+
+    const point = worldPoint(event);
     const now = performance.now();
 
     if (now - lastCursor.current >= CURSOR_INTERVAL_MS) {
@@ -140,11 +267,12 @@ export function BoardCanvas({ hub, tool, color, width }: Props): ReactElement {
       if (fresh.length > 0) hub.appendPoints(stroke.tempId, fresh);
     }
 
-    cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(redraw);
+    schedule();
   };
 
   const finish = () => {
+    panning.current = null;
+
     const stroke = drawing.current;
     if (!stroke) return;
 
@@ -152,13 +280,18 @@ export function BoardCanvas({ hub, tool, color, width }: Props): ReactElement {
 
     // Штрих из одной точки — это промах, а не рисунок: не закрепляем.
     if (stroke.points.length > 1) {
-      hub.commitItem(stroke.tempId, 'stroke', { points: stroke.points, color, width });
+      hub.commitItem(stroke.tempId, 'stroke', {
+        points: stroke.points,
+        color: latest.current.color,
+        width: latest.current.width,
+      });
     }
 
-    redraw();
+    schedule();
   };
 
   const ratio = window.devicePixelRatio || 1;
+  const panMode = tool === 'hand' || spaceHeld || !hub.canEdit;
 
   return (
     <div className="canvas-host" ref={box}>
@@ -167,26 +300,35 @@ export function BoardCanvas({ hub, tool, color, width }: Props): ReactElement {
         width={Math.max(1, Math.round(size.width * ratio))}
         height={Math.max(1, Math.round(size.height * ratio))}
         style={{ width: size.width, height: size.height }}
-        className={hub.canEdit ? `canvas-host__surface canvas-host__surface--${tool}` : 'canvas-host__surface'}
+        className={`canvas-host__surface canvas-host__surface--${panMode ? 'hand' : tool}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={finish}
         // Без onPointerLeave намеренно: указатель захвачен, и штрих,
         // уведённый за край холста, должен продолжаться, а не обрываться.
-        // На касании это событие приходит ещё и в начале жеста — с ним
-        // палец не рисовал вовсе.
         onPointerCancel={finish}
+        // Долгое нажатие на телефоне иначе открывает системное меню
+        // «скопировать / выделить» прямо поверх рисунка.
+        onContextMenu={(event) => event.preventDefault()}
       />
 
       {/* Чужие курсоры — обычные элементы поверх холста, а не рисунок на
           нём: иначе каждый кадр курсоров требовал бы перерисовки доски. */}
       {hub.cursors
         .filter((cursor) => cursor.id !== hub.me)
-        .map((cursor) => (
-          <span className="canvas-cursor" key={cursor.id} style={{ left: cursor.x, top: cursor.y }}>
-            <span className="canvas-cursor__name">{cursor.name}</span>
-          </span>
-        ))}
+        .map((cursor) => {
+          const screen = toScreen(viewport, cursor.x, cursor.y);
+          const tint = cursorColor(cursor.id);
+
+          return (
+            <span className="canvas-cursor" key={cursor.id} style={{ left: screen.x, top: screen.y }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 3l14 8-6 1.5L10 19z" fill={tint} stroke="#fff" strokeWidth="1.5" />
+              </svg>
+              <span className="canvas-cursor__name" style={{ background: tint }}>{cursor.name}</span>
+            </span>
+          );
+        })}
     </div>
   );
 }
@@ -213,12 +355,12 @@ function strokePath(context: CanvasRenderingContext2D, data: ItemData): void {
   context.stroke();
 }
 
-/** Верхний объект под указателем — для ластика. */
-function topmostAt(items: BoardItem[], point: Point): BoardItem | null {
+/** Верхний объект под указателем — для ластика. Радиус в мировых единицах. */
+function topmostAt(items: BoardItem[], point: Point, radius: number): BoardItem | null {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
     const points = item.data.points ?? [];
-    const reach = ERASE_RADIUS + item.data.width / 2;
+    const reach = radius + item.data.width / 2;
 
     for (let i = 1; i < points.length; i += 1) {
       if (distanceToSegment(point, points[i - 1], points[i]) <= reach) return item;
@@ -240,8 +382,7 @@ function distanceToSegment(point: Point, from: Point, to: Point): number {
     ? 0
     : Math.max(0, Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared));
 
-  const nearestX = from.x + t * dx;
-  const nearestY = from.y + t * dy;
-
-  return Math.hypot(point.x - nearestX, point.y - nearestY);
+  return Math.hypot(point.x - (from.x + t * dx), point.y - (from.y + t * dy));
 }
+
+export { clampScale };

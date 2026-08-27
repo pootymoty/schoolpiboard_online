@@ -5,7 +5,8 @@ import { API_URL, readToken } from '../api/client';
 import { readGuestToken } from '../api/guest';
 import type { BoardRole } from '../api/types';
 import type {
-  BoardItem, Cursor, ItemData, ItemType, JoinedPayload, LiveStroke, Participant, ResumedPayload,
+  BoardItem, Cursor, ItemData, ItemType, JoinedPayload, LiveStroke, Participant,
+  ResumedPayload, SyncedPayload,
 } from './protocol';
 
 export type HubStatus = 'connecting' | 'ready' | 'reconnecting' | 'failed';
@@ -187,11 +188,38 @@ export function useBoardHub(boardId: number): BoardHub {
       setError(null);
     });
 
+    hub.on('Synced', (payload: SyncedPayload) => {
+      // Состояние от сервера заменяет местное целиком: в этом и смысл —
+      // разойтись они могли как угодно, и склеивать их было бы гаданием.
+      seq.current = payload.seq;
+      setItems(payload.items);
+      setParticipants(payload.participants);
+      setLive(new Map());
+    });
+
     hub.on('Error', (_code: string, message: string) => setError(message));
 
     hub.onreconnecting(() => setStatus('reconnecting'));
-    hub.onreconnected(() => { void join(); });
+
+    hub.onreconnected(async () => {
+      await join();
+      // Догон по журналу мог не покрыть разрыв целиком — доспрашиваем
+      // состояние: лишний запрос дешевле пропавшего рисунка.
+      await hub.invoke('Sync').catch(() => undefined);
+    });
+
     hub.onclose(() => setStatus('failed'));
+
+    // Вкладка вернулась из фона. Браузер там приглушает и таймеры, и
+    // сокет, поэтому доверять тому, что успело дойти, нельзя.
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (hub.state !== HubConnectionState.Connected) return;
+      void hub.invoke('Sync').catch(() => undefined);
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
 
     hub.start()
       .then(join)
@@ -201,6 +229,8 @@ export function useBoardHub(boardId: number): BoardHub {
       });
 
     return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
       connection.current = null;
       void hub.stop();
     };

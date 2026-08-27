@@ -1,15 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { ReactElement } from 'react';
 import { api, ApiError } from '../api/client';
-import type { ActiveGuest, BoardMember, BoardRole, WaitingRequest } from '../api/types';
+import type { ActiveGuest, BoardMember, BoardRole } from '../api/types';
+import type { WaitingQueue } from '../board/useWaitingQueue';
 import {
   IconCheck, IconChevronLeft, IconChevronRight, IconClose,
   IconEditor, IconGuest, IconOwner, IconViewer,
 } from './Icons';
 import { Menu } from './Menu';
-
-/** Как часто владелец проверяет, не постучался ли кто-то новый. */
-const POLL_MS = 4000;
 
 /** Страницами по столько — иначе длинный список раздувает панель бесконечно. */
 const PAGE_SIZE = 5;
@@ -22,9 +20,9 @@ interface Props {
   guests: ActiveGuest[];
   /** Гость на доске — он в базе не хранится, поэтому приходит отдельно. */
   guestName?: string | null;
+  /** Очередь ожидания. Опрашивается страницей — панель может быть закрыта. */
+  queue: WaitingQueue;
   onChanged: () => void;
-  /** Сколько человек в очереди — родителю нужно для значка на своей кнопке. */
-  onWaitingCount?: (count: number) => void;
 }
 
 /**
@@ -33,39 +31,16 @@ interface Props {
  * Ожидающих видит только владелец: остальным знать, кто ещё не впущен,
  * незачем.
  */
-export function PeoplePanel({ boardId, canManage, members, guests, guestName, onChanged, onWaitingCount }: Props): ReactElement {
-  const [waiting, setWaiting] = useState<WaitingRequest[]>([]);
+export function PeoplePanel({ boardId, canManage, members, guests, guestName, queue, onChanged }: Props): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
 
-  const loadWaiting = useCallback(async () => {
-    if (!canManage) return;
-
-    try {
-      const rows = await api<WaitingRequest[]>(`/boards/${boardId}/waiting`);
-      setWaiting(rows);
-      onWaitingCount?.(rows.length);
-    } catch {
-      // Очередь — не главное на странице: молчим и пробуем снова.
-    }
-  }, [boardId, canManage, onWaitingCount]);
-
-  useEffect(() => {
-    if (!canManage) return;
-
-    void loadWaiting();
-    const timer = window.setInterval(loadWaiting, POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [canManage, loadWaiting]);
+  const waiting = queue.waiting;
 
   const admit = async (requestId: string, role: BoardRole) => {
     try {
       await api(`/boards/${boardId}/waiting/admit`, { method: 'POST', body: { requestId, role } });
-      setWaiting((current) => {
-        const next = current.filter((item) => item.requestId !== requestId);
-        onWaitingCount?.(next.length);
-        return next;
-      });
+      queue.forget(requestId);
       onChanged();
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось впустить.');
@@ -75,11 +50,7 @@ export function PeoplePanel({ boardId, canManage, members, guests, guestName, on
   const reject = async (requestId: string) => {
     try {
       await api(`/boards/${boardId}/waiting/reject`, { method: 'POST', body: { requestId } });
-      setWaiting((current) => {
-        const next = current.filter((item) => item.requestId !== requestId);
-        onWaitingCount?.(next.length);
-        return next;
-      });
+      queue.forget(requestId);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось отклонить.');
     }

@@ -65,6 +65,13 @@ export interface ResumedPayload {
   events: { seq: number; name: string; payload: unknown }[];
 }
 
+/** Ответ на запрос состояния: заменяет местное представление целиком. */
+export interface SyncedPayload {
+  seq: number;
+  items: BoardItem[];
+  participants: Participant[];
+}
+
 /** Чужой штрих, пока он ещё рисуется: в базе его нет, он живёт в памяти. */
 export interface LiveStroke {
   tempId: string;
