@@ -339,14 +339,109 @@
 
     flex: 1;
     min-height: 320px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: var(--sp-6);
     background: var(--canvas);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
+}
+
+/* --- Холст ------------------------------------------------------------------ */
+
+.canvas-host {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.canvas-host__surface {
+    display: block;
+    /* Иначе браузер прокрутит страницу вместо рисования, а на планшете
+       ещё и увеличит масштаб двойным касанием. */
+    touch-action: none;
+    user-select: none;
+    overscroll-behavior: none;
+}
+
+.canvas-host__surface--pen { cursor: crosshair; }
+.canvas-host__surface--eraser { cursor: cell; }
+
+/* Чужой курсор. `pointer-events: none` обязателен: иначе метка чужого
+   курсора перехватывала бы нажатия у того, кто под ней рисует. */
+.canvas-cursor {
+    position: absolute;
+    pointer-events: none;
+    z-index: 5;
+    transform: translate(2px, 2px);
+}
+
+.canvas-cursor__name {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Сообщение о состоянии связи — поверх холста, не занимая его места. */
+.canvas-status {
+    position: absolute;
+    left: 50%;
+    bottom: var(--sp-4);
+    transform: translateX(-50%);
+    z-index: 6;
+    margin: 0;
+    padding: var(--sp-2) var(--sp-4);
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+    box-shadow: var(--shadow-sm);
+}
+
+/* --- Панель инструментов ----------------------------------------------------- */
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    flex-wrap: wrap;
+    padding: var(--sp-1) var(--sp-2);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.toolbar__divider {
+    width: 1px;
+    align-self: stretch;
+    margin: var(--sp-1) var(--sp-2);
+    background: var(--line);
+}
+
+/* Образец цвета. Обводка вместо заливки в состоянии «выбран»: заливка
+   у образца и есть его цвет, ею отметить выбор нельзя. */
+.swatch {
+    width: 28px;
+    min-height: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.swatch[aria-pressed="true"] {
+    border-color: var(--accent);
+    outline: 2px solid var(--accent-soft);
+}
+
+.width-dot {
+    display: block;
+    border-radius: 50%;
+    background: currentColor;
 }
 
 /* --- Участники ------------------------------------------------------------- */

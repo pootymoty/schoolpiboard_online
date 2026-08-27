@@ -103,6 +103,28 @@ export const IconPeople = (props: Props): ReactElement => (
   </Svg>
 );
 
+/** Ластик. */
+export const IconEraser = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <path d="M4 16.5 12.5 8a2.1 2.1 0 0 1 3 0l4 4a2.1 2.1 0 0 1 0 3L15 20H8z" />
+      <path d="M9 13.5 15.5 20" />
+      <path d="M4 20h16" />
+    </g>
+  </Svg>
+);
+
+/** Очистить доску. */
+export const IconTrash = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <path d="M4 7h16" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      <path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
+    </g>
+  </Svg>
+);
+
 /** Учётная запись — свёрнутое меню профиля в шапке. */
 export const IconUser = (props: Props): ReactElement => (
   <Svg {...props}>

@@ -9,6 +9,10 @@ import { CanvasPanel } from '../components/CanvasPanel';
 import { Modal } from '../components/Modal';
 import { PeoplePanel } from '../components/PeoplePanel';
 import { IconLink, IconLockClosed, IconLockOpen, IconPeople } from '../components/Icons';
+import { BoardCanvas } from '../board/BoardCanvas';
+import type { Tool } from '../board/BoardCanvas';
+import { BoardToolbar } from '../board/BoardToolbar';
+import { useBoardHub } from '../board/useBoardHub';
 
 /**
  * Страница доски.
@@ -46,6 +50,12 @@ export function BoardPage(): ReactElement {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [waitingCount, setWaitingCount] = useState(0);
+
+  const [tool, setTool] = useState<Tool>('pen');
+  const [color, setColor] = useState('#2A211C');
+  const [penWidth, setPenWidth] = useState(4);
+
+  const hub = useBoardHub(id);
 
   const load = useCallback(async () => {
     try {
@@ -154,7 +164,11 @@ export function BoardPage(): ReactElement {
   // Свой собственный гостевой вход отдельной строкой ниже — из общего
   // списка его убираем, иначе человек видел бы себя дважды.
   const otherGuests = guests.filter((guest) => guest.guestId !== me.guestId);
-  const presentCount = members.length + otherGuests.length + (me.isGuest ? 1 : 0);
+  // Пока хаб не подключился, показываем список из состояния доски: пустой
+  // счётчик на секунду выглядел бы как «на доске никого».
+  const presentCount = hub.status === 'ready'
+    ? hub.participants.length
+    : members.length + otherGuests.length + (me.isGuest ? 1 : 0);
 
   return (
     <BoardShell>
@@ -198,6 +212,8 @@ export function BoardPage(): ReactElement {
             title="Участники"
           >
             <IconPeople />
+            {/* Считаем подключённых сейчас, а не записанных в участники:
+                на занятии важно, кто здесь, а не кто когда-то заходил. */}
             <span>Участники{presentCount ? ` · ${presentCount}` : ''}</span>
             {waitingCount > 0 ? (
               <span className="badge-dot" aria-label={`Ждут допуска: ${waitingCount}`}>{waitingCount}</span>
@@ -205,7 +221,7 @@ export function BoardPage(): ReactElement {
           </button>
         </div>
 
-        {error ? <p className="note note-danger">{error}</p> : null}
+        {error ?? hub.error ? <p className="note note-danger">{error ?? hub.error}</p> : null}
 
         {board.locked && board.canManage ? (
           <p className="note note-warning">
@@ -214,20 +230,37 @@ export function BoardPage(): ReactElement {
           </p>
         ) : null}
 
+        {hub.canEdit ? (
+          <BoardToolbar
+            tool={tool}
+            color={color}
+            width={penWidth}
+            canManage={hub.canManage}
+            onTool={setTool}
+            onColor={setColor}
+            onWidth={setPenWidth}
+            onClear={() => {
+              if (window.confirm('Очистить доску? Всё нарисованное пропадёт у всех.')) hub.clearBoard();
+            }}
+          />
+        ) : null}
+
         <section className="board-page__canvas">
-          <div>
-            <h2 className="card-title">Здесь появится холст</h2>
-            <p className="text-muted">
-              Рисование и совместная работа — следующий этап. Сейчас готово
-              всё вокруг холста: доступ, роли и участники.
+          <BoardCanvas hub={hub} tool={tool} color={color} width={penWidth} />
+
+          {hub.status !== 'ready' ? (
+            <p className="canvas-status">
+              {hub.status === 'failed'
+                ? 'Связь с доской потеряна. Нарисованное сохранится, когда связь вернётся.'
+                : hub.status === 'reconnecting'
+                  ? 'Связь прервалась — восстанавливаем…'
+                  : 'Подключаемся к доске…'}
             </p>
-            {!board.canEdit ? (
-              <p className="text-muted small">
-                У вас доступ только на просмотр. Это проверяет сервер,
-                а не только интерфейс.
-              </p>
-            ) : null}
-          </div>
+          ) : null}
+
+          {hub.status === 'ready' && !hub.canEdit ? (
+            <p className="canvas-status">Вы наблюдаете: рисовать нельзя.</p>
+          ) : null}
 
           {showPeople ? (
             <CanvasPanel title="Участники" onClose={() => setShowPeople(false)}>
