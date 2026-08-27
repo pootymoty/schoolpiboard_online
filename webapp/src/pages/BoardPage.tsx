@@ -17,7 +17,8 @@ import type { Tool, ToolSettings } from '../board/tools';
 import type { ItemData, Point } from '../board/protocol';
 import { TextInput } from '../board/TextInput';
 import { fontOf } from '../board/render';
-import { pointsOf } from '../board/geometry';
+import { boundsOf, pointsOf, translate } from '../board/geometry';
+import { SelectionPanel } from '../board/SelectionPanel';
 import { useBoardHub } from '../board/useBoardHub';
 import { useWaitingQueue } from '../board/useWaitingQueue';
 import { useHistory } from '../board/useHistory';
@@ -136,6 +137,12 @@ export function BoardPage(): ReactElement {
         return;
       }
 
+      if (control && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        duplicateSelection();
+        return;
+      }
+
       if (control && event.key.toLowerCase() === 'a') {
         event.preventDefault();
         setSelection(hub.items.map((item) => item.id));
@@ -190,6 +197,22 @@ export function BoardPage(): ReactElement {
     const tempId = `text-${Date.now().toString(36)}`;
     myStrokes.current.add(tempId);
     hub.commitItem(tempId, 'text', data);
+  };
+
+  const selectedItems = hub.items.filter((item) => selection.includes(item.id));
+  const selectionBounds = selectedItems.length > 0 ? boundsOf(selectedItems) : null;
+
+  /** Копия выделенного со сдвигом — чтобы копия не легла ровно поверх оригинала. */
+  const duplicateSelection = () => {
+    for (const item of selectedItems) {
+      const tempId = `copy-${item.id}-${Date.now().toString(36)}`;
+      myStrokes.current.add(tempId);
+      hub.commitItem(tempId, item.type, translate(item.data, 16, 16));
+    }
+  };
+
+  const recolorSelection = (color: string) => {
+    for (const item of selectedItems) hub.updateItem(item.id, { ...item.data, color });
   };
 
   const zoomBy = (factor: number) => {
@@ -429,6 +452,20 @@ export function BoardPage(): ReactElement {
             />
           ) : null}
 
+          {/* Панель над выделением прячется, пока его тащат: она бы
+              прыгала следом и мешала целиться. */}
+          {selectionBounds && hub.canEdit ? (
+            <SelectionPanel
+              items={selectedItems}
+              bounds={selectionBounds}
+              viewport={viewport}
+              onColor={recolorSelection}
+              onDuplicate={duplicateSelection}
+              onDelete={removeSelection}
+              onReorder={(toFront) => hub.reorder(selection, toFront)}
+            />
+          ) : null}
+
           {textAt ? (
             <TextInput
               at={textAt}
@@ -453,8 +490,7 @@ export function BoardPage(): ReactElement {
             <p className="canvas-status">Вы наблюдаете: доступны только просмотр и масштаб.</p>
           ) : null}
 
-          {showPeople ? (
-            <CanvasPanel title="Участники" onClose={() => setShowPeople(false)}>
+          <CanvasPanel open={showPeople} title="Участники" onClose={() => setShowPeople(false)}>
               <PeoplePanel
                 boardId={id}
                 canManage={board.canManage}
@@ -464,8 +500,7 @@ export function BoardPage(): ReactElement {
                 queue={queue}
                 onChanged={load}
               />
-            </CanvasPanel>
-          ) : null}
+          </CanvasPanel>
         </section>
 
         {me.isGuest ? (

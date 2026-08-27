@@ -34,6 +34,8 @@ export interface BoardHub {
   commitItem: (tempId: string, type: ItemType, data: ItemData) => void;
   cancelItem: (tempId: string) => void;
   moveItems: (ids: number[], dx: number, dy: number) => void;
+  updateItem: (id: number, data: ItemData) => void;
+  reorder: (ids: number[], toFront: boolean) => void;
   deleteItems: (ids: number[]) => void;
   clearBoard: () => void;
 }
@@ -109,6 +111,20 @@ export function useBoardHub(boardId: number): BoardHub {
         )));
         break;
 
+      case 'ItemsReordered':
+        setItems((current) => {
+          const fresh = new Map<number, BoardItem>(
+            (payload.items as BoardItem[]).map((item) => [item.id, item]),
+          );
+          // Пересортировка обязательна: порядок отрисовки задаёт z, а не
+          // место в массиве, и без неё переложенное осталось бы на виду
+          // там же, где было.
+          return current
+            .map((item) => fresh.get(item.id) ?? item)
+            .sort((a, b) => a.z - b.z || a.id - b.id);
+        });
+        break;
+
       case 'ItemUpdated':
         setItems((current) => current.map((x) => (x.id === payload.item.id ? payload.item : x)));
         break;
@@ -170,7 +186,7 @@ export function useBoardHub(boardId: number): BoardHub {
     // чтобы было чем догоняться после обрыва.
     const handled = [
       'ItemBegan', 'ItemPoints', 'ItemCommitted', 'ItemCancelled', 'ItemUpdated',
-      'ItemsMoved', 'ItemsDeleted', 'BoardCleared', 'ItemLocked', 'ItemUnlocked',
+      'ItemsMoved', 'ItemsReordered', 'ItemsDeleted', 'BoardCleared', 'ItemLocked', 'ItemUnlocked',
       'MemberJoined', 'MemberLeft',
     ];
 
@@ -272,6 +288,8 @@ export function useBoardHub(boardId: number): BoardHub {
     commitItem: useCallback((id, type, data) => call('CommitItem', id, type, data), [call]),
     cancelItem: useCallback((id: string) => call('CancelItem', id), [call]),
     moveItems: useCallback((ids: number[], dx: number, dy: number) => call('MoveItems', ids, dx, dy), [call]),
+    updateItem: useCallback((id: number, data: ItemData) => call('UpdateItem', id, data), [call]),
+    reorder: useCallback((ids: number[], toFront: boolean) => call('Reorder', ids, toFront), [call]),
     deleteItems: useCallback((ids: number[]) => call('DeleteItems', ids), [call]),
     clearBoard: useCallback(() => call('ClearBoard'), [call]),
   };

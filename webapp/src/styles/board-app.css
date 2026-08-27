@@ -232,6 +232,12 @@
     animation: canvas-panel-in .18s ease-out;
 }
 
+/* Закрытие — тот же путь в обратную сторону. Панель остаётся в разметке
+   на время анимации, иначе получилось бы исчезновение, а не уезд. */
+.canvas-panel--closing {
+    animation: canvas-panel-out .18s ease-in forwards;
+}
+
 .canvas-panel__head {
     display: flex;
     align-items: center;
@@ -254,12 +260,18 @@
 }
 
 @keyframes canvas-panel-in {
-    from { transform: translateX(100%); }
-    to { transform: translateX(0); }
+    from { transform: translateX(100%); opacity: .6; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes canvas-panel-out {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: .6; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .canvas-panel { animation: none; }
+    .canvas-panel,
+    .canvas-panel--closing { animation: none; }
 }
 
 /* Листалка списка участников: страницами по пять, а не бесконечной
@@ -562,6 +574,39 @@
     display: block;
     width: 100%;
     border-radius: 999px;
+}
+
+/* --- Панель над выделением ---------------------------------------------------- */
+
+.selection-panel {
+    position: absolute;
+    z-index: 7;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    padding: var(--sp-1) var(--sp-2);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    white-space: nowrap;
+}
+
+.selection-panel__colors {
+    display: flex;
+    gap: 2px;
+}
+
+.swatch--sm {
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
+}
+
+.selection-panel__count {
+    padding-right: var(--sp-1);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
 }
 
 /* --- Ввод надписи ------------------------------------------------------------ */

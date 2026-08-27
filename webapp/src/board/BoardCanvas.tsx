@@ -5,6 +5,8 @@ import type { ItemData, ItemType, Point } from './protocol';
 import { cursorColor } from './cursorColors';
 import { boundsOf, rectFrom, topmostAt, translate, within } from './geometry';
 import type { Bounds } from './geometry';
+import { HANDLE_SIZE, handlesFor, resized } from './handles';
+import type { HandleId } from './handles';
 import { drawItem } from './render';
 import type { ToolSettings, Tool } from './tools';
 import { clampScale, toScreen, toWorld, zoomAt } from './viewport';
@@ -97,6 +99,16 @@ export function BoardCanvas({
 
   /** Перетаскивание выделенного: откуда начали и сколько уже сдвинули. */
   const moving = useRef<{ pointerId: number; from: Point; dx: number; dy: number } | null>(null);
+
+  /** Растягивание за ручку. */
+  const resizing = useRef<{
+    pointerId: number;
+    itemId: number;
+    handle: HandleId;
+    origin: Bounds;
+    from: Point;
+    data: ItemData;
+  } | null>(null);
 
   const lastCursor = useRef(0);
   const lastBatch = useRef(0);
@@ -198,7 +210,11 @@ export function BoardCanvas({
     for (const item of hub.items) {
       // Пока выделенное тащат, рисуем его со сдвигом, не дожидаясь
       // ответа сервера: иначе рисунок отставал бы от пальца.
-      const shifted = drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
+      const grip = resizing.current;
+      const shifted = grip?.itemId === item.id
+        ? grip.data
+        : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
+
       drawItem(context, item.type, shifted);
     }
 
@@ -222,6 +238,28 @@ export function BoardCanvas({
 
     if (marquee.current) {
       outline(context, rectFrom(marquee.current.from, marquee.current.to), '#2E5FA3', hair, [4 * hair, 3 * hair]);
+    }
+
+    // Ручки — только при одном выбранном объекте: у группы неясно, что
+    // именно тянут, и в десктопной версии их там тоже нет.
+    if (selected.length === 1 && !drag) {
+      const single = selected[0];
+      const preview = resizing.current?.itemId === single.id ? resizing.current.data : single.data;
+      const grips = handlesFor(single, boundsOf([{ ...single, data: preview }])!);
+
+      for (const grip of grips) {
+        const half = (HANDLE_SIZE / 2) / view.scale;
+        context.save();
+        context.setLineDash([]);
+        context.fillStyle = '#fff';
+        context.strokeStyle = '#2E5FA3';
+        context.lineWidth = hair * 1.5;
+        context.beginPath();
+        context.rect(grip.x - half, grip.y - half, half * 2, half * 2);
+        context.fill();
+        context.stroke();
+        context.restore();
+      }
     }
   }, [hub.items, hub.live]);
 
@@ -372,8 +410,36 @@ export function BoardCanvas({
     if (latest.current.tool === 'select') {
       event.currentTarget.setPointerCapture(event.pointerId);
 
-      const hit = topmostAt(hub.items, point, reach);
       const chosen = latest.current.selection;
+
+      // Ручка проверяется раньше объектов: она мелкая и лежит поверх, и
+      // попадание по ней должно означать растягивание, а не выделение
+      // того, что под ней.
+      if (chosen.length === 1) {
+        const single = latest.current.items.find((item) => item.id === chosen[0]);
+        const bounds = single ? boundsOf([single]) : null;
+
+        if (single && bounds) {
+          const grip = handlesFor(single, bounds).find((candidate) => (
+            Math.abs(candidate.x - point.x) <= HANDLE_SIZE / latest.current.viewport.scale
+            && Math.abs(candidate.y - point.y) <= HANDLE_SIZE / latest.current.viewport.scale
+          ));
+
+          if (grip) {
+            resizing.current = {
+              pointerId: event.pointerId,
+              itemId: single.id,
+              handle: grip.id,
+              origin: rawBounds(single.data, bounds),
+              from: point,
+              data: single.data,
+            };
+            return;
+          }
+        }
+      }
+
+      const hit = topmostAt(hub.items, point, reach);
 
       if (!hit) {
         // По пустому месту — рамка. Прежнее выделение снимаем сразу:
@@ -485,6 +551,16 @@ export function BoardCanvas({
       return;
     }
 
+    const grip = resizing.current;
+    if (grip?.pointerId === event.pointerId) {
+      const source = latest.current.items.find((item) => item.id === grip.itemId);
+      if (source) {
+        grip.data = resized(source.data, grip.origin, grip.handle, point.x - grip.from.x, point.y - grip.from.y);
+      }
+      schedule();
+      return;
+    }
+
     const drag = moving.current;
     if (drag?.pointerId === event.pointerId) {
       drag.dx = point.x - drag.from.x;
@@ -539,6 +615,14 @@ export function BoardCanvas({
       marquee.current = null;
       const chosen = within(latest.current.items, rectFrom(band.from, band.to));
       if (chosen.length > 0) onSelection(chosen.map((item) => item.id));
+      schedule();
+      return;
+    }
+
+    const grip = resizing.current;
+    if (grip?.pointerId === event.pointerId) {
+      resizing.current = null;
+      hub.updateItem(grip.itemId, grip.data);
       schedule();
       return;
     }
@@ -635,6 +719,27 @@ function outline(
   context.setLineDash(dash);
   context.strokeRect(box.x, box.y, box.width, box.height);
   context.restore();
+}
+
+/**
+ * Габариты без запаса на толщину линии.
+ *
+ * `boundsOf` прибавляет половину толщины, чтобы рамка не резала штрих.
+ * Для растягивания это лишнее: считать от такой рамки — значит смещать
+ * фигуру на половину толщины при каждом захвате.
+ */
+function rawBounds(data: ItemData, fallback: Bounds): Bounds {
+  if (data.x1 === undefined || data.y1 === undefined) return fallback;
+
+  const x2 = data.x2 ?? data.x1;
+  const y2 = data.y2 ?? data.y1;
+
+  return {
+    x: Math.min(data.x1, x2),
+    y: Math.min(data.y1, y2),
+    width: Math.abs(x2 - data.x1),
+    height: Math.abs(y2 - data.y1),
+  };
 }
 
 /**

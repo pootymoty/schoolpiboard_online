@@ -222,6 +222,42 @@ public sealed class BoardItemService
         }
     }
 
+    /// <summary>
+    /// Переложить объекты вперёд или назад. Порядок задаётся полем z:
+    /// пересчитывать его у всей доски незачем — достаточно вынести
+    /// переложенные за её нынешние границы.
+    /// </summary>
+    public async Task<List<BoardItem>> ReorderAsync(
+        long boardId, IReadOnlyCollection<long> itemIds, bool toFront, CancellationToken cancellationToken)
+    {
+        if (itemIds.Count == 0)
+            return new List<BoardItem>();
+
+        var items = await _db.BoardItems
+            .Where(x => x.BoardId == boardId && itemIds.Contains(x.Id))
+            .OrderBy(x => x.Z)
+            .ToListAsync(cancellationToken);
+
+        if (items.Count == 0)
+            return new List<BoardItem>();
+
+        var edge = toFront
+            ? await _db.BoardItems.Where(x => x.BoardId == boardId).MaxAsync(x => (int?)x.Z, cancellationToken) ?? 0
+            : await _db.BoardItems.Where(x => x.BoardId == boardId).MinAsync(x => (int?)x.Z, cancellationToken) ?? 0;
+
+        // Взаимный порядок внутри выборки сохраняем: перекладывают группу
+        // целиком, а не перемешивают её.
+        for (var index = 0; index < items.Count; index += 1)
+        {
+            items[index].Z = toFront
+                ? edge + 1 + index
+                : edge - items.Count + index;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return items;
+    }
+
     public async Task ClearAsync(long boardId, CancellationToken cancellationToken)
         => await _db.BoardItems.Where(x => x.BoardId == boardId).ExecuteDeleteAsync(cancellationToken);
 

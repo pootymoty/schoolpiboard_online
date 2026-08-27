@@ -103,6 +103,36 @@ export const IconPeople = (props: Props): ReactElement => (
   </Svg>
 );
 
+/** Дублировать. */
+export const IconCopy = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a1 1 0 0 1 1-1h9" />
+    </g>
+  </Svg>
+);
+
+/** На передний план. */
+export const IconToFront = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="8" y="3" width="13" height="13" rx="2" />
+      <path d="M16 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h3" />
+    </g>
+  </Svg>
+);
+
+/** На задний план. */
+export const IconToBack = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="3" y="8" width="13" height="13" rx="2" />
+      <path d="M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3" />
+    </g>
+  </Svg>
+);
+
 /** Маркер: плоское перо, полупрозрачный след. */
 export const IconMarker = (props: Props): ReactElement => (
   <Svg {...props}>

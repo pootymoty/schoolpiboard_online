@@ -336,6 +336,24 @@ public sealed class BoardHub : Hub
         });
     }
 
+    /// <summary>На передний или на задний план.</summary>
+    public async Task Reorder(long[] itemIds, bool toFront)
+    {
+        var presence = await RequireEditorAsync();
+        if (presence is null) return;
+
+        var moved = await _items.ReorderAsync(presence.BoardId, itemIds, toFront, Context.ConnectionAborted);
+        if (moved.Count == 0) return;
+
+        await _items.TouchBoardAsync(presence.BoardId, Context.ConnectionAborted);
+
+        await PublishAsync(presence.BoardId, "ItemsReordered", new
+        {
+            items = moved.Select(ToDto),
+            by = Context.ConnectionId
+        });
+    }
+
     public async Task DeleteItems(long[] itemIds)
     {
         var presence = await RequireEditorAsync();
