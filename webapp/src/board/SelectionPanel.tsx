@@ -5,7 +5,7 @@ import { PALETTE } from './tools';
 import { toScreen } from './viewport';
 import type { Viewport } from './viewport';
 import { Menu } from '../components/Menu';
-import { IconCopy, IconTrash } from '../components/Icons';
+import { IconCopy, IconToBack, IconToFront, IconTrash } from '../components/Icons';
 
 interface Props {
   items: BoardItem[];
@@ -96,25 +96,46 @@ export function SelectionPanel({
         <IconTrash />
       </button>
 
-      <Menu label="Ещё действия">
-        <button className="btn-quiet menu__item" type="button" onClick={() => onReorder(true)}>
-          На передний план
-        </button>
-        <button className="btn-quiet menu__item" type="button" onClick={() => onReorder(false)}>
-          На задний план
-        </button>
-        <button className="btn-quiet menu__item" type="button" onClick={onDuplicate}>
-          Дублировать
-        </button>
-        {text ? (
-          <button className="btn-quiet menu__item" type="button" onClick={() => onCopyText(text)}>
-            Скопировать текст
+      {pinned ? (
+        // На телефоне три точки только путали: на что там жать, было не
+        // понять без подписи. Прокручиваемый ряд кнопок — тот же приём,
+        // что уже прижился в панели инструментов.
+        <>
+          <button className="btn-tool" type="button" onClick={() => onReorder(true)} title="На передний план">
+            <IconToFront />
           </button>
-        ) : null}
-        <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={onDelete}>
-          Удалить
-        </button>
-      </Menu>
+          <button className="btn-tool" type="button" onClick={() => onReorder(false)} title="На задний план">
+            <IconToBack />
+          </button>
+          {text ? (
+            <button className="btn-tool" type="button" onClick={() => onCopyText(text)} title="Скопировать текст">
+              <IconCopy />
+            </button>
+          ) : null}
+        </>
+      ) : (
+        // На ПК места хватает — а вот словесная подпись читается быстрее,
+        // чем два похожих значка «вперёд»/«назад» по слою.
+        <Menu label="Ещё действия">
+          <button className="btn-quiet menu__item" type="button" onClick={() => onReorder(true)}>
+            На передний план
+          </button>
+          <button className="btn-quiet menu__item" type="button" onClick={() => onReorder(false)}>
+            На задний план
+          </button>
+          <button className="btn-quiet menu__item" type="button" onClick={onDuplicate}>
+            Дублировать
+          </button>
+          {text ? (
+            <button className="btn-quiet menu__item" type="button" onClick={() => onCopyText(text)}>
+              Скопировать текст
+            </button>
+          ) : null}
+          <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={onDelete}>
+            Удалить
+          </button>
+        </Menu>
+      )}
 
       {items.length > 1 ? <span className="selection-panel__count">{items.length}</span> : null}
     </div>

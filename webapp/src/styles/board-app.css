@@ -41,6 +41,146 @@
     color: var(--danger);
 }
 
+/* Лого — без всякого обозначения нажатия: ни подчёркивания, ни рамки
+   фокуса, ни смены цвета. Это кнопка "домой", а не пункт меню. */
+.header__brand,
+.header__brand:hover,
+.header__brand:focus,
+.header__brand:active {
+    text-decoration: none;
+    outline: none;
+}
+
+/* --- Разделы сайта: десктопное меню и мобильный бургер --------------------- */
+
+.desktop-menu {
+    display: none;
+    align-items: center;
+    gap: var(--sp-4);
+}
+
+@media (min-width: 900px) {
+    .desktop-menu { display: flex; }
+    .hamburger { display: none; }
+}
+
+.hamburger {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-on-dark);
+}
+
+.navbar {
+    position: fixed;
+    top: var(--header-h);
+    right: 0;
+    width: 100%;
+    height: calc(100dvh - var(--header-h));
+    background: var(--surface);
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    z-index: 30;
+    overflow-y: auto;
+}
+
+.navbar--show { transform: translateX(0); }
+
+.navbar ul {
+    list-style: none;
+    margin: 0;
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar li a,
+.navbar-dropdown__toggle {
+    display: block;
+    padding: var(--sp-3) var(--sp-2);
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+}
+
+.navbar-dropdown__toggle::after {
+    content: '▾';
+    float: right;
+    transition: transform .2s ease;
+}
+
+.navbar-dropdown--active .navbar-dropdown__toggle::after {
+    transform: rotate(180deg);
+}
+
+.navbar-submenu {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 var(--sp-3);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height .25s ease;
+}
+
+.navbar-dropdown--active .navbar-submenu { max-height: 200px; }
+
+.navbar-submenu li .menu__item {
+    width: 100%;
+    text-align: left;
+    padding: var(--sp-3) var(--sp-2);
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+}
+
+/* Прокрутка страницы позади открытой мобильной панели заблокирована:
+   одного overflow: hidden мало для iOS Safari, нужен ещё position: fixed. */
+body.no-scroll {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+}
+
+/* --- Слайдер темы, вместо значка солнце/луна ------------------------------- */
+
+.theme-switch {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.theme-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
+
+.theme-switch__track {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .25);
+    transition: background .2s ease;
+}
+
+.theme-switch__thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--text-on-dark);
+    transition: transform .2s ease;
+}
+
+.theme-switch input:checked + .theme-switch__track { background: var(--accent); }
+.theme-switch input:checked + .theme-switch__track .theme-switch__thumb { transform: translateX(18px); }
+
+.theme-switch input:focus-visible + .theme-switch__track { outline: 2px solid var(--accent-soft); }
+
 /* --- Каркас страницы ------------------------------------------------------ */
 
 .app {
@@ -216,24 +356,29 @@
 
 /* --- Панель поверх холста --------------------------------------------------- */
 
+/* Поднимается из-под кнопки «Участники» в углу холста — не слайд сбоку,
+   а всплытие снизу вверх: кнопка остаётся на месте, панель растёт из неё. */
 .canvas-panel {
     position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
+    right: var(--sp-3);
+    bottom: 60px;
+    top: auto;
+    left: auto;
     z-index: 10;
-    width: min(320px, 100%);
+    width: min(320px, calc(100% - 2 * var(--sp-3)));
+    max-height: min(70%, 480px);
     display: flex;
     flex-direction: column;
     background: var(--surface);
-    border-left: 1px solid var(--line);
-    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
+    overflow: hidden;
 
-    /* Закрытая панель уехала за край и не ловит нажатия. `visibility`
-       переключается с задержкой на время уезда — иначе панель пропала бы
+    /* Закрытая панель уехала вниз и не ловит нажатия. `visibility`
+       переключается с задержкой на время ухода — иначе панель пропала бы
        мгновенно, не успев уехать. */
-    transform: translateX(100%);
+    transform: translateY(16px);
     opacity: 0;
     visibility: hidden;
     transition:
@@ -243,7 +388,7 @@
 }
 
 .canvas-panel--open {
-    transform: translateX(0);
+    transform: translateY(0);
     opacity: 1;
     visibility: visible;
     transition:
@@ -289,18 +434,33 @@
     margin-top: var(--sp-3);
 }
 
+/* --- Полный экран для страницы доски --------------------------------------- */
+
+/* На доске рисуют, а не читают: страница целиком отдана холсту, а
+   прокрутки нет вовсе — ни у страницы, ни у самого холста (у него своя,
+   в мировых координатах). */
+.app--board {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+}
+
+.app__main--board {
+    max-width: none;
+    padding: 0;
+    gap: 0;
+    min-height: 0;
+}
+
 /* --- Страница доски -------------------------------------------------------- */
 
 .board-page {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-3);
-    /* Занимаем ровно остаток высоты. Раньше здесь было
-       `100vh - высота шапки`, но это не учитывало отступы самой `.app__main`,
-       и страница доски всегда была чуть выше экрана — с лишней прокруткой
-       на пустом месте. */
+    gap: var(--sp-2);
     flex: 1;
     min-height: 0;
+    padding: var(--sp-2) var(--sp-3);
 }
 
 .board-page__bar {
@@ -340,25 +500,10 @@
     text-align: center;
 }
 
-/* Кнопка участников прижата вправо: список выезжает с той же стороны,
-   и кнопка должна быть там, откуда он появится. */
-.board-page__people { margin-left: auto; }
-
-.board-page__title {
-    font-family: var(--font-head);
-    font-size: var(--fs-h3);
-    font-weight: 700;
-    margin: 0;
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .board-page__canvas {
-    /* Точка отсчёта для панели участников: она лежит поверх холста,
-       а не рядом с ним, и не меняет его ширину при открытии. */
+    /* Точка отсчёта для всего, что лежит поверх холста: название, панели
+       инструментов, участники. Ничего из этого не меняет размеров самого
+       холста при появлении. */
     position: relative;
     overflow: hidden;
 
@@ -368,6 +513,75 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
 }
+
+/* --- Название доски: верхний левый угол холста ------------------------------ */
+
+.board-title {
+    position: absolute;
+    left: var(--sp-3);
+    top: var(--sp-3);
+    z-index: 8;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    max-width: min(60%, 420px);
+    padding: var(--sp-1) var(--sp-2);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+
+.board-title__text {
+    font-family: var(--font-head);
+    font-weight: 700;
+    margin: 0;
+    padding: var(--sp-1);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: var(--text);
+    text-align: left;
+}
+
+.board-title__input {
+    min-width: 0;
+    width: 160px;
+    padding: var(--sp-1) var(--sp-2);
+    font-family: var(--font-head);
+    font-weight: 700;
+}
+
+/* --- Кнопка участников в углу холста ---------------------------------------- */
+
+.board-page__people-corner {
+    position: absolute;
+    right: var(--sp-3);
+    bottom: var(--sp-3);
+    z-index: 9;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+/* Подсказка гостю: рядом с кнопкой участников, где на неё точно упрётся взгляд. */
+.guest-hint {
+    margin: 0;
+    padding: var(--sp-1) var(--sp-3);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    box-shadow: var(--shadow-sm);
+    white-space: nowrap;
+}
+
+.guest-hint a { font-weight: 600; }
 
 /* --- Холст ------------------------------------------------------------------ */
 
@@ -484,26 +698,52 @@
 
 .zoom__value:hover { background: var(--surface-2); }
 
-/* На узком экране панель не переносится, а прокручивается вбок: четыре
-   ряда кнопок съедали половину экрана, и холста не оставалось. */
+/* --- Инструменты рисования: вертикальная полоса слева от холста ------------- */
+
+.toolbar--vertical {
+    position: absolute;
+    left: var(--sp-3);
+    top: 60px;
+    bottom: var(--sp-3);
+    z-index: 8;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+}
+
+.toolbar--vertical::-webkit-scrollbar { display: none; }
+.toolbar--vertical > * { flex: none; }
+.toolbar--vertical .toolbar__divider {
+    width: auto;
+    height: 1px;
+    align-self: stretch;
+    margin: var(--sp-1) 0;
+}
+
+/* --- Масштаб и вид: горизонтальная полоса в правом верхнем углу ------------- */
+
+.toolbar--view {
+    position: absolute;
+    right: var(--sp-3);
+    top: var(--sp-3);
+    z-index: 8;
+    max-width: calc(100% - 2 * var(--sp-3));
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+}
+
+.toolbar--view::-webkit-scrollbar { display: none; }
+.toolbar--view > * { flex: none; }
+
+/* На узком экране кнопки чуть мельче — так помещается больше в той же
+   высоте/ширине, а с пальца целиться в них всё ещё удобно. */
 @media (max-width: 720px) {
-    .toolbar {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        overscroll-behavior-x: contain;
-        /* Полоса прокрутки внутри панели не нужна: край обрезанного ряда
-           сам показывает, что дальше есть ещё. */
-        scrollbar-width: none;
-    }
-
-    .toolbar::-webkit-scrollbar { display: none; }
-
-    .toolbar > * { flex: none; }
-
-    /* Распорка в одну строку растянула бы панель до бесконечности. */
-    .toolbar__spacer { display: none; }
-
-    .toolbar .btn-tool {
+    .toolbar--vertical .btn-tool,
+    .toolbar--view .btn-tool {
         width: 40px;
         min-height: 40px;
     }

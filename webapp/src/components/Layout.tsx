@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { IconMoon, IconSun, IconUser } from './Icons';
+import { IconMenu } from './Icons';
 import { Menu } from './Menu';
 
 type Theme = 'light' | 'dark';
@@ -34,9 +34,50 @@ function useTheme(): { theme: Theme; toggle: () => void } {
   return { theme, toggle };
 }
 
+/** Слайдер темы — вместо значка солнце/луна. */
+function ThemeSwitch({ theme, toggle }: { theme: Theme; toggle: () => void }): ReactElement {
+  return (
+    <label className="theme-switch" title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
+      <input
+        type="checkbox"
+        checked={theme === 'dark'}
+        onChange={toggle}
+        aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
+      />
+      <span className="theme-switch__track"><span className="theme-switch__thumb" /></span>
+    </label>
+  );
+}
+
+/** Запирает прокрутку страницы позади открытой на весь экран мобильной панели. */
+function useScrollLock(locked: boolean): void {
+  useEffect(() => {
+    if (!locked) return;
+
+    // Одного `overflow: hidden` для iOS Safari мало — страница всё равно
+    // проскальзывает под панелью; помогает только `position: fixed`.
+    document.body.classList.add('no-scroll');
+    return () => document.body.classList.remove('no-scroll');
+  }, [locked]);
+}
+
 export function Header(): ReactElement {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
+  const location = useLocation();
+
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [cabinetOpen, setCabinetOpen] = useState(false);
+
+  useScrollLock(mobileOpen);
+
+  // Переход по ссылке — сигнал, что мобильное меню своё дело сделало.
+  useEffect(() => {
+    setMobileOpen(false);
+    setCabinetOpen(false);
+  }, [location.pathname]);
+
+  const closeMobile = () => setMobileOpen(false);
 
   return (
     <header className="header">
@@ -44,36 +85,74 @@ export function Header(): ReactElement {
 
       <span className="header__spacer" />
 
+      <nav className="desktop-menu" aria-label="Разделы сайта">
+        {user ? (
+          <>
+            <Link to="/boards">Мои доски</Link>
+            <Menu
+              label="Личный кабинет"
+              trigger="Личный кабинет"
+              triggerClassName="btn-tool btn-tool--wide"
+            >
+              <Link className="btn btn-quiet menu__item" to="/profile">Настройки</Link>
+              <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={logout}>
+                Выйти
+              </button>
+            </Menu>
+          </>
+        ) : (
+          <>
+            <Link to="/">Главная</Link>
+            <Link to="/about">О нас</Link>
+            <Link to="/login">Войти</Link>
+          </>
+        )}
+      </nav>
+
+      <ThemeSwitch theme={theme} toggle={toggle} />
+
       <button
-        className="btn-tool"
+        className="hamburger btn-tool"
         type="button"
-        onClick={toggle}
-        title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-        aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+        onClick={() => setMobileOpen((current) => !current)}
+        aria-expanded={mobileOpen}
+        aria-controls="navbar"
+        aria-label={mobileOpen ? 'Закрыть меню' : 'Открыть меню'}
       >
-        {theme === 'dark' ? <IconSun /> : <IconMoon />}
+        <IconMenu />
       </button>
 
-      {user ? (
-        <>
-          <Link to="/boards">Мои доски</Link>
-          <Menu
-            label={`Аккаунт: ${user.displayName}`}
-            trigger={<><IconUser size={18} /> {user.displayName}</>}
-            triggerClassName="btn-tool btn-tool--wide"
-          >
-            <Link className="btn btn-quiet menu__item" to="/profile">Профиль</Link>
-            <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={logout}>
-              Выйти
-            </button>
-          </Menu>
-        </>
-      ) : (
-        <>
-          <Link to="/login">Войти</Link>
-          <Link className="btn btn-primary btn-sm" to="/register">Регистрация</Link>
-        </>
-      )}
+      <div id="navbar" className={mobileOpen ? 'navbar navbar--show' : 'navbar'}>
+        <ul>
+          {user ? (
+            <>
+              <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
+              <li className={cabinetOpen ? 'navbar-dropdown navbar-dropdown--active' : 'navbar-dropdown'}>
+                <div
+                  className="navbar-dropdown__toggle"
+                  onClick={() => setCabinetOpen((current) => !current)}
+                >
+                  Личный кабинет
+                </div>
+                <ul className="navbar-submenu">
+                  <li><Link to="/profile" onClick={closeMobile}>Настройки</Link></li>
+                  <li>
+                    <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={() => { closeMobile(); logout(); }}>
+                      Выйти
+                    </button>
+                  </li>
+                </ul>
+              </li>
+            </>
+          ) : (
+            <>
+              <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
+              <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
+              <li><Link to="/login" onClick={closeMobile}>Войти</Link></li>
+            </>
+          )}
+        </ul>
+      </div>
     </header>
   );
 }
@@ -105,14 +184,14 @@ export function Page({ children, narrow }: { children: ReactNode; narrow?: boole
 }
 
 /**
- * Страница доски: без подвала и с содержимым во всю высоту.
- * На доске рисуют — правовые ссылки под холстом только отнимали бы место.
+ * Страница доски: без подвала, во весь экран и без прокрутки страницы —
+ * холст сам управляет своим пространством.
  */
 export function BoardShell({ children }: { children: ReactNode }): ReactElement {
   return (
-    <div className="app">
+    <div className="app app--board">
       <Header />
-      <main className="app__main">{children}</main>
+      <main className="app__main app__main--board">{children}</main>
     </div>
   );
 }

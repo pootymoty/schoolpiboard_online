@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { readGuestToken, writeGuestToken } from '../api/guest';
 import type { BoardState } from '../api/types';
@@ -8,9 +8,9 @@ import { BoardShell } from '../components/Layout';
 import { CanvasPanel } from '../components/CanvasPanel';
 import { Modal } from '../components/Modal';
 import { PeoplePanel } from '../components/PeoplePanel';
-import { IconLink, IconLockClosed, IconLockOpen, IconPeople } from '../components/Icons';
+import { IconCheck, IconLink, IconLockClosed, IconLockOpen, IconPeople } from '../components/Icons';
 import { BoardCanvas } from '../board/BoardCanvas';
-import { BoardToolbar } from '../board/BoardToolbar';
+import { DrawToolbar, ViewToolbar } from '../board/BoardToolbar';
 import { ToolSettingsPanel } from '../board/ToolSettingsPanel';
 import { DEFAULT_SETTINGS, DRAWING_TOOLS } from '../board/tools';
 import type { Tool, ToolSettings } from '../board/tools';
@@ -72,6 +72,10 @@ export function BoardPage(): ReactElement {
   const [showBackground, setShowBackground] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+
+  // Название правится прямо на холсте: щёлкнул — поле, галочка — сохранил.
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
 
   /** Куда поставить надпись. Пока задано — на холсте открыто поле ввода. */
   const [textAt, setTextAt] = useState<Point | null>(null);
@@ -374,6 +378,19 @@ export function BoardPage(): ReactElement {
     }
   };
 
+  const saveTitle = async () => {
+    const trimmed = titleDraft.trim();
+    setEditingTitle(false);
+    if (!trimmed || !state || trimmed === state.board.title) return;
+
+    try {
+      await api(`/boards/${id}`, { method: 'PATCH', body: { title: trimmed } });
+      await load();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось переименовать доску.');
+    }
+  };
+
   const copy = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url);
@@ -433,55 +450,33 @@ export function BoardPage(): ReactElement {
   return (
     <BoardShell>
       <div className="board-page">
-        <div className="board-page__bar">
-          <h1 className="board-page__title">{board.title}</h1>
+        {board.canManage ? (
+          <div className="board-page__bar">
+            <button
+              className="btn-tool btn-tool--wide"
+              type="button"
+              onClick={toggleLock}
+              disabled={busy}
+              aria-pressed={board.locked}
+              title={board.locked
+                ? 'Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть'
+                : 'Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть'}
+            >
+              {board.locked ? <IconLockClosed /> : <IconLockOpen />}
+              <span>{board.locked ? 'Закрыта' : 'Открыта'}</span>
+            </button>
 
-          {board.canManage ? (
-            <>
-              <button
-                className="btn-tool btn-tool--wide"
-                type="button"
-                onClick={toggleLock}
-                disabled={busy}
-                aria-pressed={board.locked}
-                title={board.locked
-                  ? 'Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть'
-                  : 'Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть'}
-              >
-                {board.locked ? <IconLockClosed /> : <IconLockOpen />}
-                <span>{board.locked ? 'Закрыта' : 'Открыта'}</span>
-              </button>
-
-              <button
-                className="btn-tool btn-tool--wide"
-                type="button"
-                onClick={() => setShowLink(true)}
-                title="Ссылка на доску"
-              >
-                <IconLink />
-                <span>Ссылка</span>
-              </button>
-            </>
-          ) : null}
-
-          <button
-            className="btn-tool btn-tool--wide board-page__people"
-            type="button"
-            onClick={() => setShowPeople((current) => !current)}
-            aria-pressed={showPeople}
-            title="Участники"
-          >
-            <IconPeople />
-            {/* Считаем подключённых сейчас, а не записанных в участники:
-                на занятии важно, кто здесь, а не кто когда-то заходил. */}
-            <span>Участники{presentCount ? ` · ${presentCount}` : ''}</span>
-            {queue.waiting.length > 0 ? (
-              <span className="badge-dot" aria-label={`Ждут допуска: ${queue.waiting.length}`}>
-                {queue.waiting.length}
-              </span>
-            ) : null}
-          </button>
-        </div>
+            <button
+              className="btn-tool btn-tool--wide"
+              type="button"
+              onClick={() => setShowLink(true)}
+              title="Ссылка на доску"
+            >
+              <IconLink />
+              <span>Ссылка</span>
+            </button>
+          </div>
+        ) : null}
 
         {error ?? hub.error ? <p className="note note-danger">{error ?? hub.error}</p> : null}
 
@@ -492,49 +487,85 @@ export function BoardPage(): ReactElement {
           </p>
         ) : null}
 
-        {/* Панель показывается всем: наблюдателю нужны рука и масштаб,
-            а рисующие кнопки у него просто заблокированы. */}
-        <BoardToolbar
-          tool={tool}
-          settings={settings}
-          canEdit={hub.canEdit}
-          canManage={hub.canManage}
-          scale={viewport.scale}
-          canUndo={history.canUndo}
-          canRedo={history.canRedo}
-          onBackground={() => setShowBackground((current) => !current)}
-          onTimer={() => setShowTimer((current) => !current)}
-          onHelp={() => setShowHelp((current) => !current)}
-          onExport={() => {
-            if (!exportPng(hub.items, hub.background, board.title)) {
-              setError('Доска пуста — сохранять нечего.');
-            }
-          }}
-          hasSelection={selection.length > 0}
-          onTool={setTool}
-          onZoom={zoomBy}
-          onResetZoom={() => setViewport((current) => {
-            // С выделением сотня означает «покажи вот это в натуральную
-            // величину», а не «верни масштаб и потеряй объект из виду».
-            if (!selectionBounds) return { ...current, scale: 1 };
-
-            return centerOn(
-              current,
-              selectionBounds.x + selectionBounds.width / 2,
-              selectionBounds.y + selectionBounds.height / 2,
-              canvasSize.width, canvasSize.height, 1,
-            );
-          })}
-          onFit={fitToAll}
-          onUndo={history.undo}
-          onRedo={history.redo}
-          onDelete={removeSelection}
-          onClear={() => {
-            if (window.confirm('Очистить доску? Всё нарисованное пропадёт у всех.')) hub.clearBoard();
-          }}
-        />
-
         <section className="board-page__canvas">
+          {/* Название — в верхнем левом углу холста. Править может только
+              владелец, щёлкнув по надписи. */}
+          <div className="board-title">
+            {editingTitle ? (
+              <>
+                <input
+                  className="board-title__input"
+                  type="text"
+                  autoFocus
+                  maxLength={200}
+                  value={titleDraft}
+                  onChange={(event) => setTitleDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') saveTitle();
+                    if (event.key === 'Escape') setEditingTitle(false);
+                  }}
+                />
+                <button className="btn-tool" type="button" onClick={saveTitle} aria-label="Сохранить название">
+                  <IconCheck />
+                </button>
+              </>
+            ) : board.canManage ? (
+              <button
+                className="board-title__text"
+                type="button"
+                onClick={() => { setTitleDraft(board.title); setEditingTitle(true); }}
+                title="Переименовать доску"
+              >
+                {board.title}
+              </button>
+            ) : (
+              <p className="board-title__text">{board.title}</p>
+            )}
+          </div>
+
+          {/* Панель показывается всем: наблюдателю нужны рука и масштаб,
+              а рисующие кнопки у него просто заблокированы. */}
+          <DrawToolbar
+            tool={tool}
+            settings={settings}
+            canEdit={hub.canEdit}
+            canUndo={history.canUndo}
+            canRedo={history.canRedo}
+            onTool={setTool}
+            onUndo={history.undo}
+            onRedo={history.redo}
+          />
+
+          <ViewToolbar
+            canManage={hub.canManage}
+            scale={viewport.scale}
+            onBackground={() => setShowBackground((current) => !current)}
+            onTimer={() => setShowTimer((current) => !current)}
+            onHelp={() => setShowHelp((current) => !current)}
+            onExport={() => {
+              if (!exportPng(hub.items, hub.background, board.title)) {
+                setError('Доска пуста — сохранять нечего.');
+              }
+            }}
+            onZoom={zoomBy}
+            onResetZoom={() => setViewport((current) => {
+              // С выделением сотня означает «покажи вот это в натуральную
+              // величину», а не «верни масштаб и потеряй объект из виду».
+              if (!selectionBounds) return { ...current, scale: 1 };
+
+              return centerOn(
+                current,
+                selectionBounds.x + selectionBounds.width / 2,
+                selectionBounds.y + selectionBounds.height / 2,
+                canvasSize.width, canvasSize.height, 1,
+              );
+            })}
+            onFit={fitToAll}
+            onClear={() => {
+              if (window.confirm('Очистить доску? Всё нарисованное пропадёт у всех.')) hub.clearBoard();
+            }}
+          />
+
           <BoardCanvas
             hub={hub}
             tool={tool}
@@ -656,6 +687,30 @@ export function BoardPage(): ReactElement {
                 onChanged={load}
               />
           </CanvasPanel>
+
+          <div className="board-page__people-corner">
+            {me.isGuest ? (
+              <p className="guest-hint">Вы гость. <Link to="/login">Войти?</Link></p>
+            ) : null}
+
+            <button
+              className="btn-tool btn-tool--wide"
+              type="button"
+              onClick={() => setShowPeople((current) => !current)}
+              aria-pressed={showPeople}
+              title="Участники"
+            >
+              <IconPeople />
+              {/* Считаем подключённых сейчас, а не записанных в участники:
+                  на занятии важно, кто здесь, а не кто когда-то заходил. */}
+              <span>Участники{presentCount ? ` · ${presentCount}` : ''}</span>
+              {queue.waiting.length > 0 ? (
+                <span className="badge-dot" aria-label={`Ждут допуска: ${queue.waiting.length}`}>
+                  {queue.waiting.length}
+                </span>
+              ) : null}
+            </button>
+          </div>
         </section>
 
         {me.isGuest ? (

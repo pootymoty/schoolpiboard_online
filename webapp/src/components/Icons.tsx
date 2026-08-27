@@ -292,3 +292,13 @@ export const IconSun = (props: Props): ReactElement => (
 export const IconMoon = (props: Props): ReactElement => (
   <Svg {...props}><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></Svg>
 );
+
+/** Бургер: открыть мобильное меню. */
+export const IconMenu = (props: Props): ReactElement => (
+  <Svg {...props}><g><path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" /></g></Svg>
+);
+
+/** Стрелка раскрывающегося пункта меню. */
+export const IconChevronDown = (props: Props): ReactElement => (
+  <Svg {...props}><path d="M6 9l6 6 6-6" /></Svg>
+);

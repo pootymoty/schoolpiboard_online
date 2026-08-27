@@ -6,41 +6,28 @@ import {
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
 
-interface Props {
+interface ToolProps {
   tool: Tool;
   settings: ToolSettings;
   /** Наблюдателю доступна только навигация — остальное заблокировано. */
   canEdit: boolean;
-  canManage: boolean;
-  scale: number;
   canUndo: boolean;
   canRedo: boolean;
-  hasSelection: boolean;
   onTool: (tool: Tool) => void;
-  onZoom: (factor: number) => void;
-  onResetZoom: () => void;
-  onFit: () => void;
   onUndo: () => void;
   onRedo: () => void;
-  onDelete: () => void;
-  onBackground: () => void;
-  onTimer: () => void;
-  onHelp: () => void;
-  onExport: () => void;
-  onClear: () => void;
 }
 
 /**
- * Панель инструментов.
+ * Инструменты рисования — вертикальной полосой слева от холста.
  *
  * Повторный щелчок по уже выбранному рисующему инструменту открывает его
  * параметры: так настройка не занимает отдельной кнопки, а до неё всё
  * равно один щелчок.
  */
-export function BoardToolbar({
-  tool, settings, canEdit, canManage, scale, canUndo, canRedo, hasSelection,
-  onTool, onZoom, onResetZoom, onFit, onUndo, onRedo, onDelete, onBackground, onTimer, onHelp, onExport, onClear,
-}: Props): ReactElement {
+export function DrawToolbar({
+  tool, settings, canEdit, canUndo, canRedo, onTool, onUndo, onRedo,
+}: ToolProps): ReactElement {
   const pick = (which: Tool, icon: ReactElement, title: string, needsEdit = true) => {
     const dot = toolColor(which, settings);
 
@@ -60,7 +47,7 @@ export function BoardToolbar({
   };
 
   return (
-    <div className="toolbar" role="toolbar" aria-label="Инструменты доски">
+    <div className="toolbar toolbar--vertical" role="toolbar" aria-label="Инструменты рисования">
       <button
         className="btn-tool" type="button" onClick={onUndo}
         disabled={!canEdit || !canUndo} title="Отменить (Ctrl+Z)" aria-label="Отменить"
@@ -85,18 +72,29 @@ export function BoardToolbar({
       {pick('eraser', <IconEraser />, 'Ластик')}
       {pick('text', <IconText />, 'Текст')}
       {pick('shapes', <IconShapes />, 'Фигуры')}
+    </div>
+  );
+}
 
-      {hasSelection ? (
-        <>
-          <span className="toolbar__divider" aria-hidden="true" />
-          <button className="btn-tool" type="button" onClick={onDelete} title="Удалить выделенное (Delete)">
-            <IconTrash />
-          </button>
-        </>
-      ) : null}
+interface ViewProps {
+  canManage: boolean;
+  scale: number;
+  onZoom: (factor: number) => void;
+  onResetZoom: () => void;
+  onFit: () => void;
+  onBackground: () => void;
+  onTimer: () => void;
+  onHelp: () => void;
+  onExport: () => void;
+  onClear: () => void;
+}
 
-      <span className="toolbar__spacer" />
-
+/** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
+export function ViewToolbar({
+  canManage, scale, onZoom, onResetZoom, onFit, onBackground, onTimer, onHelp, onExport, onClear,
+}: ViewProps): ReactElement {
+  return (
+    <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
       {/* Масштаб доступен всем: наблюдателю он нужен ровно так же. */}
       <div className="zoom">
         <button className="btn-tool" type="button" onClick={() => onZoom(1 / 1.15)} aria-label="Отдалить">−</button>

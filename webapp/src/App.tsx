@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { LandingPage } from './pages/LandingPage';
+import { AboutPage } from './pages/AboutPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ConfirmPage } from './pages/ConfirmPage';
@@ -27,6 +28,7 @@ export function App(): ReactElement {
           потому что на доску пускают гостя, у которого учётной записи нет
           и не будет. */}
       <Route path="/legal/:page" element={<LegalPage />} />
+      <Route path="/about" element={<AboutPage />} />
       <Route path="/confirm" element={<ConfirmPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/join/:token" element={<JoinPage />} />
