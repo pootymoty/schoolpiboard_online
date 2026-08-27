@@ -465,7 +465,7 @@ export function BoardPage(): ReactElement {
           ) : null}
 
           <button
-            className="btn-tool btn-tool--wide"
+            className="btn-tool btn-tool--wide board-page__people"
             type="button"
             onClick={() => setShowPeople((current) => !current)}
             aria-pressed={showPeople}
@@ -560,10 +560,12 @@ export function BoardPage(): ReactElement {
             onEraseEnd={() => erased.current.clear()}
             onDrawStart={() => setShowParams(false)}
             onTextAt={(world) => {
-              // Вид подвигаем, только если для поля не хватает места:
-              // прыжок на каждое касание сбивал бы с толку там, где
-              // всё и так на виду.
+              // Вид подвигаем только на узком экране и только когда для
+              // поля не хватает места. На большом экране места хватает
+              // всегда, и прыжок вида там просто дёргал бы холст.
               setViewport((current) => {
+                if (canvasSize.width >= 720) return current;
+
                 const screen = toScreen(current, world.x, world.y);
                 const tight = screen.x > canvasSize.width - 160
                   || screen.y > canvasSize.height - 120
@@ -610,6 +612,11 @@ export function BoardPage(): ReactElement {
               onDuplicate={duplicateSelection}
               onDelete={removeSelection}
               onReorder={(toFront) => hub.reorder(selection, toFront)}
+              onCopyText={(text) => {
+                navigator.clipboard?.writeText(text).catch(() => (
+                  setError('Скопировать не вышло — браузер не дал доступ к буферу.')
+                ));
+              }}
             />
           ) : null}
 

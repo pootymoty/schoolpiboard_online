@@ -7,6 +7,12 @@ interface Props {
 
 const MAX_MINUTES = 180;
 
+/** Число из поля ввода: пустое поле — ноль, а не «не число». */
+function clamp(raw: string, limit: number): number {
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) ? Math.max(0, Math.min(limit, value)) : 0;
+}
+
 /**
  * Таймер занятия.
  *
@@ -73,24 +79,38 @@ export function TimerPanel({ onClose }: Props): ReactElement {
 
       {done ? <p className="note note-warning">Время вышло</p> : null}
 
+      {/* Ввод числом: подобрать «семь минут» кнопками из готовых значений
+          нельзя, а занятия не делятся на круглые пятёрки. */}
+      <div className="timer__fields">
+        <label className="timer__field">
+          <span className="params__label">Мин</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={MAX_MINUTES}
+            value={minutes}
+            onChange={(event) => set(clamp(event.target.value, MAX_MINUTES) * 60 + seconds)}
+          />
+        </label>
+
+        <label className="timer__field">
+          <span className="params__label">Сек</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={59}
+            value={seconds}
+            onChange={(event) => set(minutes * 60 + clamp(event.target.value, 59))}
+          />
+        </label>
+      </div>
+
       <div className="params__row timer__controls">
         <button className="btn-quiet btn-sm" type="button" onClick={() => set(left - 60)}>−1 мин</button>
         <button className="btn-quiet btn-sm" type="button" onClick={() => set(left + 60)}>+1 мин</button>
         <button className="btn-quiet btn-sm" type="button" onClick={() => set(total)}>Сброс</button>
-      </div>
-
-      <div className="params__row">
-        {[5, 10, 15, 20, 30, 45].map((value) => (
-          <button
-            key={value}
-            className="btn-quiet btn-sm"
-            type="button"
-            aria-pressed={total === value * 60}
-            onClick={() => set(value * 60)}
-          >
-            {value}
-          </button>
-        ))}
       </div>
 
       <button

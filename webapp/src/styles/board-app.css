@@ -340,6 +340,10 @@
     text-align: center;
 }
 
+/* Кнопка участников прижата вправо: список выезжает с той же стороны,
+   и кнопка должна быть там, откуда он появится. */
+.board-page__people { margin-left: auto; }
+
 .board-page__title {
     font-family: var(--font-head);
     font-size: var(--fs-h3);
@@ -655,6 +659,20 @@
     white-space: nowrap;
 }
 
+/* Закреплённая полоса: прокручивается вбок, как и панель инструментов. */
+.selection-panel--pinned {
+    left: var(--sp-2);
+    right: var(--sp-2);
+    bottom: var(--sp-2);
+    top: auto;
+    transform: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.selection-panel--pinned::-webkit-scrollbar { display: none; }
+.selection-panel--pinned > * { flex: none; }
+
 .selection-panel__colors {
     display: flex;
     gap: 2px;
@@ -728,6 +746,25 @@
 }
 
 .timer__controls { justify-content: space-between; }
+
+.timer__fields {
+    display: flex;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-2);
+}
+
+.timer__field {
+    flex: 1;
+    min-width: 0;
+}
+
+.timer__field .params__label { margin-top: 0; }
+
+.timer__field input {
+    width: 100%;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
 
 /* --- Ввод надписи ------------------------------------------------------------ */
 

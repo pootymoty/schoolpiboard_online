@@ -17,10 +17,21 @@ interface Props {
   onDuplicate: () => void;
   onDelete: () => void;
   onReorder: (toFront: boolean) => void;
+  onCopyText: (text: string) => void;
 }
 
 /** Примерная ширина панели — по ней она прижимается к краям холста. */
 const WIDTH = 260;
+
+/**
+ * Ниже этой ширины панель перестаёт летать над выделением и садится
+ * полосой у нижнего края холста.
+ *
+ * На маленьком экране выделенное часто оказывается под панелью или за
+ * краем, и панель приходилось бы искать. Двигать ради неё сам холст
+ * нельзя: на большом экране это дёргало бы вид без всякой нужды.
+ */
+const NARROW = 720;
 
 /**
  * Действия над выделенным — над самим выделением.
@@ -33,8 +44,13 @@ const WIDTH = 260;
  * его приходится дольше, чем подпись.
  */
 export function SelectionPanel({
-  items, bounds, viewport, canvas, onColor, onDuplicate, onDelete, onReorder,
+  items, bounds, viewport, canvas, onColor, onDuplicate, onDelete, onReorder, onCopyText,
 }: Props): ReactElement {
+  // Надпись — единственное, что имеет смысл забрать с доски текстом.
+  // На телефоне выделить её иначе нечем: холст рисованный, а не вёрстка.
+  const text = items.length === 1 && items[0].type === 'text' ? items[0].data.text ?? '' : null;
+  const pinned = canvas.width > 0 && canvas.width < NARROW;
+
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
 
@@ -49,8 +65,8 @@ export function SelectionPanel({
 
   return (
     <div
-      className="selection-panel"
-      style={{
+      className={pinned ? 'selection-panel selection-panel--pinned' : 'selection-panel'}
+      style={pinned ? undefined : {
         left,
         top: above ? corner.y - 8 : corner.y + bounds.height * viewport.scale + 8,
         transform: above ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
@@ -90,6 +106,11 @@ export function SelectionPanel({
         <button className="btn-quiet menu__item" type="button" onClick={onDuplicate}>
           Дублировать
         </button>
+        {text ? (
+          <button className="btn-quiet menu__item" type="button" onClick={() => onCopyText(text)}>
+            Скопировать текст
+          </button>
+        ) : null}
         <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={onDelete}>
           Удалить
         </button>

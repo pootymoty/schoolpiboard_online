@@ -1,6 +1,22 @@
 import type { BoardItem, ItemData } from './protocol';
 import type { Bounds } from './geometry';
 
+/** Габариты надписи в её же шрифте — по ним строится рамка. */
+export function measureText(text: string, fontSize: number): { width: number; height: number } {
+  const context = document.createElement('canvas').getContext('2d');
+  const lines = text.split('\n');
+  const lineHeight = fontSize * 1.25;
+
+  if (!context) return { width: fontSize * lines[0].length * 0.6, height: lines.length * lineHeight };
+
+  context.font = `${fontSize}px Manrope, system-ui, sans-serif`;
+
+  return {
+    width: Math.max(...lines.map((line) => context.measureText(line).width), 1),
+    height: lines.length * lineHeight,
+  };
+}
+
 /**
  * Ручки трансформации.
  *
@@ -77,17 +93,32 @@ export function resized(
   const height = Math.max(1, bottom - top);
 
   if (data.text !== undefined) {
-    // Надпись тянется вместе со шрифтом: растянуть рамку, оставив буквы
-    // прежними, значит нарисовать рамку, а не изменить надпись.
-    const factor = origin.height > 0 ? height / origin.height : 1;
+    // Надпись меняется целиком и пропорционально: у букв есть своё
+    // соотношение сторон, и растянуть рамку отдельно от них — значит
+    // получить рамку, которая надписи не соответствует.
+    //
+    // Коэффициент берём по той стороне, которую тянули: за угол — по
+    // большей из двух, за середину стороны — по ней одной.
+    const byWidth = origin.width > 0 ? width / origin.width : 1;
+    const byHeight = origin.height > 0 ? height / origin.height : 1;
 
+    const horizontal = handle === 'e' || handle === 'w';
+    const vertical = handle === 'n' || handle === 's';
+
+    const factor = horizontal ? byWidth : vertical ? byHeight : Math.max(byWidth, byHeight);
+    const fontSize = Math.max(6, (data.fontSize ?? 24) * factor);
+
+    const box = measureText(data.text ?? '', fontSize);
+
+    // Рамку пересчитываем по новым буквам, а не по тому, куда уехал
+    // палец: иначе она разошлась бы с надписью с первого же движения.
     return {
       ...data,
-      x1: left,
-      y1: top,
-      x2: left + width,
-      y2: top + height,
-      fontSize: Math.max(6, (data.fontSize ?? 24) * factor),
+      x1: handle.includes('w') ? origin.x + origin.width - box.width : left,
+      y1: handle.startsWith('n') ? origin.y + origin.height - box.height : top,
+      x2: (handle.includes('w') ? origin.x + origin.width - box.width : left) + box.width,
+      y2: (handle.startsWith('n') ? origin.y + origin.height - box.height : top) + box.height,
+      fontSize,
     };
   }
 
