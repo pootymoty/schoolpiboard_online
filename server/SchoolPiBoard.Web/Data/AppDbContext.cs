@@ -17,6 +17,8 @@ public class AppDbContext : DbContext
 
     public DbSet<BoardMember> BoardMembers => Set<BoardMember>();
 
+    public DbSet<BoardItem> BoardItems => Set<BoardItem>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(entity =>
@@ -115,6 +117,33 @@ public class AppDbContext : DbContext
             entity.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<BoardItem>(entity =>
+        {
+            entity.ToTable("board_items");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.BoardId).HasColumnName("board_id");
+            entity.Property(x => x.Type).HasColumnName("type").IsRequired();
+            entity.Property(x => x.Z).HasColumnName("z");
+            entity.Property(x => x.Data).HasColumnName("data").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.ImageRef).HasColumnName("image_ref");
+            entity.Property(x => x.CreatedBy).HasColumnName("created_by");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(x => x.LockedBy).HasColumnName("locked_by");
+            entity.Property(x => x.LockedAt).HasColumnName("locked_at");
+
+            // Доска читается целиком и в порядке отрисовки — единственный
+            // способ, которым к этой таблице обращаются.
+            entity.HasIndex(x => new { x.BoardId, x.Z });
+
+            entity.HasOne(x => x.Board)
+                .WithMany()
+                .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
