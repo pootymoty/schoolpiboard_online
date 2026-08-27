@@ -11,15 +11,18 @@ namespace SchoolPiBoard.Web.Data.Entities;
 public class BoardItem
 {
     public const string TypeStroke = "stroke";
-    public const string TypeRect = "rect";
-    public const string TypeEllipse = "ellipse";
-    public const string TypeLine = "line";
+
+    /// <summary>
+    /// Все фигуры — один тип. Какая именно, сказано в <c>data.shape</c>:
+    /// иначе каждая новая фигура требовала бы менять и сервер, и базу.
+    /// </summary>
+    public const string TypeShape = "shape";
+
     public const string TypeText = "text";
     public const string TypeImage = "image";
 
     /// <summary>Типы, которые сервер принимает. Всё прочее — отказ.</summary>
-    public static readonly string[] KnownTypes =
-        { TypeStroke, TypeRect, TypeEllipse, TypeLine, TypeText, TypeImage };
+    public static readonly string[] KnownTypes = { TypeStroke, TypeShape, TypeText, TypeImage };
 
     public long Id { get; set; }
 

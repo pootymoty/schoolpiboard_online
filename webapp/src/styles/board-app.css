@@ -487,6 +487,100 @@
     background: currentColor;
 }
 
+/* Точка текущего цвета на кнопке инструмента: у Пера 1, Пера 2 и Маркера
+   свои настройки, и различать их по значку иначе нечем. */
+.tool-dot {
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px var(--surface);
+}
+
+.btn-tool { position: relative; }
+
+/* --- Параметры инструмента --------------------------------------------------- */
+
+.params {
+    position: absolute;
+    left: var(--sp-3);
+    top: var(--sp-3);
+    bottom: var(--sp-3);
+    z-index: 8;
+    width: min(280px, calc(100% - var(--sp-5)));
+    overflow-y: auto;
+    padding: var(--sp-3) var(--sp-4) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+}
+
+.params__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-2);
+}
+
+.params__title {
+    font-family: var(--font-head);
+    font-weight: 700;
+}
+
+.params__label {
+    margin: var(--sp-3) 0 var(--sp-1);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted);
+}
+
+.params__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+    align-items: center;
+}
+
+/* Предпросмотр линии: полоса текущей толщины, цвета и прозрачности. */
+.params__preview {
+    display: flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 var(--sp-2);
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+}
+
+.params__preview span {
+    display: block;
+    width: 100%;
+    border-radius: 999px;
+}
+
+/* --- Ввод надписи ------------------------------------------------------------ */
+
+.text-input {
+    position: absolute;
+    z-index: 9;
+    min-width: 8ch;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: 1px dashed var(--accent);
+    border-radius: 2px;
+    outline: none;
+    resize: none;
+    overflow: hidden;
+    font-family: var(--font-head);
+}
+
 /* --- Участники ------------------------------------------------------------- */
 
 .people {

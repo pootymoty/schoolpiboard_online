@@ -7,19 +7,39 @@ export interface Point {
   p: number;
 }
 
-export type ItemType = 'stroke' | 'rect' | 'ellipse' | 'line' | 'text' | 'image';
+/**
+ * Тип объекта. Все фигуры — один тип с уточнением в `data.shape`: иначе
+ * каждая новая фигура требовала бы менять и сервер, и базу.
+ */
+export type ItemType = 'stroke' | 'shape' | 'text' | 'image';
 
-/** Оформление объекта. Одно на все типы: у фигур поля просто не заполнены. */
+export type ShapeKind =
+  | 'line' | 'arrow' | 'rect' | 'ellipse'
+  | 'triangle' | 'trapezoid' | 'parallelogram' | 'rhombus';
+
+export type LineStyle = 'solid' | 'dash' | 'dashdot' | 'dot';
+
+/** Оформление объекта. Одно на все типы: лишние поля просто не заполнены. */
 export interface ItemData {
+  /** Штрих: точки по ходу движения. */
   points?: Point[];
-  /** Прямоугольник, эллипс, линия: два угла. */
+
+  /** Фигура и надпись: два угла габаритов. */
   x1?: number;
   y1?: number;
   x2?: number;
   y2?: number;
+
+  shape?: ShapeKind;
+  lineStyle?: LineStyle;
+
   text?: string;
+  fontSize?: number;
+
   color: string;
   width: number;
+  /** 0..1. Маркер рисуется полупрозрачным. */
+  opacity?: number;
 }
 
 export interface BoardItem {

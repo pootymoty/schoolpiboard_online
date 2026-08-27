@@ -1,4 +1,5 @@
 import type { BoardItem, ItemData, Point } from './protocol';
+import { cornersOf } from './render';
 
 export interface Bounds {
   x: number;
@@ -19,18 +20,40 @@ export function translate(data: ItemData, dx: number, dy: number): ItemData {
   };
 }
 
-/** Все опорные точки объекта — по ним считаются габариты и попадания. */
+/**
+ * Все опорные точки объекта — по ним считаются габариты и попадания.
+ * У фигуры это её углы, а не углы габаритов: у треугольника и ромба
+ * рамка иначе не совпала бы с нарисованным.
+ */
 export function pointsOf(data: ItemData): Point[] {
   if (data.points?.length) return data.points;
 
-  if (data.x1 !== undefined && data.y1 !== undefined && data.x2 !== undefined && data.y2 !== undefined) {
+  if (data.x1 === undefined || data.y1 === undefined) return [];
+
+  if (data.text !== undefined) {
+    const x2 = data.x2 ?? data.x1;
+    const y2 = data.y2 ?? data.y1;
+    return [
+      { x: data.x1, y: data.y1, p: 1 },
+      { x: x2, y: data.y1, p: 1 },
+      { x: x2, y: y2, p: 1 },
+      { x: data.x1, y: y2, p: 1 },
+    ];
+  }
+
+  if (data.x2 === undefined || data.y2 === undefined) return [];
+
+  if (data.shape === 'line' || data.shape === 'arrow') {
     return [
       { x: data.x1, y: data.y1, p: 1 },
       { x: data.x2, y: data.y2, p: 1 },
     ];
   }
 
-  return [];
+  // Замкнутая фигура: последнюю сторону дописываем, иначе тычок в неё
+  // не засчитывался бы.
+  const corners = cornersOf(data);
+  return data.shape ? [...corners, corners[0]] : corners;
 }
 
 export function boundsOf(items: BoardItem[]): Bounds | null {
@@ -74,6 +97,15 @@ export function distanceToSegment(point: Point, from: Point, to: Point): number 
 export function hits(item: BoardItem, point: Point, radius: number): boolean {
   const points = pointsOf(item.data);
   const reach = radius + item.data.width / 2;
+
+  // В надпись и в эллипс попадают всей площадью: тыкать ровно в букву
+  // или ровно в контур — это соревнование, а не работа.
+  if (item.type === 'text' || item.data.shape === 'ellipse') {
+    const box = boundsOf([item]);
+    return Boolean(box)
+      && point.x >= box!.x - radius && point.x <= box!.x + box!.width + radius
+      && point.y >= box!.y - radius && point.y <= box!.y + box!.height + radius;
+  }
 
   if (points.length === 1) return distanceToSegment(point, points[0], points[0]) <= reach;
 

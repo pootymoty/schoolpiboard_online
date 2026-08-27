@@ -103,6 +103,31 @@ export const IconPeople = (props: Props): ReactElement => (
   </Svg>
 );
 
+/** Маркер: плоское перо, полупрозрачный след. */
+export const IconMarker = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <path d="M4 20h6l9.5-9.5a2.5 2.5 0 0 0-3.5-3.5L6 16.5z" />
+      <path d="M3 20h4" />
+    </g>
+  </Svg>
+);
+
+/** Фигуры. */
+export const IconShapes = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="3" y="10" width="11" height="11" rx="1" />
+      <circle cx="16" cy="7" r="4" />
+    </g>
+  </Svg>
+);
+
+/** Текст. */
+export const IconText = (props: Props): ReactElement => (
+  <Svg {...props}><g><path d="M5 6V4h14v2" /><path d="M12 4v16" /><path d="M9 20h6" /></g></Svg>
+);
+
 /** Курсор: выделять и перемещать. */
 export const IconCursor = (props: Props): ReactElement => (
   <Svg {...props}><path d="M5 3l14 8-6 1.5L10 19z" /></Svg>

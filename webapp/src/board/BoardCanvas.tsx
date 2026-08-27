@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import type { BoardHub } from './useBoardHub';
-import type { ItemData, Point } from './protocol';
+import type { ItemData, ItemType, Point } from './protocol';
 import { cursorColor } from './cursorColors';
 import { boundsOf, rectFrom, topmostAt, translate, within } from './geometry';
 import type { Bounds } from './geometry';
+import { drawItem } from './render';
+import type { ToolSettings, Tool } from './tools';
 import { clampScale, toScreen, toWorld, zoomAt } from './viewport';
 import type { Viewport } from './viewport';
 
-/** Инструменты. Фигуры и текст добавятся следующим заходом. */
-export type Tool = 'select' | 'hand' | 'pen' | 'eraser';
+export type { Tool };
 
 interface Props {
   hub: BoardHub;
   tool: Tool;
-  color: string;
-  width: number;
+  settings: ToolSettings;
   viewport: Viewport;
   selection: number[];
   onViewport: (viewport: Viewport) => void;
@@ -23,6 +23,10 @@ interface Props {
   onSelection: (itemIds: number[]) => void;
   onMoved: (itemIds: number[], dx: number, dy: number) => void;
   onCreated: (tempId: string) => void;
+  /** Начали рисовать — панель параметров должна уйти с дороги. */
+  onDrawStart: () => void;
+  /** Ткнули текстом: здесь появится поле ввода. */
+  onTextAt: (world: Point) => void;
 }
 
 /** Не чаще двадцати раз в секунду — предел из раздела 7.1. */
@@ -46,15 +50,25 @@ const ERASE_RADIUS = 8;
  * не пишутся (раздел 7.3).
  */
 export function BoardCanvas({
-  hub, tool, color, width, viewport, selection,
-  onViewport, onSize, onSelection, onMoved, onCreated,
+  hub, tool, settings, viewport, selection,
+  onViewport, onSize, onSelection, onMoved, onCreated, onDrawStart, onTextAt,
 }: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
 
   /** Свой штрих, пока он рисуется. В состоянии не держим: перерисовка на
       каждую точку заставляла бы React работать чаще, чем движется рука. */
-  const drawing = useRef<{ pointerId: number; tempId: string; points: Point[]; sent: number } | null>(null);
+  const drawing = useRef<{
+    pointerId: number;
+    tempId: string;
+    /** Штрих копит точки; фигура — только два угла. */
+    points: Point[];
+    sent: number;
+    from: Point;
+    to: Point;
+    /** Часть геометрии для предпросмотра и для закрепления. */
+    preview: () => Partial<ItemData>;
+  } | null>(null);
 
   /** Перетаскивание холста: чем и откуда тащат. */
   const panning = useRef<{ pointerId: number; startX: number; startY: number; origin: Viewport } | null>(null);
@@ -93,10 +107,32 @@ export function BoardCanvas({
 
   const [size, setSize] = useState({ width: 0, height: 0 });
 
+  /** Каким объектом обернётся текущий жест рисования. */
+  const drawnBy = (): { type: ItemType; data: ItemData } => {
+    const { tool: active, settings: current } = latest.current;
+
+    if (active === 'shapes') {
+      const it = current.shapes;
+      return {
+        type: 'shape',
+        data: {
+          color: it.color,
+          width: it.width,
+          opacity: it.opacity / 100,
+          shape: it.shape,
+          lineStyle: it.lineStyle,
+        },
+      };
+    }
+
+    const pen = active === 'pen2' ? current.pen2 : active === 'marker' ? current.marker : current.pen1;
+    return { type: 'stroke', data: { color: pen.color, width: pen.width, opacity: pen.opacity / 100 } };
+  };
+
   // Свежие значения для обработчиков указателя: они живут вне React-цикла
   // и иначе видели бы состояние на момент подписки.
-  const latest = useRef({ viewport, tool, color, width, spaceHeld, selection, items: hub.items });
-  latest.current = { viewport, tool, color, width, spaceHeld, selection, items: hub.items };
+  const latest = useRef({ viewport, tool, settings, spaceHeld, selection, items: hub.items });
+  latest.current = { viewport, tool, settings, spaceHeld, selection, items: hub.items };
 
   useEffect(() => {
     const element = box.current;
@@ -163,17 +199,14 @@ export function BoardCanvas({
       // Пока выделенное тащат, рисуем его со сдвигом, не дожидаясь
       // ответа сервера: иначе рисунок отставал бы от пальца.
       const shifted = drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
-      strokePath(context, shifted);
+      drawItem(context, item.type, shifted);
     }
 
-    for (const stroke of hub.live.values()) strokePath(context, stroke.data);
+    for (const stroke of hub.live.values()) drawItem(context, stroke.type, stroke.data);
 
     if (drawing.current) {
-      strokePath(context, {
-        points: drawing.current.points,
-        color: latest.current.color,
-        width: latest.current.width,
-      });
+      const brush = drawnBy();
+      drawItem(context, brush.type, { ...brush.data, ...drawing.current.preview() });
     }
 
     // Рамка выделения и габариты выбранного — линиями постоянной толщины
@@ -202,7 +235,7 @@ export function BoardCanvas({
   useEffect(() => {
     schedule();
     return () => cancelAnimationFrame(frame.current);
-  }, [schedule, size, viewport, color, width]);
+  }, [schedule, size, viewport, settings, tool]);
 
   // Колесо — масштаб с привязкой к точке под курсором. Слушатель вешаем
   // сами и не пассивным: иначе браузер не даст отменить прокрутку страницы.
@@ -324,7 +357,11 @@ export function BoardCanvas({
     if (!hub.canEdit) return;
 
     const point = worldPoint(event);
-    const reach = ERASE_RADIUS / latest.current.viewport.scale;
+    // Ластик стирает своим размером, а выделение — небольшим допуском
+    // около указателя: попадать точно в линию иначе слишком трудно.
+    const reach = latest.current.tool === 'eraser'
+      ? latest.current.settings.eraser.size / 2
+      : ERASE_RADIUS / latest.current.viewport.scale;
 
     if (latest.current.tool === 'eraser') {
       const hit = topmostAt(hub.items, point, reach);
@@ -360,16 +397,36 @@ export function BoardCanvas({
       return;
     }
 
+    if (latest.current.tool === 'text') {
+      onTextAt(point);
+      return;
+    }
+
     event.currentTarget.setPointerCapture(event.pointerId);
+    onDrawStart();
 
     const tempId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    drawing.current = { pointerId: event.pointerId, tempId, points: [point], sent: 0 };
+    const brush = drawnBy();
 
-    hub.beginItem(tempId, 'stroke', {
+    const record = {
+      pointerId: event.pointerId,
+      tempId,
       points: [point],
-      color: latest.current.color,
-      width: latest.current.width,
-    });
+      sent: 0,
+      from: point,
+      to: point,
+      preview: (): Partial<ItemData> => (brush.type === 'shape'
+        ? { x1: record.from.x, y1: record.from.y, x2: record.to.x, y2: record.to.y }
+        : { points: record.points }),
+    };
+
+    drawing.current = record;
+
+    // Фигуру рассылать по ходу построения незачем: она задана двумя
+    // углами, и до отпускания это лишь предпросмотр у самого рисующего.
+    if (brush.type === 'stroke') {
+      hub.beginItem(tempId, brush.type, { ...brush.data, points: [point] });
+    }
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -449,6 +506,12 @@ export function BoardCanvas({
     // протягивалась линия.
     if (!stroke || stroke.pointerId !== event.pointerId) return;
 
+    if (latest.current.tool === 'shapes') {
+      stroke.to = shiftAware(event, stroke.from, point);
+      schedule();
+      return;
+    }
+
     stroke.points.push(point);
 
     if (now - lastBatch.current >= POINT_BATCH_MS) {
@@ -493,18 +556,23 @@ export function BoardCanvas({
     }
 
     const stroke = drawing.current;
-    if (!stroke) return;
+    if (!stroke || stroke.pointerId !== event.pointerId) return;
 
     drawing.current = null;
 
-    // Штрих из одной точки — это промах, а не рисунок: не закрепляем.
-    if (stroke.points.length > 1) {
-      hub.commitItem(stroke.tempId, 'stroke', {
-        points: stroke.points,
-        color: latest.current.color,
-        width: latest.current.width,
-      });
+    const brush = drawnBy();
+    const geometry = stroke.preview();
+
+    // Тычок без протяжки — это промах, а не объект: не закрепляем.
+    const meaningful = brush.type === 'shape'
+      ? Math.hypot(stroke.to.x - stroke.from.x, stroke.to.y - stroke.from.y) > 2
+      : stroke.points.length > 1;
+
+    if (meaningful) {
+      hub.commitItem(stroke.tempId, brush.type, { ...brush.data, ...geometry });
       onCreated(stroke.tempId);
+    } else if (brush.type === 'stroke') {
+      hub.cancelItem(stroke.tempId);
     }
 
     schedule();
@@ -569,26 +637,26 @@ function outline(
   context.restore();
 }
 
-/** Рисует штрих по его точкам. */
-function strokePath(context: CanvasRenderingContext2D, data: ItemData): void {
-  const points = data.points;
-  if (!points || points.length === 0) return;
+/**
+ * Shift при построении фигуры: правильная фигура, а для линий и стрелок —
+ * привязка угла к шагу в пятнадцать градусов.
+ */
+function shiftAware(
+  event: ReactPointerEvent<HTMLCanvasElement>,
+  from: Point,
+  to: Point,
+): Point {
+  if (!event.shiftKey) return to;
 
-  context.strokeStyle = data.color;
-  context.lineWidth = data.width;
-  context.lineCap = 'round';
-  context.lineJoin = 'round';
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return to;
 
-  context.beginPath();
-  context.moveTo(points[0].x, points[0].y);
+  const step = Math.PI / 12;
+  const angle = Math.round(Math.atan2(dy, dx) / step) * step;
 
-  for (const point of points.slice(1)) context.lineTo(point.x, point.y);
-
-  // Одиночная точка отрезком не рисуется — ставим её сами, иначе касание
-  // без движения не оставляло бы следа вовсе.
-  if (points.length === 1) context.lineTo(points[0].x + 0.01, points[0].y);
-
-  context.stroke();
+  return { x: from.x + Math.cos(angle) * length, y: from.y + Math.sin(angle) * length, p: 1 };
 }
 
 export { clampScale };

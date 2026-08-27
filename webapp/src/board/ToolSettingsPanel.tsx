@@ -1,0 +1,221 @@
+import type { ReactElement } from 'react';
+import {
+  ERASER_SIZES, LINE_STYLES, OPACITIES, PALETTE, SHAPES, SIZES,
+} from './tools';
+import type { PenSettings, ShapeSettings, Tool, ToolSettings } from './tools';
+
+interface Props {
+  tool: Tool;
+  settings: ToolSettings;
+  onChange: (settings: ToolSettings) => void;
+  onClose: () => void;
+}
+
+/**
+ * Параметры активного инструмента.
+ *
+ * Панель одна на все инструменты: у пера и маркера набор одинаковый,
+ * у фигур к нему добавляются вид и тип линии, у ластика остаётся только
+ * размер. Разводить это по трём похожим панелям значило бы трижды
+ * повторить одно и то же.
+ */
+export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props): ReactElement | null {
+  if (tool === 'select' || tool === 'hand') return null;
+
+  const pen = (tool === 'pen1' || tool === 'pen2' || tool === 'marker') ? settings[tool] : null;
+  const patchPen = (patch: Partial<PenSettings>) => {
+    if (!pen) return;
+    onChange({ ...settings, [tool]: { ...pen, ...patch } });
+  };
+
+  const shapes = tool === 'shapes' ? settings.shapes : null;
+  const patchShape = (patch: Partial<ShapeSettings>) => {
+    onChange({ ...settings, shapes: { ...settings.shapes, ...patch } });
+  };
+
+  const swatches = (current: string, apply: (color: string) => void) => (
+    <div className="params__row">
+      {PALETTE.map((value) => (
+        <button
+          key={value}
+          className="swatch"
+          type="button"
+          aria-pressed={current === value}
+          aria-label={`Цвет ${value}`}
+          style={{ background: value }}
+          onClick={() => apply(value)}
+        />
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="params" role="dialog" aria-label="Параметры инструмента">
+      <div className="params__head">
+        <span className="params__title">{titleOf(tool)}</span>
+        <button className="btn-quiet btn-sm" type="button" onClick={onClose}>Готово</button>
+      </div>
+
+      {pen ? (
+        <>
+          <p className="params__label">Размер</p>
+          <div className="params__row">
+            {SIZES.map((value) => (
+              <button
+                key={value}
+                className="btn-tool"
+                type="button"
+                aria-pressed={pen.width === value}
+                aria-label={`Размер ${value}`}
+                onClick={() => patchPen({ width: value })}
+              >
+                <span
+                  className="width-dot"
+                  style={{ width: Math.min(24, value), height: Math.min(24, value) }}
+                />
+              </button>
+            ))}
+          </div>
+
+          <p className="params__label">Прозрачность</p>
+          <div className="params__row">
+            {OPACITIES.map((value) => (
+              <button
+                key={value}
+                className="btn-quiet btn-sm"
+                type="button"
+                aria-pressed={pen.opacity === value}
+                onClick={() => patchPen({ opacity: value })}
+              >
+                {value} %
+              </button>
+            ))}
+          </div>
+
+          {/* Живой предпросмотр: подобрать толщину на глаз проще, чем по числу. */}
+          <p className="params__label">Так будет выглядеть</p>
+          <div className="params__preview">
+            <span
+              style={{
+                background: pen.color,
+                opacity: pen.opacity / 100,
+                height: Math.max(1, Math.min(30, pen.width)),
+              }}
+            />
+          </div>
+
+          <p className="params__label">Цвет</p>
+          {swatches(pen.color, (color) => patchPen({ color }))}
+        </>
+      ) : null}
+
+      {shapes ? (
+        <>
+          <p className="params__label">Фигура</p>
+          <div className="params__row">
+            {SHAPES.map((item) => (
+              <button
+                key={item.kind}
+                className="btn-quiet btn-sm"
+                type="button"
+                aria-pressed={shapes.shape === item.kind}
+                onClick={() => patchShape({ shape: item.kind })}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <p className="params__label">Толщина</p>
+          <div className="params__row">
+            {SIZES.map((value) => (
+              <button
+                key={value}
+                className="btn-tool"
+                type="button"
+                aria-pressed={shapes.width === value}
+                aria-label={`Толщина ${value}`}
+                onClick={() => patchShape({ width: value })}
+              >
+                <span
+                  className="width-dot"
+                  style={{ width: Math.min(24, value), height: Math.min(24, value) }}
+                />
+              </button>
+            ))}
+          </div>
+
+          <p className="params__label">Тип линии</p>
+          <div className="params__row">
+            {LINE_STYLES.map((item) => (
+              <button
+                key={item.kind}
+                className="btn-quiet btn-sm"
+                type="button"
+                aria-pressed={shapes.lineStyle === item.kind}
+                onClick={() => patchShape({ lineStyle: item.kind })}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <p className="params__label">Цвет</p>
+          {swatches(shapes.color, (color) => patchShape({ color }))}
+        </>
+      ) : null}
+
+      {tool === 'eraser' ? (
+        <>
+          <p className="params__label">Размер</p>
+          <div className="params__row">
+            {ERASER_SIZES.map((value) => (
+              <button
+                key={value}
+                className="btn-quiet btn-sm"
+                type="button"
+                aria-pressed={settings.eraser.size === value}
+                onClick={() => onChange({ ...settings, eraser: { size: value } })}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {tool === 'text' ? (
+        <>
+          <p className="params__label">Размер шрифта</p>
+          <div className="params__row">
+            {[16, 20, 24, 32, 48, 64].map((value) => (
+              <button
+                key={value}
+                className="btn-quiet btn-sm"
+                type="button"
+                aria-pressed={settings.text.fontSize === value}
+                onClick={() => onChange({ ...settings, text: { ...settings.text, fontSize: value } })}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+
+          <p className="params__label">Цвет</p>
+          {swatches(settings.text.color, (color) => (
+            onChange({ ...settings, text: { ...settings.text, color } })
+          ))}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function titleOf(tool: Tool): string {
+  if (tool === 'pen1') return 'Перо 1';
+  if (tool === 'pen2') return 'Перо 2';
+  if (tool === 'marker') return 'Маркер';
+  if (tool === 'eraser') return 'Ластик';
+  if (tool === 'text') return 'Текст';
+  return 'Фигуры';
+}

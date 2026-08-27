@@ -10,8 +10,14 @@ import { Modal } from '../components/Modal';
 import { PeoplePanel } from '../components/PeoplePanel';
 import { IconLink, IconLockClosed, IconLockOpen, IconPeople } from '../components/Icons';
 import { BoardCanvas } from '../board/BoardCanvas';
-import type { Tool } from '../board/BoardCanvas';
 import { BoardToolbar } from '../board/BoardToolbar';
+import { ToolSettingsPanel } from '../board/ToolSettingsPanel';
+import { DEFAULT_SETTINGS, DRAWING_TOOLS } from '../board/tools';
+import type { Tool, ToolSettings } from '../board/tools';
+import type { ItemData, Point } from '../board/protocol';
+import { TextInput } from '../board/TextInput';
+import { fontOf } from '../board/render';
+import { pointsOf } from '../board/geometry';
 import { useBoardHub } from '../board/useBoardHub';
 import { useWaitingQueue } from '../board/useWaitingQueue';
 import { useHistory } from '../board/useHistory';
@@ -53,9 +59,19 @@ export function BoardPage(): ReactElement {
     // Срабатывает один раз при монтировании: id доски в пути не меняется.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [tool, setTool] = useState<Tool>('pen');
-  const [color, setColor] = useState('#2A211C');
-  const [penWidth, setPenWidth] = useState(4);
+  const [tool, setToolRaw] = useState<Tool>('pen1');
+  const [settings, setSettings] = useState<ToolSettings>(DEFAULT_SETTINGS);
+  const [showParams, setShowParams] = useState(false);
+
+  /** Куда поставить надпись. Пока задано — на холсте открыто поле ввода. */
+  const [textAt, setTextAt] = useState<Point | null>(null);
+
+  // Повторный щелчок по уже выбранному рисующему инструменту открывает
+  // его параметры — отдельной кнопки настройки для этого не нужно.
+  const setTool = (next: Tool) => {
+    setShowParams(next === tool && DRAWING_TOOLS.includes(next) ? !showParams : false);
+    setToolRaw(next);
+  };
 
   const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEWPORT);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -143,8 +159,38 @@ export function BoardPage(): ReactElement {
   // Наблюдателю рисующие инструменты недоступны — оставляем ему руку,
   // иначе выбранное «перо» просто ничего не делало бы (пункт про роли).
   useEffect(() => {
-    if (!hub.canEdit && tool !== 'hand') setTool('hand');
+    if (!hub.canEdit && tool !== 'hand') setToolRaw('hand');
   }, [hub.canEdit, tool]);
+
+  /** Закрепляет надпись. Размеры меряем здесь: по ним считаются габариты. */
+  const commitText = (text: string) => {
+    const where = textAt;
+    setTextAt(null);
+    if (!where || !text.trim()) return;
+
+    const data: ItemData = {
+      x1: where.x,
+      y1: where.y,
+      text,
+      fontSize: settings.text.fontSize,
+      color: settings.text.color,
+      width: 1,
+    };
+
+    const context = document.createElement('canvas').getContext('2d');
+    const lines = text.split('\n');
+    const lineHeight = settings.text.fontSize * 1.25;
+
+    if (context) {
+      context.font = fontOf(data);
+      data.x2 = where.x + Math.max(...lines.map((line) => context.measureText(line).width));
+      data.y2 = where.y + lines.length * lineHeight;
+    }
+
+    const tempId = `text-${Date.now().toString(36)}`;
+    myStrokes.current.add(tempId);
+    hub.commitItem(tempId, 'text', data);
+  };
 
   const zoomBy = (factor: number) => {
     // От середины холста: кнопкой масштабируют, не целясь в точку.
@@ -152,7 +198,7 @@ export function BoardPage(): ReactElement {
   };
 
   const fitToAll = () => {
-    const points = hub.items.flatMap((item) => item.data.points ?? []);
+    const points = hub.items.flatMap((item) => pointsOf(item.data));
     const next = fitToContent(points, canvasSize.width, canvasSize.height);
     if (next) setViewport(next);
   };
@@ -336,8 +382,7 @@ export function BoardPage(): ReactElement {
             а рисующие кнопки у него просто заблокированы. */}
         <BoardToolbar
           tool={tool}
-          color={color}
-          width={penWidth}
+          settings={settings}
           canEdit={hub.canEdit}
           canManage={hub.canManage}
           scale={viewport.scale}
@@ -345,8 +390,6 @@ export function BoardPage(): ReactElement {
           canRedo={history.canRedo}
           hasSelection={selection.length > 0}
           onTool={setTool}
-          onColor={setColor}
-          onWidth={setPenWidth}
           onZoom={zoomBy}
           onResetZoom={() => setViewport((current) => ({ ...current, scale: 1 }))}
           onFit={fitToAll}
@@ -362,8 +405,7 @@ export function BoardPage(): ReactElement {
           <BoardCanvas
             hub={hub}
             tool={tool}
-            color={color}
-            width={penWidth}
+            settings={settings}
             viewport={viewport}
             selection={selection}
             onViewport={setViewport}
@@ -374,7 +416,28 @@ export function BoardPage(): ReactElement {
               history.push({ kind: 'move', itemIds, dx, dy });
             }}
             onCreated={(tempId) => myStrokes.current.add(tempId)}
+            onDrawStart={() => setShowParams(false)}
+            onTextAt={setTextAt}
           />
+
+          {showParams ? (
+            <ToolSettingsPanel
+              tool={tool}
+              settings={settings}
+              onChange={setSettings}
+              onClose={() => setShowParams(false)}
+            />
+          ) : null}
+
+          {textAt ? (
+            <TextInput
+              at={textAt}
+              viewport={viewport}
+              settings={settings.text}
+              onCommit={commitText}
+              onCancel={() => setTextAt(null)}
+            />
+          ) : null}
 
           {hub.status !== 'ready' ? (
             <p className="canvas-status">

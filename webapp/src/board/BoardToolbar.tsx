@@ -1,20 +1,14 @@
 import type { ReactElement } from 'react';
-import type { Tool } from './BoardCanvas';
-import { IconCursor, IconEditor, IconEraser, IconHand, IconRedo, IconTrash, IconUndo } from '../components/Icons';
-
-/**
- * Цвета доски. Немного и заметно разных: палитра на сотню оттенков
- * заставляет выбирать вместо того, чтобы объяснять.
- */
-const COLORS = ['#2A211C', '#B03A2E', '#1F618D', '#1E8449', '#B7950B'];
-
-/** Толщины: тонко — писать, средне — рисовать, толсто — выделять. */
-const WIDTHS = [2, 4, 8];
+import {
+  IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
+  IconRedo, IconShapes, IconText, IconTrash, IconUndo,
+} from '../components/Icons';
+import type { Tool, ToolSettings } from './tools';
+import { toolColor } from './tools';
 
 interface Props {
   tool: Tool;
-  color: string;
-  width: number;
+  settings: ToolSettings;
   /** Наблюдателю доступна только навигация — остальное заблокировано. */
   canEdit: boolean;
   canManage: boolean;
@@ -23,8 +17,6 @@ interface Props {
   canRedo: boolean;
   hasSelection: boolean;
   onTool: (tool: Tool) => void;
-  onColor: (color: string) => void;
-  onWidth: (width: number) => void;
   onZoom: (factor: number) => void;
   onResetZoom: () => void;
   onFit: () => void;
@@ -34,109 +26,61 @@ interface Props {
   onClear: () => void;
 }
 
+/**
+ * Панель инструментов.
+ *
+ * Повторный щелчок по уже выбранному рисующему инструменту открывает его
+ * параметры: так настройка не занимает отдельной кнопки, а до неё всё
+ * равно один щелчок.
+ */
 export function BoardToolbar({
-  tool, color, width, canEdit, canManage, scale, canUndo, canRedo, hasSelection,
-  onTool, onColor, onWidth, onZoom, onResetZoom, onFit, onUndo, onRedo, onDelete, onClear,
+  tool, settings, canEdit, canManage, scale, canUndo, canRedo, hasSelection,
+  onTool, onZoom, onResetZoom, onFit, onUndo, onRedo, onDelete, onClear,
 }: Props): ReactElement {
-  return (
-    <div className="toolbar" role="toolbar" aria-label="Инструменты доски">
+  const pick = (which: Tool, icon: ReactElement, title: string, needsEdit = true) => {
+    const dot = toolColor(which, settings);
+
+    return (
       <button
         className="btn-tool"
         type="button"
-        onClick={onUndo}
-        disabled={!canEdit || !canUndo}
-        title="Отменить (Ctrl+Z)"
-        aria-label="Отменить"
+        aria-pressed={tool === which}
+        onClick={() => onTool(which)}
+        disabled={needsEdit && !canEdit}
+        title={needsEdit && !canEdit ? 'Доступно редактору' : title}
+      >
+        {icon}
+        {dot ? <span className="tool-dot" style={{ background: dot }} aria-hidden="true" /> : null}
+      </button>
+    );
+  };
+
+  return (
+    <div className="toolbar" role="toolbar" aria-label="Инструменты доски">
+      <button
+        className="btn-tool" type="button" onClick={onUndo}
+        disabled={!canEdit || !canUndo} title="Отменить (Ctrl+Z)" aria-label="Отменить"
       >
         <IconUndo />
       </button>
 
       <button
-        className="btn-tool"
-        type="button"
-        onClick={onRedo}
-        disabled={!canEdit || !canRedo}
-        title="Повторить (Ctrl+Y)"
-        aria-label="Повторить"
+        className="btn-tool" type="button" onClick={onRedo}
+        disabled={!canEdit || !canRedo} title="Повторить (Ctrl+Y)" aria-label="Повторить"
       >
         <IconRedo />
       </button>
 
       <span className="toolbar__divider" aria-hidden="true" />
 
-      <button
-        className="btn-tool"
-        type="button"
-        aria-pressed={tool === 'select'}
-        onClick={() => onTool('select')}
-        disabled={!canEdit}
-        title={canEdit ? 'Выделять и перемещать' : 'Выделять может редактор'}
-      >
-        <IconCursor />
-      </button>
-
-      <button
-        className="btn-tool"
-        type="button"
-        aria-pressed={tool === 'hand'}
-        onClick={() => onTool('hand')}
-        title="Двигать холст. То же — пробел или средняя кнопка мыши"
-      >
-        <IconHand />
-      </button>
-
-      <button
-        className="btn-tool"
-        type="button"
-        aria-pressed={tool === 'pen'}
-        onClick={() => onTool('pen')}
-        disabled={!canEdit}
-        title={canEdit ? 'Рисовать' : 'Рисовать может редактор'}
-      >
-        <IconEditor />
-      </button>
-
-      <button
-        className="btn-tool"
-        type="button"
-        aria-pressed={tool === 'eraser'}
-        onClick={() => onTool('eraser')}
-        disabled={!canEdit}
-        title={canEdit ? 'Стирать' : 'Стирать может редактор'}
-      >
-        <IconEraser />
-      </button>
-
-      <span className="toolbar__divider" aria-hidden="true" />
-
-      {COLORS.map((value) => (
-        <button
-          key={value}
-          className="swatch"
-          type="button"
-          aria-pressed={color === value}
-          aria-label={`Цвет ${value}`}
-          disabled={!canEdit}
-          style={{ background: value }}
-          onClick={() => onColor(value)}
-        />
-      ))}
-
-      <span className="toolbar__divider" aria-hidden="true" />
-
-      {WIDTHS.map((value) => (
-        <button
-          key={value}
-          className="btn-tool"
-          type="button"
-          aria-pressed={width === value}
-          aria-label={`Толщина ${value}`}
-          disabled={!canEdit}
-          onClick={() => onWidth(value)}
-        >
-          <span className="width-dot" style={{ width: value * 2, height: value * 2 }} />
-        </button>
-      ))}
+      {pick('select', <IconCursor />, 'Выделять и перемещать')}
+      {pick('hand', <IconHand />, 'Двигать холст. То же — пробел или средняя кнопка', false)}
+      {pick('pen1', <IconEditor />, 'Перо 1')}
+      {pick('pen2', <IconEditor />, 'Перо 2')}
+      {pick('marker', <IconMarker />, 'Маркер')}
+      {pick('eraser', <IconEraser />, 'Ластик')}
+      {pick('text', <IconText />, 'Текст')}
+      {pick('shapes', <IconShapes />, 'Фигуры')}
 
       {hasSelection ? (
         <>
@@ -152,12 +96,7 @@ export function BoardToolbar({
       {/* Масштаб доступен всем: наблюдателю он нужен ровно так же. */}
       <div className="zoom">
         <button className="btn-tool" type="button" onClick={() => onZoom(1 / 1.15)} aria-label="Отдалить">−</button>
-        <button
-          className="zoom__value"
-          type="button"
-          onClick={onResetZoom}
-          title="Вернуть 100 %"
-        >
+        <button className="zoom__value" type="button" onClick={onResetZoom} title="Вернуть 100 %">
           {Math.round(scale * 100)} %
         </button>
         <button className="btn-tool" type="button" onClick={() => onZoom(1.15)} aria-label="Приблизить">+</button>
