@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
-  IconDownload, IconGrid, IconTimer, IconRedo, IconShapes, IconText, IconTrash, IconUndo,
+  IconDownload, IconGrid, IconHelp, IconTimer, IconRedo, IconShapes, IconText, IconTrash, IconUndo,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -25,6 +25,7 @@ interface Props {
   onDelete: () => void;
   onBackground: () => void;
   onTimer: () => void;
+  onHelp: () => void;
   onExport: () => void;
   onClear: () => void;
 }
@@ -38,7 +39,7 @@ interface Props {
  */
 export function BoardToolbar({
   tool, settings, canEdit, canManage, scale, canUndo, canRedo, hasSelection,
-  onTool, onZoom, onResetZoom, onFit, onUndo, onRedo, onDelete, onBackground, onTimer, onExport, onClear,
+  onTool, onZoom, onResetZoom, onFit, onUndo, onRedo, onDelete, onBackground, onTimer, onHelp, onExport, onClear,
 }: Props): ReactElement {
   const pick = (which: Tool, icon: ReactElement, title: string, needsEdit = true) => {
     const dot = toolColor(which, settings);
@@ -107,6 +108,10 @@ export function BoardToolbar({
       </div>
 
       <span className="toolbar__divider" aria-hidden="true" />
+
+      <button className="btn-tool" type="button" onClick={onHelp} title="Что умеет доска">
+        <IconHelp />
+      </button>
 
       <button className="btn-tool" type="button" onClick={onTimer} title="Таймер">
         <IconTimer />

@@ -33,6 +33,8 @@ interface Props {
   onTextAt: (world: Point) => void;
   /** Ластик прошёл по точке: что стереть и что оставить, решает страница. */
   onErase: (at: Point, radius: number) => void;
+  /** Ластик отпустили — можно забыть, что уже стёрли за этот проход. */
+  onEraseEnd: () => void;
 }
 
 /** Не чаще двадцати раз в секунду — предел из раздела 7.1. */
@@ -57,7 +59,7 @@ const ERASE_RADIUS = 8;
  */
 export function BoardCanvas({
   hub, tool, settings, viewport, background, selection,
-  onViewport, onSize, onSelection, onMoved, onCommit, onDrawStart, onTextAt, onErase,
+  onViewport, onSize, onSelection, onMoved, onCommit, onDrawStart, onTextAt, onErase, onEraseEnd,
 }: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
@@ -647,6 +649,7 @@ export function BoardCanvas({
 
     if (erasing.current === event.pointerId) {
       erasing.current = null;
+      onEraseEnd();
       return;
     }
 

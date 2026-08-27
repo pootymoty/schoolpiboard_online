@@ -1,0 +1,50 @@
+import type { ReactElement } from 'react';
+
+interface Props {
+  onClose: () => void;
+}
+
+/**
+ * Что умеет доска.
+ *
+ * Список приёмов, а не описание кнопок: кнопки видны сами, а про то, что
+ * пробел временно двигает холст, догадаться неоткуда.
+ */
+const TIPS: { keys: string; what: string }[] = [
+  { keys: 'Пробел, средняя кнопка, два пальца', what: 'двигать холст' },
+  { keys: 'Колесо, щипок', what: 'масштаб' },
+  { keys: 'Shift при рисовании фигуры', what: 'правильная фигура, угол кратный 15°' },
+  { keys: 'Курсор + протяжка по пустому', what: 'выделить рамкой' },
+  { keys: 'Ctrl + клик', what: 'добавить объект к выделению или убрать' },
+  { keys: 'Ctrl + Z, Ctrl + Y', what: 'отменить, повторить' },
+  { keys: 'Ctrl + D', what: 'дублировать выделенное' },
+  { keys: 'Ctrl + A', what: 'выделить всё' },
+  { keys: 'Delete, Backspace', what: 'удалить выделенное' },
+  { keys: 'Esc', what: 'снять выделение, закрыть панель' },
+  { keys: 'Enter в поле надписи', what: 'закрепить; Shift + Enter — новая строка' },
+];
+
+export function HelpPanel({ onClose }: Props): ReactElement {
+  return (
+    <div className="params params--right" role="dialog" aria-label="Справка">
+      <div className="params__head">
+        <span className="params__title">Приёмы</span>
+        <button className="btn-quiet btn-sm" type="button" onClick={onClose}>Готово</button>
+      </div>
+
+      <dl className="help">
+        {TIPS.map((tip) => (
+          <div className="help__row" key={tip.keys}>
+            <dt className="help__keys">{tip.keys}</dt>
+            <dd className="help__what">{tip.what}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <p className="text-muted small">
+        На планшете пером рисуют, а пальцем двигают холст — как только
+        доска увидит перо, палец перестаёт оставлять след.
+      </p>
+    </div>
+  );
+}

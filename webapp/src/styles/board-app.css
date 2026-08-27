@@ -480,6 +480,31 @@
 
 .zoom__value:hover { background: var(--surface-2); }
 
+/* На узком экране панель не переносится, а прокручивается вбок: четыре
+   ряда кнопок съедали половину экрана, и холста не оставалось. */
+@media (max-width: 720px) {
+    .toolbar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        /* Полоса прокрутки внутри панели не нужна: край обрезанного ряда
+           сам показывает, что дальше есть ещё. */
+        scrollbar-width: none;
+    }
+
+    .toolbar::-webkit-scrollbar { display: none; }
+
+    .toolbar > * { flex: none; }
+
+    /* Распорка в одну строку растянула бы панель до бесконечности. */
+    .toolbar__spacer { display: none; }
+
+    .toolbar .btn-tool {
+        width: 40px;
+        min-height: 40px;
+    }
+}
+
 /* Образец цвета. Обводка вместо заливки в состоянии «выбран»: заливка
    у образца и есть его цвет, ею отметить выбор нельзя. */
 .swatch {
@@ -647,6 +672,29 @@
     color: var(--text-muted);
 }
 
+/* --- Справка ------------------------------------------------------------------ */
+
+.help {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.help__row { margin: 0; }
+
+.help__keys {
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    color: var(--text);
+}
+
+.help__what {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+}
+
 /* --- Таймер ------------------------------------------------------------------ */
 
 .timer__dial {
@@ -686,7 +734,6 @@
 .text-input {
     position: absolute;
     z-index: 9;
-    min-width: 8ch;
     padding: 0;
     margin: 0;
     background: transparent;

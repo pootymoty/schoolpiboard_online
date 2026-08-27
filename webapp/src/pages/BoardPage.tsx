@@ -22,12 +22,13 @@ import { boundsOf, pointsOf, translate } from '../board/geometry';
 import { SelectionPanel } from '../board/SelectionPanel';
 import { BackgroundPanel } from '../board/BackgroundPanel';
 import { TimerPanel } from '../board/TimerPanel';
+import { HelpPanel } from '../board/HelpPanel';
 import { exportPng } from '../board/exportPng';
 import { useBoardHub } from '../board/useBoardHub';
 import { useWaitingQueue } from '../board/useWaitingQueue';
 import { useHistory } from '../board/useHistory';
 import type { ItemSnapshot } from '../board/useHistory';
-import { INITIAL_VIEWPORT, centerOn, fitToContent, zoomAt } from '../board/viewport';
+import { INITIAL_VIEWPORT, centerOn, fitToContent, toScreen, zoomAt } from '../board/viewport';
 import type { Viewport } from '../board/viewport';
 
 /**
@@ -70,6 +71,7 @@ export function BoardPage(): ReactElement {
   const [showParams, setShowParams] = useState(false);
   const [showBackground, setShowBackground] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   /** Куда поставить надпись. Пока задано — на холсте открыто поле ввода. */
   const [textAt, setTextAt] = useState<Point | null>(null);
@@ -177,9 +179,15 @@ export function BoardPage(): ReactElement {
     const undoItems: ItemSnapshot[] = [];
 
     for (const item of hub.items) {
+      // Удаление уходит на сервер и возвращается не мгновенно, а ластик
+      // ведут дальше — без этой отметки тот же штрих резался бы снова на
+      // каждом движении, и его куски множились бы.
+      if (erased.current.has(item.id)) continue;
+
       const result = erase(item, at, radius);
       if (result.kind === 'keep') continue;
 
+      erased.current.add(item.id);
       doomed.push(item.id);
       undoItems.push({ ref: refOf(item.id), type: item.type, data: item.data });
 
@@ -197,6 +205,9 @@ export function BoardPage(): ReactElement {
 
     history.push({ kind: 'delete', items: undoItems });
   }, [hub, history, refOf, send]);
+
+  /** Уже стёртое за этот проход ластика. Сбрасывается, когда его отпускают. */
+  const erased = useRef(new Set<number>());
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -493,6 +504,7 @@ export function BoardPage(): ReactElement {
           canRedo={history.canRedo}
           onBackground={() => setShowBackground((current) => !current)}
           onTimer={() => setShowTimer((current) => !current)}
+          onHelp={() => setShowHelp((current) => !current)}
           onExport={() => {
             if (!exportPng(hub.items, hub.background, board.title)) {
               setError('Доска пуста — сохранять нечего.');
@@ -545,18 +557,29 @@ export function BoardPage(): ReactElement {
               hub.commitItem(tempId, type, data);
             }}
             onErase={eraseAt}
+            onEraseEnd={() => erased.current.clear()}
             onDrawStart={() => setShowParams(false)}
             onTextAt={(world) => {
-              // Ставим точку ввода в середину окна: поле у самого края
-              // иначе оказалось бы наполовину за границей холста.
-              setViewport((current) => centerOn(
-                current, world.x, world.y, canvasSize.width, canvasSize.height,
-              ));
+              // Вид подвигаем, только если для поля не хватает места:
+              // прыжок на каждое касание сбивал бы с толку там, где
+              // всё и так на виду.
+              setViewport((current) => {
+                const screen = toScreen(current, world.x, world.y);
+                const tight = screen.x > canvasSize.width - 160
+                  || screen.y > canvasSize.height - 120
+                  || screen.x < 8 || screen.y < 8;
+
+                return tight
+                  ? centerOn(current, world.x, world.y, canvasSize.width, canvasSize.height)
+                  : current;
+              });
+
               setTextAt(world);
             }}
           />
 
           {showTimer ? <TimerPanel onClose={() => setShowTimer(false)} /> : null}
+          {showHelp ? <HelpPanel onClose={() => setShowHelp(false)} /> : null}
 
           {showBackground && hub.canManage ? (
             <BackgroundPanel
@@ -582,6 +605,7 @@ export function BoardPage(): ReactElement {
               items={selectedItems}
               bounds={selectionBounds}
               viewport={viewport}
+              canvas={canvasSize}
               onColor={recolorSelection}
               onDuplicate={duplicateSelection}
               onDelete={removeSelection}
