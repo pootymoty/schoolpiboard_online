@@ -94,7 +94,6 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
           </div>
 
           {/* Живой предпросмотр: подобрать толщину на глаз проще, чем по числу. */}
-          <p className="params__label">Так будет выглядеть</p>
           <div className="params__preview">
             <span
               style={{

@@ -103,6 +103,17 @@ export const IconPeople = (props: Props): ReactElement => (
   </Svg>
 );
 
+/** Таймер занятия. */
+export const IconTimer = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l3 2" />
+      <path d="M9 2h6" />
+    </g>
+  </Svg>
+);
+
 /** Сохранить картинкой. */
 export const IconDownload = (props: Props): ReactElement => (
   <Svg {...props}><g><path d="M12 3v12" /><path d="M7 11l5 5 5-5" /><path d="M4 21h16" /></g></Svg>

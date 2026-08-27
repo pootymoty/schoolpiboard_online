@@ -55,6 +55,22 @@ export function zoomAt(viewport: Viewport, screenX: number, screenY: number, fac
   };
 }
 
+/** Поставить мировую точку в середину окна, не меняя масштаба. */
+export function centerOn(
+  viewport: Viewport,
+  worldX: number,
+  worldY: number,
+  width: number,
+  height: number,
+  scale = viewport.scale,
+): Viewport {
+  return {
+    scale,
+    x: width / 2 - worldX * scale,
+    y: height / 2 - worldY * scale,
+  };
+}
+
 /** Показать всё содержимое доски. */
 export function fitToContent(
   points: Point[],

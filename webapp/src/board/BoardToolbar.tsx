@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
-  IconDownload, IconGrid, IconRedo, IconShapes, IconText, IconTrash, IconUndo,
+  IconDownload, IconGrid, IconTimer, IconRedo, IconShapes, IconText, IconTrash, IconUndo,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -24,6 +24,7 @@ interface Props {
   onRedo: () => void;
   onDelete: () => void;
   onBackground: () => void;
+  onTimer: () => void;
   onExport: () => void;
   onClear: () => void;
 }
@@ -37,7 +38,7 @@ interface Props {
  */
 export function BoardToolbar({
   tool, settings, canEdit, canManage, scale, canUndo, canRedo, hasSelection,
-  onTool, onZoom, onResetZoom, onFit, onUndo, onRedo, onDelete, onBackground, onExport, onClear,
+  onTool, onZoom, onResetZoom, onFit, onUndo, onRedo, onDelete, onBackground, onTimer, onExport, onClear,
 }: Props): ReactElement {
   const pick = (which: Tool, icon: ReactElement, title: string, needsEdit = true) => {
     const dot = toolColor(which, settings);
@@ -106,6 +107,10 @@ export function BoardToolbar({
       </div>
 
       <span className="toolbar__divider" aria-hidden="true" />
+
+      <button className="btn-tool" type="button" onClick={onTimer} title="Таймер">
+        <IconTimer />
+      </button>
 
       {/* Сохранить картинкой может любой: это его же занятие. */}
       <button className="btn-tool" type="button" onClick={onExport} title="Сохранить картинкой">

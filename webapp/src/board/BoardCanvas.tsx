@@ -108,7 +108,7 @@ export function BoardCanvas({
   const erasing = useRef<number | null>(null);
 
   /** Тычок инструментом «текст»: решаем по отпусканию, а не по нажатию. */
-  const tapping = useRef<{ pointerId: number; at: Point } | null>(null);
+  const tapping = useRef<{ pointerId: number; at: Point; screen: { x: number; y: number } } | null>(null);
 
   /** Растягивание за ручку. */
   const resizing = useRef<{
@@ -492,7 +492,7 @@ export function BoardCanvas({
     // ввода успевало открыться до того, как жест распознан.
     if (latest.current.tool === 'text') {
       event.currentTarget.setPointerCapture(event.pointerId);
-      tapping.current = { pointerId: event.pointerId, at: point };
+      tapping.current = { pointerId: event.pointerId, at: point, screen: screenPoint(event) };
       return;
     }
 
@@ -653,9 +653,18 @@ export function BoardCanvas({
     const tap = tapping.current;
     if (tap?.pointerId === event.pointerId) {
       tapping.current = null;
-      // Жест двумя пальцами отменяет тычок: это было приближение, а не
-      // попытка что-то написать.
-      if (!blockUntilRelease.current) onTextAt(tap.at);
+
+      // Тычок засчитываем, только если палец не уехал и на экране больше
+      // никого не было: и то и другое означает жест, а не намерение
+      // что-то написать.
+      const moved = Math.hypot(
+        screenPoint(event).x - tap.screen.x,
+        screenPoint(event).y - tap.screen.y,
+      );
+
+      if (!blockUntilRelease.current && pointers.current.size === 0 && moved < 12) {
+        onTextAt(tap.at);
+      }
       return;
     }
 

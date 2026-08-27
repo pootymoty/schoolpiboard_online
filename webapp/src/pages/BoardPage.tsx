@@ -21,12 +21,13 @@ import { fontOf } from '../board/render';
 import { boundsOf, pointsOf, translate } from '../board/geometry';
 import { SelectionPanel } from '../board/SelectionPanel';
 import { BackgroundPanel } from '../board/BackgroundPanel';
+import { TimerPanel } from '../board/TimerPanel';
 import { exportPng } from '../board/exportPng';
 import { useBoardHub } from '../board/useBoardHub';
 import { useWaitingQueue } from '../board/useWaitingQueue';
 import { useHistory } from '../board/useHistory';
 import type { ItemSnapshot } from '../board/useHistory';
-import { INITIAL_VIEWPORT, fitToContent, zoomAt } from '../board/viewport';
+import { INITIAL_VIEWPORT, centerOn, fitToContent, zoomAt } from '../board/viewport';
 import type { Viewport } from '../board/viewport';
 
 /**
@@ -68,6 +69,7 @@ export function BoardPage(): ReactElement {
   const [settings, setSettings] = useState<ToolSettings>(DEFAULT_SETTINGS);
   const [showParams, setShowParams] = useState(false);
   const [showBackground, setShowBackground] = useState(false);
+  const [showTimer, setShowTimer] = useState(false);
 
   /** Куда поставить надпись. Пока задано — на холсте открыто поле ввода. */
   const [textAt, setTextAt] = useState<Point | null>(null);
@@ -490,6 +492,7 @@ export function BoardPage(): ReactElement {
           canUndo={history.canUndo}
           canRedo={history.canRedo}
           onBackground={() => setShowBackground((current) => !current)}
+          onTimer={() => setShowTimer((current) => !current)}
           onExport={() => {
             if (!exportPng(hub.items, hub.background, board.title)) {
               setError('Доска пуста — сохранять нечего.');
@@ -498,7 +501,18 @@ export function BoardPage(): ReactElement {
           hasSelection={selection.length > 0}
           onTool={setTool}
           onZoom={zoomBy}
-          onResetZoom={() => setViewport((current) => ({ ...current, scale: 1 }))}
+          onResetZoom={() => setViewport((current) => {
+            // С выделением сотня означает «покажи вот это в натуральную
+            // величину», а не «верни масштаб и потеряй объект из виду».
+            if (!selectionBounds) return { ...current, scale: 1 };
+
+            return centerOn(
+              current,
+              selectionBounds.x + selectionBounds.width / 2,
+              selectionBounds.y + selectionBounds.height / 2,
+              canvasSize.width, canvasSize.height, 1,
+            );
+          })}
           onFit={fitToAll}
           onUndo={history.undo}
           onRedo={history.redo}
@@ -532,8 +546,17 @@ export function BoardPage(): ReactElement {
             }}
             onErase={eraseAt}
             onDrawStart={() => setShowParams(false)}
-            onTextAt={setTextAt}
+            onTextAt={(world) => {
+              // Ставим точку ввода в середину окна: поле у самого края
+              // иначе оказалось бы наполовину за границей холста.
+              setViewport((current) => centerOn(
+                current, world.x, world.y, canvasSize.width, canvasSize.height,
+              ));
+              setTextAt(world);
+            }}
           />
+
+          {showTimer ? <TimerPanel onClose={() => setShowTimer(false)} /> : null}
 
           {showBackground && hub.canManage ? (
             <BackgroundPanel

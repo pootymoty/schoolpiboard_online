@@ -523,11 +523,13 @@
     position: absolute;
     left: var(--sp-3);
     top: var(--sp-3);
-    bottom: var(--sp-3);
+    /* По содержимому, а не во всю высоту: панель на восемь строк,
+       растянутая на весь холст, закрывает рисунок без всякой пользы. */
+    max-height: calc(100% - var(--sp-5));
     z-index: 8;
-    width: min(280px, calc(100% - var(--sp-5)));
+    width: min(248px, calc(100% - var(--sp-5)));
     overflow-y: auto;
-    padding: var(--sp-3) var(--sp-4) var(--sp-4);
+    padding: var(--sp-2) var(--sp-3) var(--sp-3);
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
@@ -546,7 +548,7 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--sp-2);
-    margin-bottom: var(--sp-2);
+    margin-bottom: var(--sp-1);
 }
 
 .params__title {
@@ -554,8 +556,29 @@
     font-weight: 700;
 }
 
+/* Кнопки внутри панели мельче общих: сорок четыре пикселя — размер для
+   пальца на холсте, а здесь их в ряду по восемь. */
+.params .btn-tool {
+    width: 34px;
+    min-height: 34px;
+}
+
+.params .btn-tool--line { width: 48px; }
+
+.params .btn-quiet {
+    min-height: 30px;
+    padding: 2px 8px;
+    font-size: var(--fs-xs);
+}
+
+.params .swatch {
+    width: 24px;
+    height: 24px;
+    min-height: 24px;
+}
+
 .params__label {
-    margin: var(--sp-3) 0 var(--sp-1);
+    margin: var(--sp-2) 0 2px;
     font-size: var(--fs-xs);
     font-weight: 700;
     text-transform: uppercase;
@@ -578,7 +601,7 @@
 .params__preview {
     display: flex;
     align-items: center;
-    height: 40px;
+    height: 32px;
     padding: 0 var(--sp-2);
     background: var(--canvas);
     border: 1px solid var(--line);
@@ -623,6 +646,40 @@
     font-size: var(--fs-xs);
     color: var(--text-muted);
 }
+
+/* --- Таймер ------------------------------------------------------------------ */
+
+.timer__dial {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 132px;
+    height: 132px;
+    margin: var(--sp-2) auto;
+    border-radius: 50%;
+    /* Круговой индикатор одним градиентом: отдельный элемент под дугу
+       здесь ничего не добавил бы. */
+    background: conic-gradient(
+        var(--accent) calc(var(--progress) * 360deg),
+        var(--surface-2) 0
+    );
+}
+
+.timer__value {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 106px;
+    height: 106px;
+    border-radius: 50%;
+    background: var(--surface);
+    font-family: var(--font-head);
+    font-size: var(--fs-h3);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.timer__controls { justify-content: space-between; }
 
 /* --- Ввод надписи ------------------------------------------------------------ */
 
