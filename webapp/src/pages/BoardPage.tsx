@@ -14,7 +14,8 @@ import { BoardToolbar } from '../board/BoardToolbar';
 import { ToolSettingsPanel } from '../board/ToolSettingsPanel';
 import { DEFAULT_SETTINGS, DRAWING_TOOLS } from '../board/tools';
 import type { Tool, ToolSettings } from '../board/tools';
-import type { ItemData, Point } from '../board/protocol';
+import type { ItemData, ItemType, Point } from '../board/protocol';
+import { erase } from '../board/erase';
 import { TextInput } from '../board/TextInput';
 import { fontOf } from '../board/render';
 import { boundsOf, pointsOf, translate } from '../board/geometry';
@@ -24,6 +25,7 @@ import { exportPng } from '../board/exportPng';
 import { useBoardHub } from '../board/useBoardHub';
 import { useWaitingQueue } from '../board/useWaitingQueue';
 import { useHistory } from '../board/useHistory';
+import type { ItemSnapshot } from '../board/useHistory';
 import { INITIAL_VIEWPORT, fitToContent, zoomAt } from '../board/viewport';
 import type { Viewport } from '../board/viewport';
 
@@ -84,24 +86,62 @@ export function BoardPage(): ReactElement {
   const hub = useBoardHub(id);
   const queue = useWaitingQueue(id, hub.canManage);
 
+  /**
+   * Устойчивые ссылки на свои объекты.
+   *
+   * Номер объекта задаёт сервер, и при восстановлении после отмены он
+   * будет уже другим. История держится за ссылку, а этот реестр
+   * переводит её в текущий номер и обратно.
+   */
+  const refToId = useRef(new Map<string, number>());
+  const idToRef = useRef(new Map<number, string>());
+
+  /** Что ждёт номера от сервера: временный ключ → ссылка и снимок. */
+  const pending = useRef(new Map<string, { ref: string; snapshot?: ItemSnapshot }>());
+
+  const idsOf = useCallback((refs: string[]) => (
+    refs.map((ref) => refToId.current.get(ref)).filter((id): id is number => id !== undefined)
+  ), []);
+
+  /** Отправляет объект на доску и запоминает, под какой ссылкой он живёт. */
+  const send = useCallback((ref: string, type: ItemType, data: ItemData) => {
+    const tempId = `${ref}-${Date.now().toString(36)}`;
+    pending.current.set(tempId, { ref });
+    hub.commitItem(tempId, type, data);
+  }, [hub]);
+
   const history = useHistory({
-    create: (type, data) => hub.commitItem(`redo-${Date.now().toString(36)}`, type, data),
-    move: (itemIds, dx, dy) => hub.moveItems(itemIds, dx, dy),
-    remove: (itemIds) => hub.deleteItems(itemIds),
+    restore: (snapshot) => send(snapshot.ref, snapshot.type, snapshot.data),
+    move: (refs, dx, dy) => hub.moveItems(idsOf(refs), dx, dy),
+    remove: (refs) => hub.deleteItems(idsOf(refs)),
   });
 
-  /** Свои штрихи, ждущие номера от сервера. Отменять можно только своё. */
-  const myStrokes = useRef(new Set<string>());
-
   // Номер объекта известен только после закрепления на сервере — тогда же
-  // штрих и попадает в историю.
+  // ссылка и связывается с ним.
   useEffect(() => {
     const commit = hub.lastCommit;
-    if (!commit || !myStrokes.current.has(commit.tempId)) return;
+    if (!commit) return;
 
-    myStrokes.current.delete(commit.tempId);
-    history.push({ kind: 'create', itemIds: [commit.itemId] });
+    const waiting = pending.current.get(commit.tempId);
+    if (!waiting) return;
+
+    pending.current.delete(commit.tempId);
+    refToId.current.set(waiting.ref, commit.itemId);
+    idToRef.current.set(commit.itemId, waiting.ref);
+
+    if (waiting.snapshot) history.push({ kind: 'create', items: [waiting.snapshot] });
   }, [hub.lastCommit, history]);
+
+  /** Ссылка объекта: своя, если он наш, иначе заводим новую. */
+  const refOf = useCallback((itemId: number) => {
+    const existing = idToRef.current.get(itemId);
+    if (existing) return existing;
+
+    const ref = `r${itemId}`;
+    idToRef.current.set(itemId, ref);
+    refToId.current.set(ref, itemId);
+    return ref;
+  }, []);
 
   // Выделять то, чего уже нет, нельзя: объект мог стереть кто-то другой.
   useEffect(() => {
@@ -115,11 +155,46 @@ export function BoardPage(): ReactElement {
     if (selection.length === 0) return;
 
     const doomed = hub.items.filter((item) => selection.includes(item.id));
-    history.push({ kind: 'delete', items: doomed.map((item) => ({ type: item.type, data: item.data })) });
+    history.push({
+      kind: 'delete',
+      items: doomed.map((item) => ({ ref: refOf(item.id), type: item.type, data: item.data })),
+    });
 
     hub.deleteItems(selection);
     setSelection([]);
-  }, [hub, history, selection]);
+  }, [hub, history, refOf, selection]);
+
+  /**
+   * Ластик. Задетый штрих не удаляется целиком: от него остаются куски,
+   * и они заводятся заново под своими ссылками — сервер умеет создавать
+   * и удалять, но не резать чужую геометрию.
+   */
+  const eraseAt = useCallback((at: Point, radius: number) => {
+    const doomed: number[] = [];
+    const born: { ref: string; type: ItemType; data: ItemData }[] = [];
+    const undoItems: ItemSnapshot[] = [];
+
+    for (const item of hub.items) {
+      const result = erase(item, at, radius);
+      if (result.kind === 'keep') continue;
+
+      doomed.push(item.id);
+      undoItems.push({ ref: refOf(item.id), type: item.type, data: item.data });
+
+      if (result.kind === 'split') {
+        for (const part of result.parts) {
+          born.push({ ref: `e${Date.now().toString(36)}${born.length}`, type: item.type, data: part });
+        }
+      }
+    }
+
+    if (doomed.length === 0) return;
+
+    hub.deleteItems(doomed);
+    for (const part of born) send(part.ref, part.type, part.data);
+
+    history.push({ kind: 'delete', items: undoItems });
+  }, [hub, history, refOf, send]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -197,9 +272,9 @@ export function BoardPage(): ReactElement {
       data.y2 = where.y + lines.length * lineHeight;
     }
 
-    const tempId = `text-${Date.now().toString(36)}`;
-    myStrokes.current.add(tempId);
-    hub.commitItem(tempId, 'text', data);
+    const ref = `t${Date.now().toString(36)}`;
+    pending.current.set(`${ref}-new`, { ref, snapshot: { ref, type: 'text', data } });
+    hub.commitItem(`${ref}-new`, 'text', data);
   };
 
   const selectedItems = hub.items.filter((item) => selection.includes(item.id));
@@ -208,9 +283,10 @@ export function BoardPage(): ReactElement {
   /** Копия выделенного со сдвигом — чтобы копия не легла ровно поверх оригинала. */
   const duplicateSelection = () => {
     for (const item of selectedItems) {
-      const tempId = `copy-${item.id}-${Date.now().toString(36)}`;
-      myStrokes.current.add(tempId);
-      hub.commitItem(tempId, item.type, translate(item.data, 16, 16));
+      const ref = `c${item.id}-${Date.now().toString(36)}`;
+      const data = translate(item.data, 16, 16);
+      pending.current.set(`${ref}-new`, { ref, snapshot: { ref, type: item.type, data } });
+      hub.commitItem(`${ref}-new`, item.type, data);
     }
   };
 
@@ -445,9 +521,16 @@ export function BoardPage(): ReactElement {
             onSelection={setSelection}
             onMoved={(itemIds, dx, dy) => {
               hub.moveItems(itemIds, dx, dy);
-              history.push({ kind: 'move', itemIds, dx, dy });
+              history.push({ kind: 'move', refs: itemIds.map(refOf), dx, dy });
             }}
-            onCreated={(tempId) => myStrokes.current.add(tempId)}
+            onCommit={(type, data, tempId) => {
+              // Черновой ключ, под которым штрих уже рассылался, сохраняем:
+              // по нему остальные заменят «рисуется» на «нарисовано».
+              const ref = `s${tempId}`;
+              pending.current.set(tempId, { ref, snapshot: { ref, type, data } });
+              hub.commitItem(tempId, type, data);
+            }}
+            onErase={eraseAt}
             onDrawStart={() => setShowParams(false)}
             onTextAt={setTextAt}
           />
@@ -487,6 +570,7 @@ export function BoardPage(): ReactElement {
             <TextInput
               at={textAt}
               viewport={viewport}
+              bounds={canvasSize}
               settings={settings.text}
               onCommit={commitText}
               onCancel={() => setTextAt(null)}

@@ -207,6 +207,19 @@ export function drawGrid(
     return;
   }
 
+  if (style === 'line') {
+    // Только горизонтальные — как в линованной тетради.
+    context.lineWidth = 0.8;
+    context.beginPath();
+    for (let y = startY; y < height; y += step) {
+      context.moveTo(0, y);
+      context.lineTo(width, y);
+    }
+    context.stroke();
+    context.restore();
+    return;
+  }
+
   // Квадрат и график отличаются только частотой крупной линии.
   const bold = style === 'graph' ? 5 : 0;
 

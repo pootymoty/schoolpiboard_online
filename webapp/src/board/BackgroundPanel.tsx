@@ -5,6 +5,7 @@ const COLORS = ['#FFFDF8', '#FFFFFF', '#F4F1E8', '#EAF2F8', '#EAF6EE', '#2A211C'
 
 const GRIDS: { kind: GridStyle; label: string }[] = [
   { kind: 'none', label: 'Без сетки' },
+  { kind: 'line', label: 'Линия' },
   { kind: 'dot', label: 'Точка' },
   { kind: 'square', label: 'Клетка' },
   { kind: 'graph', label: 'График' },

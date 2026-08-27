@@ -65,7 +65,7 @@ export interface Cursor {
   y: number;
 }
 
-export type GridStyle = 'none' | 'dot' | 'square' | 'graph' | 'rhombus';
+export type GridStyle = 'none' | 'line' | 'dot' | 'square' | 'graph' | 'rhombus';
 
 /** Оформление холста — свойство доски, общее для всех. */
 export interface Background {

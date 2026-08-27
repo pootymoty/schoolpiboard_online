@@ -40,7 +40,7 @@ public sealed class BoardHub : Hub
     private const int MaxParticipants = 20;
 
     /// <summary>Разлиновки, которые сервер принимает.</summary>
-    private static readonly string[] GridStyles = { "none", "dot", "square", "graph", "rhombus" };
+    private static readonly string[] GridStyles = { "none", "line", "dot", "square", "graph", "rhombus" };
 
     private readonly AppDbContext _db;
     private readonly BoardService _boards;

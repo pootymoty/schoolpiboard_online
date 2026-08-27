@@ -563,6 +563,10 @@
     color: var(--text-muted);
 }
 
+/* Образец типа линии шире квадратной кнопки: короткий отрезок не даёт
+   отличить штрих от штрихпунктира. */
+.btn-tool--line { width: 52px; }
+
 .params__row {
     display: flex;
     flex-wrap: wrap;

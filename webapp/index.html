@@ -2,7 +2,13 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Масштаб страницы отключён намеренно: у холста свой зум, и жест
+         двумя пальцами должен приближать рисунок, а не интерфейс.
+         Заодно iOS перестаёт подтягивать страницу при вводе текста. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="description" content="Доска для занятий в браузере: откройте доску, дайте ссылку — и разбирайте задачи вместе, на одном холсте." />
     <title>SchoolPiBoard — доска для занятий</title>
 

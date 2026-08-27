@@ -3,6 +3,7 @@ import {
   ERASER_SIZES, LINE_STYLES, OPACITIES, PALETTE, SHAPES, SIZES,
 } from './tools';
 import type { PenSettings, ShapeSettings, Tool, ToolSettings } from './tools';
+import { LineStyleIcon, ShapeIcon } from './ShapeIcons';
 
 interface Props {
   tool: Tool;
@@ -116,12 +117,14 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
             {SHAPES.map((item) => (
               <button
                 key={item.kind}
-                className="btn-quiet btn-sm"
+                className="btn-tool"
                 type="button"
                 aria-pressed={shapes.shape === item.kind}
+                aria-label={item.label}
+                title={item.label}
                 onClick={() => patchShape({ shape: item.kind })}
               >
-                {item.label}
+                <ShapeIcon kind={item.kind} />
               </button>
             ))}
           </div>
@@ -150,12 +153,14 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
             {LINE_STYLES.map((item) => (
               <button
                 key={item.kind}
-                className="btn-quiet btn-sm"
+                className="btn-tool btn-tool--line"
                 type="button"
                 aria-pressed={shapes.lineStyle === item.kind}
+                aria-label={item.label}
+                title={item.label}
                 onClick={() => patchShape({ lineStyle: item.kind })}
               >
-                {item.label}
+                <LineStyleIcon kind={item.kind} />
               </button>
             ))}
           </div>

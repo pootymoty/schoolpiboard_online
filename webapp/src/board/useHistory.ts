@@ -1,22 +1,30 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ItemData, ItemType } from './protocol';
 
+/** Снимок объекта, достаточный чтобы создать его заново. */
+export interface ItemSnapshot {
+  /** Устойчивая ссылка. Номер на сервере меняется при пересоздании, эта — нет. */
+  ref: string;
+  type: ItemType;
+  data: ItemData;
+}
+
 /** Что было сделано. Отмена — обратное действие, а не откат к снимку. */
 export type Operation =
-  | { kind: 'create'; itemIds: number[] }
-  | { kind: 'move'; itemIds: number[]; dx: number; dy: number }
-  | { kind: 'delete'; items: { type: ItemType; data: ItemData }[] };
+  | { kind: 'create'; items: ItemSnapshot[] }
+  | { kind: 'delete'; items: ItemSnapshot[] }
+  | { kind: 'move'; refs: string[]; dx: number; dy: number };
 
 interface Actions {
-  create: (type: ItemType, data: ItemData) => void;
-  move: (itemIds: number[], dx: number, dy: number) => void;
-  remove: (itemIds: number[]) => void;
+  /** Создать заново под той же ссылкой. */
+  restore: (snapshot: ItemSnapshot) => void;
+  move: (refs: string[], dx: number, dy: number) => void;
+  remove: (refs: string[]) => void;
 }
 
 export interface History {
   canUndo: boolean;
   canRedo: boolean;
-  /** Запомнить сделанное. Повтор при этом сбрасывается — ветка истории новая. */
   push: (operation: Operation) => void;
   undo: () => void;
   redo: () => void;
@@ -32,10 +40,10 @@ const LIMIT = 100;
  * Отменяется только своё: доска общая, и откат к общему снимку стирал бы
  * заодно то, что за это время нарисовали другие.
  *
- * Восстановленный после отмены объект получает новый идентификатор —
- * старого на сервере уже нет. Поэтому записи, ссылавшиеся на прежний
- * идентификатор, из истории убираются: отменять то, чего больше нет,
- * значило бы отменять чужое.
+ * История хранит устойчивые ссылки, а не номера объектов. Восстановленный
+ * объект получает от сервера новый номер, и записи, ссылавшиеся на
+ * прежний, стали бы указывать в пустоту; ссылка же переживает любое
+ * количество отмен и повторов.
  */
 export function useHistory(actions: Actions): History {
   const [depth, setDepth] = useState({ undo: 0, redo: 0 });
@@ -49,21 +57,11 @@ export function useHistory(actions: Actions): History {
 
   const push = useCallback((operation: Operation) => {
     past.current = [...past.current, operation].slice(-LIMIT);
+    // Новое действие обрывает ветку повтора: продолжать её было бы
+    // продолжением истории, которой уже не случилось.
     future.current = [];
     sync();
   }, [sync]);
-
-  /** Убирает из истории всё, что ссылается на исчезнувшие объекты. */
-  const forget = useCallback((itemIds: number[]) => {
-    const gone = new Set(itemIds);
-    const alive = (operation: Operation) => (
-      operation.kind === 'delete'
-      || !operation.itemIds.some((id) => gone.has(id))
-    );
-
-    past.current = past.current.filter(alive);
-    future.current = future.current.filter(alive);
-  }, []);
 
   const undo = useCallback(() => {
     const operation = past.current.at(-1);
@@ -72,35 +70,32 @@ export function useHistory(actions: Actions): History {
     past.current = past.current.slice(0, -1);
 
     if (operation.kind === 'create') {
-      actions.remove(operation.itemIds);
-    } else if (operation.kind === 'move') {
-      actions.move(operation.itemIds, -operation.dx, -operation.dy);
+      actions.remove(operation.items.map((item) => item.ref));
+    } else if (operation.kind === 'delete') {
+      for (const item of operation.items) actions.restore(item);
     } else {
-      for (const item of operation.items) actions.create(item.type, item.data);
+      actions.move(operation.refs, -operation.dx, -operation.dy);
     }
 
-    if (operation.kind === 'create') forget(operation.itemIds);
-
-    // Повторить можно только перемещение. Создание и удаление меняют
-    // состав объектов, и отменённое возвращается уже под новым номером —
-    // повтор ссылался бы на тот, которого больше нет.
-    if (operation.kind === 'move') {
-      future.current = [...future.current, operation];
-    } else {
-      future.current = [];
-    }
-
+    future.current = [...future.current, operation];
     sync();
-  }, [actions, forget, sync]);
+  }, [actions, sync]);
 
   const redo = useCallback(() => {
     const operation = future.current.at(-1);
-    if (!operation || operation.kind !== 'move') return;
+    if (!operation) return;
 
     future.current = future.current.slice(0, -1);
-    actions.move(operation.itemIds, operation.dx, operation.dy);
-    past.current = [...past.current, operation];
 
+    if (operation.kind === 'create') {
+      for (const item of operation.items) actions.restore(item);
+    } else if (operation.kind === 'delete') {
+      actions.remove(operation.items.map((item) => item.ref));
+    } else {
+      actions.move(operation.refs, operation.dx, operation.dy);
+    }
+
+    past.current = [...past.current, operation];
     sync();
   }, [actions, sync]);
 

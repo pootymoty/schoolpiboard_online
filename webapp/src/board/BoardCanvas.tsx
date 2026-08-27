@@ -25,11 +25,14 @@ interface Props {
   onSize: (size: { width: number; height: number }) => void;
   onSelection: (itemIds: number[]) => void;
   onMoved: (itemIds: number[], dx: number, dy: number) => void;
-  onCreated: (tempId: string) => void;
+  /** Объект дорисован. Отправляет его страница — она же ведёт историю. */
+  onCommit: (type: ItemType, data: ItemData, tempId: string) => void;
   /** Начали рисовать — панель параметров должна уйти с дороги. */
   onDrawStart: () => void;
   /** Ткнули текстом: здесь появится поле ввода. */
   onTextAt: (world: Point) => void;
+  /** Ластик прошёл по точке: что стереть и что оставить, решает страница. */
+  onErase: (at: Point, radius: number) => void;
 }
 
 /** Не чаще двадцати раз в секунду — предел из раздела 7.1. */
@@ -54,7 +57,7 @@ const ERASE_RADIUS = 8;
  */
 export function BoardCanvas({
   hub, tool, settings, viewport, background, selection,
-  onViewport, onSize, onSelection, onMoved, onCreated, onDrawStart, onTextAt,
+  onViewport, onSize, onSelection, onMoved, onCommit, onDrawStart, onTextAt, onErase,
 }: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
@@ -100,6 +103,12 @@ export function BoardCanvas({
 
   /** Перетаскивание выделенного: откуда начали и сколько уже сдвинули. */
   const moving = useRef<{ pointerId: number; from: Point; dx: number; dy: number } | null>(null);
+
+  /** Указатель, которым сейчас стирают. */
+  const erasing = useRef<number | null>(null);
+
+  /** Тычок инструментом «текст»: решаем по отпусканию, а не по нажатию. */
+  const tapping = useRef<{ pointerId: number; at: Point } | null>(null);
 
   /** Растягивание за ручку. */
   const resizing = useRef<{
@@ -386,6 +395,8 @@ export function BoardCanvas({
     if (touches().length >= 2) {
       cancelStroke();
       panning.current = null;
+      erasing.current = null;
+      tapping.current = null;
       blockUntilRelease.current = true;
       startPinch();
       return;
@@ -414,8 +425,9 @@ export function BoardCanvas({
       : ERASE_RADIUS / latest.current.viewport.scale;
 
     if (latest.current.tool === 'eraser') {
-      const hit = topmostAt(hub.items, point, reach);
-      if (hit) hub.deleteItems([hit.id]);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      erasing.current = event.pointerId;
+      onErase(point, reach);
       return;
     }
 
@@ -475,8 +487,12 @@ export function BoardCanvas({
       return;
     }
 
+    // Надпись ставится по отпусканию, а не по нажатию: пока палец на
+    // экране, это может оказаться началом жеста двумя пальцами, и поле
+    // ввода успевало открыться до того, как жест распознан.
     if (latest.current.tool === 'text') {
-      onTextAt(point);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      tapping.current = { pointerId: event.pointerId, at: point };
       return;
     }
 
@@ -515,6 +531,8 @@ export function BoardCanvas({
     if (!pinch.current && touches().length >= 2) {
       cancelStroke();
       panning.current = null;
+      erasing.current = null;
+      tapping.current = null;
       blockUntilRelease.current = true;
       startPinch();
       return;
@@ -560,6 +578,11 @@ export function BoardCanvas({
     if (marquee.current?.pointerId === event.pointerId) {
       marquee.current.to = point;
       schedule();
+      return;
+    }
+
+    if (erasing.current === event.pointerId) {
+      onErase(point, latest.current.settings.eraser.size / 2);
       return;
     }
 
@@ -622,6 +645,20 @@ export function BoardCanvas({
 
     panning.current = null;
 
+    if (erasing.current === event.pointerId) {
+      erasing.current = null;
+      return;
+    }
+
+    const tap = tapping.current;
+    if (tap?.pointerId === event.pointerId) {
+      tapping.current = null;
+      // Жест двумя пальцами отменяет тычок: это было приближение, а не
+      // попытка что-то написать.
+      if (!blockUntilRelease.current) onTextAt(tap.at);
+      return;
+    }
+
     const band = marquee.current;
     if (band?.pointerId === event.pointerId) {
       marquee.current = null;
@@ -665,8 +702,7 @@ export function BoardCanvas({
       : stroke.points.length > 1;
 
     if (meaningful) {
-      hub.commitItem(stroke.tempId, brush.type, { ...brush.data, ...geometry });
-      onCreated(stroke.tempId);
+      onCommit(brush.type, { ...brush.data, ...geometry }, stroke.tempId);
     } else if (brush.type === 'stroke') {
       hub.cancelItem(stroke.tempId);
     }
