@@ -50,6 +50,25 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
   /** Перетаскивание холста: чем и откуда тащат. */
   const panning = useRef<{ pointerId: number; startX: number; startY: number; origin: Viewport } | null>(null);
 
+  /** Все указатели, лежащие на экране сейчас. Нужны для жестов двумя пальцами. */
+  const pointers = useRef(new Map<number, { x: number; y: number; type: string }>());
+
+  /** Щипок: расстояние и середина между пальцами в начале жеста. */
+  const pinch = useRef<{ distance: number; centerX: number; centerY: number; origin: Viewport } | null>(null);
+
+  /**
+   * После жеста двумя пальцами оставшийся на экране палец не должен
+   * начать рисовать: жест кончается не одновременно с касанием.
+   */
+  const blockUntilRelease = useRef(false);
+
+  /**
+   * Видели ли на этой доске перо. Если видели — палец только двигает
+   * холст: на планшете рисуют пером, а ладонь и палец следа оставлять
+   * не должны. На телефоне пера нет, и палец, естественно, рисует.
+   */
+  const penSeen = useRef(false);
+
   const lastCursor = useRef(0);
   const lastBatch = useRef(0);
   const frame = useRef(0);
@@ -191,17 +210,68 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
     };
   };
 
-  /** Тащат ли сейчас холст: рукой, пробелом или средней кнопкой. */
+  /** Бросить начатый штрих: он оказался не линией, а началом жеста. */
+  const cancelStroke = () => {
+    const stroke = drawing.current;
+    if (!stroke) return;
+
+    drawing.current = null;
+    hub.cancelItem(stroke.tempId);
+    schedule();
+  };
+
+  /** Пальцы, лежащие на экране. Мышь и перо в жестах не участвуют. */
+  const touches = () => [...pointers.current.entries()].filter(([, p]) => p.type === 'touch');
+
+  const startPinch = () => {
+    const [first, second] = touches().slice(0, 2).map(([, p]) => p);
+    if (!first || !second) return;
+
+    pinch.current = {
+      distance: Math.hypot(second.x - first.x, second.y - first.y),
+      centerX: (first.x + second.x) / 2,
+      centerY: (first.y + second.y) / 2,
+      origin: latest.current.viewport,
+    };
+  };
+
+  /** Тащат ли сейчас холст: рукой, пробелом, средней кнопкой или пальцем при пере. */
   const wantsPan = (event: ReactPointerEvent<HTMLCanvasElement>) =>
-    latest.current.tool === 'hand' || latest.current.spaceHeld || event.button === 1 || !hub.canEdit;
+    latest.current.tool === 'hand'
+    || latest.current.spaceHeld
+    || event.button === 1
+    || !hub.canEdit
+    || (event.pointerType === 'touch' && penSeen.current);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     // Иначе Safari на касании начинает выделять текст и показывает
     // системное меню поверх доски.
     event.preventDefault();
 
+    if (event.pointerType === 'pen') penSeen.current = true;
+
+    // Если на экране не осталось ни одного указателя, запрет снимаем сам:
+    // система может не доставить отпускание — например, когда поверх
+    // приложения вклинился системный жест, — и без этого рисование
+    // осталось бы заблокированным до перезагрузки страницы.
+    if (pointers.current.size === 0) blockUntilRelease.current = false;
+
+    const screen = screenPoint(event);
+    pointers.current.set(event.pointerId, { ...screen, type: event.pointerType });
+
+    // Второй палец превращает касание в жест. Начатый штрих отменяем:
+    // иначе между пальцами протягивалась бы линия.
+    if (touches().length >= 2) {
+      cancelStroke();
+      panning.current = null;
+      blockUntilRelease.current = true;
+      startPinch();
+      return;
+    }
+
+    if (blockUntilRelease.current) return;
+
     if (wantsPan(event)) {
-      const screen = screenPoint(event);
       event.currentTarget.setPointerCapture(event.pointerId);
       panning.current = {
         pointerId: event.pointerId,
@@ -235,6 +305,33 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (pointers.current.has(event.pointerId)) {
+      pointers.current.set(event.pointerId, { ...screenPoint(event), type: event.pointerType });
+    }
+
+    // Щипок задаёт масштаб и сдвиг разом: пальцы и разводят, и ведут,
+    // и разделять эти два движения было бы искусственно.
+    const gesture = pinch.current;
+    if (gesture) {
+      const [first, second] = touches().slice(0, 2).map(([, p]) => p);
+      if (!first || !second) return;
+
+      const distance = Math.hypot(second.x - first.x, second.y - first.y);
+      if (gesture.distance <= 0) return;
+
+      const scale = clampScale(gesture.origin.scale * (distance / gesture.distance));
+      const world = toWorld(gesture.origin, gesture.centerX, gesture.centerY);
+
+      onViewport({
+        scale,
+        x: (first.x + second.x) / 2 - world.x * scale,
+        y: (first.y + second.y) / 2 - world.y * scale,
+      });
+      return;
+    }
+
+    if (blockUntilRelease.current) return;
+
     const pan = panning.current;
 
     if (pan && pan.pointerId === event.pointerId) {
@@ -270,7 +367,14 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
     schedule();
   };
 
-  const finish = () => {
+  const finish = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    pointers.current.delete(event.pointerId);
+
+    // Один палец из двух убрали — жест окончен, но оставшийся не должен
+    // тут же начать рисовать с середины экрана.
+    if (touches().length < 2) pinch.current = null;
+    if (pointers.current.size === 0) blockUntilRelease.current = false;
+
     panning.current = null;
 
     const stroke = drawing.current;

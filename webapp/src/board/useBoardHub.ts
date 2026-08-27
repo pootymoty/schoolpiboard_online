@@ -29,6 +29,7 @@ export interface BoardHub {
   beginItem: (tempId: string, type: ItemType, data: ItemData) => void;
   appendPoints: (tempId: string, points: ItemData['points']) => void;
   commitItem: (tempId: string, type: ItemType, data: ItemData) => void;
+  cancelItem: (tempId: string) => void;
   deleteItems: (ids: number[]) => void;
   clearBoard: () => void;
 }
@@ -73,6 +74,14 @@ export function useBoardHub(boardId: number): BoardHub {
             ...stroke,
             data: { ...stroke.data, points: [...(stroke.data.points ?? []), ...payload.points] },
           });
+          return next;
+        });
+        break;
+
+      case 'ItemCancelled':
+        setLive((current) => {
+          const next = new Map(current);
+          next.delete(payload.tempId);
           return next;
         });
         break;
@@ -148,8 +157,9 @@ export function useBoardHub(boardId: number): BoardHub {
     // Каждое событие приходит вместе со своим номером — запоминаем его,
     // чтобы было чем догоняться после обрыва.
     const handled = [
-      'ItemBegan', 'ItemPoints', 'ItemCommitted', 'ItemUpdated', 'ItemsDeleted',
-      'BoardCleared', 'ItemLocked', 'ItemUnlocked', 'MemberJoined', 'MemberLeft',
+      'ItemBegan', 'ItemPoints', 'ItemCommitted', 'ItemCancelled', 'ItemUpdated',
+      'ItemsDeleted', 'BoardCleared', 'ItemLocked', 'ItemUnlocked',
+      'MemberJoined', 'MemberLeft',
     ];
 
     for (const name of handled) {
@@ -248,6 +258,7 @@ export function useBoardHub(boardId: number): BoardHub {
     beginItem: useCallback((id, type, data) => call('BeginItem', id, type, data), [call]),
     appendPoints: useCallback((id, points) => call('AppendPoints', id, points), [call]),
     commitItem: useCallback((id, type, data) => call('CommitItem', id, type, data), [call]),
+    cancelItem: useCallback((id: string) => call('CancelItem', id), [call]),
     deleteItems: useCallback((ids: number[]) => call('DeleteItems', ids), [call]),
     clearBoard: useCallback(() => call('ClearBoard'), [call]),
   };

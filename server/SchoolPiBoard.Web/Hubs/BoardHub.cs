@@ -230,6 +230,21 @@ public sealed class BoardHub : Hub
         });
     }
 
+    /// <summary>
+    /// Штрих брошен, не начавшись как следует: рисующий положил на экран
+    /// второй палец, и это оказался жест, а не линия.
+    ///
+    /// Без этого сообщения недорисованный штрих остался бы висеть у всех
+    /// остальных: он живёт в памяти до закрепления, а закрепления не будет.
+    /// </summary>
+    public async Task CancelItem(string tempId)
+    {
+        var presence = await RequireEditorAsync();
+        if (presence is null) return;
+
+        await PublishAsync(presence.BoardId, "ItemCancelled", new { tempId, by = Context.ConnectionId });
+    }
+
     /// <summary>Штрих закончен — вот теперь он становится объектом доски.</summary>
     public async Task CommitItem(string tempId, string type, JsonElement data)
     {
