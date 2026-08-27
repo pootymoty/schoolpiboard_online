@@ -99,6 +99,10 @@ export function BoardCanvas({ hub, tool, color, width }: Props): ReactElement {
   const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (!hub.canEdit) return;
 
+    // Иначе Safari на касании начинает выделять текст и показывает
+    // системное меню поверх доски.
+    event.preventDefault();
+
     const point = positionOf(event);
 
     if (tool === 'eraser') {
@@ -167,8 +171,11 @@ export function BoardCanvas({ hub, tool, color, width }: Props): ReactElement {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={finish}
+        // Без onPointerLeave намеренно: указатель захвачен, и штрих,
+        // уведённый за край холста, должен продолжаться, а не обрываться.
+        // На касании это событие приходит ещё и в начале жеста — с ним
+        // палец не рисовал вовсе.
         onPointerCancel={finish}
-        onPointerLeave={finish}
       />
 
       {/* Чужие курсоры — обычные элементы поверх холста, а не рисунок на
