@@ -88,6 +88,8 @@ export function Header(): ReactElement {
       <nav className="desktop-menu" aria-label="Разделы сайта">
         {user ? (
           <>
+            <Link to="/">Главная</Link>
+            <Link to="/about">О нас</Link>
             <Link to="/boards">Мои доски</Link>
             <Menu
               label="Личный кабинет"
@@ -109,7 +111,11 @@ export function Header(): ReactElement {
         )}
       </nav>
 
-      <ThemeSwitch theme={theme} toggle={toggle} />
+      {/* На узком экране слайдер темы лежит в бургер-меню, а не рядом с
+          ним отдельной кнопкой — тесно и незачем плодить точки на панели. */}
+      <span className="theme-switch--header">
+        <ThemeSwitch theme={theme} toggle={toggle} />
+      </span>
 
       <button
         className="hamburger btn-tool"
@@ -126,7 +132,13 @@ export function Header(): ReactElement {
         <ul>
           {user ? (
             <>
+              <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
+              <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
               <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
+              <li className="navbar-item--switch">
+                <span className="navbar-item__label">Тёмная тема</span>
+                <ThemeSwitch theme={theme} toggle={toggle} />
+              </li>
               <li className={cabinetOpen ? 'navbar-dropdown navbar-dropdown--active' : 'navbar-dropdown'}>
                 <div
                   className="navbar-dropdown__toggle"
@@ -148,6 +160,10 @@ export function Header(): ReactElement {
             <>
               <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
+              <li className="navbar-item--switch">
+                <span className="navbar-item__label">Тёмная тема</span>
+                <ThemeSwitch theme={theme} toggle={toggle} />
+              </li>
               <li><Link to="/login" onClick={closeMobile}>Войти</Link></li>
             </>
           )}

@@ -59,9 +59,12 @@
     gap: var(--sp-4);
 }
 
+.theme-switch--header { display: none; }
+
 @media (min-width: 900px) {
     .desktop-menu { display: flex; }
     .hamburger { display: none; }
+    .theme-switch--header { display: inline-flex; }
 }
 
 .hamburger {
@@ -91,6 +94,19 @@
     padding: var(--sp-3);
     display: flex;
     flex-direction: column;
+}
+
+.navbar-item--switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-3) var(--sp-2);
+    border-bottom: 1px solid var(--line);
+}
+
+.navbar-item__label {
+    font-weight: 600;
+    color: var(--text);
 }
 
 .navbar li a,
@@ -180,6 +196,13 @@ body.no-scroll {
 .theme-switch input:checked + .theme-switch__track .theme-switch__thumb { transform: translateX(18px); }
 
 .theme-switch input:focus-visible + .theme-switch__track { outline: 2px solid var(--accent-soft); }
+
+/* В бургер-меню слайдер лежит на светлой подложке, а не на тёмной шапке —
+   нужны свои цвета трека и бегунка, иначе он там просто не виден. */
+.navbar-item--switch .theme-switch__track { background: var(--surface-2); border: 1px solid var(--line); }
+.navbar-item--switch .theme-switch__thumb { background: var(--text-muted); }
+.navbar-item--switch .theme-switch input:checked + .theme-switch__track { background: var(--accent); }
+.navbar-item--switch .theme-switch input:checked + .theme-switch__track .theme-switch__thumb { background: #fff; }
 
 /* --- Каркас страницы ------------------------------------------------------ */
 
