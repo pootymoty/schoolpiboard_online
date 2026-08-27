@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { IconClose } from './Icons';
 
@@ -8,9 +8,6 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
 }
-
-/** Столько же, сколько длится выезд в CSS. */
-const ANIMATION_MS = 180;
 
 /**
  * Панель поверх холста, у правого края.
@@ -24,40 +21,28 @@ const ANIMATION_MS = 180;
  * не прекращая работать. Закрывается крестиком, той же кнопкой на панели
  * инструментов и клавишей Escape.
  */
-export function CanvasPanel({ open, title, onClose, children }: Props): ReactElement | null {
-  // Панель переживает закрытие на время анимации: убрать её из разметки
-  // сразу — значит показать исчезновение вместо уезда.
-  const [mounted, setMounted] = useState(open);
-  const timer = useRef(0);
-
+export function CanvasPanel({ open, title, onClose, children }: Props): ReactElement {
   useEffect(() => {
-    window.clearTimeout(timer.current);
+    if (!open) return;
 
-    if (open) {
-      setMounted(true);
-      return;
-    }
-
-    timer.current = window.setTimeout(() => setMounted(false), ANIMATION_MS);
-    return () => window.clearTimeout(timer.current);
-  }, [open]);
-
-  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
 
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [open, onClose]);
 
-  if (!mounted) return null;
-
+  // Панель всегда в разметке и просто уезжает за край. Появление и
+  // исчезновение элемента переходом не анимируется — браузеру нечего
+  // сравнивать, когда одного из состояний в дереве нет; поэтому здесь
+  // переключается класс, а не монтирование.
   return (
     <aside
-      className={open ? 'canvas-panel' : 'canvas-panel canvas-panel--closing'}
+      className={open ? 'canvas-panel canvas-panel--open' : 'canvas-panel'}
       role="dialog"
       aria-label={title}
+      aria-hidden={!open}
     >
       <div className="canvas-panel__head">
         <h2 className="canvas-panel__title">{title}</h2>

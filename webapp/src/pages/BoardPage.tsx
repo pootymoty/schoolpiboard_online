@@ -19,6 +19,8 @@ import { TextInput } from '../board/TextInput';
 import { fontOf } from '../board/render';
 import { boundsOf, pointsOf, translate } from '../board/geometry';
 import { SelectionPanel } from '../board/SelectionPanel';
+import { BackgroundPanel } from '../board/BackgroundPanel';
+import { exportPng } from '../board/exportPng';
 import { useBoardHub } from '../board/useBoardHub';
 import { useWaitingQueue } from '../board/useWaitingQueue';
 import { useHistory } from '../board/useHistory';
@@ -63,6 +65,7 @@ export function BoardPage(): ReactElement {
   const [tool, setToolRaw] = useState<Tool>('pen1');
   const [settings, setSettings] = useState<ToolSettings>(DEFAULT_SETTINGS);
   const [showParams, setShowParams] = useState(false);
+  const [showBackground, setShowBackground] = useState(false);
 
   /** Куда поставить надпись. Пока задано — на холсте открыто поле ввода. */
   const [textAt, setTextAt] = useState<Point | null>(null);
@@ -333,11 +336,10 @@ export function BoardPage(): ReactElement {
   // Свой собственный гостевой вход отдельной строкой ниже — из общего
   // списка его убираем, иначе человек видел бы себя дважды.
   const otherGuests = guests.filter((guest) => guest.guestId !== me.guestId);
-  // Пока хаб не подключился, показываем список из состояния доски: пустой
-  // счётчик на секунду выглядел бы как «на доске никого».
-  const presentCount = hub.status === 'ready'
-    ? hub.participants.length
-    : members.length + otherGuests.length + (me.isGuest ? 1 : 0);
+  // Ровно то же число, что показывает сам список. Раньше кнопка считала
+  // по присутствию в хабе, а список — по составу доски; это разные вещи,
+  // и они расходились: впущенный появлялся в списке, а на кнопке нет.
+  const presentCount = members.length + otherGuests.length + (me.isGuest ? 1 : 0);
 
   return (
     <BoardShell>
@@ -411,6 +413,12 @@ export function BoardPage(): ReactElement {
           scale={viewport.scale}
           canUndo={history.canUndo}
           canRedo={history.canRedo}
+          onBackground={() => setShowBackground((current) => !current)}
+          onExport={() => {
+            if (!exportPng(hub.items, hub.background, board.title)) {
+              setError('Доска пуста — сохранять нечего.');
+            }
+          }}
           hasSelection={selection.length > 0}
           onTool={setTool}
           onZoom={zoomBy}
@@ -430,6 +438,7 @@ export function BoardPage(): ReactElement {
             tool={tool}
             settings={settings}
             viewport={viewport}
+            background={hub.background}
             selection={selection}
             onViewport={setViewport}
             onSize={setCanvasSize}
@@ -442,6 +451,14 @@ export function BoardPage(): ReactElement {
             onDrawStart={() => setShowParams(false)}
             onTextAt={setTextAt}
           />
+
+          {showBackground && hub.canManage ? (
+            <BackgroundPanel
+              value={hub.background}
+              onChange={hub.setBackground}
+              onClose={() => setShowBackground(false)}
+            />
+          ) : null}
 
           {showParams ? (
             <ToolSettingsPanel

@@ -65,6 +65,21 @@ export interface Cursor {
   y: number;
 }
 
+export type GridStyle = 'none' | 'dot' | 'square' | 'graph' | 'rhombus';
+
+/** Оформление холста — свойство доски, общее для всех. */
+export interface Background {
+  background: string;
+  gridStyle: GridStyle;
+  gridColor: string;
+}
+
+export const DEFAULT_BACKGROUND: Background = {
+  background: '#FFFDF8',
+  gridStyle: 'none',
+  gridColor: '#D9CFC0',
+};
+
 /** Начальное состояние доски. */
 export interface JoinedPayload {
   role: BoardRole;
@@ -73,6 +88,7 @@ export interface JoinedPayload {
   seq: number;
   items: BoardItem[];
   participants: Participant[];
+  background: Background;
 }
 
 /** Возвращение после обрыва: доска уже нарисована, нужно только пропущенное. */
@@ -90,6 +106,7 @@ export interface SyncedPayload {
   seq: number;
   items: BoardItem[];
   participants: Participant[];
+  background: Background;
 }
 
 /** Чужой штрих, пока он ещё рисуется: в базе его нет, он живёт в памяти. */

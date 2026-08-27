@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using SchoolPiBoard.Web.Data;
 using SchoolPiBoard.Web.Data.Entities;
 using SchoolPiBoard.Web.Services;
 
@@ -14,6 +16,9 @@ public sealed record ItemDto(
     JsonElement Data,
     string? ImageRef,
     string? LockedBy);
+
+/// <summary>Оформление холста.</summary>
+public sealed record BackgroundDto(string Background, string GridStyle, string GridColor);
 
 /// <summary>Участник, подключённый к доске.</summary>
 public sealed record ParticipantDto(string ConnectionId, string DisplayName, string Role, bool IsGuest);
@@ -34,6 +39,10 @@ public sealed class BoardHub : Hub
     /// </summary>
     private const int MaxParticipants = 20;
 
+    /// <summary>Разлиновки, которые сервер принимает.</summary>
+    private static readonly string[] GridStyles = { "none", "dot", "square", "graph", "rhombus" };
+
+    private readonly AppDbContext _db;
     private readonly BoardService _boards;
     private readonly BoardItemService _items;
     private readonly BoardEventLog _log;
@@ -41,12 +50,14 @@ public sealed class BoardHub : Hub
     private readonly CursorRelay _cursors;
 
     public BoardHub(
+        AppDbContext db,
         BoardService boards,
         BoardItemService items,
         BoardEventLog log,
         BoardPresence presence,
         CursorRelay cursors)
     {
+        _db = db;
         _boards = boards;
         _items = items;
         _log = log;
@@ -126,7 +137,8 @@ public sealed class BoardHub : Hub
                     canManage = actor.CanManage,
                     seq = await _log.CurrentSeqAsync(boardId),
                     items = items.Select(ToDto),
-                    participants = Participants(boardId)
+                    participants = Participants(boardId),
+                    background = await BackgroundOf(boardId)
                 },
                 Context.ConnectionAborted);
         }
@@ -166,7 +178,8 @@ public sealed class BoardHub : Hub
             {
                 seq = await _log.CurrentSeqAsync(presence.BoardId),
                 items = items.Select(ToDto),
-                participants = Participants(presence.BoardId)
+                participants = Participants(presence.BoardId),
+                background = await BackgroundOf(presence.BoardId)
             },
             Context.ConnectionAborted);
     }
@@ -366,6 +379,38 @@ public sealed class BoardHub : Hub
         await PublishAsync(presence.BoardId, "ItemsDeleted", new { itemIds = removed });
     }
 
+    /// <summary>
+    /// Оформление холста — только владелец. Фон общий для всех, кто на
+    /// доске: это свойство самой доски, а не настройка каждого.
+    /// </summary>
+    public async Task SetBackground(string background, string gridStyle, string gridColor)
+    {
+        var presence = _presence.Find(Context.ConnectionId);
+
+        if (presence is null || !presence.CanManage)
+        {
+            await Clients.Caller.SendAsync("Error", "forbidden", "Оформление меняет владелец доски.");
+            return;
+        }
+
+        if (!GridStyles.Contains(gridStyle) || !IsColor(background) || !IsColor(gridColor))
+        {
+            await Clients.Caller.SendAsync("Error", "bad_request", "Такое оформление доска не принимает.");
+            return;
+        }
+
+        var board = await _db.Boards.FirstOrDefaultAsync(x => x.Id == presence.BoardId, Context.ConnectionAborted);
+        if (board is null) return;
+
+        board.Background = background;
+        board.GridStyle = gridStyle;
+        board.GridColor = gridColor;
+        await _db.SaveChangesAsync(Context.ConnectionAborted);
+
+        await PublishAsync(presence.BoardId, "BackgroundChanged",
+            new BackgroundDto(background, gridStyle, gridColor));
+    }
+
     /// <summary>Очистить доску целиком — только владелец.</summary>
     public async Task ClearBoard()
     {
@@ -438,6 +483,21 @@ public sealed class BoardHub : Hub
 
         await PublishAsync(presence.BoardId, "MemberLeft", new { connectionId = Context.ConnectionId });
     }
+
+    private async Task<BackgroundDto> BackgroundOf(long boardId)
+    {
+        var board = await _db.Boards.FirstOrDefaultAsync(x => x.Id == boardId, Context.ConnectionAborted);
+
+        return board is null
+            ? new BackgroundDto("#FFFDF8", "none", "#D9CFC0")
+            : new BackgroundDto(board.Background, board.GridStyle, board.GridColor);
+    }
+
+    /// <summary>Цвет принимаем только шестнадцатеричный: остальное — чужой ввод в стиль.</summary>
+    private static bool IsColor(string value)
+        => value.Length is 4 or 7
+           && value[0] == '#'
+           && value.Skip(1).All(Uri.IsHexDigit);
 
     private List<ParticipantDto> Participants(long boardId)
         => _presence.OnBoard(boardId)

@@ -103,6 +103,21 @@ export const IconPeople = (props: Props): ReactElement => (
   </Svg>
 );
 
+/** Сохранить картинкой. */
+export const IconDownload = (props: Props): ReactElement => (
+  <Svg {...props}><g><path d="M12 3v12" /><path d="M7 11l5 5 5-5" /><path d="M4 21h16" /></g></Svg>
+);
+
+/** Фон и разлиновка. */
+export const IconGrid = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+    </g>
+  </Svg>
+);
+
 /** Дублировать. */
 export const IconCopy = (props: Props): ReactElement => (
   <Svg {...props}>

@@ -48,6 +48,14 @@ public class Board
     /// </summary>
     public bool Locked { get; set; }
 
+    /// <summary>Цвет холста.</summary>
+    public string Background { get; set; } = "#FFFDF8";
+
+    /// <summary>Разлиновка: none, dot, square, graph, rhombus.</summary>
+    public string GridStyle { get; set; } = "none";
+
+    public string GridColor { get; set; } = "#D9CFC0";
+
     /// <summary>Сколько места заняли картинки. Наполняется на этапе 11d.</summary>
     public long BytesUsed { get; set; }
 

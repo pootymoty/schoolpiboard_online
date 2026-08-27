@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import type { BoardHub } from './useBoardHub';
-import type { ItemData, ItemType, Point } from './protocol';
+import type { Background, ItemData, ItemType, Point } from './protocol';
 import { cursorColor } from './cursorColors';
 import { boundsOf, rectFrom, topmostAt, translate, within } from './geometry';
 import type { Bounds } from './geometry';
 import { HANDLE_SIZE, handlesFor, resized } from './handles';
 import type { HandleId } from './handles';
-import { drawItem } from './render';
+import { drawGrid, drawItem } from './render';
 import type { ToolSettings, Tool } from './tools';
 import { clampScale, toScreen, toWorld, zoomAt } from './viewport';
 import type { Viewport } from './viewport';
@@ -19,6 +19,7 @@ interface Props {
   tool: Tool;
   settings: ToolSettings;
   viewport: Viewport;
+  background: Background;
   selection: number[];
   onViewport: (viewport: Viewport) => void;
   onSize: (size: { width: number; height: number }) => void;
@@ -52,7 +53,7 @@ const ERASE_RADIUS = 8;
  * не пишутся (раздел 7.3).
  */
 export function BoardCanvas({
-  hub, tool, settings, viewport, selection,
+  hub, tool, settings, viewport, background, selection,
   onViewport, onSize, onSelection, onMoved, onCreated, onDrawStart, onTextAt,
 }: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -143,8 +144,8 @@ export function BoardCanvas({
 
   // Свежие значения для обработчиков указателя: они живут вне React-цикла
   // и иначе видели бы состояние на момент подписки.
-  const latest = useRef({ viewport, tool, settings, spaceHeld, selection, items: hub.items });
-  latest.current = { viewport, tool, settings, spaceHeld, selection, items: hub.items };
+  const latest = useRef({ viewport, tool, settings, spaceHeld, selection, background, items: hub.items });
+  latest.current = { viewport, tool, settings, spaceHeld, selection, background, items: hub.items };
 
   useEffect(() => {
     const element = box.current;
@@ -196,6 +197,17 @@ export function BoardCanvas({
 
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, element.width, element.height);
+
+    // Фон и разлиновка — в экранных координатах, до преобразования мира.
+    const view0 = latest.current.background;
+    context.fillStyle = view0.background;
+    context.fillRect(0, 0, element.width / ratio, element.height / ratio);
+
+    drawGrid(
+      context, view0.gridStyle, view0.gridColor,
+      element.width / ratio, element.height / ratio,
+      view.x, view.y, view.scale,
+    );
 
     // Мир переводится в экран одним преобразованием, а не пересчётом
     // каждой точки: так толщина линии масштабируется вместе с рисунком.
@@ -273,7 +285,7 @@ export function BoardCanvas({
   useEffect(() => {
     schedule();
     return () => cancelAnimationFrame(frame.current);
-  }, [schedule, size, viewport, settings, tool]);
+  }, [schedule, size, viewport, settings, tool, background]);
 
   // Колесо — масштаб с привязкой к точке под курсором. Слушатель вешаем
   // сами и не пассивным: иначе браузер не даст отменить прокрутку страницы.

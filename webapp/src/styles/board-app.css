@@ -229,13 +229,27 @@
     border-left: 1px solid var(--line);
     border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
     box-shadow: var(--shadow-lg);
-    animation: canvas-panel-in .18s ease-out;
+
+    /* Закрытая панель уехала за край и не ловит нажатия. `visibility`
+       переключается с задержкой на время уезда — иначе панель пропала бы
+       мгновенно, не успев уехать. */
+    transform: translateX(100%);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+        transform .18s ease,
+        opacity .18s ease,
+        visibility 0s linear .18s;
 }
 
-/* Закрытие — тот же путь в обратную сторону. Панель остаётся в разметке
-   на время анимации, иначе получилось бы исчезновение, а не уезд. */
-.canvas-panel--closing {
-    animation: canvas-panel-out .18s ease-in forwards;
+.canvas-panel--open {
+    transform: translateX(0);
+    opacity: 1;
+    visibility: visible;
+    transition:
+        transform .18s ease,
+        opacity .18s ease,
+        visibility 0s;
 }
 
 .canvas-panel__head {
@@ -259,19 +273,9 @@
     padding: var(--sp-3) var(--sp-4) var(--sp-4);
 }
 
-@keyframes canvas-panel-in {
-    from { transform: translateX(100%); opacity: .6; }
-    to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes canvas-panel-out {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(100%); opacity: .6; }
-}
-
 @media (prefers-reduced-motion: reduce) {
     .canvas-panel,
-    .canvas-panel--closing { animation: none; }
+    .canvas-panel--open { transition: none; }
 }
 
 /* Листалка списка участников: страницами по пять, а не бесконечной
@@ -528,6 +532,13 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
+}
+
+/* Оформление фона открывается справа: слева уже живут параметры
+   инструмента, и две панели у одного края перекрыли бы друг друга. */
+.params--right {
+    left: auto;
+    right: var(--sp-3);
 }
 
 .params__head {

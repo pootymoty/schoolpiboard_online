@@ -149,6 +149,89 @@ function drawText(context: CanvasRenderingContext2D, data: ItemData): void {
   });
 }
 
+/**
+ * Разлиновка холста.
+ *
+ * Рисуется по видимой области в экранных координатах, а не по всему
+ * бесконечному миру: шаг остаётся одинаковым на любом масштабе, и линий
+ * всегда столько, сколько помещается в окно.
+ */
+export function drawGrid(
+  context: CanvasRenderingContext2D,
+  style: string,
+  color: string,
+  width: number,
+  height: number,
+  offsetX: number,
+  offsetY: number,
+  scale: number,
+): void {
+  if (style === 'none') return;
+
+  // Шаг держим в пределах читаемого: на сильном отдалении сетка иначе
+  // превращается в сплошную заливку и съедает кадр.
+  let step = 32 * scale;
+  while (step < 12) step *= 4;
+  while (step > 160) step /= 2;
+
+  const startX = offsetX % step;
+  const startY = offsetY % step;
+
+  context.save();
+  context.strokeStyle = color;
+  context.fillStyle = color;
+  context.lineWidth = 1;
+
+  if (style === 'dot') {
+    for (let x = startX; x < width; x += step) {
+      for (let y = startY; y < height; y += step) {
+        context.beginPath();
+        context.arc(x, y, 1.2, 0, Math.PI * 2);
+        context.fill();
+      }
+    }
+    context.restore();
+    return;
+  }
+
+  if (style === 'rhombus') {
+    context.beginPath();
+    for (let x = startX - height; x < width + height; x += step) {
+      context.moveTo(x, 0);
+      context.lineTo(x + height, height);
+      context.moveTo(x, height);
+      context.lineTo(x + height, 0);
+    }
+    context.stroke();
+    context.restore();
+    return;
+  }
+
+  // Квадрат и график отличаются только частотой крупной линии.
+  const bold = style === 'graph' ? 5 : 0;
+
+  const line = (from: number, limit: number, vertical: boolean, index: number) => {
+    context.beginPath();
+    context.lineWidth = bold > 0 && index % bold === 0 ? 1.5 : 0.6;
+    if (vertical) {
+      context.moveTo(from, 0);
+      context.lineTo(from, limit);
+    } else {
+      context.moveTo(0, from);
+      context.lineTo(limit, from);
+    }
+    context.stroke();
+  };
+
+  let index = 0;
+  for (let x = startX; x < width; x += step) line(x, height, true, index++);
+
+  index = 0;
+  for (let y = startY; y < height; y += step) line(y, width, false, index++);
+
+  context.restore();
+}
+
 export function drawItem(context: CanvasRenderingContext2D, type: ItemType, data: ItemData): void {
   context.save();
   applyStyle(context, data);

@@ -76,6 +76,9 @@ public class AppDbContext : DbContext
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
             entity.Property(x => x.Locked).HasColumnName("locked").HasDefaultValue(false);
+            entity.Property(x => x.Background).HasColumnName("background").IsRequired();
+            entity.Property(x => x.GridStyle).HasColumnName("grid_style").IsRequired();
+            entity.Property(x => x.GridColor).HasColumnName("grid_color").IsRequired();
             entity.Property(x => x.BytesUsed).HasColumnName("bytes_used").HasDefaultValue(0L);
             entity.Property(x => x.DeletedAt).HasColumnName("deleted_at");
 

@@ -7,8 +7,9 @@ import { readGuestToken } from '../api/guest';
 import type { BoardRole } from '../api/types';
 import type {
   BoardItem, Cursor, ItemData, ItemType, JoinedPayload, LiveStroke, Participant,
-  ResumedPayload, SyncedPayload,
+  ResumedPayload, SyncedPayload, Background,
 } from './protocol';
+import { DEFAULT_BACKGROUND } from './protocol';
 
 export type HubStatus = 'connecting' | 'ready' | 'reconnecting' | 'failed';
 
@@ -27,12 +28,14 @@ export interface BoardHub {
   me: string | null;
   /** Последний закреплённый объект: по нему свой штрих узнаёт свой номер. */
   lastCommit: { tempId: string; itemId: number } | null;
+  background: Background;
 
   sendCursor: (x: number, y: number) => void;
   beginItem: (tempId: string, type: ItemType, data: ItemData) => void;
   appendPoints: (tempId: string, points: ItemData['points']) => void;
   commitItem: (tempId: string, type: ItemType, data: ItemData) => void;
   cancelItem: (tempId: string) => void;
+  setBackground: (background: Background) => void;
   moveItems: (ids: number[], dx: number, dy: number) => void;
   updateItem: (id: number, data: ItemData) => void;
   reorder: (ids: number[], toFront: boolean) => void;
@@ -60,6 +63,7 @@ export function useBoardHub(boardId: number): BoardHub {
   const [cursors, setCursors] = useState<Cursor[]>([]);
   const [me, setMe] = useState<string | null>(null);
   const [lastCommit, setLastCommit] = useState<{ tempId: string; itemId: number } | null>(null);
+  const [background, setBackgroundState] = useState<Background>(DEFAULT_BACKGROUND);
 
   const connection = useRef<HubConnection | null>(null);
   const seq = useRef(0);
@@ -125,6 +129,10 @@ export function useBoardHub(boardId: number): BoardHub {
         });
         break;
 
+      case 'BackgroundChanged':
+        setBackgroundState(payload as Background);
+        break;
+
       case 'ItemUpdated':
         setItems((current) => current.map((x) => (x.id === payload.item.id ? payload.item : x)));
         break;
@@ -187,7 +195,7 @@ export function useBoardHub(boardId: number): BoardHub {
     const handled = [
       'ItemBegan', 'ItemPoints', 'ItemCommitted', 'ItemCancelled', 'ItemUpdated',
       'ItemsMoved', 'ItemsReordered', 'ItemsDeleted', 'BoardCleared', 'ItemLocked', 'ItemUnlocked',
-      'MemberJoined', 'MemberLeft',
+      'MemberJoined', 'MemberLeft', 'BackgroundChanged',
     ];
 
     for (const name of handled) {
@@ -206,6 +214,7 @@ export function useBoardHub(boardId: number): BoardHub {
       setCanManage(payload.canManage);
       setItems(payload.items);
       setParticipants(payload.participants);
+      setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
       setLive(new Map());
       setMe(hub.connectionId);
       setStatus('ready');
@@ -232,6 +241,7 @@ export function useBoardHub(boardId: number): BoardHub {
       seq.current = payload.seq;
       setItems(payload.items);
       setParticipants(payload.participants);
+      setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
       setLive(new Map());
     });
 
@@ -281,12 +291,15 @@ export function useBoardHub(boardId: number): BoardHub {
   }, []);
 
   return {
-    status, error, role, canEdit, canManage, items, live, participants, cursors, me, lastCommit,
+    status, error, role, canEdit, canManage, items, live, participants, cursors, me, lastCommit, background,
     sendCursor: useCallback((x: number, y: number) => call('Cursor', x, y), [call]),
     beginItem: useCallback((id, type, data) => call('BeginItem', id, type, data), [call]),
     appendPoints: useCallback((id, points) => call('AppendPoints', id, points), [call]),
     commitItem: useCallback((id, type, data) => call('CommitItem', id, type, data), [call]),
     cancelItem: useCallback((id: string) => call('CancelItem', id), [call]),
+    setBackground: useCallback((next: Background) => (
+      call('SetBackground', next.background, next.gridStyle, next.gridColor)
+    ), [call]),
     moveItems: useCallback((ids: number[], dx: number, dy: number) => call('MoveItems', ids, dx, dy), [call]),
     updateItem: useCallback((id: number, data: ItemData) => call('UpdateItem', id, data), [call]),
     reorder: useCallback((ids: number[], toFront: boolean) => call('Reorder', ids, toFront), [call]),

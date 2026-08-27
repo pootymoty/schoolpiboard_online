@@ -140,6 +140,11 @@ namespace SchoolPiBoard.Web.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("auto_admit");
 
+                    b.Property<string>("Background")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("background");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -147,6 +152,16 @@ namespace SchoolPiBoard.Web.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
+
+                    b.Property<string>("GridColor")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("grid_color");
+
+                    b.Property<string>("GridStyle")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("grid_style");
 
                     b.Property<DateTime>("LinkIssuedAt")
                         .HasColumnType("timestamp with time zone")
