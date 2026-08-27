@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import type { HubConnection } from '@microsoft/signalr';
 import { API_URL, readToken } from '../api/client';
+import { translate } from './geometry';
 import { readGuestToken } from '../api/guest';
 import type { BoardRole } from '../api/types';
 import type {
@@ -24,12 +25,15 @@ export interface BoardHub {
   cursors: Cursor[];
   /** Наш идентификатор подключения — чтобы не рисовать собственный курсор. */
   me: string | null;
+  /** Последний закреплённый объект: по нему свой штрих узнаёт свой номер. */
+  lastCommit: { tempId: string; itemId: number } | null;
 
   sendCursor: (x: number, y: number) => void;
   beginItem: (tempId: string, type: ItemType, data: ItemData) => void;
   appendPoints: (tempId: string, points: ItemData['points']) => void;
   commitItem: (tempId: string, type: ItemType, data: ItemData) => void;
   cancelItem: (tempId: string) => void;
+  moveItems: (ids: number[], dx: number, dy: number) => void;
   deleteItems: (ids: number[]) => void;
   clearBoard: () => void;
 }
@@ -53,6 +57,7 @@ export function useBoardHub(boardId: number): BoardHub {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [cursors, setCursors] = useState<Cursor[]>([]);
   const [me, setMe] = useState<string | null>(null);
+  const [lastCommit, setLastCommit] = useState<{ tempId: string; itemId: number } | null>(null);
 
   const connection = useRef<HubConnection | null>(null);
   const seq = useRef(0);
@@ -95,6 +100,13 @@ export function useBoardHub(boardId: number): BoardHub {
           return next;
         });
         setItems((current) => [...current.filter((x) => x.id !== payload.item.id), payload.item]);
+        setLastCommit({ tempId: payload.tempId, itemId: payload.item.id });
+        break;
+
+      case 'ItemsMoved':
+        setItems((current) => current.map((item) => (
+          payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item
+        )));
         break;
 
       case 'ItemUpdated':
@@ -158,7 +170,7 @@ export function useBoardHub(boardId: number): BoardHub {
     // чтобы было чем догоняться после обрыва.
     const handled = [
       'ItemBegan', 'ItemPoints', 'ItemCommitted', 'ItemCancelled', 'ItemUpdated',
-      'ItemsDeleted', 'BoardCleared', 'ItemLocked', 'ItemUnlocked',
+      'ItemsMoved', 'ItemsDeleted', 'BoardCleared', 'ItemLocked', 'ItemUnlocked',
       'MemberJoined', 'MemberLeft',
     ];
 
@@ -253,12 +265,13 @@ export function useBoardHub(boardId: number): BoardHub {
   }, []);
 
   return {
-    status, error, role, canEdit, canManage, items, live, participants, cursors, me,
+    status, error, role, canEdit, canManage, items, live, participants, cursors, me, lastCommit,
     sendCursor: useCallback((x: number, y: number) => call('Cursor', x, y), [call]),
     beginItem: useCallback((id, type, data) => call('BeginItem', id, type, data), [call]),
     appendPoints: useCallback((id, points) => call('AppendPoints', id, points), [call]),
     commitItem: useCallback((id, type, data) => call('CommitItem', id, type, data), [call]),
     cancelItem: useCallback((id: string) => call('CancelItem', id), [call]),
+    moveItems: useCallback((ids: number[], dx: number, dy: number) => call('MoveItems', ids, dx, dy), [call]),
     deleteItems: useCallback((ids: number[]) => call('DeleteItems', ids), [call]),
     clearBoard: useCallback(() => call('ClearBoard'), [call]),
   };

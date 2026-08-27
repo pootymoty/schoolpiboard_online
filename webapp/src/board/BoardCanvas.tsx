@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import type { BoardHub } from './useBoardHub';
-import type { BoardItem, ItemData, Point } from './protocol';
+import type { ItemData, Point } from './protocol';
 import { cursorColor } from './cursorColors';
+import { boundsOf, rectFrom, topmostAt, translate, within } from './geometry';
+import type { Bounds } from './geometry';
 import { clampScale, toScreen, toWorld, zoomAt } from './viewport';
 import type { Viewport } from './viewport';
 
-/** Инструменты. Фигуры, текст и выделение добавятся следующим заходом. */
-export type Tool = 'hand' | 'pen' | 'eraser';
+/** Инструменты. Фигуры и текст добавятся следующим заходом. */
+export type Tool = 'select' | 'hand' | 'pen' | 'eraser';
 
 interface Props {
   hub: BoardHub;
@@ -15,8 +17,12 @@ interface Props {
   color: string;
   width: number;
   viewport: Viewport;
+  selection: number[];
   onViewport: (viewport: Viewport) => void;
   onSize: (size: { width: number; height: number }) => void;
+  onSelection: (itemIds: number[]) => void;
+  onMoved: (itemIds: number[], dx: number, dy: number) => void;
+  onCreated: (tempId: string) => void;
 }
 
 /** Не чаще двадцати раз в секунду — предел из раздела 7.1. */
@@ -39,13 +45,16 @@ const ERASE_RADIUS = 8;
  * по завершении штриха: промежуточные точки только рассылаются, в базу
  * не пишутся (раздел 7.3).
  */
-export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onSize }: Props): ReactElement {
+export function BoardCanvas({
+  hub, tool, color, width, viewport, selection,
+  onViewport, onSize, onSelection, onMoved, onCreated,
+}: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
 
   /** Свой штрих, пока он рисуется. В состоянии не держим: перерисовка на
       каждую точку заставляла бы React работать чаще, чем движется рука. */
-  const drawing = useRef<{ tempId: string; points: Point[]; sent: number } | null>(null);
+  const drawing = useRef<{ pointerId: number; tempId: string; points: Point[]; sent: number } | null>(null);
 
   /** Перетаскивание холста: чем и откуда тащат. */
   const panning = useRef<{ pointerId: number; startX: number; startY: number; origin: Viewport } | null>(null);
@@ -69,6 +78,12 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
    */
   const penSeen = useRef(false);
 
+  /** Рамка выделения, пока её тянут. В мировых координатах. */
+  const marquee = useRef<{ pointerId: number; from: Point; to: Point } | null>(null);
+
+  /** Перетаскивание выделенного: откуда начали и сколько уже сдвинули. */
+  const moving = useRef<{ pointerId: number; from: Point; dx: number; dy: number } | null>(null);
+
   const lastCursor = useRef(0);
   const lastBatch = useRef(0);
   const frame = useRef(0);
@@ -80,8 +95,8 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
 
   // Свежие значения для обработчиков указателя: они живут вне React-цикла
   // и иначе видели бы состояние на момент подписки.
-  const latest = useRef({ viewport, tool, color, width, spaceHeld });
-  latest.current = { viewport, tool, color, width, spaceHeld };
+  const latest = useRef({ viewport, tool, color, width, spaceHeld, selection, items: hub.items });
+  latest.current = { viewport, tool, color, width, spaceHeld, selection, items: hub.items };
 
   useEffect(() => {
     const element = box.current;
@@ -141,7 +156,16 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
       ratio * view.x, ratio * view.y,
     );
 
-    for (const item of hub.items) strokePath(context, item.data);
+    const drag = moving.current;
+    const chosen = new Set(latest.current.selection);
+
+    for (const item of hub.items) {
+      // Пока выделенное тащат, рисуем его со сдвигом, не дожидаясь
+      // ответа сервера: иначе рисунок отставал бы от пальца.
+      const shifted = drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
+      strokePath(context, shifted);
+    }
+
     for (const stroke of hub.live.values()) strokePath(context, stroke.data);
 
     if (drawing.current) {
@@ -150,6 +174,21 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
         color: latest.current.color,
         width: latest.current.width,
       });
+    }
+
+    // Рамка выделения и габариты выбранного — линиями постоянной толщины
+    // на экране, поэтому делим на масштаб.
+    const hair = 1 / view.scale;
+
+    const selected = hub.items.filter((item) => chosen.has(item.id));
+    const box = boundsOf(selected.map((item) => (
+      drag ? { ...item, data: translate(item.data, drag.dx, drag.dy) } : item
+    )));
+
+    if (box) outline(context, box, '#2E5FA3', hair, [6 * hair, 4 * hair]);
+
+    if (marquee.current) {
+      outline(context, rectFrom(marquee.current.from, marquee.current.to), '#2E5FA3', hair, [4 * hair, 3 * hair]);
     }
   }, [hub.items, hub.live]);
 
@@ -285,17 +324,46 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
     if (!hub.canEdit) return;
 
     const point = worldPoint(event);
+    const reach = ERASE_RADIUS / latest.current.viewport.scale;
 
     if (latest.current.tool === 'eraser') {
-      const hit = topmostAt(hub.items, point, ERASE_RADIUS / latest.current.viewport.scale);
+      const hit = topmostAt(hub.items, point, reach);
       if (hit) hub.deleteItems([hit.id]);
+      return;
+    }
+
+    if (latest.current.tool === 'select') {
+      event.currentTarget.setPointerCapture(event.pointerId);
+
+      const hit = topmostAt(hub.items, point, reach);
+      const chosen = latest.current.selection;
+
+      if (!hit) {
+        // По пустому месту — рамка. Прежнее выделение снимаем сразу:
+        // рамка задаёт новое целиком.
+        if (!event.ctrlKey && !event.metaKey) onSelection([]);
+        marquee.current = { pointerId: event.pointerId, from: point, to: point };
+        return;
+      }
+
+      if (event.ctrlKey || event.metaKey) {
+        onSelection(chosen.includes(hit.id) ? chosen.filter((id) => id !== hit.id) : [...chosen, hit.id]);
+        return;
+      }
+
+      // Тычок в уже выделенное сохраняет выборку: иначе перетащить
+      // несколько объектов было бы нельзя — первый же тычок сбрасывал бы
+      // остальные.
+      if (!chosen.includes(hit.id)) onSelection([hit.id]);
+
+      moving.current = { pointerId: event.pointerId, from: point, dx: 0, dy: 0 };
       return;
     }
 
     event.currentTarget.setPointerCapture(event.pointerId);
 
     const tempId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    drawing.current = { tempId, points: [point], sent: 0 };
+    drawing.current = { pointerId: event.pointerId, tempId, points: [point], sent: 0 };
 
     hub.beginItem(tempId, 'stroke', {
       points: [point],
@@ -305,8 +373,16 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (pointers.current.has(event.pointerId)) {
-      pointers.current.set(event.pointerId, { ...screenPoint(event), type: event.pointerType });
+    // Записываем указатель даже если его нажатие до нас не дошло: так
+    // второй палец опознаётся по одному движению, а не только по касанию.
+    pointers.current.set(event.pointerId, { ...screenPoint(event), type: event.pointerType });
+
+    if (!pinch.current && touches().length >= 2) {
+      cancelStroke();
+      panning.current = null;
+      blockUntilRelease.current = true;
+      startPinch();
+      return;
     }
 
     // Щипок задаёт масштаб и сдвиг разом: пальцы и разводят, и ведут,
@@ -345,6 +421,21 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
     }
 
     const point = worldPoint(event);
+
+    if (marquee.current?.pointerId === event.pointerId) {
+      marquee.current.to = point;
+      schedule();
+      return;
+    }
+
+    const drag = moving.current;
+    if (drag?.pointerId === event.pointerId) {
+      drag.dx = point.x - drag.from.x;
+      drag.dy = point.y - drag.from.y;
+      schedule();
+      return;
+    }
+
     const now = performance.now();
 
     if (now - lastCursor.current >= CURSOR_INTERVAL_MS) {
@@ -353,7 +444,10 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
     }
 
     const stroke = drawing.current;
-    if (!stroke) return;
+    // Штрих принадлежит одному указателю. Без этой проверки движения
+    // второго пальца дописывались бы в него же — и между пальцами
+    // протягивалась линия.
+    if (!stroke || stroke.pointerId !== event.pointerId) return;
 
     stroke.points.push(point);
 
@@ -377,6 +471,27 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
 
     panning.current = null;
 
+    const band = marquee.current;
+    if (band?.pointerId === event.pointerId) {
+      marquee.current = null;
+      const chosen = within(latest.current.items, rectFrom(band.from, band.to));
+      if (chosen.length > 0) onSelection(chosen.map((item) => item.id));
+      schedule();
+      return;
+    }
+
+    const drag = moving.current;
+    if (drag?.pointerId === event.pointerId) {
+      moving.current = null;
+
+      if (drag.dx !== 0 || drag.dy !== 0) {
+        onMoved(latest.current.selection, drag.dx, drag.dy);
+      }
+
+      schedule();
+      return;
+    }
+
     const stroke = drawing.current;
     if (!stroke) return;
 
@@ -389,6 +504,7 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
         color: latest.current.color,
         width: latest.current.width,
       });
+      onCreated(stroke.tempId);
     }
 
     schedule();
@@ -437,6 +553,22 @@ export function BoardCanvas({ hub, tool, color, width, viewport, onViewport, onS
   );
 }
 
+/** Пунктирный прямоугольник: рамка выделения и габариты выбранного. */
+function outline(
+  context: CanvasRenderingContext2D,
+  box: Bounds,
+  color: string,
+  lineWidth: number,
+  dash: number[],
+): void {
+  context.save();
+  context.strokeStyle = color;
+  context.lineWidth = lineWidth;
+  context.setLineDash(dash);
+  context.strokeRect(box.x, box.y, box.width, box.height);
+  context.restore();
+}
+
 /** Рисует штрих по его точкам. */
 function strokePath(context: CanvasRenderingContext2D, data: ItemData): void {
   const points = data.points;
@@ -457,36 +589,6 @@ function strokePath(context: CanvasRenderingContext2D, data: ItemData): void {
   if (points.length === 1) context.lineTo(points[0].x + 0.01, points[0].y);
 
   context.stroke();
-}
-
-/** Верхний объект под указателем — для ластика. Радиус в мировых единицах. */
-function topmostAt(items: BoardItem[], point: Point, radius: number): BoardItem | null {
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    const item = items[index];
-    const points = item.data.points ?? [];
-    const reach = radius + item.data.width / 2;
-
-    for (let i = 1; i < points.length; i += 1) {
-      if (distanceToSegment(point, points[i - 1], points[i]) <= reach) return item;
-    }
-
-    if (points.length === 1 && distanceToSegment(point, points[0], points[0]) <= reach) return item;
-  }
-
-  return null;
-}
-
-function distanceToSegment(point: Point, from: Point, to: Point): number {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const lengthSquared = dx * dx + dy * dy;
-
-  // Отрезок нулевой длины — считаем расстояние до самой точки.
-  const t = lengthSquared === 0
-    ? 0
-    : Math.max(0, Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared));
-
-  return Math.hypot(point.x - (from.x + t * dx), point.y - (from.y + t * dy));
 }
 
 export { clampScale };

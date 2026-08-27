@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
@@ -14,6 +14,7 @@ import type { Tool } from '../board/BoardCanvas';
 import { BoardToolbar } from '../board/BoardToolbar';
 import { useBoardHub } from '../board/useBoardHub';
 import { useWaitingQueue } from '../board/useWaitingQueue';
+import { useHistory } from '../board/useHistory';
 import { INITIAL_VIEWPORT, fitToContent, zoomAt } from '../board/viewport';
 import type { Viewport } from '../board/viewport';
 
@@ -58,9 +59,86 @@ export function BoardPage(): ReactElement {
 
   const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEWPORT);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [selection, setSelection] = useState<number[]>([]);
 
   const hub = useBoardHub(id);
   const queue = useWaitingQueue(id, hub.canManage);
+
+  const history = useHistory({
+    create: (type, data) => hub.commitItem(`redo-${Date.now().toString(36)}`, type, data),
+    move: (itemIds, dx, dy) => hub.moveItems(itemIds, dx, dy),
+    remove: (itemIds) => hub.deleteItems(itemIds),
+  });
+
+  /** Свои штрихи, ждущие номера от сервера. Отменять можно только своё. */
+  const myStrokes = useRef(new Set<string>());
+
+  // Номер объекта известен только после закрепления на сервере — тогда же
+  // штрих и попадает в историю.
+  useEffect(() => {
+    const commit = hub.lastCommit;
+    if (!commit || !myStrokes.current.has(commit.tempId)) return;
+
+    myStrokes.current.delete(commit.tempId);
+    history.push({ kind: 'create', itemIds: [commit.itemId] });
+  }, [hub.lastCommit, history]);
+
+  // Выделять то, чего уже нет, нельзя: объект мог стереть кто-то другой.
+  useEffect(() => {
+    const alive = new Set(hub.items.map((item) => item.id));
+    setSelection((current) => (
+      current.every((id) => alive.has(id)) ? current : current.filter((id) => alive.has(id))
+    ));
+  }, [hub.items]);
+
+  const removeSelection = useCallback(() => {
+    if (selection.length === 0) return;
+
+    const doomed = hub.items.filter((item) => selection.includes(item.id));
+    history.push({ kind: 'delete', items: doomed.map((item) => ({ type: item.type, data: item.data })) });
+
+    hub.deleteItems(selection);
+    setSelection([]);
+  }, [hub, history, selection]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+
+      const control = event.ctrlKey || event.metaKey;
+
+      if (control && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) history.redo(); else history.undo();
+        return;
+      }
+
+      if (control && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        history.redo();
+        return;
+      }
+
+      if (control && event.key.toLowerCase() === 'a') {
+        event.preventDefault();
+        setSelection(hub.items.map((item) => item.id));
+        return;
+      }
+
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        removeSelection();
+        return;
+      }
+
+      // Esc возвращает к курсору и снимает выделение — как в десктопной версии.
+      if (event.key === 'Escape') setSelection([]);
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [history, hub.items, removeSelection]);
 
   // Наблюдателю рисующие инструменты недоступны — оставляем ему руку,
   // иначе выбранное «перо» просто ничего не делало бы (пункт про роли).
@@ -263,12 +341,18 @@ export function BoardPage(): ReactElement {
           canEdit={hub.canEdit}
           canManage={hub.canManage}
           scale={viewport.scale}
+          canUndo={history.canUndo}
+          canRedo={history.canRedo}
+          hasSelection={selection.length > 0}
           onTool={setTool}
           onColor={setColor}
           onWidth={setPenWidth}
           onZoom={zoomBy}
           onResetZoom={() => setViewport((current) => ({ ...current, scale: 1 }))}
           onFit={fitToAll}
+          onUndo={history.undo}
+          onRedo={history.redo}
+          onDelete={removeSelection}
           onClear={() => {
             if (window.confirm('Очистить доску? Всё нарисованное пропадёт у всех.')) hub.clearBoard();
           }}
@@ -281,8 +365,15 @@ export function BoardPage(): ReactElement {
             color={color}
             width={penWidth}
             viewport={viewport}
+            selection={selection}
             onViewport={setViewport}
             onSize={setCanvasSize}
+            onSelection={setSelection}
+            onMoved={(itemIds, dx, dy) => {
+              hub.moveItems(itemIds, dx, dy);
+              history.push({ kind: 'move', itemIds, dx, dy });
+            }}
+            onCreated={(tempId) => myStrokes.current.add(tempId)}
           />
 
           {hub.status !== 'ready' ? (

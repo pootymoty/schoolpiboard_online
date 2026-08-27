@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using SchoolPiBoard.Web.Data;
 using SchoolPiBoard.Web.Data.Entities;
@@ -149,6 +151,75 @@ public sealed class BoardItemService
         await _db.SaveChangesAsync(cancellationToken);
 
         return items.Select(x => x.Id).ToList();
+    }
+
+    /// <summary>
+    /// Сдвинуть объекты. Сдвиг применяется здесь, а не присылается готовой
+    /// геометрией: перемещение десятка штрихов иначе означало бы переслать
+    /// все их точки заново ради двух чисел.
+    /// </summary>
+    public async Task<List<BoardItem>> MoveAsync(
+        long boardId, IReadOnlyCollection<long> itemIds, double dx, double dy, CancellationToken cancellationToken)
+    {
+        if (itemIds.Count == 0 || (dx == 0 && dy == 0))
+            return new List<BoardItem>();
+
+        var items = await _db.BoardItems
+            .Where(x => x.BoardId == boardId && itemIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var moved = new List<BoardItem>();
+
+        foreach (var item in items)
+        {
+            var shifted = Translate(item.Data, dx, dy);
+            if (shifted is null) continue;
+
+            item.Data = shifted;
+            item.UpdatedAt = now;
+            moved.Add(item);
+        }
+
+        if (moved.Count > 0)
+            await _db.SaveChangesAsync(cancellationToken);
+
+        return moved;
+    }
+
+    /// <summary>Сдвигает всю геометрию объекта: и точки штриха, и углы фигуры.</summary>
+    private static string? Translate(string data, double dx, double dy)
+    {
+        try
+        {
+            var root = JsonNode.Parse(data)?.AsObject();
+            if (root is null) return null;
+
+            if (root["points"] is JsonArray points)
+            {
+                foreach (var point in points)
+                {
+                    if (point is not JsonObject node) continue;
+
+                    node["x"] = (node["x"]?.GetValue<double>() ?? 0) + dx;
+                    node["y"] = (node["y"]?.GetValue<double>() ?? 0) + dy;
+                }
+            }
+
+            foreach (var (name, delta) in new[] { ("x1", dx), ("y1", dy), ("x2", dx), ("y2", dy) })
+            {
+                if (root[name] is not null)
+                    root[name] = root[name]!.GetValue<double>() + delta;
+            }
+
+            return root.ToJsonString();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+        {
+            // Объект с неожиданной геометрией просто не двигаем: уронить
+            // перемещение всей выборки из-за одного такого нельзя.
+            return null;
+        }
     }
 
     public async Task ClearAsync(long boardId, CancellationToken cancellationToken)

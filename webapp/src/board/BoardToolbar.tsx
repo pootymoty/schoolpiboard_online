@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import type { Tool } from './BoardCanvas';
-import { IconEditor, IconEraser, IconHand, IconTrash } from '../components/Icons';
+import { IconCursor, IconEditor, IconEraser, IconHand, IconRedo, IconTrash, IconUndo } from '../components/Icons';
 
 /**
  * Цвета доски. Немного и заметно разных: палитра на сотню оттенков
@@ -19,21 +19,62 @@ interface Props {
   canEdit: boolean;
   canManage: boolean;
   scale: number;
+  canUndo: boolean;
+  canRedo: boolean;
+  hasSelection: boolean;
   onTool: (tool: Tool) => void;
   onColor: (color: string) => void;
   onWidth: (width: number) => void;
   onZoom: (factor: number) => void;
   onResetZoom: () => void;
   onFit: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  onDelete: () => void;
   onClear: () => void;
 }
 
 export function BoardToolbar({
-  tool, color, width, canEdit, canManage, scale,
-  onTool, onColor, onWidth, onZoom, onResetZoom, onFit, onClear,
+  tool, color, width, canEdit, canManage, scale, canUndo, canRedo, hasSelection,
+  onTool, onColor, onWidth, onZoom, onResetZoom, onFit, onUndo, onRedo, onDelete, onClear,
 }: Props): ReactElement {
   return (
     <div className="toolbar" role="toolbar" aria-label="Инструменты доски">
+      <button
+        className="btn-tool"
+        type="button"
+        onClick={onUndo}
+        disabled={!canEdit || !canUndo}
+        title="Отменить (Ctrl+Z)"
+        aria-label="Отменить"
+      >
+        <IconUndo />
+      </button>
+
+      <button
+        className="btn-tool"
+        type="button"
+        onClick={onRedo}
+        disabled={!canEdit || !canRedo}
+        title="Повторить (Ctrl+Y)"
+        aria-label="Повторить"
+      >
+        <IconRedo />
+      </button>
+
+      <span className="toolbar__divider" aria-hidden="true" />
+
+      <button
+        className="btn-tool"
+        type="button"
+        aria-pressed={tool === 'select'}
+        onClick={() => onTool('select')}
+        disabled={!canEdit}
+        title={canEdit ? 'Выделять и перемещать' : 'Выделять может редактор'}
+      >
+        <IconCursor />
+      </button>
+
       <button
         className="btn-tool"
         type="button"
@@ -96,6 +137,15 @@ export function BoardToolbar({
           <span className="width-dot" style={{ width: value * 2, height: value * 2 }} />
         </button>
       ))}
+
+      {hasSelection ? (
+        <>
+          <span className="toolbar__divider" aria-hidden="true" />
+          <button className="btn-tool" type="button" onClick={onDelete} title="Удалить выделенное (Delete)">
+            <IconTrash />
+          </button>
+        </>
+      ) : null}
 
       <span className="toolbar__spacer" />
 

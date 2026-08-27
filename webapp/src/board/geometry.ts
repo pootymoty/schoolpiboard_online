@@ -1,0 +1,119 @@
+import type { BoardItem, ItemData, Point } from './protocol';
+
+export interface Bounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Сдвигает геометрию объекта. Тот же расчёт, что и на сервере. */
+export function translate(data: ItemData, dx: number, dy: number): ItemData {
+  return {
+    ...data,
+    points: data.points?.map((point) => ({ ...point, x: point.x + dx, y: point.y + dy })),
+    x1: data.x1 === undefined ? undefined : data.x1 + dx,
+    y1: data.y1 === undefined ? undefined : data.y1 + dy,
+    x2: data.x2 === undefined ? undefined : data.x2 + dx,
+    y2: data.y2 === undefined ? undefined : data.y2 + dy,
+  };
+}
+
+/** Все опорные точки объекта — по ним считаются габариты и попадания. */
+export function pointsOf(data: ItemData): Point[] {
+  if (data.points?.length) return data.points;
+
+  if (data.x1 !== undefined && data.y1 !== undefined && data.x2 !== undefined && data.y2 !== undefined) {
+    return [
+      { x: data.x1, y: data.y1, p: 1 },
+      { x: data.x2, y: data.y2, p: 1 },
+    ];
+  }
+
+  return [];
+}
+
+export function boundsOf(items: BoardItem[]): Bounds | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const item of items) {
+    // Толщина учитывается: габариты по осевой линии обрезали бы штрих
+    // по краям, и рамка выделения шла бы прямо по нарисованному.
+    const pad = item.data.width / 2;
+
+    for (const point of pointsOf(item.data)) {
+      minX = Math.min(minX, point.x - pad);
+      minY = Math.min(minY, point.y - pad);
+      maxX = Math.max(maxX, point.x + pad);
+      maxY = Math.max(maxY, point.y + pad);
+    }
+  }
+
+  if (minX === Infinity) return null;
+
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+export function distanceToSegment(point: Point, from: Point, to: Point): number {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const lengthSquared = dx * dx + dy * dy;
+
+  // Отрезок нулевой длины — считаем расстояние до самой точки.
+  const t = lengthSquared === 0
+    ? 0
+    : Math.max(0, Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared));
+
+  return Math.hypot(point.x - (from.x + t * dx), point.y - (from.y + t * dy));
+}
+
+/** Попадает ли указатель в объект. Радиус — в мировых единицах. */
+export function hits(item: BoardItem, point: Point, radius: number): boolean {
+  const points = pointsOf(item.data);
+  const reach = radius + item.data.width / 2;
+
+  if (points.length === 1) return distanceToSegment(point, points[0], points[0]) <= reach;
+
+  for (let index = 1; index < points.length; index += 1) {
+    if (distanceToSegment(point, points[index - 1], points[index]) <= reach) return true;
+  }
+
+  return false;
+}
+
+/** Верхний объект под указателем. */
+export function topmostAt(items: BoardItem[], point: Point, radius: number): BoardItem | null {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (hits(items[index], point, radius)) return items[index];
+  }
+
+  return null;
+}
+
+/** Объекты, целиком попавшие в рамку выделения. */
+export function within(items: BoardItem[], area: Bounds): BoardItem[] {
+  return items.filter((item) => {
+    const points = pointsOf(item.data);
+    if (points.length === 0) return false;
+
+    return points.every((point) => (
+      point.x >= area.x
+      && point.x <= area.x + area.width
+      && point.y >= area.y
+      && point.y <= area.y + area.height
+    ));
+  });
+}
+
+/** Прямоугольник по двум углам — они могут быть заданы в любом порядке. */
+export function rectFrom(a: { x: number; y: number }, b: { x: number; y: number }): Bounds {
+  return {
+    x: Math.min(a.x, b.x),
+    y: Math.min(a.y, b.y),
+    width: Math.abs(a.x - b.x),
+    height: Math.abs(a.y - b.y),
+  };
+}

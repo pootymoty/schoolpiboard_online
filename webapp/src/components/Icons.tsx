@@ -103,6 +103,21 @@ export const IconPeople = (props: Props): ReactElement => (
   </Svg>
 );
 
+/** Курсор: выделять и перемещать. */
+export const IconCursor = (props: Props): ReactElement => (
+  <Svg {...props}><path d="M5 3l14 8-6 1.5L10 19z" /></Svg>
+);
+
+/** Отменить. */
+export const IconUndo = (props: Props): ReactElement => (
+  <Svg {...props}><g><path d="M3 8h11a6 6 0 0 1 0 12H8" /><path d="M7 4L3 8l4 4" /></g></Svg>
+);
+
+/** Повторить. */
+export const IconRedo = (props: Props): ReactElement => (
+  <Svg {...props}><g><path d="M21 8H10a6 6 0 0 0 0 12h6" /><path d="M17 4l4 4-4 4" /></g></Svg>
+);
+
 /** Рука: двигать холст. */
 export const IconHand = (props: Props): ReactElement => (
   <Svg {...props}>

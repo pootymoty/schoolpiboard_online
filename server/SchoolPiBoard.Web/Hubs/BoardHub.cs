@@ -316,6 +316,26 @@ public sealed class BoardHub : Hub
             await PublishAsync(presence.BoardId, "ItemUnlocked", new { itemId });
     }
 
+    /// <summary>Сдвинуть выделенное. Замок не берётся: сдвиг применяется целиком или никак.</summary>
+    public async Task MoveItems(long[] itemIds, double dx, double dy)
+    {
+        var presence = await RequireEditorAsync();
+        if (presence is null) return;
+
+        var moved = await _items.MoveAsync(presence.BoardId, itemIds, dx, dy, Context.ConnectionAborted);
+        if (moved.Count == 0) return;
+
+        await _items.TouchBoardAsync(presence.BoardId, Context.ConnectionAborted);
+
+        await PublishAsync(presence.BoardId, "ItemsMoved", new
+        {
+            itemIds = moved.Select(x => x.Id),
+            dx,
+            dy,
+            by = Context.ConnectionId
+        });
+    }
+
     public async Task DeleteItems(long[] itemIds)
     {
         var presence = await RequireEditorAsync();
