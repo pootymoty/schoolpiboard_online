@@ -568,6 +568,13 @@ body.no-scroll {
     gap: var(--sp-2);
 }
 
+/* Своим фоном и рамкой — иначе на пёстром фоне доски надпись сливается. */
+.board-page__people-corner .btn-tool--wide {
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+}
+
 /* Подсказка гостю: рядом с кнопкой участников, где на неё точно упрётся взгляд. */
 .guest-hint {
     margin: 0;
@@ -704,10 +711,13 @@ body.no-scroll {
     position: absolute;
     left: var(--sp-3);
     top: 60px;
-    bottom: var(--sp-3);
     z-index: 8;
     flex-direction: column;
     flex-wrap: nowrap;
+    /* Высота по числу кнопок, не во весь холст — иначе снизу пустует
+       место, где инструментов уже нет. Прокрутка — только когда кнопкам
+       правда не хватает места по вертикали. */
+    max-height: calc(100% - 60px - var(--sp-3));
     overflow-y: auto;
     overscroll-behavior-y: contain;
     scrollbar-width: none;
@@ -738,6 +748,11 @@ body.no-scroll {
 
 .toolbar--view::-webkit-scrollbar { display: none; }
 .toolbar--view > * { flex: none; }
+
+/* На ПК места достаточно — показываем целиком, без обрезки и прокрутки. */
+@media (min-width: 900px) {
+    .toolbar--view { overflow: visible; }
+}
 
 /* На узком экране кнопки чуть мельче — так помещается больше в той же
    высоте/ширине, а с пальца целиться в них всё ещё удобно. */
