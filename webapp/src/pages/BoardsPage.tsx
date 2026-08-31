@@ -86,7 +86,6 @@ export function BoardsPage(): ReactElement {
           <label htmlFor="title">Новая доска</label>
           <div className="link-box">
             <input id="title" type="text" required maxLength={200}
-                   placeholder="Например: Алгебра, 9 класс"
                    value={title} onChange={(event) => setTitle(event.target.value)} />
             <button className="btn-primary" type="submit" disabled={busy}>Создать</button>
           </div>

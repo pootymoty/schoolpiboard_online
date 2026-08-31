@@ -135,10 +135,6 @@ export function Header(): ReactElement {
               <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
               <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
-              <li className="navbar-item--switch">
-                <span className="navbar-item__label">Тёмная тема</span>
-                <ThemeSwitch theme={theme} toggle={toggle} />
-              </li>
               <li className={cabinetOpen ? 'navbar-dropdown navbar-dropdown--active' : 'navbar-dropdown'}>
                 <div
                   className="navbar-dropdown__toggle"
@@ -155,16 +151,20 @@ export function Header(): ReactElement {
                   </li>
                 </ul>
               </li>
+              <li className="navbar-item--switch">
+                <span className="navbar-item__label">Тёмная тема</span>
+                <ThemeSwitch theme={theme} toggle={toggle} />
+              </li>
             </>
           ) : (
             <>
               <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
+              <li><Link to="/login" onClick={closeMobile}>Войти</Link></li>
               <li className="navbar-item--switch">
                 <span className="navbar-item__label">Тёмная тема</span>
                 <ThemeSwitch theme={theme} toggle={toggle} />
               </li>
-              <li><Link to="/login" onClick={closeMobile}>Войти</Link></li>
             </>
           )}
         </ul>

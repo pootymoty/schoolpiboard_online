@@ -1,9 +1,12 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Page } from '../components/Layout';
+import { useAuth } from '../auth/AuthContext';
 import { IconEditor, IconGuest, IconViewer } from '../components/Icons';
 
 export function LandingPage(): ReactElement {
+  const { user } = useAuth();
+
   return (
     <Page>
       <section className="card" style={{ textAlign: 'center' }}>
@@ -14,8 +17,14 @@ export function LandingPage(): ReactElement {
         </p>
 
         <div className="row" style={{ justifyContent: 'center' }}>
-          <Link className="btn btn-primary btn-lg" to="/register">Зарегистрироваться</Link>
-          <Link className="btn btn-outline btn-lg" to="/login">Войти</Link>
+          {user ? (
+            <Link className="btn btn-primary btn-lg" to="/boards">Мои доски</Link>
+          ) : (
+            <>
+              <Link className="btn btn-primary btn-lg" to="/register">Зарегистрироваться</Link>
+              <Link className="btn btn-outline btn-lg" to="/login">Войти</Link>
+            </>
+          )}
         </div>
       </section>
 

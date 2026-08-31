@@ -36,7 +36,10 @@ export function App(): ReactElement {
 
       {user ? (
         <>
-          <Route path="/" element={<Navigate to="/boards" replace />} />
+          {/* «Главная» из шапки должна вести на главную, а не сразу
+              перекидывать на доски — иначе пункт меню просто дублирует
+              «Мои доски» и щелчок по нему выглядит как ничего не делающий. */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Navigate to="/boards" replace />} />
           <Route path="/register" element={<Navigate to="/boards" replace />} />
           <Route path="/boards" element={<BoardsPage />} />
