@@ -951,7 +951,9 @@ body.no-scroll {
 
 .selection-panel {
     position: absolute;
-    z-index: 7;
+    /* Выше панелей инструментов (8) и кнопки участников (9): она
+       появляется по действию человека и на это время главная. */
+    z-index: 11;
     display: flex;
     align-items: center;
     gap: var(--sp-1);
@@ -963,11 +965,12 @@ body.no-scroll {
     white-space: nowrap;
 }
 
-/* Закреплённая полоса: прокручивается вбок, как и панель инструментов. */
+/* Закреплённая полоса: прокручивается вбок, как и панель инструментов.
+   Сидит над кнопкой участников, а не поверх неё: обе нужны одновременно. */
 .selection-panel--pinned {
     left: var(--sp-2);
     right: var(--sp-2);
-    bottom: var(--sp-2);
+    bottom: calc(var(--sp-3) + 48px);
     top: auto;
     transform: none;
     overflow-x: auto;

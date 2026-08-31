@@ -23,6 +23,15 @@ interface Props {
 /** Примерная ширина панели — по ней она прижимается к краям холста. */
 const WIDTH = 260;
 
+/** Примерная высота панели — по ней считается, влезает ли она над выделением. */
+const HEIGHT = 48;
+
+/** Полоса слева, занятая вертикальной панелью инструментов. */
+const LEFT_GUTTER = 72;
+
+/** Полоса снизу, занятая кнопкой «Участники» и подсказкой гостю. */
+const BOTTOM_GUTTER = 60;
+
 /**
  * Ниже этой ширины панель перестаёт летать над выделением и садится
  * полосой у нижнего края холста.
@@ -56,21 +65,28 @@ export function SelectionPanel({
 
   // Над выделением, а если места сверху нет — под ним: иначе панель
   // уезжает за верхний край холста и становится недоступной.
-  const above = corner.y > 56;
+  const above = corner.y - 8 - HEIGHT >= 8;
 
+  // Слева отступаем от вертикальной панели инструментов, снизу — от
+  // кнопки участников: панель поверх них хоть и видна, но закрывает то,
+  // чем в этот момент тоже пользуются.
   const left = Math.max(
-    WIDTH / 2 + 8,
+    LEFT_GUTTER + WIDTH / 2,
     Math.min(corner.x + width / 2, canvas.width - WIDTH / 2 - 8),
+  );
+
+  const top = Math.max(
+    8,
+    Math.min(
+      above ? corner.y - 8 - HEIGHT : corner.y + bounds.height * viewport.scale + 8,
+      canvas.height - BOTTOM_GUTTER - HEIGHT,
+    ),
   );
 
   return (
     <div
       className={pinned ? 'selection-panel selection-panel--pinned' : 'selection-panel'}
-      style={pinned ? undefined : {
-        left,
-        top: above ? corner.y - 8 : corner.y + bounds.height * viewport.scale + 8,
-        transform: above ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
-      }}
+      style={pinned ? undefined : { left, top, transform: 'translateX(-50%)' }}
       role="toolbar"
       aria-label="Действия с выделенным"
     >
