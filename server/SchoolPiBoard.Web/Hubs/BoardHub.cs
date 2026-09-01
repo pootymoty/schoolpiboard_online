@@ -259,13 +259,13 @@ public sealed class BoardHub : Hub
     }
 
     /// <summary>Штрих закончен — вот теперь он становится объектом доски.</summary>
-    public async Task CommitItem(string tempId, string type, JsonElement data)
+    public async Task CommitItem(string tempId, string type, JsonElement data, string? imageRef)
     {
         var presence = await RequireEditorAsync();
         if (presence is null) return;
 
         var item = await _items.CreateAsync(
-            presence.BoardId, type, data.GetRawText(), presence.UserId, Context.ConnectionAborted);
+            presence.BoardId, type, data.GetRawText(), presence.UserId, imageRef, Context.ConnectionAborted);
 
         if (item is null)
         {

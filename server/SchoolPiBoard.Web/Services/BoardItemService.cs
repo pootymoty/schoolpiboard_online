@@ -41,12 +41,18 @@ public sealed class BoardItemService
 
     /// <summary>Создаёт объект поверх остальных.</summary>
     public async Task<BoardItem?> CreateAsync(
-        long boardId, string? type, string? data, long? createdBy, CancellationToken cancellationToken)
+        long boardId, string? type, string? data, long? createdBy, string? imageRef,
+        CancellationToken cancellationToken)
     {
         if (type is null || !BoardItem.KnownTypes.Contains(type))
             return null;
 
         if (string.IsNullOrWhiteSpace(data) || data.Length > MaxDataLength)
+            return null;
+
+        // Картинка без ссылки на файл — пустая рамка на доске, и вернуть ей
+        // содержимое потом уже нечем.
+        if (type == BoardItem.TypeImage && string.IsNullOrWhiteSpace(imageRef))
             return null;
 
         if (await _db.BoardItems.CountAsync(x => x.BoardId == boardId, cancellationToken) >= MaxItemsPerBoard)
@@ -64,6 +70,7 @@ public sealed class BoardItemService
             Type = type,
             Z = top + 1,
             Data = data,
+            ImageRef = type == BoardItem.TypeImage ? imageRef : null,
             CreatedBy = createdBy,
             CreatedAt = now,
             UpdatedAt = now

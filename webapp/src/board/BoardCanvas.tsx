@@ -7,6 +7,7 @@ import { boundsOf, rectFrom, topmostAt, translate, within } from './geometry';
 import type { Bounds } from './geometry';
 import { HANDLE_SIZE, handlesFor, resized } from './handles';
 import type { HandleId } from './handles';
+import { onImageLoaded } from './images';
 import { drawGrid, drawItem } from './render';
 import type { ToolSettings, Tool } from './tools';
 import { clampScale, toScreen, toWorld, zoomAt } from './viewport';
@@ -238,7 +239,7 @@ export function BoardCanvas({
         ? grip.data
         : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
 
-      drawItem(context, item.type, shifted);
+      drawItem(context, item.type, shifted, item.imageRef);
     }
 
     for (const stroke of hub.live.values()) drawItem(context, stroke.type, stroke.data);
@@ -297,6 +298,11 @@ export function BoardCanvas({
     schedule();
     return () => cancelAnimationFrame(frame.current);
   }, [schedule, size, viewport, settings, tool, background]);
+
+  // Картинка приходит из сети позже самого объекта: на её месте всё это
+  // время пустая рамка, и без этого она осталась бы там до следующего
+  // движения мыши.
+  useEffect(() => onImageLoaded(schedule), [schedule]);
 
   // Колесо — масштаб с привязкой к точке под курсором. Слушатель вешаем
   // сами и не пассивным: иначе браузер не даст отменить прокрутку страницы.

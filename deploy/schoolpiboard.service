@@ -41,5 +41,12 @@ RestrictNamespaces=true
 LockPersonality=true
 ReadWritePaths=/var/www/schoolpiboard
 
+# Загруженные файлы: библиотека документов и картинки досок. systemd
+# заводит /var/lib/schoolpiboard сам и отдаёт его boardsvc — вручную
+# создавать и раздавать права не нужно. Хранилище лежит вне /var/www
+# намеренно: выкладка распаковывает архив поверх него, и файлы внутри
+# него пропадали бы при каждом обновлении.
+StateDirectory=schoolpiboard
+
 [Install]
 WantedBy=multi-user.target

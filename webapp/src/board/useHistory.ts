@@ -7,6 +7,8 @@ export interface ItemSnapshot {
   ref: string;
   type: ItemType;
   data: ItemData;
+  /** Картинке нужен ещё и файл: без него отмена вернула бы пустую рамку. */
+  imageRef?: string | null;
 }
 
 /** Что было сделано. Отмена — обратное действие, а не откат к снимку. */

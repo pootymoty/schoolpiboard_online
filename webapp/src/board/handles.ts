@@ -92,6 +92,28 @@ export function resized(
   const width = Math.max(1, right - left);
   const height = Math.max(1, bottom - top);
 
+  // Картинка тянется пропорционально: страница документа, растянутая по
+  // одной стороне, читается плохо и выглядит как поломка.
+  if (data.ratio !== undefined && data.ratio > 0) {
+    const byWidth = origin.width > 0 ? width / origin.width : 1;
+    const byHeight = origin.height > 0 ? height / origin.height : 1;
+
+    const horizontal = handle === 'e' || handle === 'w';
+    const vertical = handle === 'n' || handle === 's';
+
+    const factor = horizontal ? byWidth : vertical ? byHeight : Math.max(byWidth, byHeight);
+
+    const nextWidth = Math.max(8, origin.width * factor);
+    const nextHeight = nextWidth / data.ratio;
+
+    // Тянут за левый или верхний край — двигается он, а противоположный
+    // остаётся на месте: иначе картинка уезжала бы из-под пальца.
+    const x = handle.includes('w') ? origin.x + origin.width - nextWidth : origin.x;
+    const y = handle.startsWith('n') ? origin.y + origin.height - nextHeight : origin.y;
+
+    return { ...data, x1: x, y1: y, x2: x + nextWidth, y2: y + nextHeight };
+  }
+
   if (data.text !== undefined) {
     // Надпись меняется целиком и пропорционально: у букв есть своё
     // соотношение сторон, и растянуть рамку отдельно от них — значит

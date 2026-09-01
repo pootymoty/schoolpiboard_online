@@ -43,6 +43,13 @@ public sealed class AppOptions
     public required MailOptions Mail { get; init; }
     public required StorageOptions Storage { get; init; }
 
+    /// <summary>
+    /// Где лежат загруженные файлы. Вне каталога с приложением намеренно:
+    /// выкладка распаковывает архив поверх /var/www, и хранилище внутри
+    /// него пропадало бы при каждом обновлении.
+    /// </summary>
+    public required string FilesDir { get; init; }
+
     public required int TrialDays { get; init; }
     public required int GraceDays { get; init; }
 
@@ -91,6 +98,12 @@ public sealed class AppOptions
                 AccessKey = configuration["S3_ACCESS_KEY"]?.Trim() ?? string.Empty,
                 SecretKey = configuration["S3_SECRET_KEY"]?.Trim() ?? string.Empty
             },
+
+            // Значение по умолчанию рабочее: службе достаточно прав на эту
+            // папку, и отдельной строки в .env для обычной установки не нужно.
+            FilesDir = configuration["FILES_DIR"]?.Trim() is { Length: > 0 } dir
+                ? dir.TrimEnd('/')
+                : "/var/lib/schoolpiboard/files",
 
             TrialDays = Number("TRIAL_DAYS", 7),
             GraceDays = Number("GRACE_DAYS", 60)

@@ -10,6 +10,7 @@ import { Modal } from '../components/Modal';
 import { PeoplePanel } from '../components/PeoplePanel';
 import { IconCheck, IconLink, IconLockClosed, IconLockOpen, IconPeople } from '../components/Icons';
 import { BoardCanvas } from '../board/BoardCanvas';
+import { FilesPanel } from '../board/FilesPanel';
 import { DrawToolbar, ViewToolbar } from '../board/BoardToolbar';
 import { ToolSettingsPanel } from '../board/ToolSettingsPanel';
 import { DEFAULT_SETTINGS, DRAWING_TOOLS } from '../board/tools';
@@ -19,16 +20,19 @@ import { erase } from '../board/erase';
 import { TextInput } from '../board/TextInput';
 import { fontOf } from '../board/render';
 import { boundsOf, pointsOf, translate } from '../board/geometry';
+import { measureText } from '../board/handles';
 import { SelectionPanel } from '../board/SelectionPanel';
 import { BackgroundPanel } from '../board/BackgroundPanel';
 import { TimerPanel } from '../board/TimerPanel';
 import { HelpPanel } from '../board/HelpPanel';
 import { exportPng } from '../board/exportPng';
+import { uploadBoardImage } from '../api/files';
+import { canvasFromFile, toPng } from '../board/pdf';
 import { useBoardHub } from '../board/useBoardHub';
 import { useWaitingQueue } from '../board/useWaitingQueue';
 import { useHistory } from '../board/useHistory';
 import type { ItemSnapshot } from '../board/useHistory';
-import { INITIAL_VIEWPORT, centerOn, fitToContent, toScreen, zoomAt } from '../board/viewport';
+import { INITIAL_VIEWPORT, centerOn, fitToContent, toScreen, toWorld, zoomAt } from '../board/viewport';
 import type { Viewport } from '../board/viewport';
 
 /**
@@ -72,6 +76,7 @@ export function BoardPage(): ReactElement {
   const [showBackground, setShowBackground] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showFiles, setShowFiles] = useState(false);
 
   // Название правится прямо на холсте: щёлкнул — поле, галочка — сохранил.
   const [editingTitle, setEditingTitle] = useState(false);
@@ -89,6 +94,15 @@ export function BoardPage(): ReactElement {
 
   const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEWPORT);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+
+  // Свежие вид и габариты для обработчиков вставки: они висят на окне и
+  // иначе видели бы состояние на момент подписки.
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
+  const canvasRef = useRef(canvasSize);
+  canvasRef.current = canvasSize;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const [selection, setSelection] = useState<number[]>([]);
 
   const hub = useBoardHub(id);
@@ -112,14 +126,14 @@ export function BoardPage(): ReactElement {
   ), []);
 
   /** Отправляет объект на доску и запоминает, под какой ссылкой он живёт. */
-  const send = useCallback((ref: string, type: ItemType, data: ItemData) => {
+  const send = useCallback((ref: string, type: ItemType, data: ItemData, imageRef?: string | null) => {
     const tempId = `${ref}-${Date.now().toString(36)}`;
     pending.current.set(tempId, { ref });
-    hub.commitItem(tempId, type, data);
+    hub.commitItem(tempId, type, data, imageRef);
   }, [hub]);
 
   const history = useHistory({
-    restore: (snapshot) => send(snapshot.ref, snapshot.type, snapshot.data),
+    restore: (snapshot) => send(snapshot.ref, snapshot.type, snapshot.data, snapshot.imageRef),
     move: (refs, dx, dy) => hub.moveItems(idsOf(refs), dx, dy),
     remove: (refs) => hub.deleteItems(idsOf(refs)),
   });
@@ -165,7 +179,9 @@ export function BoardPage(): ReactElement {
     const doomed = hub.items.filter((item) => selection.includes(item.id));
     history.push({
       kind: 'delete',
-      items: doomed.map((item) => ({ ref: refOf(item.id), type: item.type, data: item.data })),
+      items: doomed.map((item) => ({
+        ref: refOf(item.id), type: item.type, data: item.data, imageRef: item.imageRef,
+      })),
     });
 
     hub.deleteItems(selection);
@@ -193,7 +209,7 @@ export function BoardPage(): ReactElement {
 
       erased.current.add(item.id);
       doomed.push(item.id);
-      undoItems.push({ ref: refOf(item.id), type: item.type, data: item.data });
+      undoItems.push({ ref: refOf(item.id), type: item.type, data: item.data, imageRef: item.imageRef });
 
       if (result.kind === 'split') {
         for (const part of result.parts) {
@@ -302,14 +318,131 @@ export function BoardPage(): ReactElement {
     for (const item of selectedItems) {
       const ref = `c${item.id}-${Date.now().toString(36)}`;
       const data = translate(item.data, 16, 16);
-      pending.current.set(`${ref}-new`, { ref, snapshot: { ref, type: item.type, data } });
-      hub.commitItem(`${ref}-new`, item.type, data);
+      const snapshot = { ref, type: item.type, data, imageRef: item.imageRef };
+
+      pending.current.set(`${ref}-new`, { ref, snapshot });
+      hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
     }
   };
 
   const recolorSelection = (color: string) => {
     for (const item of selectedItems) hub.updateItem(item.id, { ...item.data, color });
   };
+
+  /**
+   * Кладёт картинку на доску: сначала файл уезжает на сервер, потом на
+   * доску кладётся объект со ссылкой на него.
+   *
+   * Размер подбирается по видимой части холста, а не по пикселям файла:
+   * страница А4 в натуральную величину при мелком масштабе оказалась бы
+   * с ноготок, а при крупном — заняла бы полдоски.
+   */
+  const insertImage = useCallback(async (blob: Blob, name: string, ratio: number) => {
+    const uploaded = await uploadBoardImage(id, blob, name, readGuestToken(id));
+
+    const view = viewportRef.current;
+    const size = canvasRef.current;
+
+    // Половина видимой ширины: рядом остаётся место, чтобы писать.
+    const width = (size.width > 0 ? size.width * 0.5 : 480) / view.scale;
+    const height = width / (ratio > 0 ? ratio : 1);
+
+    const center = toWorld(view, size.width / 2, size.height / 2);
+    const x1 = center.x - width / 2;
+    const y1 = center.y - height / 2;
+
+    const data: ItemData = {
+      x1,
+      y1,
+      x2: x1 + width,
+      y2: y1 + height,
+      ratio,
+      color: '#000000',
+      // Ноль: рамка выделения у картинки идёт ровно по её краю, а не с
+      // отступом на толщину линии, которой у неё нет.
+      width: 0,
+    };
+
+    const ref = `i${Date.now().toString(36)}`;
+    pending.current.set(`${ref}-new`, {
+      ref,
+      snapshot: { ref, type: 'image', data, imageRef: uploaded.imageRef },
+    });
+
+    hub.commitItem(`${ref}-new`, 'image', data, uploaded.imageRef);
+  }, [hub, id]);
+
+  /** Картинка из буфера или перетащенный файл — та же дорога, что и у вставки из панели. */
+  const insertFile = useCallback(async (file: Blob, name: string) => {
+    try {
+      const canvas = await canvasFromFile(file);
+      await insertImage(await toPng(canvas), name, canvas.width / canvas.height);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось вставить картинку.');
+    }
+  }, [insertImage]);
+
+  /** Текст из буфера — обычная надпись в середине видимой части холста. */
+  const pasteText = useCallback((text: string) => {
+    const view = viewportRef.current;
+    const size = canvasRef.current;
+    const at = toWorld(view, size.width / 2, size.height / 2);
+
+    const data: ItemData = {
+      x1: at.x,
+      y1: at.y,
+      text,
+      fontSize: settingsRef.current.text.fontSize,
+      color: settingsRef.current.text.color,
+      width: 1,
+    };
+
+    const box = measureText(text, data.fontSize ?? 24);
+    data.x2 = at.x + box.width;
+    data.y2 = at.y + box.height;
+
+    const ref = `p${Date.now().toString(36)}`;
+    pending.current.set(`${ref}-new`, { ref, snapshot: { ref, type: 'text', data } });
+    hub.commitItem(`${ref}-new`, 'text', data);
+  }, [hub]);
+
+  /**
+   * Вставка чего угодно из буфера: картинка ложится картинкой, текст —
+   * надписью, файл — как обычная загрузка. Гостю это закрыто вместе со
+   * всей загрузкой файлов.
+   */
+  useEffect(() => {
+    if (!hub.canEdit || state?.me.isGuest !== false) return;
+
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      for (const entry of items) {
+        if (entry.kind === 'file') {
+          const file = entry.getAsFile();
+          if (!file) continue;
+
+          event.preventDefault();
+          void insertFile(file, file.name || 'Вставка');
+          return;
+        }
+      }
+
+      const text = event.clipboardData?.getData('text/plain')?.trim();
+      if (!text) return;
+
+      event.preventDefault();
+      pasteText(text);
+    };
+
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [hub.canEdit, state?.me.isGuest, insertFile, pasteText]);
+
 
   const zoomBy = (factor: number) => {
     // От середины холста: кнопкой масштабируют, не целясь в точку.
@@ -487,7 +620,21 @@ export function BoardPage(): ReactElement {
           </p>
         ) : null}
 
-        <section className="board-page__canvas">
+        <section
+          className="board-page__canvas"
+          onDragOver={(event) => {
+            if (hub.canEdit && !me.isGuest) event.preventDefault();
+          }}
+          onDrop={(event) => {
+            if (!hub.canEdit || me.isGuest) return;
+
+            const file = event.dataTransfer.files?.[0];
+            if (!file) return;
+
+            event.preventDefault();
+            void insertFile(file, file.name);
+          }}
+        >
           {/* Название — в верхнем левом углу холста. Править может только
               владелец, щёлкнув по надписи. */}
           <div className="board-title">
@@ -538,14 +685,16 @@ export function BoardPage(): ReactElement {
 
           <ViewToolbar
             canManage={hub.canManage}
+            canUpload={hub.canEdit && !me.isGuest}
+            onFiles={() => setShowFiles((current) => !current)}
             scale={viewport.scale}
             onBackground={() => setShowBackground((current) => !current)}
             onTimer={() => setShowTimer((current) => !current)}
             onHelp={() => setShowHelp((current) => !current)}
             onExport={() => {
-              if (!exportPng(hub.items, hub.background, board.title)) {
-                setError('Доска пуста — сохранять нечего.');
-              }
+              void exportPng(hub.items, hub.background, board.title).then((saved) => {
+                if (!saved) setError('Доска пуста — сохранять нечего.');
+              });
             }}
             onZoom={zoomBy}
             onResetZoom={() => setViewport((current) => {
@@ -613,6 +762,10 @@ export function BoardPage(): ReactElement {
 
           {showTimer ? <TimerPanel onClose={() => setShowTimer(false)} /> : null}
           {showHelp ? <HelpPanel onClose={() => setShowHelp(false)} /> : null}
+
+          {showFiles ? (
+            <FilesPanel onInsert={insertImage} onClose={() => setShowFiles(false)} />
+          ) : null}
 
           {showBackground && hub.canManage ? (
             <BackgroundPanel

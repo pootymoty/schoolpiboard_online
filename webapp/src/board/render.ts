@@ -1,3 +1,4 @@
+import { imageFor } from './images';
 import type { ItemData, ItemType, LineStyle, Point } from './protocol';
 
 /**
@@ -245,12 +246,44 @@ export function drawGrid(
   context.restore();
 }
 
-export function drawItem(context: CanvasRenderingContext2D, type: ItemType, data: ItemData): void {
+/**
+ * Картинка на доске. Пока файл грузится, на его месте лежит пустая рамка:
+ * без неё объект просто пропадал бы, и человек решил бы, что вставка не
+ * удалась.
+ */
+function drawImage(context: CanvasRenderingContext2D, data: ItemData, imageRef: string | null): void {
+  const x = Math.min(data.x1 ?? 0, data.x2 ?? 0);
+  const y = Math.min(data.y1 ?? 0, data.y2 ?? 0);
+  const width = Math.abs((data.x2 ?? 0) - (data.x1 ?? 0));
+  const height = Math.abs((data.y2 ?? 0) - (data.y1 ?? 0));
+
+  const loaded = imageRef ? imageFor(imageRef) : null;
+
+  if (loaded) {
+    context.drawImage(loaded, x, y, width, height);
+    return;
+  }
+
+  context.save();
+  context.globalAlpha = 0.5;
+  context.setLineDash([6, 6]);
+  context.lineWidth = 1;
+  context.strokeRect(x, y, width, height);
+  context.restore();
+}
+
+export function drawItem(
+  context: CanvasRenderingContext2D,
+  type: ItemType,
+  data: ItemData,
+  imageRef: string | null = null,
+): void {
   context.save();
   applyStyle(context, data);
 
   if (type === 'text') drawText(context, data);
   else if (type === 'shape') drawShape(context, data);
+  else if (type === 'image') drawImage(context, data, imageRef);
   else drawStroke(context, data);
 
   context.restore();

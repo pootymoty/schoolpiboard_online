@@ -98,9 +98,9 @@ export function hits(item: BoardItem, point: Point, radius: number): boolean {
   const points = pointsOf(item.data);
   const reach = radius + item.data.width / 2;
 
-  // В надпись и в эллипс попадают всей площадью: тыкать ровно в букву
-  // или ровно в контур — это соревнование, а не работа.
-  if (item.type === 'text' || item.data.shape === 'ellipse') {
+  // В надпись, картинку и эллипс попадают всей площадью: тыкать ровно в
+  // букву или ровно в контур — это соревнование, а не работа.
+  if (item.type === 'text' || item.type === 'image' || item.data.shape === 'ellipse') {
     const box = boundsOf([item]);
     return Boolean(box)
       && point.x >= box!.x - radius && point.x <= box!.x + box!.width + radius

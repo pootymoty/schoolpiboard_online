@@ -53,12 +53,26 @@ public sealed class RetentionCleanupService : BackgroundService
             if (expired.Count == 0)
                 return;
 
+            // Файлы уходят вместе с человеком: связи с пользователем у них
+            // нет намеренно (они должны были пережить само удаление), и
+            // каскад их не заберёт — убираем руками, вместе с байтами.
+            var storage = scope.ServiceProvider.GetRequiredService<FileStorage>();
+            var owners = expired.Select(user => user.Id).ToList();
+
+            var files = await db.StoredFiles
+                .Where(x => owners.Contains(x.OwnerId))
+                .ToListAsync(cancellationToken);
+
+            db.StoredFiles.RemoveRange(files);
             db.Users.RemoveRange(expired);
             await db.SaveChangesAsync(cancellationToken);
 
+            foreach (var file in files) storage.Delete(file.StorageKey);
+
             _logger.LogInformation(
-                "Зачистка хранения: удалено учётных записей — {Count} (истёк срок в полгода после удаления).",
-                expired.Count);
+                "Зачистка хранения: удалено учётных записей — {Count}, файлов — {Files} "
+                + "(истёк срок в полгода после удаления).",
+                expired.Count, files.Count);
         }
         catch (Exception ex)
         {

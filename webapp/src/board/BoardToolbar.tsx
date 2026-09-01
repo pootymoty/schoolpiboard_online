@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
-  IconDownload, IconGrid, IconHelp, IconTimer, IconRedo, IconShapes, IconText, IconTrash, IconUndo,
+  IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconText, IconTrash, IconUndo,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -78,11 +78,14 @@ export function DrawToolbar({
 
 interface ViewProps {
   canManage: boolean;
+  /** Гостю загрузка закрыта: файлы кладут только те, у кого есть учётная запись. */
+  canUpload: boolean;
   scale: number;
   onZoom: (factor: number) => void;
   onResetZoom: () => void;
   onFit: () => void;
   onBackground: () => void;
+  onFiles: () => void;
   onTimer: () => void;
   onHelp: () => void;
   onExport: () => void;
@@ -91,7 +94,8 @@ interface ViewProps {
 
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
 export function ViewToolbar({
-  canManage, scale, onZoom, onResetZoom, onFit, onBackground, onTimer, onHelp, onExport, onClear,
+  canManage, canUpload, scale, onZoom, onResetZoom, onFit,
+  onBackground, onFiles, onTimer, onHelp, onExport, onClear,
 }: ViewProps): ReactElement {
   return (
     <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
@@ -114,6 +118,12 @@ export function ViewToolbar({
       <button className="btn-tool" type="button" onClick={onTimer} title="Таймер">
         <IconTimer />
       </button>
+
+      {canUpload ? (
+        <button className="btn-tool" type="button" onClick={onFiles} title="Вставить файл или страницу PDF">
+          <IconImage />
+        </button>
+      ) : null}
 
       {/* Сохранить картинкой может любой: это его же занятие. */}
       <button className="btn-tool" type="button" onClick={onExport} title="Сохранить картинкой">

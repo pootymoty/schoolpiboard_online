@@ -33,7 +33,7 @@ export interface BoardHub {
   sendCursor: (x: number, y: number) => void;
   beginItem: (tempId: string, type: ItemType, data: ItemData) => void;
   appendPoints: (tempId: string, points: ItemData['points']) => void;
-  commitItem: (tempId: string, type: ItemType, data: ItemData) => void;
+  commitItem: (tempId: string, type: ItemType, data: ItemData, imageRef?: string | null) => void;
   cancelItem: (tempId: string) => void;
   setBackground: (background: Background) => void;
   moveItems: (ids: number[], dx: number, dy: number) => void;
@@ -295,7 +295,10 @@ export function useBoardHub(boardId: number): BoardHub {
     sendCursor: useCallback((x: number, y: number) => call('Cursor', x, y), [call]),
     beginItem: useCallback((id, type, data) => call('BeginItem', id, type, data), [call]),
     appendPoints: useCallback((id, points) => call('AppendPoints', id, points), [call]),
-    commitItem: useCallback((id, type, data) => call('CommitItem', id, type, data), [call]),
+    commitItem: useCallback(
+      (id, type, data, imageRef) => call('CommitItem', id, type, data, imageRef ?? null),
+      [call],
+    ),
     cancelItem: useCallback((id: string) => call('CancelItem', id), [call]),
     setBackground: useCallback((next: Background) => (
       call('SetBackground', next.background, next.gridStyle, next.gridColor)

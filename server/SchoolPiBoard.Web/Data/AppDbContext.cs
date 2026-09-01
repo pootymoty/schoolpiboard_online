@@ -19,6 +19,8 @@ public class AppDbContext : DbContext
 
     public DbSet<BoardItem> BoardItems => Set<BoardItem>();
 
+    public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(entity =>
@@ -148,6 +150,37 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<StoredFile>(entity =>
+        {
+            entity.ToTable("stored_files");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.OwnerId).HasColumnName("owner_id");
+            entity.Property(x => x.Kind).HasColumnName("kind").IsRequired();
+            entity.Property(x => x.BoardId).HasColumnName("board_id");
+            entity.Property(x => x.Name).HasColumnName("name").IsRequired();
+            entity.Property(x => x.ContentType).HasColumnName("content_type").IsRequired();
+            entity.Property(x => x.Size).HasColumnName("size");
+            entity.Property(x => x.StorageKey).HasColumnName("storage_key").IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+
+            // Библиотека показывается списком, место считается суммой — и то,
+            // и другое идёт по владельцу.
+            entity.HasIndex(x => new { x.OwnerId, x.Kind });
+
+            // Удаление доски уносит и её картинки.
+            entity.HasIndex(x => x.BoardId);
+
+            // По ключу картинку отдают браузеру: ключ неугадываемый и
+            // работает как сама ссылка на доску.
+            entity.HasIndex(x => x.StorageKey).IsUnique();
+
+            // Связи с пользователем и доской намеренно нет: файлы переживают
+            // удаление учётной записи и уходят вместе с ней позже, по общему
+            // сроку хранения.
         });
     }
 }

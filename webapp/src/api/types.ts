@@ -86,3 +86,20 @@ export interface BoardState {
   members: BoardMember[];
   guests: ActiveGuest[];
 }
+
+/** Файл в библиотеке: PDF или картинка, загруженные один раз и надолго. */
+export interface LibraryFile {
+  id: number;
+  name: string;
+  contentType: string;
+  size: number;
+  createdAt: string;
+}
+
+/** Библиотека целиком: файлы и сколько места занято. */
+export interface Library {
+  files: LibraryFile[];
+  used: number;
+  quota: number;
+  maxFileSize: number;
+}

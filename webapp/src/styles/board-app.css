@@ -1222,3 +1222,181 @@ body.no-scroll {
 }
 
 .link-box--stack input { width: 100%; }
+
+/* --- Файлы: библиотека, страницы PDF, обрезка ------------------------------- */
+
+/* Шире панели инструмента: здесь миниатюры страниц и список файлов, а в
+   узкой колонке страницу не разглядеть. */
+.files {
+    position: absolute;
+    left: 50%;
+    top: var(--sp-3);
+    transform: translateX(-50%);
+    z-index: 12;
+    width: min(560px, calc(100% - 2 * var(--sp-3)));
+    max-height: calc(100% - 2 * var(--sp-3));
+    overflow-y: auto;
+    padding: var(--sp-3) var(--sp-4) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+}
+
+.files__head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-2);
+}
+
+.files__title {
+    font-family: var(--font-head);
+    font-size: var(--fs-lg);
+    font-weight: 700;
+    margin: 0;
+    flex: 1;
+}
+
+.files__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+
+/* Настоящее поле выбора файла спрятано: у него нельзя переопределить вид,
+   а подпись «Файл не выбран» рядом с кнопкой только сбивает с толку. */
+.files__upload {
+    align-self: flex-start;
+    cursor: pointer;
+}
+
+.files__upload input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.files__quota { display: flex; flex-direction: column; gap: 2px; }
+
+.files__bar {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.files__bar span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+}
+
+.files__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+}
+
+.files__item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+}
+
+.files__name {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-weight: 600;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.files__name:hover { color: var(--accent); }
+
+/* Миниатюры страниц: сеткой, чтобы у толстого файла не пришлось листать
+   вертикальный список на сотню строк. */
+.files__pages {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: var(--sp-2);
+    max-height: 40vh;
+    overflow-y: auto;
+}
+
+.files__page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.files__thumb {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 2px;
+    background: var(--surface-2);
+    border: 2px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.files__page--on .files__thumb { border-color: var(--accent); }
+
+.files__thumb img {
+    display: block;
+    width: 100%;
+    border-radius: 2px;
+}
+
+/* Номер страницы поверх миниатюры: под ней он оторвался бы от картинки. */
+.files__thumb span {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    padding: 0 4px;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+}
+
+.files__crop {
+    position: relative;
+    /* Курсор-перекрестье: по нему видно, что рамку тянут прямо здесь. */
+    cursor: crosshair;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.files__crop img {
+    display: block;
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+}
+
+.files__frame {
+    position: absolute;
+    border: 2px dashed var(--accent);
+    background: var(--accent-soft);
+    opacity: .6;
+    pointer-events: none;
+}

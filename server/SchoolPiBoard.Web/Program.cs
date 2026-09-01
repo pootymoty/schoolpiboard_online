@@ -28,6 +28,8 @@ builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<BoardItemService>();
+builder.Services.AddSingleton<FileStorage>();
+builder.Services.AddScoped<LibraryService>();
 builder.Services.AddHostedService<RetentionCleanupService>();
 
 // Redis подключается при старте, а не при первом обращении: если он
@@ -109,6 +111,7 @@ app.UseRateLimiter();
 
 app.MapAuthEndpoints();
 app.MapBoardEndpoints();
+app.MapFileEndpoints();
 
 // Без RequireAuthorization: на доску пускают и гостя, у которого учётной
 // записи нет. Кто он и что ему можно — выясняет сам хаб при входе.
@@ -116,11 +119,9 @@ app.MapHub<BoardHub>("/api/hub/board");
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 
-if (!options.Storage.IsConfigured)
-{
-    app.Logger.LogWarning(
-        "Yandex Object Storage не настроен: загрузка картинок на доску работать не будет. " +
-        "Это ожидаемо до этапа 11d.");
-}
+// Файлы лежат на диске рядом со службой, объектное хранилище не нужно:
+// за него надо платить и заводить ключи, а диск на сервере уже есть.
+// Настройки S3 остаются в конфигурации на случай переезда.
+app.Logger.LogInformation("Хранилище файлов: {Dir}", options.FilesDir);
 
 app.Run();

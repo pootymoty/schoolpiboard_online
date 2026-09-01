@@ -293,6 +293,17 @@ export const IconMoon = (props: Props): ReactElement => (
   <Svg {...props}><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></Svg>
 );
 
+/** Картинка или страница документа: вставить файл на доску. */
+export const IconImage = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8.5" cy="9.5" r="1.5" />
+      <path d="M21 16l-5-5-6 6-3-3-4 4" />
+    </g>
+  </Svg>
+);
+
 /** Бургер: открыть мобильное меню. */
 export const IconMenu = (props: Props): ReactElement => (
   <Svg {...props}><g><path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" /></g></Svg>

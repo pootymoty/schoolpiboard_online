@@ -123,13 +123,20 @@ public static class BoardEndpoints
         });
 
         boards.MapDelete("/{boardId:long}", async (
-            long boardId, ClaimsPrincipal principal, AppDbContext db, BoardService service, CancellationToken ct) =>
+            long boardId, ClaimsPrincipal principal, AppDbContext db,
+            BoardService service, LibraryService library, CancellationToken ct) =>
         {
             var user = await AuthEndpoints.CurrentUser(principal, db, ct);
             if (user is null) return Results.Unauthorized();
 
             var result = await service.DeleteAsync(boardId, user.Id, ct);
-            return result.Outcome == BoardOutcome.Ok ? Results.NoContent() : Fail(result.Outcome, result.Message);
+            if (result.Outcome != BoardOutcome.Ok) return Fail(result.Outcome, result.Message);
+
+            // Картинки удалённой доски занимали бы место владельца, а
+            // показать их больше негде.
+            await library.DeleteBoardFilesAsync(boardId, ct);
+
+            return Results.NoContent();
         });
 
         // ---------- Комната ожидания ----------
