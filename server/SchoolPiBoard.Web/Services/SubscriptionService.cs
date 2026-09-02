@@ -137,6 +137,54 @@ public sealed class SubscriptionService
             userId, plan, days, Subscription.KindTrial, Subscription.SourceTrial, null, cancellationToken);
     }
 
+    /// <summary>
+    /// Включает или выключает автопродление у действующей подписки.
+    ///
+    /// На бесплатном продлевать нечего, и включить его там нельзя: списание
+    /// возможно только по счёту, который человек однажды оплатил сам.
+    /// </summary>
+    public async Task<bool> SetAutoRenewAsync(long userId, bool value, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+
+        var current = await _db.Subscriptions
+            .Where(x => x.UserId == userId && x.EndsAt > now)
+            .OrderByDescending(x => x.EndsAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (current is null) return false;
+
+        current.AutoRenew = value;
+        await _db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// Последний оплаченный счёт человека — по нему Робокасса списывает
+    /// повторно. Пробный период сюда не годится: карты за ним нет.
+    /// </summary>
+    public Task<Subscription?> LastPaidAsync(long userId, CancellationToken cancellationToken)
+        => _db.Subscriptions
+            .Include(x => x.Plan)
+            .Where(x => x.UserId == userId && x.InvoiceId != null && x.Kind == Subscription.KindPaid)
+            .OrderByDescending(x => x.EndsAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// Подписки, которые пора продлевать: с автопродлением и кончающиеся
+    /// в ближайшие сутки.
+    /// </summary>
+    public Task<List<Subscription>> DueForRenewalAsync(TimeSpan ahead, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var edge = now + ahead;
+
+        return _db.Subscriptions
+            .Include(x => x.Plan)
+            .Where(x => x.AutoRenew && x.EndsAt > now && x.EndsAt <= edge && x.InvoiceId != null)
+            .ToListAsync(cancellationToken);
+    }
+
     /// <summary>Сколько досок у человека сейчас. По ним считается предел тарифа.</summary>
     public Task<int> BoardCountAsync(long userId, CancellationToken cancellationToken)
         => _db.Boards.CountAsync(x => x.OwnerId == userId && x.DeletedAt == null, cancellationToken);

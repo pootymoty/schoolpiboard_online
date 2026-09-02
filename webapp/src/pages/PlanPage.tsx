@@ -4,7 +4,15 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Page } from '../components/Layout';
 import { humanSize } from '../api/files';
-import type { MyPlan } from '../api/types';
+import type { MyPlan, Plan } from '../api/types';
+
+/** Периоды продажи. Тариф отвечает за пределы, период — только за срок. */
+const PERIODS = [
+  { days: 30, title: '30 дней', field: 'price30' as const },
+  { days: 90, title: '90 дней', field: 'price90' as const },
+  { days: 180, title: '180 дней', field: 'price180' as const },
+  { days: 365, title: '365 дней', field: 'price365' as const },
+];
 
 /** Полоса заполнения предела: занято из положенного. */
 function Bar({ used, total }: { used: number; total: number }): ReactElement {
@@ -25,15 +33,68 @@ function Bar({ used, total }: { used: number; total: number }): ReactElement {
  */
 export function PlanPage(): ReactElement {
   const [mine, setMine] = useState<MyPlan | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
+  /** Что покупаем: тариф и срок. */
+  const [code, setCode] = useState<string | null>(null);
+  const [period, setPeriod] = useState(PERIODS[0]);
+  const [renew, setRenew] = useState(true);
+
+  const load = () => {
     api<MyPlan>('/billing/me')
       .then(setMine)
       .catch((reason) => setError(
         reason instanceof ApiError ? reason.message : 'Не удалось загрузить тариф.',
       ));
+  };
+
+  useEffect(() => {
+    load();
+    api<Plan[]>('/plans')
+      .then((rows) => {
+        const paid = rows.filter((row) => row.price30 > 0);
+        setPlans(paid);
+        setCode((current) => current ?? paid[0]?.code ?? null);
+      })
+      .catch(() => undefined);
   }, []);
+
+  const chosen = plans.find((plan) => plan.code === code) ?? null;
+  const price = chosen ? chosen[period.field] : 0;
+
+  /**
+   * Уводит на оплату. Счёт выставляет сервер ключей: платёжных данных у
+   * доски нет и не будет, поэтому и цену, и счёт считает не браузер.
+   */
+  const pay = async () => {
+    if (!chosen) return;
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      const answer = await api<{ paymentUrl: string }>('/billing/checkout', {
+        method: 'POST',
+        body: { planCode: chosen.code, days: period.days, autoRenew: renew },
+      });
+
+      window.location.href = answer.paymentUrl;
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось перейти к оплате.');
+      setBusy(false);
+    }
+  };
+
+  const toggleRenew = async (value: boolean) => {
+    try {
+      await api('/billing/auto-renew', { method: 'POST', body: { value } });
+      load();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось изменить автопродление.');
+    }
+  };
 
   const until = mine?.until
     ? new Date(mine.until).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -92,12 +153,90 @@ export function PlanPage(): ReactElement {
             </div>
           </section>
 
+          {mine.kind === 'paid' ? (
+            <section className="card">
+              <h2 className="card-title">Автопродление</h2>
+
+              <div className="check">
+                <input
+                  id="autoRenew"
+                  type="checkbox"
+                  checked={mine.autoRenew}
+                  onChange={(event) => void toggleRenew(event.target.checked)}
+                />
+                <label htmlFor="autoRenew">Продлевать подписку автоматически</label>
+              </div>
+
+              <p className="text-muted small">
+                Списываем с той же карты за сутки до конца срока. Выключить можно
+                в любой момент — оплаченные дни остаются при вас.
+              </p>
+            </section>
+          ) : null}
+
           <section className="card">
-            <h2 className="card-title">Сменить тариф</h2>
-            <p className="text-muted">
-              Оплата подключается — пока тариф меняем вручную. Напишите, и мы всё сделаем.
-            </p>
-            <Link className="btn btn-primary" to="/pricing">Посмотреть тарифы</Link>
+            <h2 className="card-title">{mine.kind === 'free' ? 'Выбрать тариф' : 'Продлить или сменить'}</h2>
+
+            {plans.length === 0 ? (
+              <p className="text-muted">Загружаем тарифы…</p>
+            ) : (
+              <>
+                <p className="params__label">Тариф</p>
+                <div className="row">
+                  {plans.map((plan) => (
+                    <button
+                      key={plan.code}
+                      className={plan.code === code ? 'btn-primary btn-sm' : 'btn-quiet btn-sm'}
+                      type="button"
+                      onClick={() => setCode(plan.code)}
+                    >
+                      {plan.name}
+                    </button>
+                  ))}
+                </div>
+
+                <p className="params__label">Срок</p>
+                <div className="row">
+                  {PERIODS.map((option) => (
+                    <button
+                      key={option.days}
+                      className={option.days === period.days ? 'btn-primary btn-sm' : 'btn-quiet btn-sm'}
+                      type="button"
+                      onClick={() => setPeriod(option)}
+                    >
+                      {option.title}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="check" style={{ marginTop: 'var(--sp-3)' }}>
+                  <input
+                    id="renewOnBuy"
+                    type="checkbox"
+                    checked={renew}
+                    onChange={(event) => setRenew(event.target.checked)}
+                  />
+                  <label htmlFor="renewOnBuy">Продлевать автоматически</label>
+                </div>
+
+                <button
+                  className="btn-primary btn-block"
+                  type="button"
+                  disabled={!chosen || busy}
+                  onClick={() => void pay()}
+                  style={{ marginTop: 'var(--sp-4)' }}
+                >
+                  {busy ? 'Готовим оплату…' : `Оплатить ${price} ₽`}
+                </button>
+
+                <p className="text-muted small">
+                  Оплата через Робокассу. Оплаченные дни прибавляются к концу
+                  текущего срока — ничего не пропадает.
+                </p>
+              </>
+            )}
+
+            <Link className="btn btn-quiet btn-sm" to="/pricing">Сравнить тарифы</Link>
           </section>
         </>
       ) : error ? null : (

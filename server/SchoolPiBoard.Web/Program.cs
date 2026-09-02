@@ -31,6 +31,13 @@ builder.Services.AddScoped<BoardItemService>();
 builder.Services.AddSingleton<FileStorage>();
 builder.Services.AddScoped<LibraryService>();
 builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<KeyServerClient>();
+
+// Оплата идёт через сервер ключей: паролей Робокассы у доски нет
+// и не будет. Продление запрашивает фоновая служба — сроки знает
+// доска, а списывает тот, у кого лежат платёжные данные.
+builder.Services.AddHttpClient();
+builder.Services.AddHostedService<AutoRenewService>();
 builder.Services.AddHostedService<RetentionCleanupService>();
 
 // Redis подключается при старте, а не при первом обращении: если он
