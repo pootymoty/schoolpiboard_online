@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { COMPANY, HAS_COMPANY_DETAILS } from '../content/company';
 import { IconMenu } from './Icons';
 import { Menu } from './Menu';
 
@@ -15,9 +16,13 @@ type Theme = 'light' | 'dark';
  * запуском кода мелькал бы светлый фон.
  */
 function useTheme(): { theme: Theme; toggle: () => void } {
-  const [theme, setTheme] = useState<Theme>(
-    () => (document.documentElement.getAttribute('data-theme') as Theme) || 'light',
-  );
+  // При сборке страниц в статический HTML документа нет вовсе, поэтому
+  // читаем атрибут только когда есть что читать.
+  const [theme, setTheme] = useState<Theme>(() => (
+    typeof document === 'undefined'
+      ? 'light'
+      : (document.documentElement.getAttribute('data-theme') as Theme) || 'light'
+  ));
 
   const toggle = () => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
@@ -89,7 +94,7 @@ export function Header(): ReactElement {
         {user ? (
           <>
             <Link to="/">Главная</Link>
-            <Link to="/about">О нас</Link>
+            <Link to="/features">Возможности</Link>
             <Link to="/pricing">Тарифы</Link>
             <Link to="/boards">Мои доски</Link>
             <Menu
@@ -107,8 +112,9 @@ export function Header(): ReactElement {
         ) : (
           <>
             <Link to="/">Главная</Link>
-            <Link to="/about">О нас</Link>
+            <Link to="/features">Возможности</Link>
             <Link to="/pricing">Тарифы</Link>
+            <Link to="/faq">Вопросы</Link>
             <Link to="/login">Войти</Link>
           </>
         )}
@@ -136,8 +142,10 @@ export function Header(): ReactElement {
           {user ? (
             <>
               <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
-              <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
+              <li><Link to="/features" onClick={closeMobile}>Возможности</Link></li>
               <li><Link to="/pricing" onClick={closeMobile}>Тарифы</Link></li>
+              <li><Link to="/faq" onClick={closeMobile}>Вопросы</Link></li>
+              <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
               <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
               <li className={cabinetOpen ? 'navbar-dropdown navbar-dropdown--active' : 'navbar-dropdown'}>
                 <div
@@ -164,8 +172,10 @@ export function Header(): ReactElement {
           ) : (
             <>
               <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
-              <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
+              <li><Link to="/features" onClick={closeMobile}>Возможности</Link></li>
               <li><Link to="/pricing" onClick={closeMobile}>Тарифы</Link></li>
+              <li><Link to="/faq" onClick={closeMobile}>Вопросы</Link></li>
+              <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
               <li><Link to="/login" onClick={closeMobile}>Войти</Link></li>
               <li className="navbar-item--switch">
                 <span className="navbar-item__label">Тёмная тема</span>
@@ -186,9 +196,12 @@ export function Footer(): ReactElement {
         <Link to="/legal/terms">Условия использования</Link>
         <Link to="/legal/privacy">Персональные данные</Link>
         <Link to="/legal/offer">Оферта</Link>
+        <Link to="/about">Контакты</Link>
       </div>
       <p className="small" style={{ margin: 0 }}>
-        SchoolPiBoard · board.school-pi.online · ЗАГЛУШКА: реквизиты продавца
+        {HAS_COMPANY_DETAILS
+          ? `SchoolPiBoard · ${COMPANY.name}, ${COMPANY.status}, ИНН ${COMPANY.inn} · ${COMPANY.email}`
+          : 'SchoolPiBoard · board.school-pi.online · ЗАГЛУШКА: реквизиты продавца'}
       </p>
     </footer>
   );

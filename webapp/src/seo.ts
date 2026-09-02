@@ -1,0 +1,75 @@
+/**
+ * Заголовки и описания страниц.
+ *
+ * Одно место на всё: их берёт и предрендер при сборке, и приложение при
+ * переходах. Разложенные по страницам, они разъехались бы с тем, что
+ * лежит в готовом HTML, — а поисковик видит именно его.
+ */
+export interface PageMeta {
+  title: string;
+  description: string;
+}
+
+export const SITE_URL = 'https://board.school-pi.online';
+
+/** Страницы, которые собираются в статический HTML и попадают в sitemap. */
+export const PUBLIC_PAGES: Record<string, PageMeta> = {
+  '/': {
+    title: 'Онлайн-доска для репетитора — SchoolPiBoard',
+    description:
+      'Доска для занятий в браузере: пишите пером, разбирайте задачи, вставляйте страницы учебника. '
+      + 'Ученик заходит по ссылке без регистрации. Бесплатный тариф без срока.',
+  },
+  '/features': {
+    title: 'Возможности доски — SchoolPiBoard',
+    description:
+      'Перо с нажимом, частичный ластик, фигуры и надписи, страницы PDF на доску с обрезкой, '
+      + 'роли участников, таймер, сохранение доски картинкой.',
+  },
+  '/pricing': {
+    title: 'Тарифы и цены — SchoolPiBoard',
+    description:
+      'Бесплатный тариф без срока и платные от 190 ₽ в месяц. Платит только преподаватель: '
+      + 'ученики заходят по ссылке и не платят ничего.',
+  },
+  '/faq': {
+    title: 'Вопросы и ответы — SchoolPiBoard',
+    description:
+      'Нужна ли ученику регистрация, сколько стоит, что будет после окончания подписки, '
+      + 'как вставить страницу учебника и сохранится ли доска после занятия.',
+  },
+  '/about': {
+    title: 'О сервисе и контакты — SchoolPiBoard',
+    description: 'Кто делает SchoolPiBoard, зачем и как с нами связаться.',
+  },
+  '/login': {
+    title: 'Вход — SchoolPiBoard',
+    description: 'Вход в личный кабинет SchoolPiBoard.',
+  },
+  '/register': {
+    title: 'Регистрация — SchoolPiBoard',
+    description: 'Создайте учётную запись и первую доску. Первые семь дней — тариф «Стандартный».',
+  },
+  '/legal/terms': {
+    title: 'Условия использования — SchoolPiBoard',
+    description: 'Условия использования сервиса SchoolPiBoard.',
+  },
+  '/legal/offer': {
+    title: 'Оферта на подписку — SchoolPiBoard',
+    description: 'Публичная оферта на предоставление доступа к сервису SchoolPiBoard.',
+  },
+  '/legal/privacy': {
+    title: 'Обработка персональных данных — SchoolPiBoard',
+    description: 'Какие данные сервис сохраняет и зачем.',
+  },
+};
+
+/** Что показывать на странице, которой нет в списке. */
+export const DEFAULT_META: PageMeta = {
+  title: 'SchoolPiBoard — доска для занятий',
+  description: 'Онлайн-доска для занятий: рисуйте и объясняйте вместе, на одном холсте.',
+};
+
+export function metaFor(path: string): PageMeta {
+  return PUBLIC_PAGES[path] ?? DEFAULT_META;
+}

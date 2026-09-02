@@ -1,0 +1,10 @@
+# Доски и личный кабинет закрыты от обхода: они за входом, и в поиске им
+# делать нечего. Открытые страницы перечислены в карте сайта.
+User-agent: *
+Disallow: /boards
+Disallow: /profile
+Disallow: /plan
+Disallow: /join/
+Allow: /
+
+Sitemap: https://board.school-pi.online/sitemap.xml

@@ -18,7 +18,12 @@ const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // При сборке страниц в статический HTML браузера нет: узнавать, кто
+  // вошёл, не у кого и незачем. Оставь здесь `true` — в готовый файл
+  // попал бы экран загрузки, и поисковик увидел бы на всех адресах одно
+  // слово «Загружаем».
+  const [loading, setLoading] = useState(() => typeof window !== 'undefined');
 
   const refresh = useCallback(async () => {
     setUser(await api<User>('/auth/me'));
