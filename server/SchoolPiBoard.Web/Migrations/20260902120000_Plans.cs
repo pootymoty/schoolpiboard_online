@@ -98,21 +98,25 @@ public partial class Plans : Migration
             column: "invoice_id",
             unique: true);
 
-        migrationBuilder.InsertData(
-            table: "plans",
-            columns: new[]
-            {
-                "code", "name", "active", "sort",
-                "price_30", "price_90", "price_180", "price_365",
-                "max_boards", "max_storage_bytes", "max_participants", "has_library"
-            },
-            values: new object[,]
-            {
-                { "free", "Бесплатный", true, 1, 0, 0, 0, 0, 30, 50L * 1024 * 1024, 2, false },
-                { "standard", "Стандартный", true, 2, 190, 490, 950, 1690, 100, 500L * 1024 * 1024, 5, true },
-                { "extended", "Расширенный", true, 3, 490, 1290, 2490, 4390, 200, 2L * 1024 * 1024 * 1024, 10, true },
-                { "deep", "Углублённый", true, 4, 990, 2690, 4990, 8900, 500, 5L * 1024 * 1024 * 1024, 20, true }
-            });
+        // Тарифы заводятся обычным SQL, а не InsertData: данные в миграции
+        // просят модель, чтобы узнать типы колонок, а у рукописной миграции
+        // модели нет — рядом с ней не лежит .Designer.cs, который EF пишет
+        // сам. DDL модель не спрашивает, поэтому прежние миграции проходили,
+        // а эта падала бы на посеве.
+        //
+        // ON CONFLICT — чтобы повторный прогон не спотыкался: миграции
+        // применяются на живом сервере, и второй запуск не должен ломаться.
+        migrationBuilder.Sql(@"
+            INSERT INTO plans
+                (code, name, active, sort, price_30, price_90, price_180, price_365,
+                 max_boards, max_storage_bytes, max_participants, has_library)
+            VALUES
+                ('free',     'Бесплатный',  true, 1,   0,    0,    0,    0,  30,   52428800,  2, false),
+                ('standard', 'Стандартный', true, 2, 190,  490,  950, 1690, 100,  524288000,  5, true),
+                ('extended', 'Расширенный', true, 3, 490, 1290, 2490, 4390, 200, 2147483648, 10, true),
+                ('deep',     'Углублённый', true, 4, 990, 2690, 4990, 8900, 500, 5368709120, 20, true)
+            ON CONFLICT (code) DO NOTHING;
+        ");
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
