@@ -79,6 +79,11 @@ public partial class Plans : Migration
         migrationBuilder.CreateIndex(
             name: "IX_plans_code", table: "plans", column: "code", unique: true);
 
+        // Индекс по внешнему ключу EF заводит по соглашению — в базе он
+        // должен появиться вместе с таблицей, иначе модель и схема разойдутся.
+        migrationBuilder.CreateIndex(
+            name: "IX_subscriptions_plan_id", table: "subscriptions", column: "plan_id");
+
         migrationBuilder.CreateIndex(
             name: "IX_subscriptions_user_id_ends_at",
             table: "subscriptions",

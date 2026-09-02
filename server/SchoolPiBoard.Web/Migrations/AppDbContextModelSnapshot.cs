@@ -480,6 +480,8 @@ namespace SchoolPiBoard.Web.Migrations
                     b.HasIndex("InvoiceId")
                         .IsUnique();
 
+                    b.HasIndex("PlanId");
+
                     b.HasIndex("UserId", "EndsAt");
 
                     b.ToTable("subscriptions", (string)null);
