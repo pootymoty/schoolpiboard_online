@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { api, ApiError } from '../api/client';
 import type { ActiveGuest, BoardMember, BoardRole } from '../api/types';
 import type { WaitingQueue } from '../board/useWaitingQueue';
+import type { Cursor, Participant } from '../board/protocol';
 import {
   IconCheck, IconChevronLeft, IconChevronRight, IconClose,
   IconEditor, IconGuest, IconOwner, IconViewer,
@@ -22,6 +23,14 @@ interface Props {
   guestName?: string | null;
   /** Очередь ожидания. Опрашивается страницей — панель может быть закрыта. */
   queue: WaitingQueue;
+  /** Кто подключён прямо сейчас — это знает хаб, а не состав доски. */
+  present: Participant[];
+  /** Где чей курсор. Пусто у того, кто ещё не двигал указатель. */
+  cursors: Cursor[];
+  /** Перенести холст к курсору участника. */
+  onGoTo: (connectionId: string) => void;
+  /** Своё подключение: к себе прыгать незачем. */
+  meConnectionId: string | null;
   onChanged: () => void;
 }
 
@@ -31,7 +40,10 @@ interface Props {
  * Ожидающих видит только владелец: остальным знать, кто ещё не впущен,
  * незачем.
  */
-export function PeoplePanel({ boardId, canManage, members, guests, guestName, queue, onChanged }: Props): ReactElement {
+export function PeoplePanel({
+  boardId, canManage, members, guests, guestName, queue,
+  present, cursors, onGoTo, meConnectionId, onChanged,
+}: Props): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
 
@@ -189,6 +201,11 @@ export function PeoplePanel({ boardId, canManage, members, guests, guestName, qu
     </li>
   ) : null;
 
+  // Кто сейчас на доске — отдельным списком: состав доски и подключённые
+  // прямо сейчас это разные вещи, а прыгать можно только ко второму.
+  const others = present.filter((person) => person.connectionId !== meConnectionId);
+  const cursorOf = (connectionId: string) => cursors.find((cursor) => cursor.id === connectionId);
+
   const allRows = [...memberRows, ...guestRows, ...(selfRow ? [selfRow] : [])];
   const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
@@ -197,6 +214,38 @@ export function PeoplePanel({ boardId, canManage, members, guests, guestName, qu
   return (
     <div>
       {error ? <p className="note note-danger">{error}</p> : null}
+
+      {others.length > 0 ? (
+        <>
+          <p className="people__group">Сейчас на доске</p>
+          <ul className="people">
+            {others.map((person) => {
+              const at = cursorOf(person.connectionId);
+
+              return (
+                <li className="people__item" key={person.connectionId}>
+                  <span className="people__icon" title={roleTitle(person.role)}>
+                    {person.isGuest ? <IconGuest /> : <RoleIcon role={person.role} />}
+                  </span>
+
+                  {/* Щелчок по имени переносит холст к его курсору. Пока
+                      человек не двинул указателем, идти некуда — и кнопка
+                      об этом честно говорит, а не молчит. */}
+                  <button
+                    className="people__goto"
+                    type="button"
+                    disabled={!at}
+                    onClick={() => onGoTo(person.connectionId)}
+                    title={at ? 'Показать, где он сейчас' : 'Пока не видно: он ещё не двигал указателем'}
+                  >
+                    {person.displayName}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      ) : null}
 
       {canManage && waiting.length > 0 ? (
         <>

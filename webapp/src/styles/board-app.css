@@ -1400,3 +1400,29 @@ body.no-scroll {
     opacity: .6;
     pointer-events: none;
 }
+
+/* Имя участника, к которому можно перенестись: выглядит как ссылка, а не
+   как кнопка — это переход по доске, а не действие над человеком. */
+.people__goto {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-weight: 600;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.people__goto:hover { text-decoration: underline; }
+
+/* Пока человек не двигал указателем, идти к нему некуда. */
+.people__goto:disabled {
+    color: var(--text-muted);
+    cursor: default;
+    text-decoration: none;
+}

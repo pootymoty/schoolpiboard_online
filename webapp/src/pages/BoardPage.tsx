@@ -372,6 +372,21 @@ export function BoardPage(): ReactElement {
     hub.commitItem(`${ref}-new`, 'image', data, uploaded.imageRef);
   }, [hub, id]);
 
+  /**
+   * Переносит холст к курсору участника.
+   *
+   * Масштаб не трогаем: человек подбирал его под свою работу, и менять
+   * его ради того, чтобы «найти соседа», значит сбить ему вид.
+   */
+  const goToCursor = useCallback((connectionId: string) => {
+    const at = hub.cursors.find((cursor) => cursor.id === connectionId);
+    if (!at) return;
+
+    setViewport((current) => centerOn(
+      current, at.x, at.y, canvasRef.current.width, canvasRef.current.height,
+    ));
+  }, [hub.cursors]);
+
   /** Картинка из буфера или перетащенный файл — та же дорога, что и у вставки из панели. */
   const insertFile = useCallback(async (file: Blob, name: string) => {
     try {
@@ -837,6 +852,10 @@ export function BoardPage(): ReactElement {
                 guests={otherGuests}
                 guestName={me.isGuest ? me.displayName : null}
                 queue={queue}
+                present={hub.participants}
+                cursors={hub.cursors}
+                onGoTo={goToCursor}
+                meConnectionId={hub.me}
                 onChanged={load}
               />
           </CanvasPanel>
