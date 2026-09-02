@@ -21,6 +21,10 @@ public class AppDbContext : DbContext
 
     public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
 
+    public DbSet<Plan> Plans => Set<Plan>();
+
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(entity =>
@@ -181,6 +185,58 @@ public class AppDbContext : DbContext
             // Связи с пользователем и доской намеренно нет: файлы переживают
             // удаление учётной записи и уходят вместе с ней позже, по общему
             // сроку хранения.
+        });
+
+        model.Entity<Plan>(entity =>
+        {
+            entity.ToTable("plans");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.Code).HasColumnName("code").IsRequired();
+            entity.Property(x => x.Name).HasColumnName("name").IsRequired();
+            entity.Property(x => x.Active).HasColumnName("active");
+            entity.Property(x => x.Sort).HasColumnName("sort");
+            entity.Property(x => x.Price30).HasColumnName("price_30");
+            entity.Property(x => x.Price90).HasColumnName("price_90");
+            entity.Property(x => x.Price180).HasColumnName("price_180");
+            entity.Property(x => x.Price365).HasColumnName("price_365");
+            entity.Property(x => x.MaxBoards).HasColumnName("max_boards");
+            entity.Property(x => x.MaxStorageBytes).HasColumnName("max_storage_bytes");
+            entity.Property(x => x.MaxParticipants).HasColumnName("max_participants");
+            entity.Property(x => x.HasLibrary).HasColumnName("has_library");
+
+            // Бесплатный тариф ищут по коду на каждом запросе о пределах.
+            entity.HasIndex(x => x.Code).IsUnique();
+        });
+
+        model.Entity<Subscription>(entity =>
+        {
+            entity.ToTable("subscriptions");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.UserId).HasColumnName("user_id");
+            entity.Property(x => x.PlanId).HasColumnName("plan_id");
+            entity.Property(x => x.Kind).HasColumnName("kind").IsRequired();
+            entity.Property(x => x.StartsAt).HasColumnName("starts_at");
+            entity.Property(x => x.EndsAt).HasColumnName("ends_at");
+            entity.Property(x => x.Source).HasColumnName("source").IsRequired();
+            entity.Property(x => x.InvoiceId).HasColumnName("invoice_id");
+            entity.Property(x => x.AutoRenew).HasColumnName("auto_renew");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+
+            // Действующую подписку ищут по владельцу и дате окончания.
+            entity.HasIndex(x => new { x.UserId, x.EndsAt });
+
+            // Повторный обратный вызов с тем же счётом не должен продлевать
+            // срок дважды — это стережёт база, а не только код.
+            entity.HasIndex(x => x.InvoiceId).IsUnique();
+
+            entity.HasOne(x => x.Plan)
+                .WithMany()
+                .HasForeignKey(x => x.PlanId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

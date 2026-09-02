@@ -287,6 +287,13 @@ export function FilesPanel({ onInsert, onClose }: Props): ReactElement {
 
       {view === 'library' ? (
         <div className="files__body">
+          {library && !library.allowed ? (
+            <p className="note note-info">
+              Библиотека документов и страницы PDF — на платных тарифах.
+              Картинки из буфера можно вставлять на любом.
+            </p>
+          ) : null}
+
           <label className="btn btn-primary files__upload">
             Выбрать файл
             <input

@@ -11,7 +11,9 @@ public enum UploadOutcome
     TooLarge,
     QuotaExceeded,
     BadType,
-    Empty
+    Empty,
+    /// <summary>Библиотека документов есть не на всяком тарифе.</summary>
+    NotOnPlan
 }
 
 public sealed record UploadResult(UploadOutcome Outcome, StoredFile? File = null);
@@ -41,11 +43,13 @@ public sealed class LibraryService
 
     private readonly AppDbContext _db;
     private readonly FileStorage _storage;
+    private readonly SubscriptionService _subscriptions;
 
-    public LibraryService(AppDbContext db, FileStorage storage)
+    public LibraryService(AppDbContext db, FileStorage storage, SubscriptionService subscriptions)
     {
         _db = db;
         _storage = storage;
+        _subscriptions = subscriptions;
     }
 
     public Task<List<StoredFile>> ListAsync(long ownerId, CancellationToken cancellationToken)
@@ -79,8 +83,17 @@ public sealed class LibraryService
         if (declaredSize > StoredFile.MaxFileSize)
             return new UploadResult(UploadOutcome.TooLarge);
 
+        var access = await _subscriptions.AccessAsync(ownerId, cancellationToken);
+
+        // Библиотека — платная возможность. Картинку из буфера на доску
+        // кладут и на бесплатном: она мелкая и живёт вместе с доской.
+        if (kind == StoredFile.KindLibrary && !access.Plan.HasLibrary)
+            return new UploadResult(UploadOutcome.NotOnPlan);
+
+        var quota = access.Plan.MaxStorageBytes;
+
         var used = await UsedAsync(ownerId, cancellationToken);
-        if (used + declaredSize > StoredFile.QuotaPerOwner)
+        if (used + declaredSize > quota)
             return new UploadResult(UploadOutcome.QuotaExceeded);
 
         var folder = kind == StoredFile.KindBoard ? $"boards/{boardId}" : $"library/{ownerId}";
@@ -91,7 +104,7 @@ public sealed class LibraryService
         // Заявленный размер приходит от браузера, настоящий известен только
         // после записи. Если файл оказался больше предела — убираем его, а не
         // оставляем лежать сверх квоты.
-        if (size > StoredFile.MaxFileSize || used + size > StoredFile.QuotaPerOwner)
+        if (size > StoredFile.MaxFileSize || used + size > quota)
         {
             _storage.Delete(key);
             return new UploadResult(size > StoredFile.MaxFileSize

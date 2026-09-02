@@ -30,6 +30,7 @@ builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<BoardItemService>();
 builder.Services.AddSingleton<FileStorage>();
 builder.Services.AddScoped<LibraryService>();
+builder.Services.AddScoped<SubscriptionService>();
 builder.Services.AddHostedService<RetentionCleanupService>();
 
 // Redis подключается при старте, а не при первом обращении: если он
@@ -112,6 +113,7 @@ app.UseRateLimiter();
 app.MapAuthEndpoints();
 app.MapBoardEndpoints();
 app.MapFileEndpoints();
+app.MapBillingEndpoints();
 
 // Без RequireAuthorization: на доску пускают и гостя, у которого учётной
 // записи нет. Кто он и что ему можно — выясняет сам хаб при входе.

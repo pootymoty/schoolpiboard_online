@@ -96,10 +96,35 @@ export interface LibraryFile {
   createdAt: string;
 }
 
-/** Библиотека целиком: файлы и сколько места занято. */
+/** Библиотека целиком: файлы, место и доступна ли она на текущем тарифе. */
 export interface Library {
   files: LibraryFile[];
   used: number;
   quota: number;
   maxFileSize: number;
+  allowed: boolean;
+}
+
+/** Тариф: пределы и цены за периоды. */
+export interface Plan {
+  code: string;
+  name: string;
+  price30: number;
+  price90: number;
+  price180: number;
+  price365: number;
+  maxBoards: number;
+  maxStorageBytes: number;
+  maxParticipants: number;
+  hasLibrary: boolean;
+}
+
+/** Что у меня сейчас: тариф, срок и насколько израсходованы пределы. */
+export interface MyPlan {
+  plan: Plan;
+  kind: 'free' | 'trial' | 'paid';
+  until: string | null;
+  autoRenew: boolean;
+  boards: number;
+  storageUsed: number;
 }

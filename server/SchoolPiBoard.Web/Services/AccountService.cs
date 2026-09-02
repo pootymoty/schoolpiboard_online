@@ -39,6 +39,7 @@ public sealed class AccountService
     private readonly AuthTokenService _tokens;
     private readonly IEmailSender _email;
     private readonly AppOptions _options;
+    private readonly SubscriptionService _subscriptions;
     private readonly ILogger<AccountService> _logger;
 
     public AccountService(
@@ -46,12 +47,14 @@ public sealed class AccountService
         AuthTokenService tokens,
         IEmailSender email,
         AppOptions options,
+        SubscriptionService subscriptions,
         ILogger<AccountService> logger)
     {
         _db = db;
         _tokens = tokens;
         _email = email;
         _options = options;
+        _subscriptions = subscriptions;
         _logger = logger;
     }
 
@@ -111,6 +114,12 @@ public sealed class AccountService
         record.UsedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Пробный период выдаётся здесь, а не при регистрации: до
+        // подтверждения почты учётной записью ещё нельзя пользоваться, и
+        // дни утекали бы впустую. Выдаётся один раз — служба сама
+        // откажет, если он уже был.
+        await _subscriptions.StartTrialAsync(record.UserId, _options.TrialDays, cancellationToken);
 
         _logger.LogInformation("Подтверждена почта учётной записи {UserId}.", record.UserId);
         return new AccountResult(AccountOutcome.Ok, record.User);

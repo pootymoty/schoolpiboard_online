@@ -7,7 +7,8 @@ namespace SchoolPiBoard.Web.Endpoints;
 
 public sealed record StoredFileDto(long Id, string Name, string ContentType, long Size, DateTime CreatedAt);
 
-public sealed record LibraryDto(IEnumerable<StoredFileDto> Files, long Used, long Quota, long MaxFileSize);
+public sealed record LibraryDto(
+    IEnumerable<StoredFileDto> Files, long Used, long Quota, long MaxFileSize, bool Allowed);
 
 public sealed record BoardImageDto(string ImageRef, string Url);
 
@@ -28,19 +29,22 @@ public static class FileEndpoints
         // ---------- Библиотека ----------
 
         files.MapGet("/", async (
-            ClaimsPrincipal principal, AppDbContext db, LibraryService library, CancellationToken ct) =>
+            ClaimsPrincipal principal, AppDbContext db, LibraryService library,
+            SubscriptionService subscriptions, CancellationToken ct) =>
         {
             var user = await AuthEndpoints.CurrentUser(principal, db, ct);
             if (user is null) return Results.Unauthorized();
 
             var rows = await library.ListAsync(user.Id, ct);
             var used = await library.UsedAsync(user.Id, ct);
+            var access = await subscriptions.AccessAsync(user.Id, ct);
 
             return Results.Ok(new LibraryDto(
                 rows.Select(ToDto),
                 used,
-                StoredFile.QuotaPerOwner,
-                StoredFile.MaxFileSize));
+                access.Plan.MaxStorageBytes,
+                StoredFile.MaxFileSize,
+                access.Plan.HasLibrary));
         });
 
         files.MapPost("/", async (
@@ -176,8 +180,12 @@ public static class FileEndpoints
         }),
         UploadOutcome.QuotaExceeded => Results.BadRequest(new
         {
-            message = $"Кончилось место: на аккаунт даётся {StoredFile.QuotaPerOwner / (1024 * 1024)} МБ. "
-                + "Удалите что-нибудь из библиотеки."
+            message = "Кончилось место на вашем тарифе. Удалите что-нибудь из библиотеки "
+                + "или перейдите на тариф побольше."
+        }),
+        UploadOutcome.NotOnPlan => Results.BadRequest(new
+        {
+            message = "Библиотека документов доступна на платных тарифах."
         }),
         UploadOutcome.BadType => Results.BadRequest(new
         {

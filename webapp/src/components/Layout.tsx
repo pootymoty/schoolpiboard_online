@@ -90,12 +90,14 @@ export function Header(): ReactElement {
           <>
             <Link to="/">Главная</Link>
             <Link to="/about">О нас</Link>
+            <Link to="/pricing">Тарифы</Link>
             <Link to="/boards">Мои доски</Link>
             <Menu
               label="Личный кабинет"
               trigger="Личный кабинет"
               triggerClassName="btn-tool btn-tool--wide"
             >
+              <Link className="btn btn-quiet menu__item" to="/plan">Мой тариф</Link>
               <Link className="btn btn-quiet menu__item" to="/profile">Настройки</Link>
               <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={logout}>
                 Выйти
@@ -106,6 +108,7 @@ export function Header(): ReactElement {
           <>
             <Link to="/">Главная</Link>
             <Link to="/about">О нас</Link>
+            <Link to="/pricing">Тарифы</Link>
             <Link to="/login">Войти</Link>
           </>
         )}
@@ -134,6 +137,7 @@ export function Header(): ReactElement {
             <>
               <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
+              <li><Link to="/pricing" onClick={closeMobile}>Тарифы</Link></li>
               <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
               <li className={cabinetOpen ? 'navbar-dropdown navbar-dropdown--active' : 'navbar-dropdown'}>
                 <div
@@ -143,6 +147,7 @@ export function Header(): ReactElement {
                   Личный кабинет
                 </div>
                 <ul className="navbar-submenu">
+                  <li><Link to="/plan" onClick={closeMobile}>Мой тариф</Link></li>
                   <li><Link to="/profile" onClick={closeMobile}>Настройки</Link></li>
                   <li>
                     <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={() => { closeMobile(); logout(); }}>
@@ -160,6 +165,7 @@ export function Header(): ReactElement {
             <>
               <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
+              <li><Link to="/pricing" onClick={closeMobile}>Тарифы</Link></li>
               <li><Link to="/login" onClick={closeMobile}>Войти</Link></li>
               <li className="navbar-item--switch">
                 <span className="navbar-item__label">Тёмная тема</span>

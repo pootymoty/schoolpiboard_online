@@ -3,6 +3,8 @@ import type { ReactElement } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { LandingPage } from './pages/LandingPage';
 import { AboutPage } from './pages/AboutPage';
+import { PricingPage } from './pages/PricingPage';
+import { PlanPage } from './pages/PlanPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ConfirmPage } from './pages/ConfirmPage';
@@ -29,6 +31,7 @@ export function App(): ReactElement {
           и не будет. */}
       <Route path="/legal/:page" element={<LegalPage />} />
       <Route path="/about" element={<AboutPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
       <Route path="/confirm" element={<ConfirmPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/join/:token" element={<JoinPage />} />
@@ -44,6 +47,7 @@ export function App(): ReactElement {
           <Route path="/register" element={<Navigate to="/boards" replace />} />
           <Route path="/boards" element={<BoardsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/plan" element={<PlanPage />} />
           <Route path="*" element={<Navigate to="/boards" replace />} />
         </>
       ) : (

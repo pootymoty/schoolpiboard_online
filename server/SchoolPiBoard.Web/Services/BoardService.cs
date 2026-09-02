@@ -57,17 +57,20 @@ public sealed class BoardService
     private readonly AppDbContext _db;
     private readonly GuestTokenService _guestTokens;
     private readonly WaitingRoom _waiting;
+    private readonly SubscriptionService _subscriptions;
     private readonly ILogger<BoardService> _logger;
 
     public BoardService(
         AppDbContext db,
         GuestTokenService guestTokens,
         WaitingRoom waiting,
+        SubscriptionService subscriptions,
         ILogger<BoardService> logger)
     {
         _db = db;
         _guestTokens = guestTokens;
         _waiting = waiting;
+        _subscriptions = subscriptions;
         _logger = logger;
     }
 
@@ -78,6 +81,19 @@ public sealed class BoardService
         var name = (title ?? string.Empty).Trim();
         if (name.Length is 0 or > MaxTitleLength)
             return BoardResult<Board>.Bad($"Название доски — от 1 до {MaxTitleLength} символов.");
+
+        // Предел тарифа проверяется только при создании: доски сверх предела
+        // не пропадают, когда платный срок кончился, — новые просто не
+        // заводятся, пока не станет меньше.
+        var access = await _subscriptions.AccessAsync(userId, cancellationToken);
+        var count = await _subscriptions.BoardCountAsync(userId, cancellationToken);
+
+        if (count >= access.Plan.MaxBoards)
+        {
+            return BoardResult<Board>.Bad(
+                $"На тарифе «{access.Plan.Name}» можно держать {access.Plan.MaxBoards} досок. "
+                + "Удалите ненужную или перейдите на тариф побольше.");
+        }
 
         var now = DateTime.UtcNow;
 

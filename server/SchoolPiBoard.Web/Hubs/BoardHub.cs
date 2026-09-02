@@ -33,9 +33,8 @@ public sealed record ParticipantDto(string ConnectionId, string DisplayName, str
 public sealed class BoardHub : Hub
 {
     /// <summary>
-    /// Предел участников на доске. С этапа 11e его будет задавать тариф;
-    /// до тех пор — общая величина, чтобы ссылка, ушедшая в чат класса, не
-    /// привела сорок человек на доску для двоих (раздел 6.4).
+    /// Потолок службы поверх тарифов: больше двадцати человек на одной
+    /// доске не выдерживает уже не кошелёк, а рассылка курсоров.
     /// </summary>
     private const int MaxParticipants = 20;
 
@@ -48,6 +47,7 @@ public sealed class BoardHub : Hub
     private readonly BoardEventLog _log;
     private readonly BoardPresence _presence;
     private readonly CursorRelay _cursors;
+    private readonly SubscriptionService _subscriptions;
 
     public BoardHub(
         AppDbContext db,
@@ -55,7 +55,8 @@ public sealed class BoardHub : Hub
         BoardItemService items,
         BoardEventLog log,
         BoardPresence presence,
-        CursorRelay cursors)
+        CursorRelay cursors,
+        SubscriptionService subscriptions)
     {
         _db = db;
         _boards = boards;
@@ -63,9 +64,28 @@ public sealed class BoardHub : Hub
         _log = log;
         _presence = presence;
         _cursors = cursors;
+        _subscriptions = subscriptions;
     }
 
     public static string GroupOf(long boardId) => $"board:{boardId}";
+
+    /// <summary>
+    /// Сколько человек пускать на доску. Считается по тарифу её владельца;
+    /// если доски вдруг нет, берётся общий потолок — отказывать во входе
+    /// из-за неудачного запроса к базе было бы хуже.
+    /// </summary>
+    private async Task<int> ParticipantLimitAsync(long boardId)
+    {
+        var ownerId = await _db.Boards
+            .Where(x => x.Id == boardId)
+            .Select(x => (long?)x.OwnerId)
+            .FirstOrDefaultAsync(Context.ConnectionAborted);
+
+        if (ownerId is null) return MaxParticipants;
+
+        var access = await _subscriptions.AccessAsync(ownerId.Value, Context.ConnectionAborted);
+        return Math.Min(access.Plan.MaxParticipants, MaxParticipants);
+    }
 
     // ---------- Вход и выход ----------
 
@@ -86,13 +106,19 @@ public sealed class BoardHub : Hub
             return;
         }
 
-        // Предел считается до добавления: иначе двадцать первый успел бы
-        // войти и увидеть доску, прежде чем его выставят.
-        if (_presence.CountOnBoard(boardId) >= MaxParticipants
+        // Сколько человек помещается — свойство тарифа владельца доски, а
+        // не самой доски: платит он, и его тариф решает, класс это или
+        // занятие один на один.
+        var limit = await ParticipantLimitAsync(boardId);
+
+        // Предел считается до добавления: иначе лишний успел бы войти и
+        // увидеть доску, прежде чем его выставят.
+        if (_presence.CountOnBoard(boardId) >= limit
             && _presence.ConnectionsOf(boardId, actor.UserId, actor.GuestId).Count == 0)
         {
             await Clients.Caller.SendAsync(
-                "Error", "too_many", $"На доске уже {MaxParticipants} участников — больше пока нельзя.");
+                "Error", "too_many",
+                $"На доске уже {limit} участников — больше на тарифе владельца нельзя.");
             return;
         }
 

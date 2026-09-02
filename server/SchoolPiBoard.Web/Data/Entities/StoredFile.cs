@@ -20,9 +20,6 @@ public class StoredFile
     /// <summary>Картинка, лежащая на доске: страница документа или вставка из буфера.</summary>
     public const string KindBoard = "board";
 
-    /// <summary>Сколько всего места на одного человека.</summary>
-    public const long QuotaPerOwner = 100L * 1024 * 1024;
-
     /// <summary>Предел на один файл.</summary>
     public const long MaxFileSize = 25L * 1024 * 1024;
 

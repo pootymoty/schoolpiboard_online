@@ -162,7 +162,7 @@
     transition: max-height .25s ease;
 }
 
-.navbar-dropdown--active .navbar-submenu { max-height: 200px; }
+.navbar-dropdown--active .navbar-submenu { max-height: 320px; }
 
 .navbar-submenu li .menu__item {
     width: 100%;
@@ -1426,3 +1426,66 @@ body.no-scroll {
     cursor: default;
     text-decoration: none;
 }
+
+/* --- Тарифы ---------------------------------------------------------------- */
+
+/* Карточки в ряд, пока помещаются: тарифы сравнивают глазами, и колонка
+   из четырёх карточек сравнивать не даёт. */
+.plans {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--sp-4);
+}
+
+.plan {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-5) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+}
+
+.plan__name {
+    font-family: var(--font-head);
+    font-size: var(--fs-lg);
+    font-weight: 700;
+    margin: 0;
+}
+
+.plan__price {
+    font-family: var(--font-head);
+    font-size: var(--fs-h3);
+    font-weight: 700;
+    margin: 0;
+}
+
+.plan__period {
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.plan__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+    /* Кнопка внизу карточки на одной высоте у всех: иначе ряд карточек
+       с разным числом строк выглядит осыпавшимся. */
+    flex: 1;
+}
+
+.plan__list li {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+}
+
+/* Чего на тарифе нет — приглушено, но видно: пустая строка не объясняет,
+   а вычеркнутая объясняет. */
+.plan__no { color: var(--text-muted); }

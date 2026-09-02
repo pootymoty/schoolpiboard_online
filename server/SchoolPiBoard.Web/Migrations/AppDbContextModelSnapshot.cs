@@ -361,6 +361,130 @@ namespace SchoolPiBoard.Web.Migrations
                     b.ToTable("stored_files", (string)null);
                 });
 
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.Plan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean")
+                        .HasColumnName("active");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("code");
+
+                    b.Property<bool>("HasLibrary")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_library");
+
+                    b.Property<int>("MaxBoards")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_boards");
+
+                    b.Property<int>("MaxParticipants")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_participants");
+
+                    b.Property<long>("MaxStorageBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("max_storage_bytes");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Price180")
+                        .HasColumnType("integer")
+                        .HasColumnName("price_180");
+
+                    b.Property<int>("Price30")
+                        .HasColumnType("integer")
+                        .HasColumnName("price_30");
+
+                    b.Property<int>("Price365")
+                        .HasColumnType("integer")
+                        .HasColumnName("price_365");
+
+                    b.Property<int>("Price90")
+                        .HasColumnType("integer")
+                        .HasColumnName("price_90");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("plans", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.Subscription", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("AutoRenew")
+                        .HasColumnType("boolean")
+                        .HasColumnName("auto_renew");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ends_at");
+
+                    b.Property<string>("InvoiceId")
+                        .HasColumnType("text")
+                        .HasColumnName("invoice_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("kind");
+
+                    b.Property<int>("PlanId")
+                        .HasColumnType("integer")
+                        .HasColumnName("plan_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("starts_at");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "EndsAt");
+
+                    b.ToTable("subscriptions", (string)null);
+                });
+
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardItem", b =>
                 {
                     b.HasOne("SchoolPiBoard.Web.Data.Entities.Board", "Board")
@@ -370,6 +494,17 @@ namespace SchoolPiBoard.Web.Migrations
                         .IsRequired();
 
                     b.Navigation("Board");
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.Subscription", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.Plan", "Plan")
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
                 });
 
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.EmailToken", b =>
