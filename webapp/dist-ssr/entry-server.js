@@ -5,7 +5,7 @@ import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server.mjs";
 import { createContext, useState, useCallback, useEffect, useMemo, useContext, useRef, useLayoutEffect } from "react";
-import { useLocation, Link, useNavigate, useSearchParams, useParams, Routes, Route, Navigate } from "react-router-dom";
+import { useLocation, Link, useSearchParams, useNavigate, useParams, Routes, Route, Navigate } from "react-router-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 const API_URL = "http://localhost:5000";
 const TOKEN_KEY = "schoolpiboard.token";
@@ -966,6 +966,8 @@ function PlanPage() {
   const [plans, setPlans] = useState([]);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState(null);
+  const [search, setSearch] = useSearchParams();
   const [code, setCode] = useState(null);
   const [period, setPeriod] = useState(PERIODS[0]);
   const [renew, setRenew] = useState(true);
@@ -974,6 +976,37 @@ function PlanPage() {
       reason instanceof ApiError ? reason.message : "Не удалось загрузить тариф."
     ));
   };
+  useEffect(() => {
+    const mark = search.get("paid");
+    if (mark === null) return;
+    setOutcome(mark === "1" ? "paid" : "failed");
+    const rest = new URLSearchParams(search);
+    rest.delete("paid");
+    setSearch(rest, { replace: true });
+  }, []);
+  useEffect(() => {
+    if (outcome !== "paid") return;
+    let alive = true;
+    let attempts = 0;
+    let timer;
+    const check = async () => {
+      if (!alive) return;
+      attempts += 1;
+      try {
+        const answer = await api("/billing/me");
+        if (!alive) return;
+        setMine(answer);
+        if (answer.kind === "paid") return;
+      } catch {
+      }
+      if (alive && attempts < 6) timer = setTimeout(() => void check(), 3e3);
+    };
+    timer = setTimeout(() => void check(), 2e3);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [outcome]);
   useEffect(() => {
     load();
     api("/plans").then((rows) => {
@@ -1013,6 +1046,8 @@ function PlanPage() {
   const until = (mine == null ? void 0 : mine.until) ? new Date(mine.until).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : null;
   return /* @__PURE__ */ jsxs(Page, { narrow: true, children: [
     /* @__PURE__ */ jsx("div", { className: "page-header", children: /* @__PURE__ */ jsx("h1", { children: "Мой тариф" }) }),
+    outcome === "paid" ? /* @__PURE__ */ jsx("p", { className: "note note-info", children: "Оплата принята. Срок обновится в течение минуты — страница сама покажет новый." }) : null,
+    outcome === "failed" ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: "Оплата не прошла, деньги не списаны. Можно попробовать ещё раз." }) : null,
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     mine ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsxs("section", { className: "card", children: [

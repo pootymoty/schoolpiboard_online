@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Page } from '../components/Layout';
 import { humanSize } from '../api/files';
@@ -37,6 +37,14 @@ export function PlanPage(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  /**
+   * Чем кончилась оплата. Робокасса возвращает человека с пометкой в
+   * адресе; читаем её один раз и адрес сразу чистим, иначе обновление
+   * страницы через час снова показало бы «оплата принята».
+   */
+  const [outcome, setOutcome] = useState<'paid' | 'failed' | null>(null);
+  const [search, setSearch] = useSearchParams();
+
   /** Что покупаем: тариф и срок. */
   const [code, setCode] = useState<string | null>(null);
   const [period, setPeriod] = useState(PERIODS[0]);
@@ -49,6 +57,57 @@ export function PlanPage(): ReactElement {
         reason instanceof ApiError ? reason.message : 'Не удалось загрузить тариф.',
       ));
   };
+
+  useEffect(() => {
+    const mark = search.get('paid');
+    if (mark === null) return;
+
+    setOutcome(mark === '1' ? 'paid' : 'failed');
+
+    const rest = new URLSearchParams(search);
+    rest.delete('paid');
+    setSearch(rest, { replace: true });
+    // Намеренно один раз, при возвращении с оплаты.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * После оплаты срок продлевает не браузер: деньги подтверждает Робокасса,
+   * сообщает сервису ключей, а тот — доске. Пока эта цепочка идёт, человек
+   * уже вернулся и видит прежний тариф. Поэтому несколько раз перечитываем
+   * — без этого оплата выглядит как пропавшая.
+   */
+  useEffect(() => {
+    if (outcome !== 'paid') return;
+
+    let alive = true;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const check = async () => {
+      if (!alive) return;
+      attempts += 1;
+
+      try {
+        const answer = await api<MyPlan>('/billing/me');
+        if (!alive) return;
+
+        setMine(answer);
+        if (answer.kind === 'paid') return;
+      } catch {
+        // Молчим: это фоновая перепроверка, а не действие человека.
+      }
+
+      if (alive && attempts < 6) timer = setTimeout(() => void check(), 3000);
+    };
+
+    timer = setTimeout(() => void check(), 2000);
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [outcome]);
 
   useEffect(() => {
     load();
@@ -105,6 +164,18 @@ export function PlanPage(): ReactElement {
       <div className="page-header">
         <h1>Мой тариф</h1>
       </div>
+
+      {outcome === 'paid' ? (
+        <p className="note note-info">
+          Оплата принята. Срок обновится в течение минуты — страница сама покажет новый.
+        </p>
+      ) : null}
+
+      {outcome === 'failed' ? (
+        <p className="note note-danger">
+          Оплата не прошла, деньги не списаны. Можно попробовать ещё раз.
+        </p>
+      ) : null}
 
       {error ? <p className="note note-danger">{error}</p> : null}
 
