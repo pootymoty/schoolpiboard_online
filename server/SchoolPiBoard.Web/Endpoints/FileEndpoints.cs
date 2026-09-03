@@ -149,13 +149,15 @@ public static class FileEndpoints
                 : Explain(result.Outcome);
         }).RequireAuthorization();
 
-        // Картинка отдаётся по ключу без проверки прав — ключ неугадываемый
-        // и работает так же, как ссылка на саму доску. Иначе её не показать:
-        // тег <img> своих заголовков не шлёт, а гость ходит именно с ним.
+        // Картинка доски отдаётся по ключу без проверки прав — ключ
+        // неугадываемый и работает так же, как ссылка на саму доску. Иначе
+        // её не показать: тег <img> своих заголовков не шлёт, а гость ходит
+        // именно с ним. Документы библиотеки этим путём не отдаются: они
+        // предназначены владельцу и уходят через /api/files/{id}/raw.
         app.MapGet("/api/images/{**key}", async (
             string key, LibraryService library, FileStorage storage, HttpContext http, CancellationToken ct) =>
         {
-            var file = await library.FindByKeyAsync(key, ct);
+            var file = await library.FindBoardImageAsync(key, ct);
             if (file is null) return Results.NotFound();
 
             var content = storage.OpenRead(file.StorageKey);

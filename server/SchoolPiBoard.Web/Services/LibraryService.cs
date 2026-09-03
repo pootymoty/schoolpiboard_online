@@ -127,6 +127,19 @@ public sealed class LibraryService
         _db.StoredFiles.Add(file);
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Проверка до записи не спасает от двух одновременных загрузок: обе
+        // читают одно и то же занятое место и обе проходят. Поэтому считаем
+        // ещё раз уже с записанным файлом — и убираем последний, если вместе
+        // они вышли за предел. Проигрывает тот, кто дописался позже.
+        if (await UsedAsync(ownerId, cancellationToken) > quota)
+        {
+            _db.StoredFiles.Remove(file);
+            await _db.SaveChangesAsync(cancellationToken);
+            _storage.Delete(key);
+
+            return new UploadResult(UploadOutcome.QuotaExceeded);
+        }
+
         return new UploadResult(UploadOutcome.Ok, file);
     }
 
@@ -134,9 +147,19 @@ public sealed class LibraryService
         => _db.StoredFiles
             .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == ownerId, cancellationToken);
 
-    /// <summary>Картинка ищется по ключу: он и есть пропуск к ней.</summary>
-    public Task<StoredFile?> FindByKeyAsync(string key, CancellationToken cancellationToken)
-        => _db.StoredFiles.FirstOrDefaultAsync(x => x.StorageKey == key, cancellationToken);
+    /// <summary>
+    /// Картинка доски по ключу: ключ и есть пропуск к ней — иначе гостю её
+    /// не показать, тег img своих заголовков не шлёт.
+    ///
+    /// Документы библиотеки сюда не попадают намеренно. Они предназначены
+    /// одному владельцу и отдаются отдельным путём с проверкой прав; если
+    /// ключ такого документа однажды куда-нибудь просочится — в лог, в
+    /// пересланную ссылку, в будущую выгрузку, — открытый путь не должен
+    /// становиться дырой в чужую библиотеку.
+    /// </summary>
+    public Task<StoredFile?> FindBoardImageAsync(string key, CancellationToken cancellationToken)
+        => _db.StoredFiles.FirstOrDefaultAsync(
+            x => x.StorageKey == key && x.Kind == StoredFile.KindBoard, cancellationToken);
 
     public async Task<bool> DeleteAsync(long id, long ownerId, CancellationToken cancellationToken)
     {

@@ -53,7 +53,7 @@ export function AboutPage(): ReactElement {
         )}
 
         <p className="text-muted small">
-          <Link to="/legal/terms">Условия использования</Link>
+          <Link to="/legal/terms">Пользовательское соглашение</Link>
           {' · '}
           <Link to="/legal/offer">Оферта</Link>
           {' · '}

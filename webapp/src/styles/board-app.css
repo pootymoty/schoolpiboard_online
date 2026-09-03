@@ -1504,3 +1504,57 @@ body.no-scroll {
 .hero__actions { justify-content: center; }
 
 .hero__note { margin: var(--sp-4) 0 0; }
+
+/* ---------- Правовые документы ---------- */
+
+/* Разделы договора идут сплошным текстом, и без воздуха между ними
+   заголовок прилипает к предыдущему абзацу. */
+.legal section {
+  margin-top: var(--sp-5);
+}
+
+.legal__title {
+  font-size: 1.05rem;
+  margin: 0 0 var(--sp-2);
+}
+
+.legal ul {
+  padding-left: 1.2em;
+}
+
+.legal li {
+  margin-bottom: var(--sp-2);
+}
+
+/* Таблица реквизитов на узком экране не помещается по ширине. Прокрутка
+   у самой таблицы, а не у страницы: горизонтально ездящий документ
+   читать невозможно. */
+.table-scroll {
+  overflow-x: auto;
+  margin: var(--sp-3) 0;
+}
+
+.legal__table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.legal__table caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: var(--sp-2);
+}
+
+.legal__table th,
+.legal__table td {
+  border: 1px solid var(--line);
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal__table th {
+  width: 34%;
+  font-weight: 500;
+  color: var(--text-muted);
+}

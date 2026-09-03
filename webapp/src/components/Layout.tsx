@@ -193,7 +193,7 @@ export function Footer(): ReactElement {
   return (
     <footer className="app__footer">
       <div className="row">
-        <Link to="/legal/terms">Условия использования</Link>
+        <Link to="/legal/terms">Соглашение</Link>
         <Link to="/legal/privacy">Персональные данные</Link>
         <Link to="/legal/offer">Оферта</Link>
         <Link to="/about">Контакты</Link>

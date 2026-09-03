@@ -125,6 +125,19 @@ public sealed class BoardService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Пересчёт уже с новой доской. Проверка до записи не спасает от двух
+        // одновременных запросов: оба видят одно и то же число досок и оба
+        // проходят. Лишнюю убираем — она пустая, терять в ней нечего.
+        if (await _subscriptions.BoardCountAsync(userId, cancellationToken) > access.Plan.MaxBoards)
+        {
+            _db.Boards.Remove(board);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            return BoardResult<Board>.Bad(
+                $"На тарифе «{access.Plan.Name}» можно держать {access.Plan.MaxBoards} досок. "
+                + "Удалите ненужную или перейдите на тариф побольше.");
+        }
+
         return BoardResult<Board>.Ok(board);
     }
 
