@@ -48,7 +48,9 @@ export function PlanPage(): ReactElement {
   /** Что покупаем: тариф и срок. */
   const [code, setCode] = useState<string | null>(null);
   const [period, setPeriod] = useState(PERIODS[0]);
-  const [renew, setRenew] = useState(true);
+  // Выключено по умолчанию намеренно: согласие на регулярное списание с
+  // карты человек даёт сам, а не забывает снять чужую галочку.
+  const [renew, setRenew] = useState(false);
 
   const load = () => {
     api<MyPlan>('/billing/me')

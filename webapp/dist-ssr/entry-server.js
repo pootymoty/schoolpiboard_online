@@ -970,7 +970,7 @@ function PlanPage() {
   const [search, setSearch] = useSearchParams();
   const [code, setCode] = useState(null);
   const [period, setPeriod] = useState(PERIODS[0]);
-  const [renew, setRenew] = useState(true);
+  const [renew, setRenew] = useState(false);
   const load = () => {
     api("/billing/me").then(setMine).catch((reason) => setError(
       reason instanceof ApiError ? reason.message : "Не удалось загрузить тариф."
