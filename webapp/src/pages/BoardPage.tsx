@@ -13,10 +13,11 @@ import { BoardCanvas } from '../board/BoardCanvas';
 import { FilesPanel } from '../board/FilesPanel';
 import { DrawToolbar, ViewToolbar } from '../board/BoardToolbar';
 import { ToolSettingsPanel } from '../board/ToolSettingsPanel';
-import { DEFAULT_SETTINGS, DRAWING_TOOLS } from '../board/tools';
+import { DEFAULT_SETTINGS, TOOLS_WITH_SETTINGS } from '../board/tools';
 import type { Tool, ToolSettings } from '../board/tools';
 import type { ItemData, ItemType, Point } from '../board/protocol';
 import { erase } from '../board/erase';
+import { readClip, writeClip } from '../board/clipboard';
 import { TextInput } from '../board/TextInput';
 import {
   cellAt, cellRect, cellText, resized as resizedTable, tableBox, withCell,
@@ -81,6 +82,9 @@ export function BoardPage(): ReactElement {
   const [showHelp, setShowHelp] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
 
+  /** Есть ли что вставлять. Кнопка вставки без содержимого только мешает. */
+  const [hasClip, setHasClip] = useState(() => readClip() !== null);
+
   // Название правится прямо на холсте: щёлкнул — поле, галочка — сохранил.
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -99,7 +103,7 @@ export function BoardPage(): ReactElement {
   // Повторный щелчок по уже выбранному рисующему инструменту открывает
   // его параметры — отдельной кнопки настройки для этого не нужно.
   const setTool = (next: Tool) => {
-    setShowParams(next === tool && DRAWING_TOOLS.includes(next) ? !showParams : false);
+    setShowParams(next === tool && TOOLS_WITH_SETTINGS.includes(next) ? !showParams : false);
     setToolRaw(next);
   };
 
@@ -187,7 +191,10 @@ export function BoardPage(): ReactElement {
   const removeSelection = useCallback(() => {
     if (selection.length === 0) return;
 
-    const doomed = hub.items.filter((item) => selection.includes(item.id));
+    // Запертое не удаляется: в этом и смысл замка. Отпереть можно
+    // кнопкой в панели выделения.
+    const doomed = hub.items.filter((item) => selection.includes(item.id) && !item.data.locked);
+    if (doomed.length === 0) return;
     history.push({
       kind: 'delete',
       items: doomed.map((item) => ({
@@ -195,7 +202,7 @@ export function BoardPage(): ReactElement {
       })),
     });
 
-    hub.deleteItems(selection);
+    hub.deleteItems(doomed.map((item) => item.id));
     setSelection([]);
   }, [hub, history, refOf, selection]);
 
@@ -262,6 +269,25 @@ export function BoardPage(): ReactElement {
       if (control && event.key.toLowerCase() === 'd') {
         event.preventDefault();
         duplicateSelection();
+        return;
+      }
+
+      if (control && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        copySelection();
+        return;
+      }
+
+      if (control && event.key.toLowerCase() === 'x') {
+        event.preventDefault();
+        copySelection();
+        removeSelection();
+        return;
+      }
+
+      if (control && event.key.toLowerCase() === 'v') {
+        event.preventDefault();
+        pasteClip();
         return;
       }
 
@@ -408,6 +434,69 @@ export function BoardPage(): ReactElement {
 
       pending.current.set(`${ref}-new`, { ref, snapshot });
       hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
+    }
+  };
+
+  /**
+   * Копирование в буфер доски. Свой буфер, а не системный: в системный
+   * кладут текст и картинки, и затирать им чужое незачем.
+   */
+  const copySelection = () => {
+    if (selectedItems.length === 0) return;
+
+    setHasClip(true);
+    writeClip({
+      boardId: Number(id),
+      items: selectedItems.map((item) => ({
+        type: item.type,
+        data: item.data,
+        imageRef: item.imageRef,
+      })),
+    });
+  };
+
+  /**
+   * Вставка из буфера доски — со сдвигом, чтобы копия не легла ровно
+   * поверх оригинала.
+   *
+   * Картинки между досками не переносятся: файл принадлежит своей доске
+   * и уйдёт вместе с ней, а объект остался бы пустой рамкой. Внутри
+   * одной доски они вставляются как есть.
+   */
+  const pasteClip = () => {
+    const clip = readClip();
+    if (!clip) return;
+
+    const sameBoard = clip.boardId === Number(id);
+    const items = clip.items.filter((item) => sameBoard || item.type !== 'image');
+
+    if (items.length === 0) {
+      setError('Картинки не переносятся на другую доску: файл остаётся у своей.');
+      return;
+    }
+
+    if (items.length < clip.items.length) {
+      setError('Картинки не перенеслись: файл остаётся у своей доски. Остальное вставлено.');
+    }
+
+    const born: string[] = [];
+
+    for (const item of items) {
+      const ref = `v${Date.now().toString(36)}-${born.length}`;
+      const data = translate(item.data, 24, 24);
+
+      born.push(ref);
+      pending.current.set(`${ref}-new`, {
+        ref,
+        snapshot: { ref, type: item.type, data, imageRef: item.imageRef },
+      });
+      hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
+    }
+  };
+
+  const lockSelection = (locked: boolean) => {
+    for (const item of selectedItems) {
+      hub.updateItem(item.id, { ...item.data, locked: locked || undefined });
     }
   };
 
@@ -792,6 +881,8 @@ export function BoardPage(): ReactElement {
           <ViewToolbar
             canManage={hub.canManage}
             canUpload={hub.canEdit && !me.isGuest}
+            canPaste={hasClip && hub.canEdit}
+            onPaste={pasteClip}
             onFiles={() => setShowFiles((current) => !current)}
             scale={viewport.scale}
             onBackground={() => setShowBackground((current) => !current)}
@@ -832,8 +923,15 @@ export function BoardPage(): ReactElement {
             onSize={setCanvasSize}
             onSelection={setSelection}
             onMoved={(itemIds, dx, dy) => {
-              hub.moveItems(itemIds, dx, dy);
-              history.push({ kind: 'move', refs: itemIds.map(refOf), dx, dy });
+              // Запертое стоит на месте, даже если попало в общее выделение.
+              const movable = itemIds.filter((itemId) => (
+                !hub.items.find((item) => item.id === itemId)?.data.locked
+              ));
+
+              if (movable.length === 0) return;
+
+              hub.moveItems(movable, dx, dy);
+              history.push({ kind: 'move', refs: movable.map(refOf), dx, dy });
             }}
             onCommit={(type, data, tempId) => {
               // Черновой ключ, под которым штрих уже рассылался, сохраняем:
@@ -909,6 +1007,8 @@ export function BoardPage(): ReactElement {
                 ));
               }}
               onDone={() => setSelection([])}
+              onLock={lockSelection}
+              onCopy={copySelection}
               onTable={(rows, cols) => {
                 const item = selectedItems[0];
                 if (item) hub.updateItem(item.id, resizedTable(item.data, rows, cols));

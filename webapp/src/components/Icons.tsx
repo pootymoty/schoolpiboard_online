@@ -326,3 +326,15 @@ export const IconTable = (props: Props): ReactElement => (
     </g>
   </Svg>
 );
+
+/** Вставка из буфера: планшет с листом. */
+export const IconPaste = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="6" y="4" width="12" height="16" rx="2" />
+      <path d="M9 4V3a1 1 0 011-1h4a1 1 0 011 1v1" />
+      <path d="M9 11h6" />
+      <path d="M9 15h4" />
+    </g>
+  </Svg>
+);

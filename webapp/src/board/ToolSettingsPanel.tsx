@@ -21,7 +21,9 @@ interface Props {
  * повторить одно и то же.
  */
 export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props): ReactElement | null {
-  if (tool === 'select' || tool === 'hand') return null;
+  // У руки настраивать нечего: она только двигает холст. У курсора есть
+  // указка и прилипание, поэтому его панель открывается.
+  if (tool === 'hand') return null;
 
   const pen = (tool === 'pen1' || tool === 'pen2' || tool === 'marker') ? settings[tool] : null;
   const patchPen = (patch: Partial<PenSettings>) => {
@@ -259,6 +261,46 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
         </>
       ) : null}
 
+      {tool === 'select' ? (
+        <>
+          <div className="check">
+            <input
+              id="pointerMode"
+              type="checkbox"
+              checked={settings.select.pointer}
+              onChange={(event) => onChange({
+                ...settings,
+                select: { ...settings.select, pointer: event.target.checked },
+              })}
+            />
+            <label htmlFor="pointerMode">Указка</label>
+          </div>
+
+          <p className="text-muted small" style={{ margin: '0 0 var(--sp-3)' }}>
+            Проведите по пустому месту — след увидят все и он сам погаснет.
+            Ничего не сохраняется. Пока указка включена, рамкой выделять нельзя.
+          </p>
+
+          <div className="check">
+            <input
+              id="snapMode"
+              type="checkbox"
+              checked={settings.select.snap}
+              onChange={(event) => onChange({
+                ...settings,
+                select: { ...settings.select, snap: event.target.checked },
+              })}
+            />
+            <label htmlFor="snapMode">Прилипать к сетке</label>
+          </div>
+
+          <p className="text-muted small" style={{ margin: 0 }}>
+            Действует на построение, перемещение и растягивание. Выключено —
+            всё встаёт ровно туда, куда ведёт рука.
+          </p>
+        </>
+      ) : null}
+
       {tool === 'table' ? (
         <>
           <p className="params__label">Строк</p>
@@ -328,5 +370,6 @@ function titleOf(tool: Tool): string {
   if (tool === 'eraser') return 'Ластик';
   if (tool === 'text') return 'Текст';
   if (tool === 'table') return 'Таблица';
+  if (tool === 'select') return 'Курсор';
   return 'Фигуры';
 }

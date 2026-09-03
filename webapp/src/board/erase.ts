@@ -21,7 +21,7 @@ export type EraseResult =
  * и это единственный способ — случайно смахнуть фигуру ластиком нельзя.
  */
 export function erase(item: BoardItem, at: Point, radius: number): EraseResult {
-  if (item.type !== 'stroke') return { kind: 'keep' };
+  if (item.type !== 'stroke' || item.data.locked) return { kind: 'keep' };
 
   const reach = radius + item.data.width / 2;
   const before = segmentsOf(item.data);

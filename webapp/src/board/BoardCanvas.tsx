@@ -5,6 +5,7 @@ import type { Background, ItemData, ItemType, Point } from './protocol';
 import { cursorColor } from './cursorColors';
 import { boundsOf, rectFrom, topmostAt, translate, within } from './geometry';
 import { centerOf } from './rotate';
+import { snapPoint, snapValue } from './snap';
 import type { Bounds } from './geometry';
 import { HANDLE_SIZE, angleTo, handlesFor, resized } from './handles';
 import type { HandleId } from './handles';
@@ -52,6 +53,12 @@ const ERASE_RADIUS = 8;
 
 /** Сколько держать руку на месте, чтобы штрих выпрямился. */
 const STRAIGHTEN_HOLD_MS = 600;
+
+/** Сколько живёт след указки после того, как руку убрали. */
+const POINTER_FADE_MS = 1200;
+
+/** Как выглядит указка. Ярко и полупрозрачно — это не рисунок, а жест. */
+const POINTER_STYLE = { color: '#E74C3C', width: 6, opacity: 0.85 };
 
 /**
  * Холст доски.
@@ -128,6 +135,15 @@ export function BoardCanvas({
    */
   const moving = useRef<
     { pointerId: number; from: Point; dx: number; dy: number; edit: number | null } | null
+  >(null);
+
+  /**
+   * След указки. Это обычный «живой» штрих: он рассылается всем, но
+   * никогда не закрепляется — по отпусканию его отменяют, и он исчезает
+   * у всех сразу.
+   */
+  const pointing = useRef<
+    { pointerId: number; tempId: string; points: Point[]; sent: number } | null
   >(null);
 
   /** Указатель, которым сейчас стирают. */
@@ -511,7 +527,7 @@ export function BoardCanvas({
       // того, что под ней.
       if (chosen.length === 1) {
         const single = latest.current.items.find((item) => item.id === chosen[0]);
-        const bounds = single ? boundsOf([single]) : null;
+        const bounds = single && !single.data.locked ? boundsOf([single]) : null;
 
         if (single && bounds) {
           const grip = handlesFor(single, bounds).find((candidate) => (
@@ -552,9 +568,19 @@ export function BoardCanvas({
       const hit = topmostAt(hub.items, point, reach);
 
       if (!hit) {
-        // По пустому месту — рамка. Прежнее выделение снимаем сразу:
-        // рамка задаёт новое целиком.
         if (!event.ctrlKey && !event.metaKey) onSelection([]);
+
+        // Указка занимает то же движение, что и рамка: и то и другое —
+        // протяжка по пустому месту. Пока она включена, выделять рамкой
+        // нельзя, и об этом написано в её настройке.
+        if (latest.current.settings.select.pointer) {
+          const tempId = `p${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+          pointing.current = { pointerId: event.pointerId, tempId, points: [point], sent: 0 };
+          hub.beginItem(tempId, 'stroke', { ...POINTER_STYLE, points: [point] });
+          return;
+        }
+
         marquee.current = { pointerId: event.pointerId, from: point, to: point };
         return;
       }
@@ -569,6 +595,10 @@ export function BoardCanvas({
       // остальные.
       const repeat = chosen.length === 1 && chosen[0] === hit.id;
       if (!chosen.includes(hit.id)) onSelection([hit.id]);
+
+      // Запертое выделяется — иначе его нельзя было бы отпереть, — но с
+      // места не двигается.
+      if (hit.data.locked) return;
 
       moving.current = {
         pointerId: event.pointerId,
@@ -595,13 +625,19 @@ export function BoardCanvas({
     const tempId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const brush = drawnBy();
 
+    // Прилипание касается только построенного по двум углам: рукописный
+    // штрих притягивать к сетке — значит ломать почерк.
+    const start = brush.type === 'stroke'
+      ? point
+      : snapPoint(point, latest.current.settings.select.snap);
+
     const record = {
       pointerId: event.pointerId,
       tempId,
       points: [point],
       sent: 0,
-      from: point,
-      to: point,
+      from: start,
+      to: start,
       straight: false,
       movedAt: Date.now(),
       preview: (): Partial<ItemData> => {
@@ -697,7 +733,13 @@ export function BoardCanvas({
     if (grip?.pointerId === event.pointerId) {
       const source = latest.current.items.find((item) => item.id === grip.itemId);
       if (source) {
-        grip.data = resized(source.data, grip.origin, grip.handle, point.x - grip.from.x, point.y - grip.from.y);
+        const snap = latest.current.settings.select.snap;
+
+        grip.data = resized(
+          source.data, grip.origin, grip.handle,
+          snapValue(point.x - grip.from.x, snap),
+          snapValue(point.y - grip.from.y, snap),
+        );
       }
       schedule();
       return;
@@ -705,8 +747,9 @@ export function BoardCanvas({
 
     const drag = moving.current;
     if (drag?.pointerId === event.pointerId) {
-      drag.dx = point.x - drag.from.x;
-      drag.dy = point.y - drag.from.y;
+      const snap = latest.current.settings.select.snap;
+      drag.dx = snapValue(point.x - drag.from.x, snap);
+      drag.dy = snapValue(point.y - drag.from.y, snap);
       schedule();
       return;
     }
@@ -716,6 +759,20 @@ export function BoardCanvas({
     if (now - lastCursor.current >= CURSOR_INTERVAL_MS) {
       lastCursor.current = now;
       hub.sendCursor(point.x, point.y);
+    }
+
+    const laser = pointing.current;
+    if (laser && laser.pointerId === event.pointerId) {
+      laser.points.push(point);
+
+      if (now - lastBatch.current >= POINT_BATCH_MS) {
+        lastBatch.current = now;
+        const fresh = laser.points.slice(laser.sent);
+        laser.sent = laser.points.length;
+        if (fresh.length > 0) hub.appendPoints(laser.tempId, fresh);
+      }
+
+      return;
     }
 
     const spin = rotating.current;
@@ -741,7 +798,7 @@ export function BoardCanvas({
     if (!stroke || stroke.pointerId !== event.pointerId) return;
 
     if (latest.current.tool === 'shapes' || latest.current.tool === 'table') {
-      stroke.to = shiftAware(event, stroke.from, point);
+      stroke.to = snapPoint(shiftAware(event, stroke.from, point), latest.current.settings.select.snap);
       schedule();
       return;
     }
@@ -781,6 +838,17 @@ export function BoardCanvas({
     if (pointers.current.size === 0) blockUntilRelease.current = false;
 
     panning.current = null;
+
+    const laser = pointing.current;
+    if (laser?.pointerId === event.pointerId) {
+      pointing.current = null;
+
+      // След держится ещё секунду и гаснет у всех разом: указка — это
+      // жест, а не рисунок, и оставаться на доске ему незачем.
+      const { tempId } = laser;
+      window.setTimeout(() => hub.cancelItem(tempId), POINTER_FADE_MS);
+      return;
+    }
 
     if (erasing.current === event.pointerId) {
       erasing.current = null;

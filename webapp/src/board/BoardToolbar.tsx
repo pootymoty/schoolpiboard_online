@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
-  IconTrash, IconUndo,
+  IconTrash, IconUndo, IconPaste,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -92,12 +92,15 @@ interface ViewProps {
   onHelp: () => void;
   onExport: () => void;
   onClear: () => void;
+  /** Вставить из буфера доски. Кнопки нет, пока в буфере пусто. */
+  canPaste: boolean;
+  onPaste: () => void;
 }
 
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
 export function ViewToolbar({
   canManage, canUpload, scale, onZoom, onResetZoom, onFit,
-  onBackground, onFiles, onTimer, onHelp, onExport, onClear,
+  onBackground, onFiles, onTimer, onHelp, onExport, onClear, canPaste, onPaste,
 }: ViewProps): ReactElement {
   return (
     <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
@@ -124,6 +127,13 @@ export function ViewToolbar({
       {canUpload ? (
         <button className="btn-tool" type="button" onClick={onFiles} title="Вставить файл или страницу PDF">
           <IconImage />
+        </button>
+      ) : null}
+
+      {/* Вставка отдельной кнопкой: на планшете Ctrl+V нажать нечем. */}
+      {canPaste ? (
+        <button className="btn-tool" type="button" onClick={onPaste} title="Вставить из буфера доски (Ctrl+V)">
+          <IconPaste />
         </button>
       ) : null}
 

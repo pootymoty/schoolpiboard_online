@@ -6,7 +6,9 @@ import { DEFAULT_COLS, DEFAULT_ROWS, MAX_COLS, MAX_ROWS, clampCols, clampRows } 
 import { toScreen } from './viewport';
 import type { Viewport } from './viewport';
 import { Menu } from '../components/Menu';
-import { IconCheck, IconCopy, IconToBack, IconToFront, IconTrash } from '../components/Icons';
+import {
+  IconCheck, IconCopy, IconLockClosed, IconLockOpen, IconToBack, IconToFront, IconTrash,
+} from '../components/Icons';
 
 interface Props {
   items: BoardItem[];
@@ -23,6 +25,10 @@ interface Props {
   onDone: () => void;
   /** Изменить размерность выбранной таблицы. */
   onTable: (rows: number, cols: number) => void;
+  /** Запереть или отпереть выделенное. */
+  onLock: (locked: boolean) => void;
+  /** Положить выделенное в буфер доски. */
+  onCopy: () => void;
 }
 
 /** Примерная ширина панели — по ней она прижимается к краям холста. */
@@ -61,7 +67,7 @@ const NARROW = 720;
  */
 export function SelectionPanel({
   items, bounds, viewport, canvas, onColor, onDuplicate, onDelete, onReorder, onCopyText, onDone,
-  onTable,
+  onTable, onLock, onCopy,
 }: Props): ReactElement {
   // Надпись — единственное, что имеет смысл забрать с доски текстом.
   // На телефоне выделить её иначе нечем: холст рисованный, а не вёрстка.
@@ -69,6 +75,10 @@ export function SelectionPanel({
 
   // Строки и столбцы правятся у выбранной таблицы, а не при построении:
   // сколько их нужно, обычно выясняется уже по ходу заполнения.
+  // Заперто, если заперто всё выделенное: иначе кнопка отпирала бы одно
+  // и запирала другое одним нажатием.
+  const locked = items.length > 0 && items.every((item) => item.data.locked);
+
   const table = items.length === 1 && items[0].type === 'table' ? items[0] : null;
   const rows = table ? clampRows(table.data.rows ?? DEFAULT_ROWS) : 0;
   const cols = table ? clampCols(table.data.cols ?? DEFAULT_COLS) : 0;
@@ -169,12 +179,30 @@ export function SelectionPanel({
 
       <span className="toolbar__divider" aria-hidden="true" />
 
-      <button className="btn-tool" type="button" onClick={onDuplicate} title="Дублировать (Ctrl+D)">
+      <button
+        className="btn-tool"
+        type="button"
+        onClick={() => onLock(!locked)}
+        aria-pressed={locked}
+        title={locked ? 'Отпереть' : 'Запереть: не двигается и не стирается'}
+      >
+        {locked ? <IconLockClosed /> : <IconLockOpen />}
+      </button>
+
+      <button className="btn-tool" type="button" onClick={onCopy} title="Копировать (Ctrl+C)">
         <IconCopy />
       </button>
-      <button className="btn-tool" type="button" onClick={onDelete} title="Удалить (Delete)">
-        <IconTrash />
-      </button>
+
+      {locked ? null : (
+        <>
+          <button className="btn-tool" type="button" onClick={onDuplicate} title="Дублировать (Ctrl+D)">
+            <IconCopy />
+          </button>
+          <button className="btn-tool" type="button" onClick={onDelete} title="Удалить (Delete)">
+            <IconTrash />
+          </button>
+        </>
+      )}
 
       {docked ? (
         // На телефоне три точки только путали: на что там жать, было не

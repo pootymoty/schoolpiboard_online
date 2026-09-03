@@ -5,6 +5,12 @@ export type Tool = 'select' | 'hand' | 'pen1' | 'pen2' | 'marker' | 'eraser' | '
 /** Инструменты, которые оставляют след: у каждого своя панель параметров. */
 export const DRAWING_TOOLS: Tool[] = ['pen1', 'pen2', 'marker', 'eraser', 'shapes', 'text', 'table'];
 
+/**
+ * У чего вообще есть настройки. Курсор ничего не рисует, но у него их
+ * две — указка и прилипание, — и прятать их больше некуда.
+ */
+export const TOOLS_WITH_SETTINGS: Tool[] = [...DRAWING_TOOLS, 'select'];
+
 /** Размеры пера — те же шесть, что в десктопной версии. */
 export const SIZES = [1, 5, 10, 15, 20, 30];
 
@@ -71,6 +77,24 @@ export interface TextSettings {
  * выбранной таблицы: чаще всего нужна одна и та же — три на три под
  * разбор задачи или два столбца под «дано» и «решение».
  */
+/**
+ * Курсор. Обе настройки — про то, как ведёт себя рука, а не про след.
+ */
+export interface CursorSettings {
+  /**
+   * Указка: движение по пустому месту оставляет след, который видят все
+   * и который сам гаснет через секунду. Ничего не сохраняется.
+   */
+  pointer: boolean;
+
+  /**
+   * Прилипание к сетке. Выключено по умолчанию: от руки рисуют там, где
+   * хотят, а прилипание в этот момент только дёргает. Включают, когда
+   * строят чертёж.
+   */
+  snap: boolean;
+}
+
 export interface TableSettings {
   color: string;
   width: number;
@@ -93,6 +117,7 @@ export interface ToolSettings {
   shapes: ShapeSettings;
   text: TextSettings;
   table: TableSettings;
+  select: CursorSettings;
   eraser: { size: number };
 }
 
@@ -104,6 +129,7 @@ export const DEFAULT_SETTINGS: ToolSettings = {
   shapes: { color: '#1F618D', width: 5, opacity: 100, shape: 'rect', lineStyle: 'solid', fill: '' },
   text: { color: '#2A211C', fontSize: 24 },
   table: { color: '#2A211C', width: 3, fontSize: 20, rows: 3, cols: 3 },
+  select: { pointer: false, snap: false },
   eraser: { size: 26 },
 };
 
