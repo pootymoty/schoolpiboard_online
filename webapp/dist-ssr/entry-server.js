@@ -348,6 +348,10 @@ const IconPaste = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /*
   /* @__PURE__ */ jsx("path", { d: "M9 11h6" }),
   /* @__PURE__ */ jsx("path", { d: "M9 15h4" })
 ] }) });
+const IconPages = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("rect", { x: "4", y: "3", width: "12", height: "15", rx: "2" }),
+  /* @__PURE__ */ jsx("path", { d: "M8 21h9a2 2 0 002-2V8" })
+] }) });
 function Menu({ label, children, trigger, triggerClassName = "btn-tool" }) {
   const [open, setOpen] = useState(false);
   const box = useRef(null);
@@ -4222,7 +4226,9 @@ function ViewToolbar({
   onExport,
   onClear,
   canPaste,
-  onPaste
+  onPaste,
+  onPages,
+  pageLabel
 }) {
   return /* @__PURE__ */ jsxs("div", { className: "toolbar toolbar--view", role: "toolbar", "aria-label": "Масштаб и вид", children: [
     /* @__PURE__ */ jsxs("div", { className: "zoom", children: [
@@ -4235,6 +4241,11 @@ function ViewToolbar({
       /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFit, title: "Показать всё нарисованное", children: "⤢" })
     ] }),
     /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
+    /* @__PURE__ */ jsxs("button", { className: "btn-tool btn-tool--wide", type: "button", onClick: onPages, title: "Страницы занятия", children: [
+      /* @__PURE__ */ jsx(IconPages, {}),
+      /* @__PURE__ */ jsx("span", { className: "btn-tool__label", children: pageLabel })
+    ] }),
+    /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onHelp, title: "Что умеет доска", children: /* @__PURE__ */ jsx(IconHelp, {}) }),
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
     canUpload ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFiles, title: "Вставить файл или страницу PDF", children: /* @__PURE__ */ jsx(IconImage, {}) }) : null,
@@ -4242,7 +4253,7 @@ function ViewToolbar({
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onExport, title: "Сохранить картинкой", children: /* @__PURE__ */ jsx(IconDownload, {}) }),
     canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBackground, title: "Фон и разлиновка", children: /* @__PURE__ */ jsx(IconGrid, {}) }),
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClear, title: "Очистить доску", children: /* @__PURE__ */ jsx(IconTrash, {}) })
+      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClear, title: "Очистить страницу", children: /* @__PURE__ */ jsx(IconTrash, {}) })
     ] }) : null
   ] });
 }
@@ -4988,6 +4999,171 @@ function BackgroundPanel({ value, onChange, onClose }) {
     ] })
   ] });
 }
+const VISIBILITY = [
+  { kind: "all", label: "Всем", hint: "Страницу видит каждый, кто на доске." },
+  { kind: "selected", label: "Выбранным", hint: "Страницу видите вы и отмеченные участники." },
+  { kind: "owner", label: "Только мне", hint: "Страницу не видит никто, кроме вас." }
+];
+function PagesPanel({
+  pages,
+  pageId,
+  participants,
+  meKey,
+  canManage,
+  onOpen,
+  onAdd,
+  onRename,
+  onDelete,
+  onReorder,
+  onVisibility,
+  onClose
+}) {
+  const [editing, setEditing] = useState(null);
+  const [draft, setDraft] = useState("");
+  const [tuning, setTuning] = useState(null);
+  const move = (index, delta) => {
+    const order = pages.map((page) => page.id);
+    const to = index + delta;
+    if (to < 0 || to >= order.length) return;
+    [order[index], order[to]] = [order[to], order[index]];
+    onReorder(order);
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "params params--right", role: "dialog", "aria-label": "Страницы", children: [
+    /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
+      /* @__PURE__ */ jsx("span", { className: "params__title", children: "Страницы" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
+    ] }),
+    /* @__PURE__ */ jsx("div", { className: "pages", children: pages.map((page, index) => {
+      var _a;
+      return /* @__PURE__ */ jsxs("div", { className: page.id === pageId ? "pages__row pages__row--open" : "pages__row", children: [
+        editing === page.id ? /* @__PURE__ */ jsx(
+          "input",
+          {
+            className: "input pages__name",
+            value: draft,
+            autoFocus: true,
+            onChange: (event) => setDraft(event.target.value),
+            onBlur: () => {
+              if (draft.trim()) onRename(page.id, draft.trim());
+              setEditing(null);
+            },
+            onKeyDown: (event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+              if (event.key === "Escape") setEditing(null);
+            }
+          }
+        ) : /* @__PURE__ */ jsxs(
+          "button",
+          {
+            className: "btn-quiet pages__name",
+            type: "button",
+            onClick: () => onOpen(page.id),
+            onDoubleClick: () => {
+              if (!canManage) return;
+              setEditing(page.id);
+              setDraft(page.title);
+            },
+            children: [
+              page.title,
+              page.visibility !== "all" ? /* @__PURE__ */ jsx("span", { className: "pages__mark", children: page.visibility === "owner" ? "только я" : "выборочно" }) : null
+            ]
+          }
+        ),
+        canManage ? /* @__PURE__ */ jsxs("span", { className: "pages__tools", children: [
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool btn-tool--tiny",
+              type: "button",
+              title: "Выше",
+              disabled: index === 0,
+              onClick: () => move(index, -1),
+              children: "↑"
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool btn-tool--tiny",
+              type: "button",
+              title: "Ниже",
+              disabled: index === pages.length - 1,
+              onClick: () => move(index, 1),
+              children: "↓"
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool btn-tool--tiny",
+              type: "button",
+              title: "Кому видна",
+              "aria-pressed": tuning === page.id,
+              onClick: () => setTuning(tuning === page.id ? null : page.id),
+              children: "⚙"
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool btn-tool--tiny",
+              type: "button",
+              title: "Удалить страницу",
+              disabled: pages.length <= 1,
+              onClick: () => {
+                if (window.confirm(`Удалить «${page.title}» вместе со всем, что на ней?`)) {
+                  onDelete(page.id);
+                }
+              },
+              children: /* @__PURE__ */ jsx(IconTrash, { size: 14 })
+            }
+          )
+        ] }) : null,
+        canManage && tuning === page.id ? /* @__PURE__ */ jsxs("div", { className: "pages__access", children: [
+          /* @__PURE__ */ jsx("div", { className: "row", children: VISIBILITY.map((option) => /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: page.visibility === option.kind ? "btn-primary btn-sm" : "btn-quiet btn-sm",
+              type: "button",
+              onClick: () => onVisibility(page.id, option.kind, page.viewers ?? []),
+              children: option.label
+            },
+            option.kind
+          )) }),
+          /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: (_a = VISIBILITY.find((option) => option.kind === page.visibility)) == null ? void 0 : _a.hint }),
+          page.visibility === "selected" ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            participants.filter((one) => one.key !== meKey).map((one) => {
+              const chosen = (page.viewers ?? []).includes(one.key);
+              return /* @__PURE__ */ jsxs("div", { className: "check", children: [
+                /* @__PURE__ */ jsx(
+                  "input",
+                  {
+                    id: `p${page.id}-${one.connectionId}`,
+                    type: "checkbox",
+                    checked: chosen,
+                    onChange: () => onVisibility(
+                      page.id,
+                      "selected",
+                      chosen ? (page.viewers ?? []).filter((key) => key !== one.key) : [...page.viewers ?? [], one.key]
+                    )
+                  }
+                ),
+                /* @__PURE__ */ jsxs("label", { htmlFor: `p${page.id}-${one.connectionId}`, children: [
+                  one.displayName,
+                  one.isGuest ? " (гость)" : ""
+                ] })
+              ] }, one.connectionId);
+            }),
+            participants.filter((one) => one.key !== meKey).length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "Отмечать некого: на доске пока никого нет. Пригласите — и вернитесь сюда." }) : /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "Гость держится в списке, пока идёт занятие: придя по ссылке заново, он станет другим участником, и отметку придётся поставить снова." })
+          ] }) : null
+        ] }) : null,
+        page.id === pageId ? /* @__PURE__ */ jsx(IconCheck, { size: 16 }) : null
+      ] }, page.id);
+    }) }),
+    canManage ? /* @__PURE__ */ jsx("button", { className: "btn btn-quiet btn-sm", type: "button", onClick: onAdd, children: "Добавить страницу" }) : null,
+    pages.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Вам пока не открыта ни одна страница этой доски." }) : null
+  ] });
+}
 const MAX_MINUTES = 180;
 function clamp(raw, limit) {
   const value = Number.parseInt(raw, 10);
@@ -5094,7 +5270,9 @@ const TIPS = [
   { keys: "Ctrl + Z, Ctrl + Y", what: "отменить, повторить" },
   { keys: "Ctrl + D", what: "дублировать выделенное" },
   { keys: "Ctrl + A", what: "выделить всё" },
-  { keys: "Ctrl + C, Ctrl + X, Ctrl + V", what: "копировать, вырезать, вставить — в том числе на другой доске" },
+  { keys: "Ctrl + C, Ctrl + X, Ctrl + V", what: "копировать, вырезать, вставить — на другой странице и на другой доске" },
+  { keys: "Страницы в верхней панели", what: "занятие идёт по страницам; каждый ходит по ним сам" },
+  { keys: "Двойной щелчок по названию", what: "переименовать страницу — у владельца" },
   { keys: "Замок в панели выделения", what: "запереть объект: не двигается и не стирается" },
   { keys: "Курсор → Указка", what: "след, который видят все и который сам гаснет" },
   { keys: "Курсор → Прилипать к сетке", what: "построение и перемещение по клеткам" },
@@ -5160,18 +5338,22 @@ function useBoardHub(boardId) {
   const [me, setMe] = useState(null);
   const [lastCommit, setLastCommit] = useState(null);
   const [background, setBackgroundState] = useState(DEFAULT_BACKGROUND);
+  const [pages, setPages] = useState([]);
+  const [pageId, setPageId] = useState(null);
   const connection = useRef(null);
   const seq = useRef(0);
+  const current = useRef(null);
   const apply = useCallback((name, payload) => {
     switch (name) {
       case "ItemBegan":
-        setLive((current) => new Map(current).set(payload.tempId, payload));
+        if (payload.pageId !== current.current) break;
+        setLive((live2) => new Map(live2).set(payload.tempId, payload));
         break;
       case "ItemPoints":
-        setLive((current) => {
-          const stroke = current.get(payload.tempId);
-          if (!stroke) return current;
-          const next = new Map(current);
+        setLive((live2) => {
+          const stroke = live2.get(payload.tempId);
+          if (!stroke) return live2;
+          const next = new Map(live2);
           next.set(payload.tempId, {
             ...stroke,
             data: { ...stroke.data, points: [...stroke.data.points ?? [], ...payload.points] }
@@ -5180,60 +5362,62 @@ function useBoardHub(boardId) {
         });
         break;
       case "ItemCancelled":
-        setLive((current) => {
-          const next = new Map(current);
+        setLive((live2) => {
+          const next = new Map(live2);
           next.delete(payload.tempId);
           return next;
         });
         break;
       case "ItemCommitted":
-        setLive((current) => {
-          const next = new Map(current);
+        setLive((live2) => {
+          const next = new Map(live2);
           next.delete(payload.tempId);
           return next;
         });
-        setItems((current) => [...current.filter((x) => x.id !== payload.item.id), payload.item]);
+        if (payload.pageId !== current.current) break;
+        setItems((items2) => [...items2.filter((x) => x.id !== payload.item.id), payload.item]);
         setLastCommit({ tempId: payload.tempId, itemId: payload.item.id });
         break;
       case "ItemsMoved":
-        setItems((current) => current.map((item) => payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item));
+        setItems((current2) => current2.map((item) => payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item));
         break;
       case "ItemsReordered":
-        setItems((current) => {
+        setItems((current2) => {
           const fresh = new Map(
             payload.items.map((item) => [item.id, item])
           );
-          return current.map((item) => fresh.get(item.id) ?? item).sort((a, b) => a.z - b.z || a.id - b.id);
+          return current2.map((item) => fresh.get(item.id) ?? item).sort((a, b) => a.z - b.z || a.id - b.id);
         });
         break;
       case "BackgroundChanged":
         setBackgroundState(payload);
         break;
       case "ItemUpdated":
-        setItems((current) => current.map((x) => x.id === payload.item.id ? payload.item : x));
+        setItems((current2) => current2.map((x) => x.id === payload.item.id ? payload.item : x));
         break;
       case "ItemsDeleted":
-        setItems((current) => current.filter((x) => !payload.itemIds.includes(x.id)));
+        setItems((current2) => current2.filter((x) => !payload.itemIds.includes(x.id)));
         break;
       case "BoardCleared":
+        if (payload.pageId !== current.current) break;
         setItems([]);
         setLive(/* @__PURE__ */ new Map());
         break;
       case "ItemLocked":
-        setItems((current) => current.map((x) => x.id === payload.itemId ? { ...x, lockedBy: payload.by } : x));
+        setItems((current2) => current2.map((x) => x.id === payload.itemId ? { ...x, lockedBy: payload.by } : x));
         break;
       case "ItemUnlocked":
-        setItems((current) => current.map((x) => x.id === payload.itemId ? { ...x, lockedBy: null } : x));
+        setItems((current2) => current2.map((x) => x.id === payload.itemId ? { ...x, lockedBy: null } : x));
         break;
       case "MemberJoined":
-        setParticipants((current) => [
-          ...current.filter((x) => x.connectionId !== payload.connectionId),
+        setParticipants((current2) => [
+          ...current2.filter((x) => x.connectionId !== payload.connectionId),
           payload
         ]);
         break;
       case "MemberLeft":
-        setParticipants((current) => current.filter((x) => x.connectionId !== payload.connectionId));
-        setCursors((current) => current.filter((x) => x.id !== payload.connectionId));
+        setParticipants((current2) => current2.filter((x) => x.connectionId !== payload.connectionId));
+        setCursors((current2) => current2.filter((x) => x.id !== payload.connectionId));
         break;
     }
   }, []);
@@ -5270,6 +5454,9 @@ function useBoardHub(boardId) {
     hub.on("Cursors", (frame) => setCursors(frame));
     hub.on("Joined", (payload) => {
       seq.current = payload.seq;
+      current.current = payload.pageId ?? null;
+      setPages(payload.pages ?? []);
+      setPageId(payload.pageId ?? null);
       setRole(payload.role);
       setCanEdit(payload.canEdit);
       setCanManage(payload.canManage);
@@ -5292,8 +5479,34 @@ function useBoardHub(boardId) {
       setStatus("ready");
       setError(null);
     });
+    hub.on("Pages", (payload) => {
+      const fresh = payload.pages ?? [];
+      setPages(fresh);
+      const stillThere = fresh.some((page2) => page2.id === current.current);
+      if (stillThere) return;
+      const next = fresh[0];
+      if (next) {
+        void hub.invoke("OpenPage", next.id).catch(() => void 0);
+      } else {
+        current.current = null;
+        setPageId(null);
+        setItems([]);
+        setLive(/* @__PURE__ */ new Map());
+      }
+    });
+    hub.on("PagesChanged", () => {
+      void hub.invoke("Pages").catch(() => void 0);
+    });
+    hub.on("PageOpened", (payload) => {
+      current.current = payload.pageId;
+      setPageId(payload.pageId);
+      setItems(payload.items);
+      setLive(/* @__PURE__ */ new Map());
+    });
     hub.on("Synced", (payload) => {
       seq.current = payload.seq;
+      current.current = payload.pageId;
+      setPageId(payload.pageId);
       setItems(payload.items);
       setParticipants(payload.participants);
       setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
@@ -5303,13 +5516,13 @@ function useBoardHub(boardId) {
     hub.onreconnecting(() => setStatus("reconnecting"));
     hub.onreconnected(async () => {
       await join();
-      await hub.invoke("Sync").catch(() => void 0);
+      if (current.current !== null) await hub.invoke("Sync", current.current).catch(() => void 0);
     });
     hub.onclose(() => setStatus("failed"));
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
       if (hub.state !== HubConnectionState.Connected) return;
-      void hub.invoke("Sync").catch(() => void 0);
+      if (current.current !== null) void hub.invoke("Sync", current.current).catch(() => void 0);
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
@@ -5328,6 +5541,7 @@ function useBoardHub(boardId) {
     const hub = connection.current;
     if ((hub == null ? void 0 : hub.state) === HubConnectionState.Connected) void hub.invoke(method, ...args).catch(() => void 0);
   }, []);
+  const page = () => current.current ?? 0;
   return {
     status,
     error,
@@ -5341,20 +5555,34 @@ function useBoardHub(boardId) {
     me,
     lastCommit,
     background,
+    pages,
+    pageId,
     sendCursor: useCallback((x, y) => call("Cursor", x, y), [call]),
-    beginItem: useCallback((id, type, data) => call("BeginItem", id, type, data), [call]),
-    appendPoints: useCallback((id, points) => call("AppendPoints", id, points), [call]),
+    beginItem: useCallback((id, type, data) => call("BeginItem", id, page(), type, data), [call]),
+    appendPoints: useCallback((id, points) => call("AppendPoints", id, page(), points), [call]),
     commitItem: useCallback(
-      (id, type, data, imageRef) => call("CommitItem", id, type, data, imageRef ?? null),
+      (id, type, data, imageRef) => call("CommitItem", id, page(), type, data, imageRef ?? null),
       [call]
     ),
-    cancelItem: useCallback((id) => call("CancelItem", id), [call]),
+    cancelItem: useCallback((id) => call("CancelItem", id, page()), [call]),
     setBackground: useCallback((next) => call("SetBackground", next.background, next.gridStyle, next.gridColor), [call]),
-    moveItems: useCallback((ids, dx, dy) => call("MoveItems", ids, dx, dy), [call]),
-    updateItem: useCallback((id, data) => call("UpdateItem", id, data), [call]),
-    reorder: useCallback((ids, toFront) => call("Reorder", ids, toFront), [call]),
-    deleteItems: useCallback((ids) => call("DeleteItems", ids), [call]),
-    clearBoard: useCallback(() => call("ClearBoard"), [call])
+    moveItems: useCallback(
+      (ids, dx, dy) => call("MoveItems", ids, page(), dx, dy),
+      [call]
+    ),
+    updateItem: useCallback((id, data) => call("UpdateItem", id, page(), data), [call]),
+    reorder: useCallback((ids, toFront) => call("Reorder", ids, page(), toFront), [call]),
+    deleteItems: useCallback((ids) => call("DeleteItems", ids, page()), [call]),
+    clearBoard: useCallback(() => call("ClearBoard", page()), [call]),
+    openPage: useCallback((id) => call("OpenPage", id), [call]),
+    addPage: useCallback((title) => call("AddPage", title ?? null), [call]),
+    renamePage: useCallback((id, title) => call("RenamePage", id, title), [call]),
+    deletePage: useCallback((id) => call("DeletePage", id), [call]),
+    reorderPages: useCallback((order) => call("ReorderPages", order), [call]),
+    setPageVisibility: useCallback(
+      (id, visibility, viewers) => call("SetPageVisibility", id, visibility, viewers),
+      [call]
+    )
   };
 }
 const POLL_MS$1 = 4e3;
@@ -5429,6 +5657,7 @@ function useHistory(actions) {
   return { canUndo: depth.undo > 0, canRedo: depth.redo > 0, push, undo, redo, clear };
 }
 function BoardPage() {
+  var _a;
   const { boardId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -5438,13 +5667,13 @@ function BoardPage() {
   const [busy, setBusy] = useState(false);
   const [showPeople, setShowPeople] = useState(false);
   const [showLink, setShowLink] = useState(() => {
-    var _a;
-    return Boolean((_a = location.state) == null ? void 0 : _a.openLink);
+    var _a2;
+    return Boolean((_a2 = location.state) == null ? void 0 : _a2.openLink);
   });
   const [copied, setCopied] = useState(false);
   useEffect(() => {
-    var _a;
-    if ((_a = location.state) == null ? void 0 : _a.openLink) {
+    var _a2;
+    if ((_a2 = location.state) == null ? void 0 : _a2.openLink) {
       navigate(location.pathname, { replace: true, state: null });
     }
   }, []);
@@ -5455,6 +5684,7 @@ function BoardPage() {
   const [showTimer, setShowTimer] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
+  const [showPages, setShowPages] = useState(false);
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -5798,10 +6028,10 @@ function BoardPage() {
   useEffect(() => {
     if (!hub.canEdit || (state == null ? void 0 : state.me.isGuest) !== false) return;
     const onPaste = (event) => {
-      var _a, _b, _c;
+      var _a2, _b, _c;
       const target = event.target;
       if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
-      const items = (_a = event.clipboardData) == null ? void 0 : _a.items;
+      const items = (_a2 = event.clipboardData) == null ? void 0 : _a2.items;
       if (!items) return;
       for (const entry of items) {
         if (entry.kind === "file") {
@@ -5956,9 +6186,9 @@ function BoardPage() {
             if (hub.canEdit && !me.isGuest) event.preventDefault();
           },
           onDrop: (event) => {
-            var _a;
+            var _a2;
             if (!hub.canEdit || me.isGuest) return;
-            const file = (_a = event.dataTransfer.files) == null ? void 0 : _a[0];
+            const file = (_a2 = event.dataTransfer.files) == null ? void 0 : _a2[0];
             if (!file) return;
             event.preventDefault();
             void insertFile(file, file.name);
@@ -6014,6 +6244,8 @@ function BoardPage() {
                 canUpload: hub.canEdit && !me.isGuest,
                 canPaste: hasClip && hub.canEdit,
                 onPaste: pasteClip,
+                onPages: () => setShowPages((current) => !current),
+                pageLabel: hub.pages.length === 0 ? "—" : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`,
                 onFiles: () => setShowFiles((current) => !current),
                 scale: viewport.scale,
                 onBackground: () => setShowBackground((current) => !current),
@@ -6038,7 +6270,7 @@ function BoardPage() {
                 }),
                 onFit: fitToAll,
                 onClear: () => {
-                  if (window.confirm("Очистить доску? Всё нарисованное пропадёт у всех.")) hub.clearBoard();
+                  if (window.confirm("Очистить страницу? Всё на ней пропадёт у всех.")) hub.clearBoard();
                 }
               }
             ),
@@ -6056,8 +6288,8 @@ function BoardPage() {
                 onSelection: setSelection,
                 onMoved: (itemIds, dx, dy) => {
                   const movable = itemIds.filter((itemId) => {
-                    var _a;
-                    return !((_a = hub.items.find((item) => item.id === itemId)) == null ? void 0 : _a.data.locked);
+                    var _a2;
+                    return !((_a2 = hub.items.find((item) => item.id === itemId)) == null ? void 0 : _a2.data.locked);
                   });
                   if (movable.length === 0) return;
                   hub.moveItems(movable, dx, dy);
@@ -6086,6 +6318,26 @@ function BoardPage() {
             showTimer ? /* @__PURE__ */ jsx(TimerPanel, { onClose: () => setShowTimer(false) }) : null,
             showHelp ? /* @__PURE__ */ jsx(HelpPanel, { onClose: () => setShowHelp(false) }) : null,
             showFiles ? /* @__PURE__ */ jsx(FilesPanel, { onInsert: insertImage, onClose: () => setShowFiles(false) }) : null,
+            showPages ? /* @__PURE__ */ jsx(
+              PagesPanel,
+              {
+                pages: hub.pages,
+                pageId: hub.pageId,
+                participants: hub.participants,
+                meKey: ((_a = hub.participants.find((one) => one.connectionId === hub.me)) == null ? void 0 : _a.key) ?? null,
+                canManage: hub.canManage,
+                onOpen: (pageId) => {
+                  setSelection([]);
+                  hub.openPage(pageId);
+                },
+                onAdd: () => hub.addPage(),
+                onRename: hub.renamePage,
+                onDelete: hub.deletePage,
+                onReorder: hub.reorderPages,
+                onVisibility: hub.setPageVisibility,
+                onClose: () => setShowPages(false)
+              }
+            ) : null,
             showBackground && hub.canManage ? /* @__PURE__ */ jsx(
               BackgroundPanel,
               {
@@ -6115,8 +6367,8 @@ function BoardPage() {
                 onDelete: removeSelection,
                 onReorder: (toFront) => hub.reorder(selection, toFront),
                 onCopyText: (text) => {
-                  var _a;
-                  (_a = navigator.clipboard) == null ? void 0 : _a.writeText(text).catch(() => setError("Скопировать не вышло — браузер не дал доступ к буферу."));
+                  var _a2;
+                  (_a2 = navigator.clipboard) == null ? void 0 : _a2.writeText(text).catch(() => setError("Скопировать не вышло — браузер не дал доступ к буферу."));
                 },
                 onDone: () => setSelection([]),
                 onLock: lockSelection,

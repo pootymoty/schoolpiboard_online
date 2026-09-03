@@ -112,6 +112,18 @@ public sealed class BoardService
         _db.Boards.Add(board);
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Доски без страниц не бывает: объект всегда лежит на странице, и
+        // заводить её при первом рисунке значило бы иметь доску, на
+        // которой нельзя рисовать.
+        _db.BoardPages.Add(new BoardPage
+        {
+            BoardId = board.Id,
+            Title = "Страница 1",
+            Sort = 1,
+            Visibility = BoardPage.VisibilityAll,
+            CreatedAt = now
+        });
+
         // Владелец — такой же участник, просто с ролью owner: тогда список
         // досок и проверки прав работают одним запросом, без особого случая.
         _db.BoardMembers.Add(new BoardMember

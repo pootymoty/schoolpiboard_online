@@ -28,6 +28,7 @@ builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<BoardItemService>();
+builder.Services.AddScoped<PageService>();
 builder.Services.AddSingleton<FileStorage>();
 builder.Services.AddScoped<LibraryService>();
 builder.Services.AddScoped<SubscriptionService>();

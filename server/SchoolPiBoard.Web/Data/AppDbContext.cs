@@ -19,6 +19,10 @@ public class AppDbContext : DbContext
 
     public DbSet<BoardItem> BoardItems => Set<BoardItem>();
 
+    public DbSet<BoardPage> BoardPages => Set<BoardPage>();
+
+    public DbSet<BoardPageViewer> BoardPageViewers => Set<BoardPageViewer>();
+
     public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
 
     public DbSet<Plan> Plans => Set<Plan>();
@@ -138,6 +142,7 @@ public class AppDbContext : DbContext
 
             entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
             entity.Property(x => x.BoardId).HasColumnName("board_id");
+            entity.Property(x => x.PageId).HasColumnName("page_id");
             entity.Property(x => x.Type).HasColumnName("type").IsRequired();
             entity.Property(x => x.Z).HasColumnName("z");
             entity.Property(x => x.Data).HasColumnName("data").HasColumnType("jsonb").IsRequired();
@@ -148,13 +153,21 @@ public class AppDbContext : DbContext
             entity.Property(x => x.LockedBy).HasColumnName("locked_by");
             entity.Property(x => x.LockedAt).HasColumnName("locked_at");
 
-            // Доска читается целиком и в порядке отрисовки — единственный
-            // способ, которым к этой таблице обращаются.
-            entity.HasIndex(x => new { x.BoardId, x.Z });
+            // Читается всегда одна страница и в порядке отрисовки —
+            // единственный способ, которым к этой таблице обращаются.
+            entity.HasIndex(x => new { x.PageId, x.Z });
 
             entity.HasOne(x => x.Board)
                 .WithMany()
                 .HasForeignKey(x => x.BoardId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Ссылки на страницу в объекте нет: она никогда не нужна вместе
+            // с ним, а связь в базе быть должна — удалённая страница не
+            // должна оставлять за собой объекты ниоткуда.
+            entity.HasOne<BoardPage>()
+                .WithMany()
+                .HasForeignKey(x => x.PageId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -239,6 +252,45 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.PlanId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        model.Entity<BoardPage>(entity =>
+        {
+            entity.ToTable("board_pages");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.BoardId).HasColumnName("board_id");
+            entity.Property(x => x.Title).HasColumnName("title").IsRequired();
+            entity.Property(x => x.Sort).HasColumnName("sort");
+            entity.Property(x => x.Visibility).HasColumnName("visibility").IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+
+            // Страницы читаются полосой, в своём порядке.
+            entity.HasIndex(x => new { x.BoardId, x.Sort });
+
+            entity.HasOne(x => x.Board)
+                .WithMany()
+                .HasForeignKey(x => x.BoardId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<BoardPageViewer>(entity =>
+        {
+            entity.ToTable("board_page_viewers");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.PageId).HasColumnName("page_id");
+            entity.Property(x => x.ParticipantKey).HasColumnName("participant_key").IsRequired();
+
+            // Один и тот же участник не должен попасть в список дважды.
+            entity.HasIndex(x => new { x.PageId, x.ParticipantKey }).IsUnique();
+
+            entity.HasOne(x => x.Page)
+                .WithMany()
+                .HasForeignKey(x => x.PageId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         model.Entity<BillingOrder>(entity =>

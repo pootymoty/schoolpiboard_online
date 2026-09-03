@@ -27,6 +27,7 @@ import { boundsOf, pointsOf, translate } from '../board/geometry';
 import { measureText } from '../board/handles';
 import { SelectionPanel } from '../board/SelectionPanel';
 import { BackgroundPanel } from '../board/BackgroundPanel';
+import { PagesPanel } from '../board/PagesPanel';
 import { TimerPanel } from '../board/TimerPanel';
 import { HelpPanel } from '../board/HelpPanel';
 import { exportPng } from '../board/exportPng';
@@ -81,6 +82,7 @@ export function BoardPage(): ReactElement {
   const [showTimer, setShowTimer] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
+  const [showPages, setShowPages] = useState(false);
 
   /** Есть ли что вставлять. Кнопка вставки без содержимого только мешает. */
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
@@ -883,6 +885,12 @@ export function BoardPage(): ReactElement {
             canUpload={hub.canEdit && !me.isGuest}
             canPaste={hasClip && hub.canEdit}
             onPaste={pasteClip}
+            onPages={() => setShowPages((current) => !current)}
+            pageLabel={
+              hub.pages.length === 0
+                ? '—'
+                : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`
+            }
             onFiles={() => setShowFiles((current) => !current)}
             scale={viewport.scale}
             onBackground={() => setShowBackground((current) => !current)}
@@ -908,7 +916,7 @@ export function BoardPage(): ReactElement {
             })}
             onFit={fitToAll}
             onClear={() => {
-              if (window.confirm('Очистить доску? Всё нарисованное пропадёт у всех.')) hub.clearBoard();
+              if (window.confirm('Очистить страницу? Всё на ней пропадёт у всех.')) hub.clearBoard();
             }}
           />
 
@@ -970,6 +978,28 @@ export function BoardPage(): ReactElement {
 
           {showFiles ? (
             <FilesPanel onInsert={insertImage} onClose={() => setShowFiles(false)} />
+          ) : null}
+
+          {showPages ? (
+            <PagesPanel
+              pages={hub.pages}
+              pageId={hub.pageId}
+              participants={hub.participants}
+              meKey={hub.participants.find((one) => one.connectionId === hub.me)?.key ?? null}
+              canManage={hub.canManage}
+              onOpen={(pageId) => {
+                // Уходим со страницы — выделение с неё не переносим:
+                // на новой этих объектов нет.
+                setSelection([]);
+                hub.openPage(pageId);
+              }}
+              onAdd={() => hub.addPage()}
+              onRename={hub.renamePage}
+              onDelete={hub.deletePage}
+              onReorder={hub.reorderPages}
+              onVisibility={hub.setPageVisibility}
+              onClose={() => setShowPages(false)}
+            />
           ) : null}
 
           {showBackground && hub.canManage ? (

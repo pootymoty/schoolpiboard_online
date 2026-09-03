@@ -338,3 +338,13 @@ export const IconPaste = (props: Props): ReactElement => (
     </g>
   </Svg>
 );
+
+/** Страницы занятия: стопка листов. */
+export const IconPages = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="4" y="3" width="12" height="15" rx="2" />
+      <path d="M8 21h9a2 2 0 002-2V8" />
+    </g>
+  </Svg>
+);

@@ -1615,3 +1615,58 @@ body.no-scroll {
     font-size: var(--fs-sm);
     line-height: 1;
 }
+
+/* --- Страницы занятия ---------------------------------------------------- */
+
+.pages {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: var(--sp-3);
+}
+
+.pages__row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 2px 4px;
+    border-radius: var(--radius-sm, 6px);
+}
+
+.pages__row--open { background: var(--surface-2); }
+
+/* Название занимает всю свободную ширину: по нему и переключаются, и
+   промахнуться мимо него труднее, чем мимо мелкой кнопки. */
+.pages__name {
+    flex: 1 1 auto;
+    text-align: left;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+}
+
+.pages__mark {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.pages__tools {
+    display: flex;
+    gap: 2px;
+    flex: none;
+}
+
+/* Настройка видимости раскрывается под своей страницей и занимает всю
+   ширину: список участников в строке не помещается. */
+.pages__access {
+    flex: 1 0 100%;
+    padding: var(--sp-2) 0 var(--sp-3);
+}
+
+.btn-tool__label {
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+}

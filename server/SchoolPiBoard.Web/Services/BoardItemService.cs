@@ -33,15 +33,16 @@ public sealed class BoardItemService
 
     public BoardItemService(AppDbContext db) => _db = db;
 
-    public Task<List<BoardItem>> ListAsync(long boardId, CancellationToken cancellationToken)
+    /// <summary>Всё, что лежит на странице, в порядке отрисовки.</summary>
+    public Task<List<BoardItem>> ListAsync(long pageId, CancellationToken cancellationToken)
         => _db.BoardItems
-            .Where(x => x.BoardId == boardId)
+            .Where(x => x.PageId == pageId)
             .OrderBy(x => x.Z).ThenBy(x => x.Id)
             .ToListAsync(cancellationToken);
 
     /// <summary>Создаёт объект поверх остальных.</summary>
     public async Task<BoardItem?> CreateAsync(
-        long boardId, string? type, string? data, long? createdBy, string? imageRef,
+        long boardId, long pageId, string? type, string? data, long? createdBy, string? imageRef,
         CancellationToken cancellationToken)
     {
         if (type is null || !BoardItem.KnownTypes.Contains(type))
@@ -58,8 +59,11 @@ public sealed class BoardItemService
         if (await _db.BoardItems.CountAsync(x => x.BoardId == boardId, cancellationToken) >= MaxItemsPerBoard)
             return null;
 
+        // Порядок отрисовки считается по странице: объект, положенный на
+        // вторую страницу, не должен уезжать наверх из-за того, что на
+        // первой уже много нарисовано.
         var top = await _db.BoardItems
-            .Where(x => x.BoardId == boardId)
+            .Where(x => x.PageId == pageId)
             .MaxAsync(x => (int?)x.Z, cancellationToken) ?? 0;
 
         var now = DateTime.UtcNow;
@@ -67,6 +71,7 @@ public sealed class BoardItemService
         var item = new BoardItem
         {
             BoardId = boardId,
+            PageId = pageId,
             Type = type,
             Z = top + 1,
             Data = data,
@@ -108,13 +113,18 @@ public sealed class BoardItemService
     /// срок не должен истекать под руками.
     /// </summary>
     public async Task<BoardItem?> UpdateAsync(
-        long boardId, long itemId, string connectionId, string? data, CancellationToken cancellationToken)
+        long boardId, long pageId, long itemId, string connectionId, string? data,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(data) || data.Length > MaxDataLength)
             return null;
 
         var item = await FindAsync(boardId, itemId, cancellationToken);
-        if (item is null || IsHeldByOther(item, connectionId))
+
+        // Править можно только то, что лежит на открытой странице. Чужие
+        // номера объектов участнику взять неоткуда, но правило должно
+        // держаться проверкой, а не тем, что их трудно угадать.
+        if (item is null || item.PageId != pageId || IsHeldByOther(item, connectionId))
             return null;
 
         item.Data = data;
@@ -142,13 +152,13 @@ public sealed class BoardItemService
 
     /// <summary>Удаляет объекты. Возвращает те, что действительно были на доске.</summary>
     public async Task<List<long>> DeleteAsync(
-        long boardId, IReadOnlyCollection<long> itemIds, CancellationToken cancellationToken)
+        long boardId, long pageId, IReadOnlyCollection<long> itemIds, CancellationToken cancellationToken)
     {
         if (itemIds.Count == 0)
             return new List<long>();
 
         var items = await _db.BoardItems
-            .Where(x => x.BoardId == boardId && itemIds.Contains(x.Id))
+            .Where(x => x.BoardId == boardId && x.PageId == pageId && itemIds.Contains(x.Id))
             .ToListAsync(cancellationToken);
 
         if (items.Count == 0)
@@ -166,13 +176,14 @@ public sealed class BoardItemService
     /// все их точки заново ради двух чисел.
     /// </summary>
     public async Task<List<BoardItem>> MoveAsync(
-        long boardId, IReadOnlyCollection<long> itemIds, double dx, double dy, CancellationToken cancellationToken)
+        long boardId, long pageId, IReadOnlyCollection<long> itemIds, double dx, double dy,
+        CancellationToken cancellationToken)
     {
         if (itemIds.Count == 0 || (dx == 0 && dy == 0))
             return new List<BoardItem>();
 
         var items = await _db.BoardItems
-            .Where(x => x.BoardId == boardId && itemIds.Contains(x.Id))
+            .Where(x => x.BoardId == boardId && x.PageId == pageId && itemIds.Contains(x.Id))
             .ToListAsync(cancellationToken);
 
         var now = DateTime.UtcNow;
@@ -235,22 +246,25 @@ public sealed class BoardItemService
     /// переложенные за её нынешние границы.
     /// </summary>
     public async Task<List<BoardItem>> ReorderAsync(
-        long boardId, IReadOnlyCollection<long> itemIds, bool toFront, CancellationToken cancellationToken)
+        long boardId, long pageId, IReadOnlyCollection<long> itemIds, bool toFront,
+        CancellationToken cancellationToken)
     {
         if (itemIds.Count == 0)
             return new List<BoardItem>();
 
         var items = await _db.BoardItems
-            .Where(x => x.BoardId == boardId && itemIds.Contains(x.Id))
+            .Where(x => x.BoardId == boardId && x.PageId == pageId && itemIds.Contains(x.Id))
             .OrderBy(x => x.Z)
             .ToListAsync(cancellationToken);
 
         if (items.Count == 0)
             return new List<BoardItem>();
 
+        // Край считается по странице: «на передний план» означает поверх
+        // того, что видно, а не поверх всей доски.
         var edge = toFront
-            ? await _db.BoardItems.Where(x => x.BoardId == boardId).MaxAsync(x => (int?)x.Z, cancellationToken) ?? 0
-            : await _db.BoardItems.Where(x => x.BoardId == boardId).MinAsync(x => (int?)x.Z, cancellationToken) ?? 0;
+            ? await _db.BoardItems.Where(x => x.PageId == pageId).MaxAsync(x => (int?)x.Z, cancellationToken) ?? 0
+            : await _db.BoardItems.Where(x => x.PageId == pageId).MinAsync(x => (int?)x.Z, cancellationToken) ?? 0;
 
         // Взаимный порядок внутри выборки сохраняем: перекладывают группу
         // целиком, а не перемешивают её.
@@ -265,8 +279,9 @@ public sealed class BoardItemService
         return items;
     }
 
-    public async Task ClearAsync(long boardId, CancellationToken cancellationToken)
-        => await _db.BoardItems.Where(x => x.BoardId == boardId).ExecuteDeleteAsync(cancellationToken);
+    /// <summary>Очищает страницу, а не всю доску: чистят то, что видят.</summary>
+    public async Task ClearAsync(long pageId, CancellationToken cancellationToken)
+        => await _db.BoardItems.Where(x => x.PageId == pageId).ExecuteDeleteAsync(cancellationToken);
 
     /// <summary>
     /// Снять все замки подключения. Вызывается при отключении: ушедший не

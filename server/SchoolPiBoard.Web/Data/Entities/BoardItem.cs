@@ -32,6 +32,12 @@ public class BoardItem
 
     public long BoardId { get; set; }
 
+    /// <summary>
+    /// На какой странице лежит. Доска без страниц не бывает: у самой
+    /// первой их одна, и всё нарисованное принадлежит ей.
+    /// </summary>
+    public long PageId { get; set; }
+
     public string Type { get; set; } = string.Empty;
 
     /// <summary>Порядок отрисовки: больше — выше.</summary>

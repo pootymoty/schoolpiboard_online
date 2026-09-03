@@ -106,6 +106,8 @@ export interface Participant {
   displayName: string;
   role: BoardRole;
   isGuest: boolean;
+  /** Ключ участника — им отмечают, кому открыта страница. */
+  key: string;
 }
 
 export interface Cursor {
@@ -133,11 +135,29 @@ export const DEFAULT_BACKGROUND: Background = {
 };
 
 /** Начальное состояние доски. */
+/**
+ * Страница доски.
+ *
+ * `viewers` приходит только владельцу и только у выборочной видимости:
+ * кому открыта чужая страница — не дело остальных.
+ */
+export interface BoardPageInfo {
+  id: number;
+  title: string;
+  visibility: PageVisibility;
+  viewers?: string[];
+}
+
+export type PageVisibility = 'all' | 'selected' | 'owner';
+
 export interface JoinedPayload {
   role: BoardRole;
   canEdit: boolean;
   canManage: boolean;
   seq: number;
+  pages: BoardPageInfo[];
+  /** Страница, которой открылась доска. Пусто — не открыто ни одной. */
+  pageId: number | null;
   items: BoardItem[];
   participants: Participant[];
   background: Background;
@@ -156,6 +176,7 @@ export interface ResumedPayload {
 /** Ответ на запрос состояния: заменяет местное представление целиком. */
 export interface SyncedPayload {
   seq: number;
+  pageId: number;
   items: BoardItem[];
   participants: Participant[];
   background: Background;
@@ -164,6 +185,8 @@ export interface SyncedPayload {
 /** Чужой штрих, пока он ещё рисуется: в базе его нет, он живёт в памяти. */
 export interface LiveStroke {
   tempId: string;
+  /** С какой страницы. Чужую страницу рисовать у себя незачем. */
+  pageId: number;
   by: string;
   type: ItemType;
   data: ItemData;

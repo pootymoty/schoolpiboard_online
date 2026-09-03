@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
-  IconTrash, IconUndo, IconPaste,
+  IconTrash, IconUndo, IconPaste, IconPages,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -95,12 +95,15 @@ interface ViewProps {
   /** Вставить из буфера доски. Кнопки нет, пока в буфере пусто. */
   canPaste: boolean;
   onPaste: () => void;
+  onPages: () => void;
+  /** Какая страница открыта из скольких — прямо на кнопке. */
+  pageLabel: string;
 }
 
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
 export function ViewToolbar({
   canManage, canUpload, scale, onZoom, onResetZoom, onFit,
-  onBackground, onFiles, onTimer, onHelp, onExport, onClear, canPaste, onPaste,
+  onBackground, onFiles, onTimer, onHelp, onExport, onClear, canPaste, onPaste, onPages, pageLabel,
 }: ViewProps): ReactElement {
   return (
     <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
@@ -113,6 +116,15 @@ export function ViewToolbar({
         <button className="btn-tool" type="button" onClick={() => onZoom(1.15)} aria-label="Приблизить">+</button>
         <button className="btn-tool" type="button" onClick={onFit} title="Показать всё нарисованное">⤢</button>
       </div>
+
+      <span className="toolbar__divider" aria-hidden="true" />
+
+      {/* Страницы рядом с масштабом: и то и другое — про то, на что
+          человек сейчас смотрит, а не про то, чем рисует. */}
+      <button className="btn-tool btn-tool--wide" type="button" onClick={onPages} title="Страницы занятия">
+        <IconPages />
+        <span className="btn-tool__label">{pageLabel}</span>
+      </button>
 
       <span className="toolbar__divider" aria-hidden="true" />
 
@@ -147,7 +159,7 @@ export function ViewToolbar({
           <button className="btn-tool" type="button" onClick={onBackground} title="Фон и разлиновка">
             <IconGrid />
           </button>
-          <button className="btn-tool" type="button" onClick={onClear} title="Очистить доску">
+          <button className="btn-tool" type="button" onClick={onClear} title="Очистить страницу">
             <IconTrash />
           </button>
         </>

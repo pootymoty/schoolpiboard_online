@@ -6,8 +6,8 @@ import { translate } from './geometry';
 import { readGuestToken } from '../api/guest';
 import type { BoardRole } from '../api/types';
 import type {
-  BoardItem, Cursor, ItemData, ItemType, JoinedPayload, LiveStroke, Participant,
-  ResumedPayload, SyncedPayload, Background,
+  BoardItem, BoardPageInfo, Cursor, ItemData, ItemType, JoinedPayload, LiveStroke, PageVisibility,
+  Participant, ResumedPayload, SyncedPayload, Background,
 } from './protocol';
 import { DEFAULT_BACKGROUND } from './protocol';
 
@@ -30,6 +30,11 @@ export interface BoardHub {
   lastCommit: { tempId: string; itemId: number } | null;
   background: Background;
 
+  /** Полоса страниц — только те, что открыты этому участнику. */
+  pages: BoardPageInfo[];
+  /** Открытая сейчас страница. Пусто — не открыто ни одной. */
+  pageId: number | null;
+
   sendCursor: (x: number, y: number) => void;
   beginItem: (tempId: string, type: ItemType, data: ItemData) => void;
   appendPoints: (tempId: string, points: ItemData['points']) => void;
@@ -41,6 +46,13 @@ export interface BoardHub {
   reorder: (ids: number[], toFront: boolean) => void;
   deleteItems: (ids: number[]) => void;
   clearBoard: () => void;
+
+  openPage: (pageId: number) => void;
+  addPage: (title?: string) => void;
+  renamePage: (pageId: number, title: string) => void;
+  deletePage: (pageId: number) => void;
+  reorderPages: (order: number[]) => void;
+  setPageVisibility: (pageId: number, visibility: PageVisibility, viewers: string[]) => void;
 }
 
 /**
@@ -64,23 +76,33 @@ export function useBoardHub(boardId: number): BoardHub {
   const [me, setMe] = useState<string | null>(null);
   const [lastCommit, setLastCommit] = useState<{ tempId: string; itemId: number } | null>(null);
   const [background, setBackgroundState] = useState<Background>(DEFAULT_BACKGROUND);
+  const [pages, setPages] = useState<BoardPageInfo[]>([]);
+  const [pageId, setPageId] = useState<number | null>(null);
 
   const connection = useRef<HubConnection | null>(null);
   const seq = useRef(0);
+
+  /**
+   * Открытая страница — ещё и ссылкой: обработчик событий живёт вне
+   * React-цикла и иначе видел бы страницу на момент подписки.
+   */
+  const current = useRef<number | null>(null);
 
   /** Применяет одно событие доски — и живое, и добранное после обрыва. */
   const apply = useCallback((name: string, payload: any) => {
     switch (name) {
       case 'ItemBegan':
-        setLive((current) => new Map(current).set(payload.tempId, payload as LiveStroke));
+        // Чужая страница рисуется у своих: показывать её здесь незачем.
+        if (payload.pageId !== current.current) break;
+        setLive((live) => new Map(live).set(payload.tempId, payload as LiveStroke));
         break;
 
       case 'ItemPoints':
-        setLive((current) => {
-          const stroke = current.get(payload.tempId);
-          if (!stroke) return current;
+        setLive((live) => {
+          const stroke = live.get(payload.tempId);
+          if (!stroke) return live;
 
-          const next = new Map(current);
+          const next = new Map(live);
           next.set(payload.tempId, {
             ...stroke,
             data: { ...stroke.data, points: [...(stroke.data.points ?? []), ...payload.points] },
@@ -90,8 +112,8 @@ export function useBoardHub(boardId: number): BoardHub {
         break;
 
       case 'ItemCancelled':
-        setLive((current) => {
-          const next = new Map(current);
+        setLive((live) => {
+          const next = new Map(live);
           next.delete(payload.tempId);
           return next;
         });
@@ -100,12 +122,15 @@ export function useBoardHub(boardId: number): BoardHub {
       case 'ItemCommitted':
         // Штрих переезжает из «рисуется» в «нарисовано» — двумя действиями
         // сразу, иначе между ними он мигнул бы, пропав из обоих списков.
-        setLive((current) => {
-          const next = new Map(current);
+        setLive((live) => {
+          const next = new Map(live);
           next.delete(payload.tempId);
           return next;
         });
-        setItems((current) => [...current.filter((x) => x.id !== payload.item.id), payload.item]);
+
+        if (payload.pageId !== current.current) break;
+
+        setItems((items) => [...items.filter((x) => x.id !== payload.item.id), payload.item]);
         setLastCommit({ tempId: payload.tempId, itemId: payload.item.id });
         break;
 
@@ -142,6 +167,7 @@ export function useBoardHub(boardId: number): BoardHub {
         break;
 
       case 'BoardCleared':
+        if (payload.pageId !== current.current) break;
         setItems([]);
         setLive(new Map());
         break;
@@ -198,6 +224,9 @@ export function useBoardHub(boardId: number): BoardHub {
       'MemberJoined', 'MemberLeft', 'BackgroundChanged',
     ];
 
+    // «Страницы изменились» в журнал не пишется и номера не имеет: это
+    // не изменение доски, а повод перечитать полосу.
+
     for (const name of handled) {
       hub.on(name, (payload: unknown, eventSeq: number) => {
         if (typeof eventSeq === 'number') seq.current = Math.max(seq.current, eventSeq);
@@ -209,6 +238,9 @@ export function useBoardHub(boardId: number): BoardHub {
 
     hub.on('Joined', (payload: JoinedPayload) => {
       seq.current = payload.seq;
+      current.current = payload.pageId ?? null;
+      setPages(payload.pages ?? []);
+      setPageId(payload.pageId ?? null);
       setRole(payload.role);
       setCanEdit(payload.canEdit);
       setCanManage(payload.canManage);
@@ -235,10 +267,48 @@ export function useBoardHub(boardId: number): BoardHub {
       setError(null);
     });
 
+    hub.on('Pages', (payload: { pages: BoardPageInfo[] }) => {
+      const fresh = payload.pages ?? [];
+      setPages(fresh);
+
+      // Страницу, на которой мы стояли, могли удалить или закрыть от нас.
+      // Оставаться на ней нельзя: рисовать на ней уже не дадут, а понять
+      // это по молчанию невозможно.
+      const stillThere = fresh.some((page) => page.id === current.current);
+      if (stillThere) return;
+
+      const next = fresh[0];
+
+      if (next) {
+        void hub.invoke('OpenPage', next.id).catch(() => undefined);
+      } else {
+        current.current = null;
+        setPageId(null);
+        setItems([]);
+        setLive(new Map());
+      }
+    });
+
+    // Страницы у кого-то изменились. Список забирает каждый сам: у
+    // каждого он свой, и рассылать один на всех нельзя — спрятанная
+    // страница не должна быть видна даже названием.
+    hub.on('PagesChanged', () => {
+      void hub.invoke('Pages').catch(() => undefined);
+    });
+
+    hub.on('PageOpened', (payload: { pageId: number; items: BoardItem[] }) => {
+      current.current = payload.pageId;
+      setPageId(payload.pageId);
+      setItems(payload.items);
+      setLive(new Map());
+    });
+
     hub.on('Synced', (payload: SyncedPayload) => {
       // Состояние от сервера заменяет местное целиком: в этом и смысл —
       // разойтись они могли как угодно, и склеивать их было бы гаданием.
       seq.current = payload.seq;
+      current.current = payload.pageId;
+      setPageId(payload.pageId);
       setItems(payload.items);
       setParticipants(payload.participants);
       setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
@@ -253,7 +323,7 @@ export function useBoardHub(boardId: number): BoardHub {
       await join();
       // Догон по журналу мог не покрыть разрыв целиком — доспрашиваем
       // состояние: лишний запрос дешевле пропавшего рисунка.
-      await hub.invoke('Sync').catch(() => undefined);
+      if (current.current !== null) await hub.invoke('Sync', current.current).catch(() => undefined);
     });
 
     hub.onclose(() => setStatus('failed'));
@@ -263,7 +333,7 @@ export function useBoardHub(boardId: number): BoardHub {
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
       if (hub.state !== HubConnectionState.Connected) return;
-      void hub.invoke('Sync').catch(() => undefined);
+      if (current.current !== null) void hub.invoke('Sync', current.current).catch(() => undefined);
     };
 
     document.addEventListener('visibilitychange', onVisible);
@@ -290,23 +360,44 @@ export function useBoardHub(boardId: number): BoardHub {
     if (hub?.state === HubConnectionState.Connected) void hub.invoke(method, ...args).catch(() => undefined);
   }, []);
 
+  /**
+   * Номер открытой страницы для вызовов хаба. Сервер сверяет его с
+   * правами при каждом изменении: без открытой страницы менять нечего.
+   */
+  const page = () => current.current ?? 0;
+
   return {
     status, error, role, canEdit, canManage, items, live, participants, cursors, me, lastCommit, background,
+    pages, pageId,
     sendCursor: useCallback((x: number, y: number) => call('Cursor', x, y), [call]),
-    beginItem: useCallback((id, type, data) => call('BeginItem', id, type, data), [call]),
-    appendPoints: useCallback((id, points) => call('AppendPoints', id, points), [call]),
+    beginItem: useCallback((id, type, data) => call('BeginItem', id, page(), type, data), [call]),
+    appendPoints: useCallback((id, points) => call('AppendPoints', id, page(), points), [call]),
     commitItem: useCallback(
-      (id, type, data, imageRef) => call('CommitItem', id, type, data, imageRef ?? null),
+      (id, type, data, imageRef) => call('CommitItem', id, page(), type, data, imageRef ?? null),
       [call],
     ),
-    cancelItem: useCallback((id: string) => call('CancelItem', id), [call]),
+    cancelItem: useCallback((id: string) => call('CancelItem', id, page()), [call]),
     setBackground: useCallback((next: Background) => (
       call('SetBackground', next.background, next.gridStyle, next.gridColor)
     ), [call]),
-    moveItems: useCallback((ids: number[], dx: number, dy: number) => call('MoveItems', ids, dx, dy), [call]),
-    updateItem: useCallback((id: number, data: ItemData) => call('UpdateItem', id, data), [call]),
-    reorder: useCallback((ids: number[], toFront: boolean) => call('Reorder', ids, toFront), [call]),
-    deleteItems: useCallback((ids: number[]) => call('DeleteItems', ids), [call]),
-    clearBoard: useCallback(() => call('ClearBoard'), [call]),
+    moveItems: useCallback(
+      (ids: number[], dx: number, dy: number) => call('MoveItems', ids, page(), dx, dy), [call],
+    ),
+    updateItem: useCallback((id: number, data: ItemData) => call('UpdateItem', id, page(), data), [call]),
+    reorder: useCallback((ids: number[], toFront: boolean) => call('Reorder', ids, page(), toFront), [call]),
+    deleteItems: useCallback((ids: number[]) => call('DeleteItems', ids, page()), [call]),
+    clearBoard: useCallback(() => call('ClearBoard', page()), [call]),
+
+    openPage: useCallback((id: number) => call('OpenPage', id), [call]),
+    addPage: useCallback((title?: string) => call('AddPage', title ?? null), [call]),
+    renamePage: useCallback((id: number, title: string) => call('RenamePage', id, title), [call]),
+    deletePage: useCallback((id: number) => call('DeletePage', id), [call]),
+    reorderPages: useCallback((order: number[]) => call('ReorderPages', order), [call]),
+    setPageVisibility: useCallback(
+      (id: number, visibility: PageVisibility, viewers: string[]) => (
+        call('SetPageVisibility', id, visibility, viewers)
+      ),
+      [call],
+    ),
   };
 }

@@ -21,7 +21,13 @@ public sealed record ItemDto(
 public sealed record BackgroundDto(string Background, string GridStyle, string GridColor);
 
 /// <summary>Участник, подключённый к доске.</summary>
-public sealed record ParticipantDto(string ConnectionId, string DisplayName, string Role, bool IsGuest);
+/// <summary>
+/// Участник на доске. <c>Key</c> — тот же ключ, которым записывают, кому
+/// открыта страница: у владельца это единственный способ отметить в
+/// списке гостя, учётной записи у которого нет.
+/// </summary>
+public sealed record ParticipantDto(
+    string ConnectionId, string DisplayName, string Role, bool IsGuest, string Key);
 
 /// <summary>
 /// Хаб доски: комната на доску, всё общение по ней идёт здесь.
@@ -51,11 +57,13 @@ public sealed class BoardHub : Hub
     private readonly BoardPresence _presence;
     private readonly CursorRelay _cursors;
     private readonly SubscriptionService _subscriptions;
+    private readonly PageService _pages;
 
     public BoardHub(
         AppDbContext db,
         BoardService boards,
         BoardItemService items,
+        PageService pages,
         BoardEventLog log,
         BoardPresence presence,
         CursorRelay cursors,
@@ -64,6 +72,7 @@ public sealed class BoardHub : Hub
         _db = db;
         _boards = boards;
         _items = items;
+        _pages = pages;
         _log = log;
         _presence = presence;
         _cursors = cursors;
@@ -155,7 +164,16 @@ public sealed class BoardHub : Hub
         }
         else
         {
-            var items = await _items.ListAsync(boardId, Context.ConnectionAborted);
+            var pages = await _pages.VisibleAsync(
+                boardId, actor.CanManage, actor.UserId, actor.GuestId, Context.ConnectionAborted);
+
+            var first = pages.FirstOrDefault();
+
+            // Ни одной открытой страницы — такое возможно, если владелец
+            // спрятал все. Пустой список честнее, чем чужая страница.
+            var items = first is null
+                ? new List<BoardItem>()
+                : await _items.ListAsync(first.Id, Context.ConnectionAborted);
 
             await Clients.Caller.SendAsync(
                 "Joined",
@@ -165,6 +183,8 @@ public sealed class BoardHub : Hub
                     canEdit = actor.CanEdit,
                     canManage = actor.CanManage,
                     seq = await _log.CurrentSeqAsync(boardId),
+                    pages = pages.Select(PageDto),
+                    pageId = first?.Id,
                     items = items.Select(ToDto),
                     participants = Participants(boardId),
                     background = await BackgroundOf(boardId)
@@ -190,7 +210,7 @@ public sealed class BoardHub : Hub
     /// Поэтому при возврате к доске состояние берётся у сервера целиком:
     /// он тут единственный, кто знает правду.
     /// </summary>
-    public async Task Sync()
+    public async Task Sync(long pageId)
     {
         var presence = _presence.Find(Context.ConnectionId);
         if (presence is null)
@@ -199,13 +219,17 @@ public sealed class BoardHub : Hub
             return;
         }
 
-        var items = await _items.ListAsync(presence.BoardId, Context.ConnectionAborted);
+        var page = await RequirePageAsync(presence, pageId);
+        if (page is null) return;
+
+        var items = await _items.ListAsync(page.Id, Context.ConnectionAborted);
 
         await Clients.Caller.SendAsync(
             "Synced",
             new
             {
                 seq = await _log.CurrentSeqAsync(presence.BoardId),
+                pageId = page.Id,
                 items = items.Select(ToDto),
                 participants = Participants(presence.BoardId),
                 background = await BackgroundOf(presence.BoardId)
@@ -244,7 +268,7 @@ public sealed class BoardHub : Hub
     /// рассылаются, иначе на один штрих пришлись бы сотни записей
     /// (раздел 7.3).
     /// </summary>
-    public async Task BeginItem(string tempId, string type, JsonElement data)
+    public async Task BeginItem(string tempId, long pageId, string type, JsonElement data)
     {
         var presence = await RequireEditorAsync();
         if (presence is null) return;
@@ -252,6 +276,7 @@ public sealed class BoardHub : Hub
         await PublishAsync(presence.BoardId, "ItemBegan", new
         {
             tempId,
+            pageId,
             by = Context.ConnectionId,
             type,
             data
@@ -259,7 +284,7 @@ public sealed class BoardHub : Hub
     }
 
     /// <summary>Продолжение штриха — тоже только рассылка.</summary>
-    public async Task AppendPoints(string tempId, JsonElement points)
+    public async Task AppendPoints(string tempId, long pageId, JsonElement points)
     {
         var presence = await RequireEditorAsync();
         if (presence is null) return;
@@ -267,6 +292,7 @@ public sealed class BoardHub : Hub
         await PublishAsync(presence.BoardId, "ItemPoints", new
         {
             tempId,
+            pageId,
             by = Context.ConnectionId,
             points
         });
@@ -279,22 +305,28 @@ public sealed class BoardHub : Hub
     /// Без этого сообщения недорисованный штрих остался бы висеть у всех
     /// остальных: он живёт в памяти до закрепления, а закрепления не будет.
     /// </summary>
-    public async Task CancelItem(string tempId)
+    public async Task CancelItem(string tempId, long pageId)
     {
         var presence = await RequireEditorAsync();
         if (presence is null) return;
 
-        await PublishAsync(presence.BoardId, "ItemCancelled", new { tempId, by = Context.ConnectionId });
+        await PublishAsync(
+            presence.BoardId, "ItemCancelled", new { tempId, pageId, by = Context.ConnectionId });
     }
 
     /// <summary>Штрих закончен — вот теперь он становится объектом доски.</summary>
-    public async Task CommitItem(string tempId, string type, JsonElement data, string? imageRef)
+    public async Task CommitItem(
+        string tempId, long pageId, string type, JsonElement data, string? imageRef)
     {
         var presence = await RequireEditorAsync();
         if (presence is null) return;
 
+        var page = await RequirePageAsync(presence, pageId);
+        if (page is null) return;
+
         var item = await _items.CreateAsync(
-            presence.BoardId, type, data.GetRawText(), presence.UserId, imageRef, Context.ConnectionAborted);
+            presence.BoardId, page.Id, type, data.GetRawText(), presence.UserId, imageRef,
+            Context.ConnectionAborted);
 
         if (item is null)
         {
@@ -307,6 +339,7 @@ public sealed class BoardHub : Hub
         await PublishAsync(presence.BoardId, "ItemCommitted", new
         {
             tempId,
+            pageId = page.Id,
             by = Context.ConnectionId,
             item = ToDto(item)
         });
@@ -331,13 +364,17 @@ public sealed class BoardHub : Hub
         await PublishAsync(presence.BoardId, "ItemLocked", new { itemId, by = Context.ConnectionId });
     }
 
-    public async Task UpdateItem(long itemId, JsonElement data)
+    public async Task UpdateItem(long itemId, long pageId, JsonElement data)
     {
         var presence = await RequireEditorAsync();
         if (presence is null) return;
 
+        var page = await RequirePageAsync(presence, pageId);
+        if (page is null) return;
+
         var item = await _items.UpdateAsync(
-            presence.BoardId, itemId, Context.ConnectionId, data.GetRawText(), Context.ConnectionAborted);
+            presence.BoardId, page.Id, itemId, Context.ConnectionId, data.GetRawText(),
+            Context.ConnectionAborted);
 
         if (item is null)
         {
@@ -359,12 +396,16 @@ public sealed class BoardHub : Hub
     }
 
     /// <summary>Сдвинуть выделенное. Замок не берётся: сдвиг применяется целиком или никак.</summary>
-    public async Task MoveItems(long[] itemIds, double dx, double dy)
+    public async Task MoveItems(long[] itemIds, long pageId, double dx, double dy)
     {
         var presence = await RequireEditorAsync();
         if (presence is null) return;
 
-        var moved = await _items.MoveAsync(presence.BoardId, itemIds, dx, dy, Context.ConnectionAborted);
+        var page = await RequirePageAsync(presence, pageId);
+        if (page is null) return;
+
+        var moved = await _items.MoveAsync(
+            presence.BoardId, page.Id, itemIds, dx, dy, Context.ConnectionAborted);
         if (moved.Count == 0) return;
 
         await _items.TouchBoardAsync(presence.BoardId, Context.ConnectionAborted);
@@ -379,12 +420,16 @@ public sealed class BoardHub : Hub
     }
 
     /// <summary>На передний или на задний план.</summary>
-    public async Task Reorder(long[] itemIds, bool toFront)
+    public async Task Reorder(long[] itemIds, long pageId, bool toFront)
     {
         var presence = await RequireEditorAsync();
         if (presence is null) return;
 
-        var moved = await _items.ReorderAsync(presence.BoardId, itemIds, toFront, Context.ConnectionAborted);
+        var page = await RequirePageAsync(presence, pageId);
+        if (page is null) return;
+
+        var moved = await _items.ReorderAsync(
+            presence.BoardId, page.Id, itemIds, toFront, Context.ConnectionAborted);
         if (moved.Count == 0) return;
 
         await _items.TouchBoardAsync(presence.BoardId, Context.ConnectionAborted);
@@ -396,12 +441,16 @@ public sealed class BoardHub : Hub
         });
     }
 
-    public async Task DeleteItems(long[] itemIds)
+    public async Task DeleteItems(long[] itemIds, long pageId)
     {
         var presence = await RequireEditorAsync();
         if (presence is null) return;
 
-        var removed = await _items.DeleteAsync(presence.BoardId, itemIds, Context.ConnectionAborted);
+        var page = await RequirePageAsync(presence, pageId);
+        if (page is null) return;
+
+        var removed = await _items.DeleteAsync(
+            presence.BoardId, page.Id, itemIds, Context.ConnectionAborted);
         if (removed.Count == 0) return;
 
         await _items.TouchBoardAsync(presence.BoardId, Context.ConnectionAborted);
@@ -440,24 +489,194 @@ public sealed class BoardHub : Hub
             new BackgroundDto(background, gridStyle, gridColor));
     }
 
-    /// <summary>Очистить доску целиком — только владелец.</summary>
-    public async Task ClearBoard()
+    /// <summary>Очистить страницу — только владелец. Чистят то, что видят.</summary>
+    public async Task ClearBoard(long pageId)
     {
         var presence = _presence.Find(Context.ConnectionId);
 
         if (presence is null || !presence.CanManage)
         {
-            await Clients.Caller.SendAsync("Error", "forbidden", "Очистить доску может только её владелец.");
+            await Clients.Caller.SendAsync("Error", "forbidden", "Очистить страницу может только владелец.");
             return;
         }
 
-        await _items.ClearAsync(presence.BoardId, Context.ConnectionAborted);
+        var page = await RequirePageAsync(presence, pageId);
+        if (page is null) return;
+
+        await _items.ClearAsync(page.Id, Context.ConnectionAborted);
         await _items.TouchBoardAsync(presence.BoardId, Context.ConnectionAborted);
 
-        await PublishAsync(presence.BoardId, "BoardCleared", new { by = Context.ConnectionId });
+        await PublishAsync(presence.BoardId, "BoardCleared", new { pageId = page.Id, by = Context.ConnectionId });
+    }
+
+    // ---------- Страницы ----------
+
+    /// <summary>
+    /// Полоса страниц для этого участника.
+    ///
+    /// Список свой у каждого: спрятанной страницы не должно быть видно
+    /// даже названием. Поэтому после любого изменения всем рассылается
+    /// только сигнал, а список каждый забирает сам.
+    /// </summary>
+    public async Task Pages()
+    {
+        var presence = _presence.Find(Context.ConnectionId);
+        if (presence is null)
+        {
+            await Clients.Caller.SendAsync("Error", "not_joined", "Сначала откройте доску.");
+            return;
+        }
+
+        var pages = await _pages.VisibleAsync(
+            presence.BoardId, presence.CanManage, presence.UserId, presence.GuestId,
+            Context.ConnectionAborted);
+
+        // Кому открыта страница — знать нужно только владельцу: он это и
+        // настраивает. Остальным этот список не отправляется вовсе.
+        var viewers = new Dictionary<long, List<string>>();
+
+        if (presence.CanManage)
+        {
+            foreach (var page in pages.Where(x => x.Visibility == BoardPage.VisibilitySelected))
+                viewers[page.Id] = await _pages.ViewersAsync(page.Id, Context.ConnectionAborted);
+        }
+
+        await Clients.Caller.SendAsync(
+            "Pages",
+            new
+            {
+                pages = pages.Select(page => new
+                {
+                    id = page.Id,
+                    title = page.Title,
+                    visibility = page.Visibility,
+                    viewers = viewers.TryGetValue(page.Id, out var list) ? list : Array.Empty<string>()
+                })
+            },
+            Context.ConnectionAborted);
+    }
+
+    /// <summary>Открыть страницу. Каждый ходит по своим — учитель по своим, ученик по своим.</summary>
+    public async Task OpenPage(long pageId)
+    {
+        var presence = _presence.Find(Context.ConnectionId);
+        if (presence is null)
+        {
+            await Clients.Caller.SendAsync("Error", "not_joined", "Сначала откройте доску.");
+            return;
+        }
+
+        var page = await RequirePageAsync(presence, pageId);
+        if (page is null) return;
+
+        var items = await _items.ListAsync(page.Id, Context.ConnectionAborted);
+
+        await Clients.Caller.SendAsync(
+            "PageOpened",
+            new { pageId = page.Id, items = items.Select(ToDto) },
+            Context.ConnectionAborted);
+    }
+
+    public async Task AddPage(string? title)
+    {
+        var presence = await RequireOwnerAsync();
+        if (presence is null) return;
+
+        var page = await _pages.AddAsync(presence.BoardId, title, Context.ConnectionAborted);
+
+        if (page is null)
+        {
+            await Clients.Caller.SendAsync(
+                "Error", "too_many_pages", $"Больше {BoardPage.MaxPerBoard} страниц на доске не бывает.");
+            return;
+        }
+
+        await PublishAsync(presence.BoardId, "PagesChanged", new { by = Context.ConnectionId });
+    }
+
+    public async Task RenamePage(long pageId, string? title)
+    {
+        var presence = await RequireOwnerAsync();
+        if (presence is null) return;
+
+        if (await _pages.RenameAsync(presence.BoardId, pageId, title, Context.ConnectionAborted))
+            await PublishAsync(presence.BoardId, "PagesChanged", new { by = Context.ConnectionId });
+    }
+
+    public async Task DeletePage(long pageId)
+    {
+        var presence = await RequireOwnerAsync();
+        if (presence is null) return;
+
+        if (!await _pages.DeleteAsync(presence.BoardId, pageId, Context.ConnectionAborted))
+        {
+            await Clients.Caller.SendAsync(
+                "Error", "last_page", "Последнюю страницу удалить нельзя — доска не бывает без страниц.");
+            return;
+        }
+
+        await PublishAsync(presence.BoardId, "PagesChanged", new { by = Context.ConnectionId });
+    }
+
+    public async Task ReorderPages(long[] order)
+    {
+        var presence = await RequireOwnerAsync();
+        if (presence is null) return;
+
+        if (await _pages.ReorderAsync(presence.BoardId, order, Context.ConnectionAborted))
+            await PublishAsync(presence.BoardId, "PagesChanged", new { by = Context.ConnectionId });
+    }
+
+    public async Task SetPageVisibility(long pageId, string visibility, string[] viewers)
+    {
+        var presence = await RequireOwnerAsync();
+        if (presence is null) return;
+
+        var changed = await _pages.SetVisibilityAsync(
+            presence.BoardId, pageId, visibility, viewers ?? Array.Empty<string>(), Context.ConnectionAborted);
+
+        if (!changed)
+        {
+            await Clients.Caller.SendAsync("Error", "bad_request", "Такой видимости у страницы не бывает.");
+            return;
+        }
+
+        await PublishAsync(presence.BoardId, "PagesChanged", new { by = Context.ConnectionId });
     }
 
     // ---------- Вспомогательное ----------
+
+    /// <summary>Страница, которую этому участнику вправе открыть. Иначе — отказ.</summary>
+    private async Task<BoardPage?> RequirePageAsync(Presence presence, long pageId)
+    {
+        var page = await _pages.OpenAsync(
+            presence.BoardId, pageId, presence.CanManage, presence.UserId, presence.GuestId,
+            Context.ConnectionAborted);
+
+        if (page is null)
+            await Clients.Caller.SendAsync("Error", "no_page", "Эта страница вам не открыта.");
+
+        return page;
+    }
+
+    /// <summary>Действие владельца доски: страницами распоряжается только он.</summary>
+    private async Task<Presence?> RequireOwnerAsync()
+    {
+        var presence = _presence.Find(Context.ConnectionId);
+
+        if (presence is null || !presence.CanManage)
+        {
+            await Clients.Caller.SendAsync("Error", "forbidden", "Страницами распоряжается владелец доски.");
+            return null;
+        }
+
+        return presence;
+    }
+
+    /// <summary>Страница в полосе. Кому она открыта — отдельным полем и только владельцу.</summary>
+    private static object PageDto(BoardPage page)
+        => new { id = page.Id, title = page.Title, visibility = page.Visibility };
+
 
     /// <summary>
     /// Рассылает событие всей доске и записывает его в журнал, чтобы
@@ -530,7 +749,8 @@ public sealed class BoardHub : Hub
 
     private List<ParticipantDto> Participants(long boardId)
         => _presence.OnBoard(boardId)
-            .Select(p => new ParticipantDto(p.ConnectionId, p.DisplayName, p.Role, p.IsGuest))
+            .Select(p => new ParticipantDto(
+                p.ConnectionId, p.DisplayName, p.Role, p.IsGuest, PageService.KeyOf(p.UserId, p.GuestId)))
             .ToList();
 
     private long? CurrentUserId()

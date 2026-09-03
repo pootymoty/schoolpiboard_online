@@ -284,6 +284,10 @@ namespace SchoolPiBoard.Web.Migrations
                         .HasColumnType("text")
                         .HasColumnName("locked_by");
 
+                    b.Property<long>("PageId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("page_id");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("text")
@@ -299,9 +303,73 @@ namespace SchoolPiBoard.Web.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BoardId", "Z");
+                    b.HasIndex("PageId", "Z");
 
                     b.ToTable("board_items", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardPage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BoardId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("board_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("visibility");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BoardId", "Sort");
+
+                    b.ToTable("board_pages", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardPageViewer", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("PageId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("page_id");
+
+                    b.Property<string>("ParticipantKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("participant_key");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PageId", "ParticipantKey")
+                        .IsUnique();
+
+                    b.ToTable("board_page_viewers", (string)null);
                 });
 
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.StoredFile", b =>
@@ -562,7 +630,35 @@ namespace SchoolPiBoard.Web.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.BoardPage", null)
+                        .WithMany()
+                        .HasForeignKey("PageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Board");
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardPage", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.Board", "Board")
+                        .WithMany()
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Board");
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardPageViewer", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.BoardPage", "Page")
+                        .WithMany()
+                        .HasForeignKey("PageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Page");
                 });
 
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.Subscription", b =>
