@@ -49,6 +49,9 @@ const POINT_BATCH_MS = 50;
 /** Насколько близко нужно ткнуть, чтобы стереть штрих, в экранных пикселях. */
 const ERASE_RADIUS = 8;
 
+/** Сколько держать руку на месте, чтобы штрих выпрямился. */
+const STRAIGHTEN_HOLD_MS = 600;
+
 /**
  * Холст доски.
  *
@@ -78,6 +81,14 @@ export function BoardCanvas({
     sent: number;
     from: Point;
     to: Point;
+    /**
+     * Штрих выпрямлен: вместо всех точек останутся две — начало и конец.
+     * Включается Shift или задержкой руки на месте: на планшете Shift
+     * нажать нечем, а провести идеально прямую от руки нельзя.
+     */
+    straight: boolean;
+    /** Когда рука в последний раз заметно сдвинулась — для той задержки. */
+    movedAt: number;
     /** Часть геометрии для предпросмотра и для закрепления. */
     preview: () => Partial<ItemData>;
   } | null>(null);
@@ -172,12 +183,22 @@ export function BoardCanvas({
           opacity: it.opacity / 100,
           shape: it.shape,
           lineStyle: it.lineStyle,
+          fill: it.fill || undefined,
         },
       };
     }
 
     const pen = active === 'pen2' ? current.pen2 : active === 'marker' ? current.marker : current.pen1;
-    return { type: 'stroke', data: { color: pen.color, width: pen.width, opacity: pen.opacity / 100 } };
+
+    return {
+      type: 'stroke',
+      data: {
+        color: pen.color,
+        width: pen.width,
+        opacity: pen.opacity / 100,
+        marker: active === 'marker' || undefined,
+      },
+    };
   };
 
   // Свежие значения для обработчиков указателя: они живут вне React-цикла
@@ -550,9 +571,23 @@ export function BoardCanvas({
       sent: 0,
       from: point,
       to: point,
-      preview: (): Partial<ItemData> => (brush.type === 'shape' || brush.type === 'table'
-        ? { x1: record.from.x, y1: record.from.y, x2: record.to.x, y2: record.to.y }
-        : { points: record.points }),
+      straight: false,
+      movedAt: Date.now(),
+      preview: (): Partial<ItemData> => {
+        if (brush.type === 'shape' || brush.type === 'table') {
+          return { x1: record.from.x, y1: record.from.y, x2: record.to.x, y2: record.to.y };
+        }
+
+        // Выпрямленный штрих — это те же две точки: начало и то место,
+        // где рука сейчас. Нажим берём у последней — так линия остаётся
+        // такой же по толщине, какой её вели.
+        if (record.straight && record.points.length > 1) {
+          const last = record.points[record.points.length - 1];
+          return { points: [record.points[0], last] };
+        }
+
+        return { points: record.points };
+      },
     };
 
     drawing.current = record;
@@ -664,13 +699,27 @@ export function BoardCanvas({
       return;
     }
 
+    // Задержка руки на месте выпрямляет уже проведённое: приём с
+    // планшета, где Shift нажать нечем.
+    const previous = stroke.points[stroke.points.length - 1];
+    if (Math.hypot(point.x - previous.x, point.y - previous.y) * latest.current.viewport.scale > 4) {
+      stroke.movedAt = now;
+    } else if (now - stroke.movedAt > STRAIGHTEN_HOLD_MS) {
+      stroke.straight = true;
+    }
+
+    if (event.shiftKey) stroke.straight = true;
+
     stroke.points.push(point);
 
     if (now - lastBatch.current >= POINT_BATCH_MS) {
       lastBatch.current = now;
       const fresh = stroke.points.slice(stroke.sent);
       stroke.sent = stroke.points.length;
-      if (fresh.length > 0) hub.appendPoints(stroke.tempId, fresh);
+
+      // Выпрямленный штрих рассылать по точкам бессмысленно: у остальных
+      // он всё равно заменится прямой при закреплении.
+      if (fresh.length > 0 && !stroke.straight) hub.appendPoints(stroke.tempId, fresh);
     }
 
     schedule();

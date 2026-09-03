@@ -176,8 +176,43 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
             ))}
           </div>
 
-          <p className="params__label">Цвет</p>
+          <p className="params__label">Цвет контура</p>
           {swatches(shapes.color, (color) => patchShape({ color }))}
+
+          <p className="params__label">Заливка</p>
+          <div className="params__row">
+            {/* «Без заливки» — первым: у фигуры на доске это обычное
+                состояние, а заливка нужна, когда что-то выделяют. */}
+            <button
+              className="btn-quiet btn-sm"
+              type="button"
+              aria-pressed={shapes.fill === ''}
+              onClick={() => patchShape({ fill: '' })}
+            >
+              Нет
+            </button>
+
+            {PALETTE.map((value) => (
+              <button
+                key={value}
+                className="swatch"
+                type="button"
+                aria-pressed={shapes.fill === value}
+                aria-label={`Заливка ${value}`}
+                style={{ background: value }}
+                onClick={() => patchShape({ fill: value })}
+              />
+            ))}
+
+            <label className="swatch swatch--custom" title="Свой цвет заливки">
+              <input
+                type="color"
+                value={shapes.fill || '#ffffff'}
+                onChange={(event) => patchShape({ fill: event.target.value })}
+                aria-label="Свой цвет заливки"
+              />
+            </label>
+          </div>
         </>
       ) : null}
 

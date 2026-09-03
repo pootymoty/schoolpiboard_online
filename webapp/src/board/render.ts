@@ -1,5 +1,6 @@
 import { imageFor } from './images';
 import { cellRect, tableBox } from './tables';
+import { segmentsOf } from './strokes';
 import type { ItemData, ItemType, LineStyle, Point } from './protocol';
 
 /**
@@ -24,8 +25,12 @@ function applyStyle(context: CanvasRenderingContext2D, data: ItemData): void {
   context.strokeStyle = data.color;
   context.fillStyle = data.color;
   context.lineWidth = data.width;
-  context.lineCap = 'round';
-  context.lineJoin = 'round';
+
+  // Маркер ведут плоским пером: торцы прямые, углы острые — след
+  // получается как у настоящего, с расширением на повороте. У пера
+  // скруглённые, и разница видна с первого штриха.
+  context.lineCap = data.marker ? 'butt' : 'round';
+  context.lineJoin = data.marker ? 'miter' : 'round';
   context.globalAlpha = data.opacity ?? 1;
   context.setLineDash(dashOf(data.lineStyle, data.width));
 }
@@ -61,17 +66,20 @@ function cornersOf(data: ItemData): Point[] {
 }
 
 function drawStroke(context: CanvasRenderingContext2D, data: ItemData): void {
-  const points = data.points;
-  if (!points || points.length === 0) return;
-
   context.beginPath();
-  context.moveTo(points[0].x, points[0].y);
 
-  for (const point of points.slice(1)) context.lineTo(point.x, point.y);
+  // Куски рисуются раздельно: одним путём между ними протянулась бы
+  // линия там, где ластик как раз стёр.
+  for (const points of segmentsOf(data)) {
+    if (points.length === 0) continue;
 
-  // Одиночная точка отрезком не рисуется — ставим её сами, иначе касание
-  // без движения не оставляло бы следа вовсе.
-  if (points.length === 1) context.lineTo(points[0].x + 0.01, points[0].y);
+    context.moveTo(points[0].x, points[0].y);
+    for (const point of points.slice(1)) context.lineTo(point.x, point.y);
+
+    // Одиночная точка отрезком не рисуется — ставим её сами, иначе
+    // касание без движения не оставляло бы следа вовсе.
+    if (points.length === 1) context.lineTo(points[0].x + 0.01, points[0].y);
+  }
 
   context.stroke();
 }
@@ -109,6 +117,18 @@ function drawShape(context: CanvasRenderingContext2D, data: ItemData): void {
     return;
   }
 
+  /** Заливка рисуется до контура — иначе она закрыла бы его изнутри. */
+  const fillIfAsked = () => {
+    if (!data.fill) return;
+
+    context.save();
+    context.fillStyle = data.fill;
+    // Пунктирным бывает контур, но не заливка.
+    context.setLineDash([]);
+    context.fill();
+    context.restore();
+  };
+
   if (data.shape === 'ellipse') {
     const x1 = data.x1 ?? 0;
     const y1 = data.y1 ?? 0;
@@ -121,6 +141,7 @@ function drawShape(context: CanvasRenderingContext2D, data: ItemData): void {
       Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2,
       0, 0, Math.PI * 2,
     );
+    fillIfAsked();
     context.stroke();
     return;
   }
@@ -130,6 +151,7 @@ function drawShape(context: CanvasRenderingContext2D, data: ItemData): void {
   context.moveTo(corners[0].x, corners[0].y);
   for (const corner of corners.slice(1)) context.lineTo(corner.x, corner.y);
   context.closePath();
+  fillIfAsked();
   context.stroke();
 }
 

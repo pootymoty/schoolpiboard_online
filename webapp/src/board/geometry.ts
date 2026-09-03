@@ -1,5 +1,6 @@
 import type { BoardItem, ItemData, Point } from './protocol';
 import { cornersOf } from './render';
+import { allPoints, segmentsOf } from './strokes';
 
 export interface Bounds {
   x: number;
@@ -10,9 +11,12 @@ export interface Bounds {
 
 /** Сдвигает геометрию объекта. Тот же расчёт, что и на сервере. */
 export function translate(data: ItemData, dx: number, dy: number): ItemData {
+  const shift = (point: Point): Point => ({ ...point, x: point.x + dx, y: point.y + dy });
+
   return {
     ...data,
-    points: data.points?.map((point) => ({ ...point, x: point.x + dx, y: point.y + dy })),
+    points: data.points?.map(shift),
+    segments: data.segments?.map((segment) => segment.map(shift)),
     x1: data.x1 === undefined ? undefined : data.x1 + dx,
     y1: data.y1 === undefined ? undefined : data.y1 + dy,
     x2: data.x2 === undefined ? undefined : data.x2 + dx,
@@ -26,7 +30,7 @@ export function translate(data: ItemData, dx: number, dy: number): ItemData {
  * рамка иначе не совпала бы с нарисованным.
  */
 export function pointsOf(data: ItemData): Point[] {
-  if (data.points?.length) return data.points;
+  if (data.points?.length || data.segments?.length) return allPoints(data);
 
   if (data.x1 === undefined || data.y1 === undefined) return [];
 
@@ -108,10 +112,16 @@ export function hits(item: BoardItem, point: Point, radius: number): boolean {
       && point.y >= box!.y - radius && point.y <= box!.y + box!.height + radius;
   }
 
-  if (points.length === 1) return distanceToSegment(point, points[0], points[0]) <= reach;
+  // Куски штриха проверяются раздельно: сплошным списком отрезок
+  // протянулся бы через дыру, которую ластик как раз и вырезал.
+  const runs = item.type === 'stroke' ? segmentsOf(item.data) : [points];
 
-  for (let index = 1; index < points.length; index += 1) {
-    if (distanceToSegment(point, points[index - 1], points[index]) <= reach) return true;
+  for (const run of runs) {
+    if (run.length === 1 && distanceToSegment(point, run[0], run[0]) <= reach) return true;
+
+    for (let index = 1; index < run.length; index += 1) {
+      if (distanceToSegment(point, run[index - 1], run[index]) <= reach) return true;
+    }
   }
 
   return false;

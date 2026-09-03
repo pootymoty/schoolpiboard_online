@@ -57,6 +57,8 @@ export interface PenSettings {
 export interface ShapeSettings extends PenSettings {
   shape: ShapeKind;
   lineStyle: LineStyle;
+  /** Пусто — только контур. Цвет контура задаётся отдельно, полем color. */
+  fill: string;
 }
 
 export interface TextSettings {
@@ -99,7 +101,7 @@ export const DEFAULT_SETTINGS: ToolSettings = {
   pen2: { color: '#B03A2E', width: 5, opacity: 100 },
   // Маркер полупрозрачен и толст по умолчанию — им выделяют, а не пишут.
   marker: { color: '#B7950B', width: 20, opacity: 40 },
-  shapes: { color: '#1F618D', width: 5, opacity: 100, shape: 'rect', lineStyle: 'solid' },
+  shapes: { color: '#1F618D', width: 5, opacity: 100, shape: 'rect', lineStyle: 'solid', fill: '' },
   text: { color: '#2A211C', fontSize: 24 },
   table: { color: '#2A211C', width: 3, fontSize: 20, rows: 3, cols: 3 },
   eraser: { size: 26 },

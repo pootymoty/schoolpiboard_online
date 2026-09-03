@@ -2356,6 +2356,20 @@ function resized$1(data, rows, cols) {
   }
   return { ...data, rows: nextRows, cols: nextCols, cells: after };
 }
+function segmentsOf(data) {
+  var _a, _b;
+  if ((_a = data.segments) == null ? void 0 : _a.length) return data.segments;
+  return ((_b = data.points) == null ? void 0 : _b.length) ? [data.points] : [];
+}
+function withSegments(data, segments) {
+  if (segments.length <= 1) {
+    return { ...data, points: segments[0] ?? [], segments: void 0 };
+  }
+  return { ...data, points: segments[0], segments };
+}
+function allPoints(data) {
+  return segmentsOf(data).flat();
+}
 function dashOf(style, width) {
   const unit = Math.max(1, width);
   if (style === "dash") return [unit * 3, unit * 2];
@@ -2367,8 +2381,8 @@ function applyStyle(context, data) {
   context.strokeStyle = data.color;
   context.fillStyle = data.color;
   context.lineWidth = data.width;
-  context.lineCap = "round";
-  context.lineJoin = "round";
+  context.lineCap = data.marker ? "butt" : "round";
+  context.lineJoin = data.marker ? "miter" : "round";
   context.globalAlpha = data.opacity ?? 1;
   context.setLineDash(dashOf(data.lineStyle, data.width));
 }
@@ -2398,12 +2412,13 @@ function cornersOf(data) {
   }
 }
 function drawStroke(context, data) {
-  const points = data.points;
-  if (!points || points.length === 0) return;
   context.beginPath();
-  context.moveTo(points[0].x, points[0].y);
-  for (const point of points.slice(1)) context.lineTo(point.x, point.y);
-  if (points.length === 1) context.lineTo(points[0].x + 0.01, points[0].y);
+  for (const points of segmentsOf(data)) {
+    if (points.length === 0) continue;
+    context.moveTo(points[0].x, points[0].y);
+    for (const point of points.slice(1)) context.lineTo(point.x, point.y);
+    if (points.length === 1) context.lineTo(points[0].x + 0.01, points[0].y);
+  }
   context.stroke();
 }
 function drawArrowHead(context, data) {
@@ -2432,6 +2447,14 @@ function drawShape(context, data) {
     if (data.shape === "arrow") drawArrowHead(context, data);
     return;
   }
+  const fillIfAsked = () => {
+    if (!data.fill) return;
+    context.save();
+    context.fillStyle = data.fill;
+    context.setLineDash([]);
+    context.fill();
+    context.restore();
+  };
   if (data.shape === "ellipse") {
     const x1 = data.x1 ?? 0;
     const y1 = data.y1 ?? 0;
@@ -2447,6 +2470,7 @@ function drawShape(context, data) {
       0,
       Math.PI * 2
     );
+    fillIfAsked();
     context.stroke();
     return;
   }
@@ -2455,6 +2479,7 @@ function drawShape(context, data) {
   context.moveTo(corners[0].x, corners[0].y);
   for (const corner of corners.slice(1)) context.lineTo(corner.x, corner.y);
   context.closePath();
+  fillIfAsked();
   context.stroke();
 }
 function fontOf(data) {
@@ -2619,10 +2644,12 @@ function drawItem(context, type, data, imageRef = null) {
   context.restore();
 }
 function translate(data, dx, dy) {
-  var _a;
+  var _a, _b;
+  const shift = (point) => ({ ...point, x: point.x + dx, y: point.y + dy });
   return {
     ...data,
-    points: (_a = data.points) == null ? void 0 : _a.map((point) => ({ ...point, x: point.x + dx, y: point.y + dy })),
+    points: (_a = data.points) == null ? void 0 : _a.map(shift),
+    segments: (_b = data.segments) == null ? void 0 : _b.map((segment) => segment.map(shift)),
     x1: data.x1 === void 0 ? void 0 : data.x1 + dx,
     y1: data.y1 === void 0 ? void 0 : data.y1 + dy,
     x2: data.x2 === void 0 ? void 0 : data.x2 + dx,
@@ -2630,8 +2657,8 @@ function translate(data, dx, dy) {
   };
 }
 function pointsOf(data) {
-  var _a;
-  if ((_a = data.points) == null ? void 0 : _a.length) return data.points;
+  var _a, _b;
+  if (((_a = data.points) == null ? void 0 : _a.length) || ((_b = data.segments) == null ? void 0 : _b.length)) return allPoints(data);
   if (data.x1 === void 0 || data.y1 === void 0) return [];
   if (data.text !== void 0) {
     const x2 = data.x2 ?? data.x1;
@@ -2684,9 +2711,12 @@ function hits(item, point, radius) {
     const box = boundsOf([item]);
     return Boolean(box) && point.x >= box.x - radius && point.x <= box.x + box.width + radius && point.y >= box.y - radius && point.y <= box.y + box.height + radius;
   }
-  if (points.length === 1) return distanceToSegment(point, points[0], points[0]) <= reach;
-  for (let index = 1; index < points.length; index += 1) {
-    if (distanceToSegment(point, points[index - 1], points[index]) <= reach) return true;
+  const runs = item.type === "stroke" ? segmentsOf(item.data) : [points];
+  for (const run of runs) {
+    if (run.length === 1 && distanceToSegment(point, run[0], run[0]) <= reach) return true;
+    for (let index = 1; index < run.length; index += 1) {
+      if (distanceToSegment(point, run[index - 1], run[index]) <= reach) return true;
+    }
   }
   return false;
 }
@@ -2846,6 +2876,7 @@ function fitToContent(points, width, height, padding = 48) {
 const CURSOR_INTERVAL_MS = 50;
 const POINT_BATCH_MS = 50;
 const ERASE_RADIUS = 8;
+const STRAIGHTEN_HOLD_MS = 600;
 function BoardCanvas({
   hub,
   tool,
@@ -2907,12 +2938,21 @@ function BoardCanvas({
           width: it.width,
           opacity: it.opacity / 100,
           shape: it.shape,
-          lineStyle: it.lineStyle
+          lineStyle: it.lineStyle,
+          fill: it.fill || void 0
         }
       };
     }
     const pen = active === "pen2" ? current.pen2 : active === "marker" ? current.marker : current.pen1;
-    return { type: "stroke", data: { color: pen.color, width: pen.width, opacity: pen.opacity / 100 } };
+    return {
+      type: "stroke",
+      data: {
+        color: pen.color,
+        width: pen.width,
+        opacity: pen.opacity / 100,
+        marker: active === "marker" || void 0
+      }
+    };
   };
   const latest = useRef({ viewport, tool, settings, spaceHeld, selection, background, items: hub.items });
   latest.current = { viewport, tool, settings, spaceHeld, selection, background, items: hub.items };
@@ -3167,7 +3207,18 @@ function BoardCanvas({
       sent: 0,
       from: point,
       to: point,
-      preview: () => brush.type === "shape" || brush.type === "table" ? { x1: record.from.x, y1: record.from.y, x2: record.to.x, y2: record.to.y } : { points: record.points }
+      straight: false,
+      movedAt: Date.now(),
+      preview: () => {
+        if (brush.type === "shape" || brush.type === "table") {
+          return { x1: record.from.x, y1: record.from.y, x2: record.to.x, y2: record.to.y };
+        }
+        if (record.straight && record.points.length > 1) {
+          const last = record.points[record.points.length - 1];
+          return { points: [record.points[0], last] };
+        }
+        return { points: record.points };
+      }
     };
     drawing.current = record;
     if (brush.type === "stroke") {
@@ -3250,12 +3301,19 @@ function BoardCanvas({
       schedule();
       return;
     }
+    const previous = stroke.points[stroke.points.length - 1];
+    if (Math.hypot(point.x - previous.x, point.y - previous.y) * latest.current.viewport.scale > 4) {
+      stroke.movedAt = now;
+    } else if (now - stroke.movedAt > STRAIGHTEN_HOLD_MS) {
+      stroke.straight = true;
+    }
+    if (event.shiftKey) stroke.straight = true;
     stroke.points.push(point);
     if (now - lastBatch.current >= POINT_BATCH_MS) {
       lastBatch.current = now;
       const fresh = stroke.points.slice(stroke.sent);
       stroke.sent = stroke.points.length;
-      if (fresh.length > 0) hub.appendPoints(stroke.tempId, fresh);
+      if (fresh.length > 0 && !stroke.straight) hub.appendPoints(stroke.tempId, fresh);
     }
     schedule();
   };
@@ -3856,7 +3914,7 @@ const DEFAULT_SETTINGS = {
   pen2: { color: "#B03A2E", width: 5, opacity: 100 },
   // Маркер полупрозрачен и толст по умолчанию — им выделяют, а не пишут.
   marker: { color: "#B7950B", width: 20, opacity: 40 },
-  shapes: { color: "#1F618D", width: 5, opacity: 100, shape: "rect", lineStyle: "solid" },
+  shapes: { color: "#1F618D", width: 5, opacity: 100, shape: "rect", lineStyle: "solid", fill: "" },
   text: { color: "#2A211C", fontSize: 24 },
   table: { color: "#2A211C", width: 3, fontSize: 20, rows: 3, cols: 3 },
   eraser: { size: 26 }
@@ -4165,8 +4223,42 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
         },
         item.kind
       )) }),
-      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет" }),
-      swatches(shapes.color, (color) => patchShape({ color }))
+      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет контура" }),
+      swatches(shapes.color, (color) => patchShape({ color })),
+      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Заливка" }),
+      /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-quiet btn-sm",
+            type: "button",
+            "aria-pressed": shapes.fill === "",
+            onClick: () => patchShape({ fill: "" }),
+            children: "Нет"
+          }
+        ),
+        PALETTE.map((value) => /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "swatch",
+            type: "button",
+            "aria-pressed": shapes.fill === value,
+            "aria-label": `Заливка ${value}`,
+            style: { background: value },
+            onClick: () => patchShape({ fill: value })
+          },
+          value
+        )),
+        /* @__PURE__ */ jsx("label", { className: "swatch swatch--custom", title: "Свой цвет заливки", children: /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "color",
+            value: shapes.fill || "#ffffff",
+            onChange: (event) => patchShape({ fill: event.target.value }),
+            "aria-label": "Свой цвет заливки"
+          }
+        ) })
+      ] })
     ] }) : null,
     tool === "eraser" ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("p", { className: "params__label", children: "Размер" }),
@@ -4251,16 +4343,33 @@ function titleOf(tool) {
   return "Фигуры";
 }
 function erase(item, at, radius) {
-  if (item.type === "image") return { kind: "keep" };
+  if (item.type !== "stroke") return { kind: "keep" };
   const reach = radius + item.data.width / 2;
-  if (item.type !== "stroke") {
-    return hitsAnySegment(item, at, reach) ? { kind: "delete" } : { kind: "keep" };
+  const before = segmentsOf(item.data);
+  if (before.length === 0) return { kind: "keep" };
+  const after = [];
+  let touched = false;
+  for (const segment of before) {
+    const pieces = eraseSegment(segment, at, reach);
+    if (pieces === null) {
+      after.push(segment);
+      continue;
+    }
+    touched = true;
+    for (const piece of pieces) if (piece.length > 1) after.push(piece);
   }
-  const points = item.data.points ?? [];
-  if (points.length === 0) return { kind: "keep" };
+  if (!touched) return { kind: "keep" };
+  if (after.length === 0) return { kind: "delete" };
+  return { kind: "split", parts: [withSegments(item.data, after)] };
+}
+function eraseSegment(points, at, reach) {
   const survives = points.map((point) => Math.hypot(point.x - at.x, point.y - at.y) > reach);
   if (survives.every(Boolean)) {
-    return crossesSegment(points, at, reach) ? splitBySegment(item.data, points, at, reach) : { kind: "keep" };
+    for (let index = 1; index < points.length; index += 1) {
+      if (distanceToSegment(at, points[index - 1], points[index]) > reach) continue;
+      return [points.slice(0, index), points.slice(index)];
+    }
+    return null;
   }
   const parts = [];
   let run = [];
@@ -4268,39 +4377,12 @@ function erase(item, at, radius) {
     if (survives[index]) {
       run.push(points[index]);
     } else if (run.length > 0) {
-      parts.push({ ...item.data, points: run });
+      parts.push(run);
       run = [];
     }
   }
-  if (run.length > 0) parts.push({ ...item.data, points: run });
-  const kept = parts.filter((part) => {
-    var _a;
-    return (((_a = part.points) == null ? void 0 : _a.length) ?? 0) > 1;
-  });
-  return kept.length === 0 ? { kind: "delete" } : { kind: "split", parts: kept };
-}
-function hitsAnySegment(item, at, reach) {
-  const x1 = item.data.x1 ?? 0;
-  const y1 = item.data.y1 ?? 0;
-  const x2 = item.data.x2 ?? x1;
-  const y2 = item.data.y2 ?? y1;
-  return at.x >= Math.min(x1, x2) - reach && at.x <= Math.max(x1, x2) + reach && at.y >= Math.min(y1, y2) - reach && at.y <= Math.max(y1, y2) + reach;
-}
-function crossesSegment(points, at, reach) {
-  for (let index = 1; index < points.length; index += 1) {
-    if (distanceToSegment(at, points[index - 1], points[index]) <= reach) return true;
-  }
-  return false;
-}
-function splitBySegment(data, points, at, reach) {
-  for (let index = 1; index < points.length; index += 1) {
-    if (distanceToSegment(at, points[index - 1], points[index]) > reach) continue;
-    const before = points.slice(0, index);
-    const after = points.slice(index);
-    const parts = [before, after].filter((part) => part.length > 1).map((part) => ({ ...data, points: part }));
-    return parts.length === 0 ? { kind: "delete" } : { kind: "split", parts };
-  }
-  return { kind: "keep" };
+  if (run.length > 0) parts.push(run);
+  return parts;
 }
 const MIN_WIDTH = 96;
 function TextInput({
@@ -4726,6 +4808,9 @@ const TIPS = [
   { keys: "Delete, Backspace", what: "удалить выделенное" },
   { keys: "Esc", what: "снять выделение, закрыть панель" },
   { keys: "Enter в поле надписи", what: "закрепить; Shift + Enter — новая строка" },
+  { keys: "Shift при рисовании от руки", what: "выпрямить штрих в прямую" },
+  { keys: "Задержать руку на месте", what: "то же выпрямление — на планшете" },
+  { keys: "Ластик", what: "стирает только рукописное; фигуры и надписи — выделить и удалить" },
   { keys: "Таблица: тычок в выбранную", what: "заполнить ячейку" },
   { keys: "Таблица: выбрать и «+ / −»", what: "добавить или убрать строку, столбец" }
 ];
