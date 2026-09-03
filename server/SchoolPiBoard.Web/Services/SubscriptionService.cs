@@ -51,11 +51,7 @@ public sealed class SubscriptionService
     {
         var now = DateTime.UtcNow;
 
-        var current = await _db.Subscriptions
-            .Include(x => x.Plan)
-            .Where(x => x.UserId == userId && x.StartsAt <= now && x.EndsAt > now)
-            .OrderByDescending(x => x.EndsAt)
-            .FirstOrDefaultAsync(cancellationToken);
+        var current = await CurrentAsync(userId, now, cancellationToken);
 
         if (current?.Plan is not null) return new Access(current.Plan, current);
 
@@ -75,7 +71,7 @@ public sealed class SubscriptionService
     /// </summary>
     public async Task<Subscription?> ExtendAsync(
         long userId, Plan plan, int days, string kind, string source, string? invoiceId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool startNow = false)
     {
         if (days <= 0) return null;
 
@@ -92,12 +88,36 @@ public sealed class SubscriptionService
 
         var now = DateTime.UtcNow;
 
-        var last = await _db.Subscriptions
-            .Where(x => x.UserId == userId && x.EndsAt > now)
-            .OrderByDescending(x => x.EndsAt)
-            .FirstOrDefaultAsync(cancellationToken);
+        DateTime startsAt;
 
-        var startsAt = last?.EndsAt ?? now;
+        if (startNow)
+        {
+            // Так выбрал покупатель, и выбор ему показали словами: остаток
+            // текущего срока сгорает. Делаем это только с действующим
+            // сроком — отложенные покупки трогать не за что.
+            var running = await CurrentAsync(userId, now, cancellationToken);
+            if (running is not null)
+            {
+                running.EndsAt = now;
+
+                // Продлевать оборванный срок больше нечего, а списание по
+                // нему выглядело бы как деньги ни за что.
+                running.AutoRenew = false;
+            }
+
+            startsAt = now;
+        }
+        else
+        {
+            // Дни прибавляются к концу уже оплаченного, включая отложенные
+            // покупки: заплативший вперёд ничего не теряет.
+            var last = await _db.Subscriptions
+                .Where(x => x.UserId == userId && x.EndsAt > now)
+                .OrderByDescending(x => x.EndsAt)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            startsAt = last?.EndsAt ?? now;
+        }
 
         var subscription = new Subscription
         {
@@ -147,17 +167,130 @@ public sealed class SubscriptionService
     {
         var now = DateTime.UtcNow;
 
-        var current = await _db.Subscriptions
-            .Where(x => x.UserId == userId && x.EndsAt > now)
-            .OrderByDescending(x => x.EndsAt)
-            .FirstOrDefaultAsync(cancellationToken);
-
+        // Именно действующая: отложенная покупка кончается позже, и прежде
+        // переключатель менял её, а человеку показывал состояние текущей —
+        // выглядело как «нажал, и ничего не произошло».
+        var current = await CurrentAsync(userId, now, cancellationToken);
         if (current is null) return false;
 
         current.AutoRenew = value;
         await _db.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    /// <summary>Подписка, действующая прямо сейчас.</summary>
+    private Task<Subscription?> CurrentAsync(long userId, DateTime now, CancellationToken cancellationToken)
+        => _db.Subscriptions
+            .Include(x => x.Plan)
+            .Where(x => x.UserId == userId && x.StartsAt <= now && x.EndsAt > now)
+            .OrderByDescending(x => x.EndsAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// Оплаченные сроки, которые ещё не начались.
+    ///
+    /// Без них покупка второго тарифа поверх действующего выглядит как
+    /// пропавшие деньги: человек заплатил, а на странице всё прежнее.
+    /// </summary>
+    public Task<List<Subscription>> UpcomingAsync(long userId, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+
+        return _db.Subscriptions
+            .Include(x => x.Plan)
+            .Where(x => x.UserId == userId && x.StartsAt > now)
+            .OrderBy(x => x.StartsAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Переносит ближайшую отложенную покупку на «сейчас».
+    ///
+    /// Только вверх по уровню и только в одну сторону: остаток текущего
+    /// срока при этом сгорает, и вернуть его назад уже нельзя. Поэтому
+    /// понижение сюда не пускается вовсе — это была бы потеря денег без
+    /// всякой выгоды.
+    /// </summary>
+    public async Task<bool> StartUpcomingNowAsync(long userId, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+
+        var next = await _db.Subscriptions
+            .Include(x => x.Plan)
+            .Where(x => x.UserId == userId && x.StartsAt > now)
+            .OrderBy(x => x.StartsAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (next?.Plan is null) return false;
+
+        var running = await CurrentAsync(userId, now, cancellationToken);
+        if (running?.Plan is null) return false;
+
+        if (next.Plan.Sort <= running.Plan.Sort) return false;
+
+        var length = next.EndsAt - next.StartsAt;
+
+        running.EndsAt = now;
+        running.AutoRenew = false;
+
+        next.StartsAt = now;
+        next.EndsAt = now + length;
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    // ---------- Заказы ----------
+
+    /// <summary>
+    /// Запоминает заказ, уходящий на оплату: выбор покупателя нужен потом,
+    /// когда придёт подтверждение, а история — ему самому.
+    /// </summary>
+    public async Task<BillingOrder> RememberOrderAsync(
+        long userId, string invoiceId, Plan plan, int days, int amount, bool autoRenew, bool startNow,
+        CancellationToken cancellationToken)
+    {
+        var order = new BillingOrder
+        {
+            UserId = userId,
+            InvoiceId = invoiceId,
+            PlanCode = plan.Code,
+            PlanName = plan.Name,
+            Days = days,
+            Amount = amount,
+            AutoRenew = autoRenew,
+            StartNow = startNow,
+            Status = BillingOrder.StatusPending,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.BillingOrders.Add(order);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return order;
+    }
+
+    public Task<BillingOrder?> FindOrderAsync(string invoiceId, CancellationToken cancellationToken)
+        => _db.BillingOrders.FirstOrDefaultAsync(x => x.InvoiceId == invoiceId, cancellationToken);
+
+    /// <summary>Отмечает заказ оплаченным. Повторное подтверждение ничего не меняет.</summary>
+    public async Task MarkOrderPaidAsync(BillingOrder order, DateTime paidAt, CancellationToken cancellationToken)
+    {
+        if (order.Status == BillingOrder.StatusPaid) return;
+
+        order.Status = BillingOrder.StatusPaid;
+        order.PaidAt = paidAt;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>История покупок, свежие сверху.</summary>
+    public Task<List<BillingOrder>> OrdersAsync(long userId, CancellationToken cancellationToken)
+        => _db.BillingOrders
+            .Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(50)
+            .ToListAsync(cancellationToken);
 
     /// <summary>
     /// Последний оплаченный счёт человека — по нему Робокасса списывает

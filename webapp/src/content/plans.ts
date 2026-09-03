@@ -17,6 +17,7 @@ import type { Plan } from '../api/types';
 export const SHOWN_PLANS: Plan[] = [
   {
     code: 'free',
+    sort: 1,
     name: 'Бесплатный',
     price30: 0, price90: 0, price180: 0, price365: 0,
     maxBoards: 30,
@@ -26,6 +27,7 @@ export const SHOWN_PLANS: Plan[] = [
   },
   {
     code: 'standard',
+    sort: 2,
     name: 'Стандартный',
     price30: 190, price90: 490, price180: 950, price365: 1690,
     maxBoards: 100,
@@ -35,6 +37,7 @@ export const SHOWN_PLANS: Plan[] = [
   },
   {
     code: 'extended',
+    sort: 3,
     name: 'Расширенный',
     price30: 490, price90: 1290, price180: 2490, price365: 4390,
     maxBoards: 200,
@@ -44,6 +47,7 @@ export const SHOWN_PLANS: Plan[] = [
   },
   {
     code: 'deep',
+    sort: 4,
     name: 'Углублённый',
     price30: 990, price90: 2690, price180: 4990, price365: 8900,
     maxBoards: 500,

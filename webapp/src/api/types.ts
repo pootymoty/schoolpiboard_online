@@ -109,6 +109,9 @@ export interface Library {
 export interface Plan {
   code: string;
   name: string;
+
+  /** Уровень тарифа: чем больше, тем выше. По нему решается, что повышение. */
+  sort: number;
   price30: number;
   price90: number;
   price180: number;
@@ -120,11 +123,50 @@ export interface Plan {
 }
 
 /** Что у меня сейчас: тариф, срок и насколько израсходованы пределы. */
+/** Оплаченный срок, который ещё не начался. */
+export interface Upcoming {
+  planCode: string;
+  planName: string;
+  startsAt: string;
+  endsAt: string;
+}
+
 export interface MyPlan {
   plan: Plan;
   kind: 'free' | 'trial' | 'paid';
   until: string | null;
   autoRenew: boolean;
+
+  /**
+   * Можно ли вообще включить автопродление. Робокасса разрешает повторные
+   * списания только по счёту, помеченному таким при оплате, — задним
+   * числом это не включается.
+   */
+  canAutoRenew: boolean;
+
   boards: number;
   storageUsed: number;
+
+  /** Что начнётся после текущего срока. */
+  upcoming: Upcoming[];
+
+  /** Можно ли перейти на отложенный тариф досрочно (только вверх по уровню). */
+  canStartUpcomingNow: boolean;
+}
+
+/** Строка истории покупок. */
+export interface Order {
+  invoiceId: string;
+  planName: string;
+  days: number;
+  amount: number;
+  autoRenew: boolean;
+
+  /**
+   * `abandoned` — заказ, по которому не пришло подтверждения. Отказов
+   * платёжная система не присылает вовсе: она сообщает только об успехе.
+   */
+  status: 'pending' | 'paid' | 'abandoned';
+  createdAt: string;
+  paidAt: string | null;
 }

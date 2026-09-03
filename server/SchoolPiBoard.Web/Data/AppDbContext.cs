@@ -25,6 +25,8 @@ public class AppDbContext : DbContext
 
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
 
+    public DbSet<BillingOrder> BillingOrders => Set<BillingOrder>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(entity =>
@@ -237,6 +239,32 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.PlanId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        model.Entity<BillingOrder>(entity =>
+        {
+            entity.ToTable("billing_orders");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.UserId).HasColumnName("user_id");
+            entity.Property(x => x.InvoiceId).HasColumnName("invoice_id").IsRequired();
+            entity.Property(x => x.PlanCode).HasColumnName("plan_code").IsRequired();
+            entity.Property(x => x.PlanName).HasColumnName("plan_name").IsRequired();
+            entity.Property(x => x.Days).HasColumnName("days");
+            entity.Property(x => x.Amount).HasColumnName("amount");
+            entity.Property(x => x.AutoRenew).HasColumnName("auto_renew");
+            entity.Property(x => x.StartNow).HasColumnName("start_now");
+            entity.Property(x => x.Status).HasColumnName("status").IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.PaidAt).HasColumnName("paid_at");
+
+            // История показывается своей, свежие сверху.
+            entity.HasIndex(x => new { x.UserId, x.CreatedAt });
+
+            // Подтверждение приходит по номеру счёта, и он же не даёт
+            // завести два заказа на один счёт.
+            entity.HasIndex(x => x.InvoiceId).IsUnique();
         });
     }
 }

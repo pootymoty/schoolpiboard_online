@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Page } from '../components/Layout';
 import { humanSize } from '../api/files';
-import type { MyPlan, Plan } from '../api/types';
+import type { MyPlan, Order, Plan } from '../api/types';
 
 /** Периоды продажи. Тариф отвечает за пределы, период — только за срок. */
 const PERIODS = [
@@ -34,6 +34,10 @@ function Bar({ used, total }: { used: number; total: number }): ReactElement {
 export function PlanPage(): ReactElement {
   const [mine, setMine] = useState<MyPlan | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+
+  /** Начать новый тариф сразу, а не после текущего срока. */
+  const [now, setNow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -53,6 +57,10 @@ export function PlanPage(): ReactElement {
   // Выключено по умолчанию намеренно: согласие на регулярное списание с
   // карты человек даёт сам, а не забывает снять чужую галочку.
   const [renew, setRenew] = useState(false);
+
+  const loadOrders = () => {
+    api<Order[]>('/billing/history').then(setOrders).catch(() => undefined);
+  };
 
   const load = () => {
     api<MyPlan>('/billing/me')
@@ -93,7 +101,11 @@ export function PlanPage(): ReactElement {
         if (!alive) return;
 
         setMine(answer);
-        if (answer.kind === 'paid') return;
+        if (answer.kind === 'paid') {
+          // История здесь же: покупка уже отмечена оплаченной.
+          loadOrders();
+          return;
+        }
       } catch {
         // Молчим: это фоновая перепроверка, а не действие человека.
       }
@@ -111,6 +123,7 @@ export function PlanPage(): ReactElement {
 
   useEffect(() => {
     load();
+    loadOrders();
     api<Plan[]>('/plans')
       .then((rows) => {
         const paid = rows.filter((row) => row.price30 > 0);
@@ -122,6 +135,15 @@ export function PlanPage(): ReactElement {
 
   const chosen = plans.find((plan) => plan.code === code) ?? null;
   const price = chosen ? chosen[period.field] : 0;
+
+  /**
+   * Повышение уровня поверх действующего платного срока — единственный
+   * случай, когда есть смысл спрашивать «сразу или после». Понижать
+   * досрочно нельзя: это потеря оплаченных дней без всякой выгоды.
+   */
+  const upgrade = Boolean(
+    chosen && mine && mine.kind !== 'free' && chosen.sort > mine.plan.sort,
+  );
 
   /**
    * Уводит на оплату. Счёт выставляет сервер ключей: платёжных данных у
@@ -136,13 +158,32 @@ export function PlanPage(): ReactElement {
     try {
       const answer = await api<{ paymentUrl: string }>('/billing/checkout', {
         method: 'POST',
-        body: { planCode: chosen.code, days: period.days, autoRenew: renew },
+        body: { planCode: chosen.code, days: period.days, autoRenew: renew, startNow: now && upgrade },
       });
 
       window.location.href = answer.paymentUrl;
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось перейти к оплате.');
       setBusy(false);
+    }
+  };
+
+  /** Переход на уже оплаченный отложенный тариф. Обратно нельзя — спрашиваем. */
+  const startNow = async () => {
+    const next = mine?.upcoming[0];
+    if (!next) return;
+
+    const sure = window.confirm(
+      `Перейти на «${next.planName}» прямо сейчас? Оставшиеся дни текущего тарифа сгорят, `
+      + 'и вернуть их будет нельзя.',
+    );
+    if (!sure) return;
+
+    try {
+      await api('/billing/start-now', { method: 'POST' });
+      load();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось перейти досрочно.');
     }
   };
 
@@ -154,6 +195,9 @@ export function PlanPage(): ReactElement {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось изменить автопродление.');
     }
   };
+
+  const day = (value: string) => new Date(value)
+    .toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const until = mine?.until
     ? new Date(mine.until).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -202,6 +246,31 @@ export function PlanPage(): ReactElement {
               </p>
             ) : null}
 
+            {mine.upcoming.length > 0 ? (
+              <div className="note note-info" style={{ marginTop: 'var(--sp-3)' }}>
+                <p style={{ margin: '0 0 var(--sp-2)' }}>
+                  <strong>Уже оплачено дальше.</strong>
+                </p>
+
+                {mine.upcoming.map((next) => (
+                  <p key={next.startsAt} style={{ margin: '0 0 4px' }}>
+                    {next.planName}: с {day(next.startsAt)} до {day(next.endsAt)}.
+                  </p>
+                ))}
+
+                {mine.canStartUpcomingNow ? (
+                  <button
+                    className="btn-quiet btn-sm"
+                    type="button"
+                    onClick={() => void startNow()}
+                    style={{ marginTop: 'var(--sp-2)' }}
+                  >
+                    Перейти сейчас
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="stack" style={{ marginTop: 'var(--sp-4)' }}>
               <div>
                 <p className="small" style={{ margin: '0 0 2px' }}>
@@ -228,20 +297,31 @@ export function PlanPage(): ReactElement {
             <section className="card">
               <h2 className="card-title">Автопродление</h2>
 
-              <div className="check">
-                <input
-                  id="autoRenew"
-                  type="checkbox"
-                  checked={mine.autoRenew}
-                  onChange={(event) => void toggleRenew(event.target.checked)}
-                />
-                <label htmlFor="autoRenew">Продлевать подписку автоматически</label>
-              </div>
+              {mine.canAutoRenew || mine.autoRenew ? (
+                <>
+                  <div className="check">
+                    <input
+                      id="autoRenew"
+                      type="checkbox"
+                      checked={mine.autoRenew}
+                      onChange={(event) => void toggleRenew(event.target.checked)}
+                    />
+                    <label htmlFor="autoRenew">Продлевать подписку автоматически</label>
+                  </div>
 
-              <p className="text-muted small">
-                Списываем с той же карты за сутки до конца срока. Выключить можно
-                в любой момент — оплаченные дни остаются при вас.
-              </p>
+                  <p className="text-muted small">
+                    Списываем с той же карты за сутки до конца срока. Выключить можно
+                    в любой момент — оплаченные дни остаются при вас.
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted small">
+                  При оплате этой подписки автопродление не выбиралось, и включить его
+                  задним числом нельзя: платёжная система разрешает повторные списания
+                  только по счёту, помеченному в момент оплаты. Отметьте «продлевать
+                  автоматически» при следующей покупке.
+                </p>
+              )}
             </section>
           ) : null}
 
@@ -280,6 +360,43 @@ export function PlanPage(): ReactElement {
                   ))}
                 </div>
 
+                {upgrade ? (
+                  <>
+                    <p className="params__label">Когда начать</p>
+
+                    <div className="check">
+                      <input
+                        id="startLater"
+                        type="radio"
+                        checked={!now}
+                        onChange={() => setNow(false)}
+                      />
+                      <label htmlFor="startLater">
+                        После текущего срока — оплаченные дни не теряются
+                      </label>
+                    </div>
+
+                    <div className="check">
+                      <input
+                        id="startNow"
+                        type="radio"
+                        checked={now}
+                        onChange={() => setNow(true)}
+                      />
+                      <label htmlFor="startNow">
+                        Сразу — оставшиеся дни «{mine.plan.name}» сгорят
+                      </label>
+                    </div>
+                  </>
+                ) : null}
+
+                {chosen && mine && mine.kind !== 'free' && !upgrade ? (
+                  <p className="text-muted small">
+                    Срок встанет в очередь и начнётся {until ? `${until}` : 'после текущего'}:
+                    оплаченные дни не пропадают.
+                  </p>
+                ) : null}
+
                 <div className="check" style={{ marginTop: 'var(--sp-3)' }}>
                   <input
                     id="renewOnBuy"
@@ -309,6 +426,36 @@ export function PlanPage(): ReactElement {
 
             <Link className="btn btn-quiet btn-sm" to="/pricing">Сравнить тарифы</Link>
           </section>
+
+          {orders.length > 0 ? (
+            <section className="card">
+              <h2 className="card-title">История покупок</h2>
+
+              <div className="stack">
+                {orders.map((order) => (
+                  <div key={order.invoiceId}>
+                    <p style={{ margin: 0 }}>
+                      {order.planName}, {order.days} дн. — {order.amount} ₽
+                    </p>
+                    <p className="text-muted small" style={{ margin: 0 }}>
+                      Счёт № {order.invoiceId} от {day(order.createdAt)}
+                      {' · '}
+                      {order.status === 'paid' ? 'оплачен' : null}
+                      {order.status === 'pending' ? 'ожидает оплаты' : null}
+                      {order.status === 'abandoned' ? 'не завершён' : null}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-muted small">
+                Платёжная система сообщает нам только об успешной оплате. Поэтому
+                неоплаченный счёт остаётся ожидающим и через сутки помечается
+                незавершённым — это не отказ банка, а просто неоконченная покупка.
+                Если деньги списались, а счёт всё ещё не оплачен, напишите нам.
+              </p>
+            </section>
+          ) : null}
         </>
       ) : error ? null : (
         <p className="text-muted">Загружаем…</p>

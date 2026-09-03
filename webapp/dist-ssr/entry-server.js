@@ -638,6 +638,7 @@ function AboutPage() {
 const SHOWN_PLANS = [
   {
     code: "free",
+    sort: 1,
     name: "Бесплатный",
     price30: 0,
     price90: 0,
@@ -650,6 +651,7 @@ const SHOWN_PLANS = [
   },
   {
     code: "standard",
+    sort: 2,
     name: "Стандартный",
     price30: 190,
     price90: 490,
@@ -662,6 +664,7 @@ const SHOWN_PLANS = [
   },
   {
     code: "extended",
+    sort: 3,
     name: "Расширенный",
     price30: 490,
     price90: 1290,
@@ -674,6 +677,7 @@ const SHOWN_PLANS = [
   },
   {
     code: "deep",
+    sort: 4,
     name: "Углублённый",
     price30: 990,
     price90: 2690,
@@ -964,6 +968,8 @@ function Bar({ used, total }) {
 function PlanPage() {
   const [mine, setMine] = useState(null);
   const [plans, setPlans] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [now, setNow] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState(null);
@@ -972,6 +978,9 @@ function PlanPage() {
   const [code, setCode] = useState(null);
   const [period, setPeriod] = useState(PERIODS[0]);
   const [renew, setRenew] = useState(false);
+  const loadOrders = () => {
+    api("/billing/history").then(setOrders).catch(() => void 0);
+  };
   const load = () => {
     api("/billing/me").then(setMine).catch((reason) => setError(
       reason instanceof ApiError ? reason.message : "Не удалось загрузить тариф."
@@ -994,7 +1003,10 @@ function PlanPage() {
         const answer = await api("/billing/me");
         if (!alive) return;
         setMine(answer);
-        if (answer.kind === "paid") return;
+        if (answer.kind === "paid") {
+          loadOrders();
+          return;
+        }
       } catch {
       }
       if (alive && attempts < 6) timer = setTimeout(() => void check(), 3e3);
@@ -1007,6 +1019,7 @@ function PlanPage() {
   }, [outcome]);
   useEffect(() => {
     load();
+    loadOrders();
     api("/plans").then((rows) => {
       const paid = rows.filter((row) => row.price30 > 0);
       setPlans(paid);
@@ -1018,6 +1031,9 @@ function PlanPage() {
   }, []);
   const chosen = plans.find((plan) => plan.code === code) ?? null;
   const price = chosen ? chosen[period.field] : 0;
+  const upgrade = Boolean(
+    chosen && mine && mine.kind !== "free" && chosen.sort > mine.plan.sort
+  );
   const pay = async () => {
     if (!chosen) return;
     setBusy(true);
@@ -1025,12 +1041,26 @@ function PlanPage() {
     try {
       const answer = await api("/billing/checkout", {
         method: "POST",
-        body: { planCode: chosen.code, days: period.days, autoRenew: renew }
+        body: { planCode: chosen.code, days: period.days, autoRenew: renew, startNow: now && upgrade }
       });
       window.location.href = answer.paymentUrl;
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Не удалось перейти к оплате.");
       setBusy(false);
+    }
+  };
+  const startNow = async () => {
+    const next = mine == null ? void 0 : mine.upcoming[0];
+    if (!next) return;
+    const sure = window.confirm(
+      `Перейти на «${next.planName}» прямо сейчас? Оставшиеся дни текущего тарифа сгорят, и вернуть их будет нельзя.`
+    );
+    if (!sure) return;
+    try {
+      await api("/billing/start-now", { method: "POST" });
+      load();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось перейти досрочно.");
     }
   };
   const toggleRenew = async (value) => {
@@ -1041,6 +1071,7 @@ function PlanPage() {
       setError(reason instanceof ApiError ? reason.message : "Не удалось изменить автопродление.");
     }
   };
+  const day = (value) => new Date(value).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
   const until = (mine == null ? void 0 : mine.until) ? new Date(mine.until).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : null;
   return /* @__PURE__ */ jsxs(Page, { narrow: true, children: [
     /* @__PURE__ */ jsx("div", { className: "page-header", children: /* @__PURE__ */ jsx("h1", { children: "Мой тариф" }) }),
@@ -1061,6 +1092,27 @@ function PlanPage() {
           "."
         ] }) : null,
         mine.kind === "free" ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Бесплатный тариф — без срока. Платный расширяет пределы и открывает библиотеку документов." }) : null,
+        mine.upcoming.length > 0 ? /* @__PURE__ */ jsxs("div", { className: "note note-info", style: { marginTop: "var(--sp-3)" }, children: [
+          /* @__PURE__ */ jsx("p", { style: { margin: "0 0 var(--sp-2)" }, children: /* @__PURE__ */ jsx("strong", { children: "Уже оплачено дальше." }) }),
+          mine.upcoming.map((next) => /* @__PURE__ */ jsxs("p", { style: { margin: "0 0 4px" }, children: [
+            next.planName,
+            ": с ",
+            day(next.startsAt),
+            " до ",
+            day(next.endsAt),
+            "."
+          ] }, next.startsAt)),
+          mine.canStartUpcomingNow ? /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-quiet btn-sm",
+              type: "button",
+              onClick: () => void startNow(),
+              style: { marginTop: "var(--sp-2)" },
+              children: "Перейти сейчас"
+            }
+          ) : null
+        ] }) : null,
         /* @__PURE__ */ jsxs("div", { className: "stack", style: { marginTop: "var(--sp-4)" }, children: [
           /* @__PURE__ */ jsxs("div", { children: [
             /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: "0 0 2px" }, children: [
@@ -1091,19 +1143,21 @@ function PlanPage() {
       ] }),
       mine.kind === "paid" ? /* @__PURE__ */ jsxs("section", { className: "card", children: [
         /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Автопродление" }),
-        /* @__PURE__ */ jsxs("div", { className: "check", children: [
-          /* @__PURE__ */ jsx(
-            "input",
-            {
-              id: "autoRenew",
-              type: "checkbox",
-              checked: mine.autoRenew,
-              onChange: (event) => void toggleRenew(event.target.checked)
-            }
-          ),
-          /* @__PURE__ */ jsx("label", { htmlFor: "autoRenew", children: "Продлевать подписку автоматически" })
-        ] }),
-        /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Списываем с той же карты за сутки до конца срока. Выключить можно в любой момент — оплаченные дни остаются при вас." })
+        mine.canAutoRenew || mine.autoRenew ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsxs("div", { className: "check", children: [
+            /* @__PURE__ */ jsx(
+              "input",
+              {
+                id: "autoRenew",
+                type: "checkbox",
+                checked: mine.autoRenew,
+                onChange: (event) => void toggleRenew(event.target.checked)
+              }
+            ),
+            /* @__PURE__ */ jsx("label", { htmlFor: "autoRenew", children: "Продлевать подписку автоматически" })
+          ] }),
+          /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Списываем с той же карты за сутки до конца срока. Выключить можно в любой момент — оплаченные дни остаются при вас." })
+        ] }) : /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "При оплате этой подписки автопродление не выбиралось, и включить его задним числом нельзя: платёжная система разрешает повторные списания только по счёту, помеченному в момент оплаты. Отметьте «продлевать автоматически» при следующей покупке." })
       ] }) : null,
       /* @__PURE__ */ jsxs("section", { className: "card", children: [
         /* @__PURE__ */ jsx("h2", { className: "card-title", children: mine.kind === "free" ? "Выбрать тариф" : "Продлить или сменить" }),
@@ -1130,6 +1184,42 @@ function PlanPage() {
             },
             option.days
           )) }),
+          upgrade ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsx("p", { className: "params__label", children: "Когда начать" }),
+            /* @__PURE__ */ jsxs("div", { className: "check", children: [
+              /* @__PURE__ */ jsx(
+                "input",
+                {
+                  id: "startLater",
+                  type: "radio",
+                  checked: !now,
+                  onChange: () => setNow(false)
+                }
+              ),
+              /* @__PURE__ */ jsx("label", { htmlFor: "startLater", children: "После текущего срока — оплаченные дни не теряются" })
+            ] }),
+            /* @__PURE__ */ jsxs("div", { className: "check", children: [
+              /* @__PURE__ */ jsx(
+                "input",
+                {
+                  id: "startNow",
+                  type: "radio",
+                  checked: now,
+                  onChange: () => setNow(true)
+                }
+              ),
+              /* @__PURE__ */ jsxs("label", { htmlFor: "startNow", children: [
+                "Сразу — оставшиеся дни «",
+                mine.plan.name,
+                "» сгорят"
+              ] })
+            ] })
+          ] }) : null,
+          chosen && mine && mine.kind !== "free" && !upgrade ? /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
+            "Срок встанет в очередь и начнётся ",
+            until ? `${until}` : "после текущего",
+            ": оплаченные дни не пропадают."
+          ] }) : null,
           /* @__PURE__ */ jsxs("div", { className: "check", style: { marginTop: "var(--sp-3)" }, children: [
             /* @__PURE__ */ jsx(
               "input",
@@ -1156,7 +1246,31 @@ function PlanPage() {
           /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Оплата через Робокассу. Оплаченные дни прибавляются к концу текущего срока — ничего не пропадает." })
         ] }),
         /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet btn-sm", to: "/pricing", children: "Сравнить тарифы" })
-      ] })
+      ] }),
+      orders.length > 0 ? /* @__PURE__ */ jsxs("section", { className: "card", children: [
+        /* @__PURE__ */ jsx("h2", { className: "card-title", children: "История покупок" }),
+        /* @__PURE__ */ jsx("div", { className: "stack", children: orders.map((order) => /* @__PURE__ */ jsxs("div", { children: [
+          /* @__PURE__ */ jsxs("p", { style: { margin: 0 }, children: [
+            order.planName,
+            ", ",
+            order.days,
+            " дн. — ",
+            order.amount,
+            " ₽"
+          ] }),
+          /* @__PURE__ */ jsxs("p", { className: "text-muted small", style: { margin: 0 }, children: [
+            "Счёт № ",
+            order.invoiceId,
+            " от ",
+            day(order.createdAt),
+            " · ",
+            order.status === "paid" ? "оплачен" : null,
+            order.status === "pending" ? "ожидает оплаты" : null,
+            order.status === "abandoned" ? "не завершён" : null
+          ] })
+        ] }, order.invoiceId)) }),
+        /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Платёжная система сообщает нам только об успешной оплате. Поэтому неоплаченный счёт остаётся ожидающим и через сутки помечается незавершённым — это не отказ банка, а просто неоконченная покупка. Если деньги списались, а счёт всё ещё не оплачен, напишите нам." })
+      ] }) : null
     ] }) : error ? null : /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" })
   ] });
 }
