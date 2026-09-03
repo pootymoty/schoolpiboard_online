@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Page } from '../components/Layout';
 import { humanSize } from '../api/files';
@@ -38,12 +38,14 @@ export function PlanPage(): ReactElement {
   const [busy, setBusy] = useState(false);
 
   /**
-   * Чем кончилась оплата. Робокасса возвращает человека с пометкой в
-   * адресе; читаем её один раз и адрес сразу чистим, иначе обновление
-   * страницы через час снова показало бы «оплата принята».
+   * Чем кончилась оплата. Робокасса возвращает человека на отдельный
+   * адрес; запоминаем его один раз и сразу уходим на обычный «Мой тариф»,
+   * иначе обновление страницы через час снова показало бы «оплата
+   * принята», а ссылку можно было бы переслать.
    */
   const [outcome, setOutcome] = useState<'paid' | 'failed' | null>(null);
-  const [search, setSearch] = useSearchParams();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
 
   /** Что покупаем: тариф и срок. */
   const [code, setCode] = useState<string | null>(null);
@@ -61,14 +63,10 @@ export function PlanPage(): ReactElement {
   };
 
   useEffect(() => {
-    const mark = search.get('paid');
-    if (mark === null) return;
+    if (pathname !== '/plan/paid' && pathname !== '/plan/failed') return;
 
-    setOutcome(mark === '1' ? 'paid' : 'failed');
-
-    const rest = new URLSearchParams(search);
-    rest.delete('paid');
-    setSearch(rest, { replace: true });
+    setOutcome(pathname === '/plan/paid' ? 'paid' : 'failed');
+    navigate('/plan', { replace: true });
     // Намеренно один раз, при возвращении с оплаты.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

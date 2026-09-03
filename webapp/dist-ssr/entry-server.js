@@ -5,7 +5,7 @@ import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server.mjs";
 import { createContext, useState, useCallback, useEffect, useMemo, useContext, useRef, useLayoutEffect } from "react";
-import { useLocation, Link, useSearchParams, useNavigate, useParams, Routes, Route, Navigate } from "react-router-dom";
+import { useLocation, Link, useNavigate, useSearchParams, useParams, Routes, Route, Navigate } from "react-router-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 const API_URL = "http://localhost:5000";
 const TOKEN_KEY = "schoolpiboard.token";
@@ -967,7 +967,8 @@ function PlanPage() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState(null);
-  const [search, setSearch] = useSearchParams();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [code, setCode] = useState(null);
   const [period, setPeriod] = useState(PERIODS[0]);
   const [renew, setRenew] = useState(false);
@@ -977,12 +978,9 @@ function PlanPage() {
     ));
   };
   useEffect(() => {
-    const mark = search.get("paid");
-    if (mark === null) return;
-    setOutcome(mark === "1" ? "paid" : "failed");
-    const rest = new URLSearchParams(search);
-    rest.delete("paid");
-    setSearch(rest, { replace: true });
+    if (pathname !== "/plan/paid" && pathname !== "/plan/failed") return;
+    setOutcome(pathname === "/plan/paid" ? "paid" : "failed");
+    navigate("/plan", { replace: true });
   }, []);
   useEffect(() => {
     if (outcome !== "paid") return;
@@ -5498,6 +5496,8 @@ function App() {
       /* @__PURE__ */ jsx(Route, { path: "/boards", element: /* @__PURE__ */ jsx(BoardsPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/profile", element: /* @__PURE__ */ jsx(ProfilePage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/plan", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/plan/paid", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/plan/failed", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true }) })
     ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx(Route, { path: "/", element: /* @__PURE__ */ jsx(LandingPage, {}) }),

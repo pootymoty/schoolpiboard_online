@@ -74,6 +74,11 @@ export function App(): ReactElement {
           <Route path="/boards" element={<BoardsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/plan" element={<PlanPage />} />
+          {/* Куда Робокасса возвращает человека после оплаты. Отдельными
+              адресами, а не параметром: при возврате методом GET она
+              принимает только адрес без параметров. */}
+          <Route path="/plan/paid" element={<PlanPage />} />
+          <Route path="/plan/failed" element={<PlanPage />} />
           <Route path="*" element={<Navigate to="/boards" replace />} />
         </>
       ) : (
