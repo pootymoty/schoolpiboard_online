@@ -88,7 +88,10 @@ export function BoardPage(): ReactElement {
   /** Куда поставить надпись. Пока задано — на холсте открыто поле ввода. */
   const [textAt, setTextAt] = useState<Point | null>(null);
 
-  /** Какую ячейку таблицы правим прямо сейчас. */
+  /**
+   * Что правим прямо сейчас: ячейку таблицы или надпись внутри фигуры.
+   * У фигуры строк и столбцов нет, поэтому они пустые.
+   */
   const [cellEdit, setCellEdit] = useState<
     { itemId: number; row: number; col: number; at: Point } | null
   >(null);
@@ -328,6 +331,27 @@ export function BoardPage(): ReactElement {
     const item = hub.items.find((candidate) => candidate.id === itemId);
     if (!item) return;
 
+    if (item.type === 'shape') {
+      // Надпись внутри фигуры одна на всю фигуру: поле открывается по её
+      // середине, там же, где надпись потом и окажется.
+      const x1 = item.data.x1 ?? 0;
+      const y1 = item.data.y1 ?? 0;
+      const x2 = item.data.x2 ?? x1;
+      const y2 = item.data.y2 ?? y1;
+
+      setCellEdit({
+        itemId,
+        row: -1,
+        col: -1,
+        at: {
+          x: Math.min(x1, x2) + 4,
+          y: (y1 + y2) / 2 - (item.data.fontSize ?? 20) * 0.6,
+          p: 1,
+        },
+      });
+      return;
+    }
+
     const where = cellAt(item.data, world);
     if (!where) return;
 
@@ -348,6 +372,11 @@ export function BoardPage(): ReactElement {
 
     const item = hub.items.find((candidate) => candidate.id === edit.itemId);
     if (!item) return;
+
+    if (item.type === 'shape') {
+      hub.updateItem(item.id, { ...item.data, label: text || undefined });
+      return;
+    }
 
     hub.updateItem(item.id, withCell(item.data, edit.row, edit.col, text));
   };
@@ -896,7 +925,11 @@ export function BoardPage(): ReactElement {
                 color: tableItem?.data.color ?? settings.table.color,
                 fontSize: tableItem?.data.fontSize ?? settings.table.fontSize,
               }}
-              initial={tableItem ? cellText(tableItem.data, cellEdit.row, cellEdit.col) : ''}
+              initial={tableItem
+                ? (tableItem.type === 'shape'
+                  ? tableItem.data.label ?? ''
+                  : cellText(tableItem.data, cellEdit.row, cellEdit.col))
+                : ''}
               onCommit={commitCell}
               onCancel={() => setCellEdit(null)}
             />

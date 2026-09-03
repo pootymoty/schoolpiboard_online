@@ -1,6 +1,7 @@
 import { imageFor } from './images';
 import { cellRect, tableBox } from './tables';
 import { segmentsOf } from './strokes';
+import { centerOf, radians } from './rotate';
 import type { ItemData, ItemType, LineStyle, Point } from './protocol';
 
 /**
@@ -381,6 +382,37 @@ function drawTable(context: CanvasRenderingContext2D, data: ItemData): void {
   }
 }
 
+/**
+ * Надпись внутри фигуры: по центру габаритов, в одну строку.
+ *
+ * Переноса нет намеренно: подпись к фигуре — это «АВС» или «10 см», а не
+ * абзац. Длинную обрезаем границами фигуры, чтобы она не расползалась по
+ * доске поверх соседнего.
+ */
+function drawLabel(context: CanvasRenderingContext2D, data: ItemData): void {
+  if (!data.label) return;
+
+  const x1 = data.x1 ?? 0;
+  const y1 = data.y1 ?? 0;
+  const x2 = data.x2 ?? x1;
+  const y2 = data.y2 ?? y1;
+
+  context.save();
+  context.setLineDash([]);
+  context.fillStyle = data.color;
+  context.globalAlpha = 1;
+  context.font = fontOf({ ...data, fontSize: data.fontSize ?? 20 });
+  context.textBaseline = 'middle';
+  context.textAlign = 'center';
+
+  context.beginPath();
+  context.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+  context.clip();
+
+  context.fillText(data.label, (x1 + x2) / 2, (y1 + y2) / 2);
+  context.restore();
+}
+
 export function drawItem(
   context: CanvasRenderingContext2D,
   type: ItemType,
@@ -388,11 +420,25 @@ export function drawItem(
   imageRef: string | null = null,
 ): void {
   context.save();
+
+  // Поворот применяется только здесь: координаты объекта остаются
+  // прямыми, и всё остальное — растягивание, габариты, привязки —
+  // считается в обычных осях.
+  const center = data.angle ? centerOf(data) : null;
+  if (center) {
+    context.translate(center.x, center.y);
+    context.rotate(radians(data.angle ?? 0));
+    context.translate(-center.x, -center.y);
+  }
+
   applyStyle(context, data);
 
   if (type === 'text') drawText(context, data);
   else if (type === 'table') drawTable(context, data);
-  else if (type === 'shape') drawShape(context, data);
+  else if (type === 'shape') {
+    drawShape(context, data);
+    drawLabel(context, data);
+  }
   else if (type === 'image') drawImage(context, data, imageRef);
   else drawStroke(context, data);
 

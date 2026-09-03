@@ -2370,6 +2370,45 @@ function withSegments(data, segments) {
 function allPoints(data) {
   return segmentsOf(data).flat();
 }
+function boxOf(data) {
+  if (data.x1 === void 0 || data.y1 === void 0) return null;
+  const x2 = data.x2 ?? data.x1;
+  const y2 = data.y2 ?? data.y1;
+  return {
+    x: Math.min(data.x1, x2),
+    y: Math.min(data.y1, y2),
+    width: Math.abs(x2 - data.x1),
+    height: Math.abs(y2 - data.y1)
+  };
+}
+function centerOf(data) {
+  const box = boxOf(data);
+  if (!box) return null;
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2, p: 1 };
+}
+function radians(degrees) {
+  return degrees * Math.PI / 180;
+}
+function rotatePoint(point, center, degrees) {
+  if (!degrees) return point;
+  const angle = radians(degrees);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    ...point,
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos
+  };
+}
+function rotated(data, points) {
+  const angle = data.angle ?? 0;
+  if (!angle) return points;
+  const center = centerOf(data);
+  if (!center) return points;
+  return points.map((point) => rotatePoint(point, center, angle));
+}
 function dashOf(style, width) {
   const unit = Math.max(1, width);
   if (style === "dash") return [unit * 3, unit * 2];
@@ -2633,13 +2672,40 @@ function drawTable(context, data) {
     }
   }
 }
+function drawLabel(context, data) {
+  if (!data.label) return;
+  const x1 = data.x1 ?? 0;
+  const y1 = data.y1 ?? 0;
+  const x2 = data.x2 ?? x1;
+  const y2 = data.y2 ?? y1;
+  context.save();
+  context.setLineDash([]);
+  context.fillStyle = data.color;
+  context.globalAlpha = 1;
+  context.font = fontOf({ ...data, fontSize: data.fontSize ?? 20 });
+  context.textBaseline = "middle";
+  context.textAlign = "center";
+  context.beginPath();
+  context.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+  context.clip();
+  context.fillText(data.label, (x1 + x2) / 2, (y1 + y2) / 2);
+  context.restore();
+}
 function drawItem(context, type, data, imageRef = null) {
   context.save();
+  const center = data.angle ? centerOf(data) : null;
+  if (center) {
+    context.translate(center.x, center.y);
+    context.rotate(radians(data.angle ?? 0));
+    context.translate(-center.x, -center.y);
+  }
   applyStyle(context, data);
   if (type === "text") drawText(context, data);
   else if (type === "table") drawTable(context, data);
-  else if (type === "shape") drawShape(context, data);
-  else if (type === "image") drawImage(context, data, imageRef);
+  else if (type === "shape") {
+    drawShape(context, data);
+    drawLabel(context, data);
+  } else if (type === "image") drawImage(context, data, imageRef);
   else drawStroke(context, data);
   context.restore();
 }
@@ -2657,6 +2723,9 @@ function translate(data, dx, dy) {
   };
 }
 function pointsOf(data) {
+  return rotated(data, localPoints(data));
+}
+function localPoints(data) {
   var _a, _b;
   if (((_a = data.points) == null ? void 0 : _a.length) || ((_b = data.segments) == null ? void 0 : _b.length)) return allPoints(data);
   if (data.x1 === void 0 || data.y1 === void 0) return [];
@@ -2708,6 +2777,7 @@ function hits(item, point, radius) {
   const points = pointsOf(item.data);
   const reach = radius + item.data.width / 2;
   if (item.type === "text" || item.type === "image" || item.type === "table" || item.data.shape === "ellipse") {
+    if (item.data.angle) return inside(points, point);
     const box = boundsOf([item]);
     return Boolean(box) && point.x >= box.x - radius && point.x <= box.x + box.width + radius && point.y >= box.y - radius && point.y <= box.y + box.height + radius;
   }
@@ -2719,6 +2789,16 @@ function hits(item, point, radius) {
     }
   }
   return false;
+}
+function inside(corners, point) {
+  let result = false;
+  for (let i = 0, j = corners.length - 1; i < corners.length; j = i, i += 1) {
+    const a = corners[i];
+    const b = corners[j];
+    const crosses = a.y > point.y !== b.y > point.y && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
+    if (crosses) result = !result;
+  }
+  return result;
 }
 function topmostAt(items, point, radius) {
   for (let index = items.length - 1; index >= 0; index -= 1) {
@@ -2753,6 +2833,7 @@ function measureText(text, fontSize) {
   };
 }
 const HANDLE_SIZE = 9;
+const ROTATE_REACH = 28;
 function handlesFor(item, box) {
   if (item.type === "stroke") return [];
   if (item.data.shape === "line" || item.data.shape === "arrow") {
@@ -2761,10 +2842,11 @@ function handlesFor(item, box) {
       { id: "p2", x: item.data.x2 ?? 0, y: item.data.y2 ?? 0, cursor: "move" }
     ];
   }
-  const { x, y, width, height } = box;
+  const local = boxOf(item.data) ?? box;
+  const { x, y, width, height } = local;
   const midX = x + width / 2;
   const midY = y + height / 2;
-  return [
+  const handles = [
     { id: "nw", x, y, cursor: "nwse-resize" },
     { id: "n", x: midX, y, cursor: "ns-resize" },
     { id: "ne", x: x + width, y, cursor: "nesw-resize" },
@@ -2772,12 +2854,57 @@ function handlesFor(item, box) {
     { id: "se", x: x + width, y: y + height, cursor: "nwse-resize" },
     { id: "s", x: midX, y: y + height, cursor: "ns-resize" },
     { id: "sw", x, y: y + height, cursor: "nesw-resize" },
-    { id: "w", x, y: midY, cursor: "ew-resize" }
+    { id: "w", x, y: midY, cursor: "ew-resize" },
+    { id: "rot", x: midX, y: y - ROTATE_REACH, cursor: "grab" }
   ];
+  const angle = item.data.angle ?? 0;
+  if (!angle) return handles;
+  const center = centerOf(item.data);
+  if (!center) return handles;
+  return handles.map((handle) => {
+    const moved = rotatePoint({ x: handle.x, y: handle.y, p: 1 }, center, angle);
+    return { ...handle, x: moved.x, y: moved.y };
+  });
+}
+function angleTo(center, point) {
+  return Math.atan2(point.y - center.y, point.x - center.x) * 180 / Math.PI;
 }
 function resized(data, origin, handle, dx, dy) {
+  var _a, _b, _c, _d;
   if (handle === "p1") return { ...data, x1: (data.x1 ?? 0) + dx, y1: (data.y1 ?? 0) + dy };
   if (handle === "p2") return { ...data, x2: (data.x2 ?? 0) + dx, y2: (data.y2 ?? 0) + dy };
+  const spin = data.angle ?? 0;
+  if (spin) {
+    const back = radians(-spin);
+    const localDx = dx * Math.cos(back) - dy * Math.sin(back);
+    const localDy = dx * Math.sin(back) + dy * Math.cos(back);
+    const next = resized({ ...data, angle: 0 }, origin, handle, localDx, localDy);
+    const before = anchorOf(origin, handle);
+    const after = anchorOf(boxOf(next) ?? origin, handle);
+    const was = rotatePoint(
+      { ...before, p: 1 },
+      { x: origin.x + origin.width / 2, y: origin.y + origin.height / 2 },
+      spin
+    );
+    const now = rotatePoint(
+      { ...after, p: 1 },
+      {
+        x: (((_a = boxOf(next)) == null ? void 0 : _a.x) ?? 0) + (((_b = boxOf(next)) == null ? void 0 : _b.width) ?? 0) / 2,
+        y: (((_c = boxOf(next)) == null ? void 0 : _c.y) ?? 0) + (((_d = boxOf(next)) == null ? void 0 : _d.height) ?? 0) / 2
+      },
+      spin
+    );
+    const shiftX = was.x - now.x;
+    const shiftY = was.y - now.y;
+    return {
+      ...next,
+      angle: spin,
+      x1: (next.x1 ?? 0) + shiftX,
+      y1: (next.y1 ?? 0) + shiftY,
+      x2: (next.x2 ?? 0) + shiftX,
+      y2: (next.y2 ?? 0) + shiftY
+    };
+  }
   const left = origin.x + (handle.includes("w") ? dx : 0);
   const right = origin.x + origin.width + (handle.includes("e") ? dx : 0);
   const top = origin.y + (handle.startsWith("n") ? dy : 0);
@@ -2814,6 +2941,12 @@ function resized(data, origin, handle, dx, dy) {
     };
   }
   return { ...data, x1: left, y1: top, x2: left + width, y2: top + height };
+}
+function anchorOf(box, handle) {
+  return {
+    x: handle.includes("w") ? box.x + box.width : box.x,
+    y: handle.startsWith("n") ? box.y + box.height : box.y
+  };
 }
 const MIN_SCALE = 0.02;
 const MAX_SCALE = 20;
@@ -2907,6 +3040,7 @@ function BoardCanvas({
   const moving = useRef(null);
   const erasing = useRef(null);
   const tapping = useRef(null);
+  const rotating = useRef(null);
   const resizing = useRef(null);
   const lastCursor = useRef(0);
   const lastBatch = useRef(0);
@@ -3019,7 +3153,8 @@ function BoardCanvas({
     const chosen = new Set(latest.current.selection);
     for (const item of hub.items) {
       const grip = resizing.current;
-      const shifted = (grip == null ? void 0 : grip.itemId) === item.id ? grip.data : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
+      const spin = rotating.current;
+      const shifted = (grip == null ? void 0 : grip.itemId) === item.id ? grip.data : (spin == null ? void 0 : spin.itemId) === item.id ? spin.data : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
       drawItem(context, item.type, shifted, item.imageRef);
     }
     for (const stroke of hub.live.values()) drawItem(context, stroke.type, stroke.data);
@@ -3157,6 +3292,20 @@ function BoardCanvas({
         const bounds = single ? boundsOf([single]) : null;
         if (single && bounds) {
           const grip = handlesFor(single, bounds).find((candidate) => Math.abs(candidate.x - point.x) <= HANDLE_SIZE / latest.current.viewport.scale && Math.abs(candidate.y - point.y) <= HANDLE_SIZE / latest.current.viewport.scale);
+          if ((grip == null ? void 0 : grip.id) === "rot") {
+            const center = centerOf(single.data);
+            if (center) {
+              rotating.current = {
+                pointerId: event.pointerId,
+                itemId: single.id,
+                center,
+                startAngle: angleTo(center, point),
+                origin: single.data.angle ?? 0,
+                data: single.data
+              };
+              return;
+            }
+          }
           if (grip) {
             resizing.current = {
               pointerId: event.pointerId,
@@ -3187,7 +3336,7 @@ function BoardCanvas({
         from: point,
         dx: 0,
         dy: 0,
-        cell: hit.type === "table" && repeat ? hit.id : null
+        edit: repeat && (hit.type === "table" || hit.type === "shape") ? hit.id : null
       };
       return;
     }
@@ -3294,6 +3443,14 @@ function BoardCanvas({
       lastCursor.current = now;
       hub.sendCursor(point.x, point.y);
     }
+    const spin = rotating.current;
+    if (spin && spin.pointerId === event.pointerId) {
+      const turned = spin.origin + (angleTo(spin.center, point) - spin.startAngle);
+      const snapped = event.shiftKey ? Math.round(turned / 15) * 15 : Math.round(turned);
+      spin.data = { ...spin.data, angle: (snapped % 360 + 360) % 360 };
+      schedule();
+      return;
+    }
     const stroke = drawing.current;
     if (!stroke || stroke.pointerId !== event.pointerId) return;
     if (latest.current.tool === "shapes" || latest.current.tool === "table") {
@@ -3347,6 +3504,13 @@ function BoardCanvas({
       schedule();
       return;
     }
+    const spin = rotating.current;
+    if ((spin == null ? void 0 : spin.pointerId) === event.pointerId) {
+      rotating.current = null;
+      hub.updateItem(spin.itemId, spin.data);
+      schedule();
+      return;
+    }
     const grip = resizing.current;
     if ((grip == null ? void 0 : grip.pointerId) === event.pointerId) {
       resizing.current = null;
@@ -3359,8 +3523,8 @@ function BoardCanvas({
       moving.current = null;
       if (drag.dx !== 0 || drag.dy !== 0) {
         onMoved(latest.current.selection, drag.dx, drag.dy);
-      } else if (drag.cell !== null) {
-        onCellAt(drag.cell, drag.from);
+      } else if (drag.edit !== null) {
+        onCellAt(drag.edit, drag.from);
       }
       schedule();
       return;
@@ -4811,6 +4975,8 @@ const TIPS = [
   { keys: "Shift при рисовании от руки", what: "выпрямить штрих в прямую" },
   { keys: "Задержать руку на месте", what: "то же выпрямление — на планшете" },
   { keys: "Ластик", what: "стирает только рукописное; фигуры и надписи — выделить и удалить" },
+  { keys: "Ручка над выбранным", what: "повернуть; с Shift — шаг в 15°" },
+  { keys: "Фигура: тычок в выбранную", what: "подписать её изнутри" },
   { keys: "Таблица: тычок в выбранную", what: "заполнить ячейку" },
   { keys: "Таблица: выбрать и «+ / −»", what: "добавить или убрать строку, столбец" }
 ];
@@ -5319,6 +5485,23 @@ function BoardPage() {
   const editCell = (itemId, world) => {
     const item = hub.items.find((candidate) => candidate.id === itemId);
     if (!item) return;
+    if (item.type === "shape") {
+      const x1 = item.data.x1 ?? 0;
+      const y1 = item.data.y1 ?? 0;
+      const x2 = item.data.x2 ?? x1;
+      const y2 = item.data.y2 ?? y1;
+      setCellEdit({
+        itemId,
+        row: -1,
+        col: -1,
+        at: {
+          x: Math.min(x1, x2) + 4,
+          y: (y1 + y2) / 2 - (item.data.fontSize ?? 20) * 0.6,
+          p: 1
+        }
+      });
+      return;
+    }
     const where = cellAt(item.data, world);
     if (!where) return;
     const rect = cellRect(tableBox(item.data), where.row, where.col);
@@ -5335,6 +5518,10 @@ function BoardPage() {
     if (!edit) return;
     const item = hub.items.find((candidate) => candidate.id === edit.itemId);
     if (!item) return;
+    if (item.type === "shape") {
+      hub.updateItem(item.id, { ...item.data, label: text || void 0 });
+      return;
+    }
     hub.updateItem(item.id, withCell(item.data, edit.row, edit.col, text));
   };
   const selectedItems = hub.items.filter((item) => selection.includes(item.id));
@@ -5753,7 +5940,7 @@ function BoardPage() {
                   color: (tableItem == null ? void 0 : tableItem.data.color) ?? settings.table.color,
                   fontSize: (tableItem == null ? void 0 : tableItem.data.fontSize) ?? settings.table.fontSize
                 },
-                initial: tableItem ? cellText(tableItem.data, cellEdit.row, cellEdit.col) : "",
+                initial: tableItem ? tableItem.type === "shape" ? tableItem.data.label ?? "" : cellText(tableItem.data, cellEdit.row, cellEdit.col) : "",
                 onCommit: commitCell,
                 onCancel: () => setCellEdit(null)
               }

@@ -1,6 +1,7 @@
 import type { BoardItem, ItemData, Point } from './protocol';
 import { cornersOf } from './render';
 import { allPoints, segmentsOf } from './strokes';
+import { rotated } from './rotate';
 
 export interface Bounds {
   x: number;
@@ -30,6 +31,11 @@ export function translate(data: ItemData, dx: number, dy: number): ItemData {
  * рамка иначе не совпала бы с нарисованным.
  */
 export function pointsOf(data: ItemData): Point[] {
+  return rotated(data, localPoints(data));
+}
+
+/** Опорные точки до поворота — в них считается вся геометрия объекта. */
+function localPoints(data: ItemData): Point[] {
   if (data.points?.length || data.segments?.length) return allPoints(data);
 
   if (data.x1 === undefined || data.y1 === undefined) return [];
@@ -106,6 +112,11 @@ export function hits(item: BoardItem, point: Point, radius: number): boolean {
   // ровно в букву или ровно в контур — это соревнование, а не работа.
   if (item.type === 'text' || item.type === 'image' || item.type === 'table'
       || item.data.shape === 'ellipse') {
+    // У повёрнутого объекта прямоугольник габаритов заметно больше его
+    // самого, и он ловил бы тычки далеко за краем. Поэтому по самому
+    // четырёхугольнику, каким он лежит на доске.
+    if (item.data.angle) return inside(points, point);
+
     const box = boundsOf([item]);
     return Boolean(box)
       && point.x >= box!.x - radius && point.x <= box!.x + box!.width + radius
@@ -125,6 +136,23 @@ export function hits(item: BoardItem, point: Point, radius: number): boolean {
   }
 
   return false;
+}
+
+/** Точка внутри многоугольника — обычный луч вправо и счёт пересечений. */
+function inside(corners: Point[], point: Point): boolean {
+  let result = false;
+
+  for (let i = 0, j = corners.length - 1; i < corners.length; j = i, i += 1) {
+    const a = corners[i];
+    const b = corners[j];
+
+    const crosses = (a.y > point.y) !== (b.y > point.y)
+      && point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+
+    if (crosses) result = !result;
+  }
+
+  return result;
 }
 
 /** Верхний объект под указателем. */

@@ -4,8 +4,9 @@ import type { BoardHub } from './useBoardHub';
 import type { Background, ItemData, ItemType, Point } from './protocol';
 import { cursorColor } from './cursorColors';
 import { boundsOf, rectFrom, topmostAt, translate, within } from './geometry';
+import { centerOf } from './rotate';
 import type { Bounds } from './geometry';
-import { HANDLE_SIZE, handlesFor, resized } from './handles';
+import { HANDLE_SIZE, angleTo, handlesFor, resized } from './handles';
 import type { HandleId } from './handles';
 import { onImageLoaded } from './images';
 import { drawGrid, drawItem } from './render';
@@ -121,12 +122,12 @@ export function BoardCanvas({
   /**
    * Перетаскивание выделенного: откуда начали и сколько уже сдвинули.
    *
-   * `cell` — номер таблицы, если тычок пришёлся в неё уже выбранную.
-   * Решаем по отпусканию: пока палец на экране, это с равным успехом
-   * может оказаться перетаскиванием.
+   * `edit` — номер объекта, если тычок пришёлся в уже выбранную таблицу
+   * или фигуру: там правят содержимое. Решаем по отпусканию: пока палец
+   * на экране, это с равным успехом может оказаться перетаскиванием.
    */
   const moving = useRef<
-    { pointerId: number; from: Point; dx: number; dy: number; cell: number | null } | null
+    { pointerId: number; from: Point; dx: number; dy: number; edit: number | null } | null
   >(null);
 
   /** Указатель, которым сейчас стирают. */
@@ -134,6 +135,16 @@ export function BoardCanvas({
 
   /** Тычок инструментом «текст»: решаем по отпусканию, а не по нажатию. */
   const tapping = useRef<{ pointerId: number; at: Point; screen: { x: number; y: number } } | null>(null);
+
+  /** Поворот за ручку: с какого угла начали и каким он был у объекта. */
+  const rotating = useRef<{
+    pointerId: number;
+    itemId: number;
+    center: Point;
+    startAngle: number;
+    origin: number;
+    data: ItemData;
+  } | null>(null);
 
   /** Растягивание за ручку. */
   const resizing = useRef<{
@@ -282,9 +293,13 @@ export function BoardCanvas({
       // Пока выделенное тащат, рисуем его со сдвигом, не дожидаясь
       // ответа сервера: иначе рисунок отставал бы от пальца.
       const grip = resizing.current;
+      const spin = rotating.current;
+
       const shifted = grip?.itemId === item.id
         ? grip.data
-        : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
+        : spin?.itemId === item.id
+          ? spin.data
+          : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
 
       drawItem(context, item.type, shifted, item.imageRef);
     }
@@ -504,6 +519,22 @@ export function BoardCanvas({
             && Math.abs(candidate.y - point.y) <= HANDLE_SIZE / latest.current.viewport.scale
           ));
 
+          if (grip?.id === 'rot') {
+            const center = centerOf(single.data);
+
+            if (center) {
+              rotating.current = {
+                pointerId: event.pointerId,
+                itemId: single.id,
+                center,
+                startAngle: angleTo(center, point),
+                origin: single.data.angle ?? 0,
+                data: single.data,
+              };
+              return;
+            }
+          }
+
           if (grip) {
             resizing.current = {
               pointerId: event.pointerId,
@@ -544,7 +575,7 @@ export function BoardCanvas({
         from: point,
         dx: 0,
         dy: 0,
-        cell: hit.type === 'table' && repeat ? hit.id : null,
+        edit: repeat && (hit.type === 'table' || hit.type === 'shape') ? hit.id : null,
       };
       return;
     }
@@ -687,6 +718,22 @@ export function BoardCanvas({
       hub.sendCursor(point.x, point.y);
     }
 
+    const spin = rotating.current;
+    if (spin && spin.pointerId === event.pointerId) {
+      const turned = spin.origin + (angleTo(spin.center, point) - spin.startAngle);
+
+      // Shift ставит угол на шаг в пятнадцать градусов: ровно поставить
+      // фигуру от руки нельзя, а нужно это почти всегда.
+      const snapped = event.shiftKey ? Math.round(turned / 15) * 15 : Math.round(turned);
+
+      // Показываем поворот у себя сразу, а на сервер он уйдёт по
+      // отпусканию: слать каждый градус — значит слать сотню сообщений
+      // за один жест.
+      spin.data = { ...spin.data, angle: ((snapped % 360) + 360) % 360 };
+      schedule();
+      return;
+    }
+
     const stroke = drawing.current;
     // Штрих принадлежит одному указателю. Без этой проверки движения
     // второго пальца дописывались бы в него же — и между пальцами
@@ -768,6 +815,14 @@ export function BoardCanvas({
       return;
     }
 
+    const spin = rotating.current;
+    if (spin?.pointerId === event.pointerId) {
+      rotating.current = null;
+      hub.updateItem(spin.itemId, spin.data);
+      schedule();
+      return;
+    }
+
     const grip = resizing.current;
     if (grip?.pointerId === event.pointerId) {
       resizing.current = null;
@@ -782,10 +837,10 @@ export function BoardCanvas({
 
       if (drag.dx !== 0 || drag.dy !== 0) {
         onMoved(latest.current.selection, drag.dx, drag.dy);
-      } else if (drag.cell !== null) {
-        // Таблица уже была выбрана и с места не сдвинулась — значит
-        // хотели заполнить ячейку, а не переставить таблицу.
-        onCellAt(drag.cell, drag.from);
+      } else if (drag.edit !== null) {
+        // Объект уже был выбран и с места не сдвинулся — значит хотели
+        // написать в нём, а не переставить его.
+        onCellAt(drag.edit, drag.from);
       }
 
       schedule();

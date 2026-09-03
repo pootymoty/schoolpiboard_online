@@ -1,5 +1,6 @@
 import type { BoardItem, ItemData } from './protocol';
 import type { Bounds } from './geometry';
+import { boxOf, centerOf, radians, rotatePoint } from './rotate';
 
 /** Габариты надписи в её же шрифте — по ним строится рамка. */
 export function measureText(text: string, fontSize: number): { width: number; height: number } {
@@ -28,7 +29,9 @@ export function measureText(text: string, fontSize: number): { width: number; he
  */
 export type HandleId =
   | 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
-  | 'p1' | 'p2';
+  | 'p1' | 'p2'
+  /** Ручка поворота — над верхней серединой, на отлёте. */
+  | 'rot';
 
 export interface Handle {
   id: HandleId;
@@ -40,6 +43,9 @@ export interface Handle {
 /** Сколько экранных пикселей занимает ручка. */
 export const HANDLE_SIZE = 9;
 
+/** Насколько ручка поворота отстоит от верхнего края, в мировых единицах. */
+const ROTATE_REACH = 28;
+
 export function handlesFor(item: BoardItem, box: Bounds): Handle[] {
   if (item.type === 'stroke') return [];
 
@@ -50,11 +56,16 @@ export function handlesFor(item: BoardItem, box: Bounds): Handle[] {
     ];
   }
 
-  const { x, y, width, height } = box;
+  // Ручки стоят по неповёрнутым габаритам и потом поворачиваются вместе
+  // с объектом: по прямоугольнику габаритов повёрнутой фигуры они
+  // оказались бы в стороне от её углов.
+  const local = boxOf(item.data) ?? box;
+
+  const { x, y, width, height } = local;
   const midX = x + width / 2;
   const midY = y + height / 2;
 
-  return [
+  const handles: Handle[] = [
     { id: 'nw', x, y, cursor: 'nwse-resize' },
     { id: 'n', x: midX, y, cursor: 'ns-resize' },
     { id: 'ne', x: x + width, y, cursor: 'nesw-resize' },
@@ -63,7 +74,24 @@ export function handlesFor(item: BoardItem, box: Bounds): Handle[] {
     { id: 's', x: midX, y: y + height, cursor: 'ns-resize' },
     { id: 'sw', x, y: y + height, cursor: 'nesw-resize' },
     { id: 'w', x, y: midY, cursor: 'ew-resize' },
+    { id: 'rot', x: midX, y: y - ROTATE_REACH, cursor: 'grab' },
   ];
+
+  const angle = item.data.angle ?? 0;
+  if (!angle) return handles;
+
+  const center = centerOf(item.data);
+  if (!center) return handles;
+
+  return handles.map((handle) => {
+    const moved = rotatePoint({ x: handle.x, y: handle.y, p: 1 }, center, angle);
+    return { ...handle, x: moved.x, y: moved.y };
+  });
+}
+
+/** Угол от центра объекта до точки — по нему и вертят. */
+export function angleTo(center: { x: number; y: number }, point: { x: number; y: number }): number {
+  return (Math.atan2(point.y - center.y, point.x - center.x) * 180) / Math.PI;
 }
 
 /**
@@ -81,6 +109,49 @@ export function resized(
 ): ItemData {
   if (handle === 'p1') return { ...data, x1: (data.x1 ?? 0) + dx, y1: (data.y1 ?? 0) + dy };
   if (handle === 'p2') return { ...data, x2: (data.x2 ?? 0) + dx, y2: (data.y2 ?? 0) + dy };
+
+  const spin = data.angle ?? 0;
+
+  if (spin) {
+    // Сдвиг указателя переводим в собственные оси объекта: тянут за его
+    // правый край, а он повёрнут — значит «вправо» для него означает
+    // другое направление на экране.
+    const back = radians(-spin);
+    const localDx = dx * Math.cos(back) - dy * Math.sin(back);
+    const localDy = dx * Math.sin(back) + dy * Math.cos(back);
+
+    const next = resized({ ...data, angle: 0 }, origin, handle, localDx, localDy);
+
+    // Середина габаритов сместилась, а вертится объект вокруг неё —
+    // значит, неподвижный угол уехал бы. Возвращаем его на место.
+    const before = anchorOf(origin, handle);
+    const after = anchorOf(boxOf(next) ?? origin, handle);
+
+    const was = rotatePoint(
+      { ...before, p: 1 },
+      { x: origin.x + origin.width / 2, y: origin.y + origin.height / 2, p: 1 },
+      spin,
+    );
+
+    const now = rotatePoint(
+      { ...after, p: 1 },
+      { x: (boxOf(next)?.x ?? 0) + (boxOf(next)?.width ?? 0) / 2,
+        y: (boxOf(next)?.y ?? 0) + (boxOf(next)?.height ?? 0) / 2, p: 1 },
+      spin,
+    );
+
+    const shiftX = was.x - now.x;
+    const shiftY = was.y - now.y;
+
+    return {
+      ...next,
+      angle: spin,
+      x1: (next.x1 ?? 0) + shiftX,
+      y1: (next.y1 ?? 0) + shiftY,
+      x2: (next.x2 ?? 0) + shiftX,
+      y2: (next.y2 ?? 0) + shiftY,
+    };
+  }
 
   const left = origin.x + (handle.includes('w') ? dx : 0);
   const right = origin.x + origin.width + (handle.includes('e') ? dx : 0);
@@ -145,4 +216,12 @@ export function resized(
   }
 
   return { ...data, x1: left, y1: top, x2: left + width, y2: top + height };
+}
+
+/** Угол габаритов, который при этой ручке должен остаться на месте. */
+function anchorOf(box: Bounds, handle: HandleId): { x: number; y: number } {
+  return {
+    x: handle.includes('w') ? box.x + box.width : box.x,
+    y: handle.startsWith('n') ? box.y + box.height : box.y,
+  };
 }
