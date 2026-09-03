@@ -157,6 +157,11 @@ public class AppDbContext : DbContext
             // единственный способ, которым к этой таблице обращаются.
             entity.HasIndex(x => new { x.PageId, x.Z });
 
+            // Под внешний ключ доски. Прежний составной индекс по доске и
+            // порядку ушёл вместе со страничным чтением, а ключ остался: по
+            // доске всё ещё считают предел объектов и ищут их при правке.
+            entity.HasIndex(x => x.BoardId);
+
             entity.HasOne(x => x.Board)
                 .WithMany()
                 .HasForeignKey(x => x.BoardId)

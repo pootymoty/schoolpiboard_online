@@ -303,6 +303,8 @@ namespace SchoolPiBoard.Web.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BoardId");
+
                     b.HasIndex("PageId", "Z");
 
                     b.ToTable("board_items", (string)null);

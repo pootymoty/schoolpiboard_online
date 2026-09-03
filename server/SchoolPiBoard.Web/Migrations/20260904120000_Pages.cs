@@ -116,8 +116,13 @@ public partial class Pages : Migration
             principalColumn: "id",
             onDelete: ReferentialAction.Cascade);
 
-        // Прежний индекс по доске больше не нужен: читают всегда страницу.
+        // Прежний составной индекс по доске и порядку больше не нужен:
+        // читают всегда страницу. Но внешний ключ доски без индекса
+        // оставлять нельзя — по доске считают предел объектов.
         migrationBuilder.DropIndex(name: "IX_board_items_board_id_z", table: "board_items");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_board_items_board_id", table: "board_items", column: "board_id");
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
@@ -125,6 +130,7 @@ public partial class Pages : Migration
         migrationBuilder.DropForeignKey(name: "FK_board_items_board_pages_page_id", table: "board_items");
         migrationBuilder.DropIndex(name: "IX_board_items_page_id_z", table: "board_items");
         migrationBuilder.DropColumn(name: "page_id", table: "board_items");
+        migrationBuilder.DropIndex(name: "IX_board_items_board_id", table: "board_items");
 
         migrationBuilder.CreateIndex(
             name: "IX_board_items_board_id_z",
