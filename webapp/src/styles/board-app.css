@@ -991,18 +991,17 @@ body.no-scroll {
     margin: var(--sp-1) 0;
 }
 
-/* Шесть образцов цвета в столбце ложатся сеткой два на три: колонкой
-   они вытянули бы панель на весь экран. */
+/* Палитра целиком: в узкой панели четыре в ряд, в широкой — восемь.
+   Одним рядом шестнадцать образцов растянули бы панель через весь холст. */
 .selection-panel--docked .selection-panel__colors {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    justify-items: center;
-    gap: 4px;
+    grid-template-columns: repeat(4, 1fr);
 }
 
 .selection-panel__colors {
-    display: flex;
-    gap: 2px;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    justify-items: center;
+    gap: 3px;
 }
 
 .swatch--sm {

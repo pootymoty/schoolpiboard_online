@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ReactElement } from 'react';
 import type { BoardItem } from './protocol';
 import type { Bounds } from './geometry';
@@ -32,10 +33,10 @@ interface Props {
 }
 
 /** Примерная ширина панели — по ней она прижимается к краям холста. */
-const WIDTH = 260;
+const WIDTH = 340;
 
 /** Примерная высота панели — по ней считается, влезает ли она над выделением. */
-const HEIGHT = 48;
+const HEIGHT = 60;
 
 /** Полоса слева, занятая вертикальной панелью инструментов. */
 const LEFT_GUTTER = 72;
@@ -69,6 +70,12 @@ export function SelectionPanel({
   items, bounds, viewport, canvas, onColor, onDuplicate, onDelete, onReorder, onCopyText, onDone,
   onTable, onLock, onCopy,
 }: Props): ReactElement {
+  /**
+   * Свой цвет. Держим его отдельно, а красим по закрытию окна выбора:
+   * пока цвет тянут по кругу, браузер сообщает о каждом оттенке, и
+   * каждый уходил бы на сервер отдельной правкой.
+   */
+  const [custom, setCustom] = useState('#2A211C');
   // Надпись — единственное, что имеет смысл забрать с доски текстом.
   // На телефоне выделить её иначе нечем: холст рисованный, а не вёрстка.
   const text = items.length === 1 && items[0].type === 'text' ? items[0].data.text ?? '' : null;
@@ -114,8 +121,11 @@ export function SelectionPanel({
       role="toolbar"
       aria-label="Действия с выделенным"
     >
+      {/* Палитра та же, что у инструментов: перекрасить выбранное и
+          нарисовать новое — одно и то же действие, и цвета в них должны
+          совпадать, иначе подобранный оттенок не повторить. */}
       <div className="selection-panel__colors">
-        {PALETTE.slice(0, 6).map((value) => (
+        {PALETTE.map((value) => (
           <button
             key={value}
             className="swatch swatch--sm"
@@ -125,6 +135,16 @@ export function SelectionPanel({
             onClick={() => onColor(value)}
           />
         ))}
+
+        <label className="swatch swatch--sm swatch--custom" title="Свой цвет">
+          <input
+            type="color"
+            value={custom}
+            onChange={(event) => setCustom(event.target.value)}
+            onBlur={() => onColor(custom)}
+            aria-label="Свой цвет"
+          />
+        </label>
       </div>
 
       {table ? (

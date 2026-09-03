@@ -4733,8 +4733,8 @@ function TextInput({
     }
   );
 }
-const WIDTH = 260;
-const HEIGHT = 48;
+const WIDTH = 340;
+const HEIGHT = 60;
 const LEFT_GUTTER = 72;
 const BOTTOM_GUTTER = 60;
 const NARROW = 720;
@@ -4753,6 +4753,7 @@ function SelectionPanel({
   onLock,
   onCopy
 }) {
+  const [custom, setCustom] = useState("#2A211C");
   const text = items.length === 1 && items[0].type === "text" ? items[0].data.text ?? "" : null;
   const locked = items.length > 0 && items.every((item) => item.data.locked);
   const table = items.length === 1 && items[0].type === "table" ? items[0] : null;
@@ -4781,17 +4782,29 @@ function SelectionPanel({
       role: "toolbar",
       "aria-label": "Действия с выделенным",
       children: [
-        /* @__PURE__ */ jsx("div", { className: "selection-panel__colors", children: PALETTE.slice(0, 6).map((value) => /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "swatch swatch--sm",
-            type: "button",
-            "aria-label": `Цвет ${value}`,
-            style: { background: value },
-            onClick: () => onColor(value)
-          },
-          value
-        )) }),
+        /* @__PURE__ */ jsxs("div", { className: "selection-panel__colors", children: [
+          PALETTE.map((value) => /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "swatch swatch--sm",
+              type: "button",
+              "aria-label": `Цвет ${value}`,
+              style: { background: value },
+              onClick: () => onColor(value)
+            },
+            value
+          )),
+          /* @__PURE__ */ jsx("label", { className: "swatch swatch--sm swatch--custom", title: "Свой цвет", children: /* @__PURE__ */ jsx(
+            "input",
+            {
+              type: "color",
+              value: custom,
+              onChange: (event) => setCustom(event.target.value),
+              onBlur: () => onColor(custom),
+              "aria-label": "Свой цвет"
+            }
+          ) })
+        ] }),
         table ? /* @__PURE__ */ jsxs(Fragment, { children: [
           /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
           /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
