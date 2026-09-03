@@ -145,8 +145,16 @@ public static class BillingEndpoints
             // отложенный старт — единственное честное поведение, и просьбу
             // браузера мы здесь не переспрашиваем, а поправляем.
             var access = await subscriptions.AccessAsync(user.Id, ct);
+
+            // Если что-то уже стоит в очереди, «начать сейчас» превратило бы
+            // сроки в кашу: новый пошёл бы с сегодня, а купленный раньше
+            // остался бы на своей дате — с разрывом или наложением. Такая
+            // покупка просто встаёт в конец очереди.
+            var queued = await subscriptions.UpcomingAsync(user.Id, ct);
+
             var startNow = request.StartNow
                 && access.Subscription is not null
+                && queued.Count == 0
                 && plan.Sort > access.Plan.Sort;
 
             var invoice = await keys.CreateInvoiceAsync(

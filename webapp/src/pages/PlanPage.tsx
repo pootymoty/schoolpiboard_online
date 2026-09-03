@@ -142,7 +142,9 @@ export function PlanPage(): ReactElement {
    * досрочно нельзя: это потеря оплаченных дней без всякой выгоды.
    */
   const upgrade = Boolean(
-    chosen && mine && mine.kind !== 'free' && chosen.sort > mine.plan.sort,
+    chosen && mine && mine.kind !== 'free'
+    && mine.upcoming.length === 0
+    && chosen.sort > mine.plan.sort,
   );
 
   /**
@@ -372,7 +374,7 @@ export function PlanPage(): ReactElement {
                         onChange={() => setNow(false)}
                       />
                       <label htmlFor="startLater">
-                        После текущего срока — оплаченные дни не теряются
+                        После текущего срока — ни один его день не теряется
                       </label>
                     </div>
 
@@ -384,7 +386,8 @@ export function PlanPage(): ReactElement {
                         onChange={() => setNow(true)}
                       />
                       <label htmlFor="startNow">
-                        Сразу — оставшиеся дни «{mine.plan.name}» сгорят
+                        Сразу — оставшиеся дни «{mine.plan.name}» сгорят,
+                        вернуть их будет нельзя
                       </label>
                     </div>
                   </>
@@ -392,8 +395,13 @@ export function PlanPage(): ReactElement {
 
                 {chosen && mine && mine.kind !== 'free' && !upgrade ? (
                   <p className="text-muted small">
-                    Срок встанет в очередь и начнётся {until ? `${until}` : 'после текущего'}:
-                    оплаченные дни не пропадают.
+                    {/* Дата начала — конец последнего из уже оплаченных сроков,
+                        а не текущего: за ним может стоять очередь. */}
+                    Срок встанет в очередь и начнётся{' '}
+                    {mine.upcoming.length > 0
+                      ? day(mine.upcoming[mine.upcoming.length - 1].endsAt)
+                      : until ?? 'после текущего'}:
+                    {' '}ни один оплаченный день не пропадает.
                   </p>
                 ) : null}
 

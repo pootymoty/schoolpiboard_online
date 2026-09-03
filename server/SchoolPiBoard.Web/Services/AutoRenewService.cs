@@ -61,6 +61,18 @@ public sealed class AutoRenewService : BackgroundService
             var plan = due.Plan;
             if (plan is null || due.InvoiceId is null) continue;
 
+            // Человек уже оплатил вперёд — например, купил другой тариф,
+            // который встанет следующим. Списывать за продление сверх этого
+            // нельзя: он заплатил бы дважды за одно и то же время, а
+            // продлённый срок встал бы ещё и после купленного.
+            var queued = await subscriptions.UpcomingAsync(due.UserId, cancellationToken);
+            if (queued.Count > 0)
+            {
+                _logger.LogInformation(
+                    "Подписка {Id}: дальше уже оплачен другой срок, автопродление пропущено.", due.Id);
+                continue;
+            }
+
             // Продлеваем на тот же срок, что и покупали. Сколько дней это
             // было, видно по самой подписке — отдельного поля не нужно.
             var days = (int)Math.Round((due.EndsAt - due.StartsAt).TotalDays);
@@ -84,6 +96,12 @@ public sealed class AutoRenewService : BackgroundService
                 _logger.LogWarning("Автопродление подписки {Id} не прошло.", due.Id);
                 continue;
             }
+
+            // Продление — такая же покупка, и в истории ей место наравне с
+            // ручными: иначе человек видит списание в банке и ничего у нас.
+            await subscriptions.RememberOrderAsync(
+                due.UserId, charged.InvoiceId, plan, days, price.Value,
+                autoRenew: true, startNow: false, cancellationToken);
 
             // Больше по этой подписке не списываем: продление придёт новой
             // строкой, и автопродление переедет на неё вместе с оплатой.

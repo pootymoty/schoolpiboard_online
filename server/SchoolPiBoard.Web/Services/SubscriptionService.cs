@@ -228,13 +228,27 @@ public sealed class SubscriptionService
 
         if (next.Plan.Sort <= running.Plan.Sort) return false;
 
-        var length = next.EndsAt - next.StartsAt;
+        // Насколько сдвигаем начало. На столько же уезжают и все сроки,
+        // стоящие в очереди за ним: иначе между концом перенесённого и
+        // началом следующего образовалась бы дыра, в которой человек с
+        // оплаченной подпиской вдруг оказался бы на бесплатном тарифе.
+        var shift = next.StartsAt - now;
+
+        var later = await _db.Subscriptions
+            .Where(x => x.UserId == userId && x.StartsAt > next.StartsAt)
+            .ToListAsync(cancellationToken);
 
         running.EndsAt = now;
         running.AutoRenew = false;
 
-        next.StartsAt = now;
-        next.EndsAt = now + length;
+        next.StartsAt -= shift;
+        next.EndsAt -= shift;
+
+        foreach (var queued in later)
+        {
+            queued.StartsAt -= shift;
+            queued.EndsAt -= shift;
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
         return true;

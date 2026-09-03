@@ -134,7 +134,9 @@ export function FilesPanel({ onInsert, onClose }: Props): ReactElement {
     try {
       const bytes = await file.arrayBuffer();
 
-      if (keep) {
+      // На тарифе без библиотеки сохранять некуда: попытка кончилась бы
+      // отказом сервера, и файл не попал бы даже на доску.
+      if (keep && library?.allowed !== false) {
         setBusy('Загружаем в библиотеку…');
         await uploadToLibrary(file);
         await load();
@@ -294,18 +296,23 @@ export function FilesPanel({ onInsert, onClose }: Props): ReactElement {
             </p>
           ) : null}
 
-          <label className="btn btn-primary files__upload">
-            Выбрать файл
-            <input
-              type="file"
-              accept="application/pdf,image/png,image/jpeg,image/webp"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = '';
-                if (file) void pick(file);
-              }}
-            />
-          </label>
+          {/* На тарифе без библиотеки кнопка не показывается: нажать её
+              можно было бы, но сервер всё равно откажет — предлагать
+              действие, заведомо кончающееся ошибкой, незачем. */}
+          {library && !library.allowed ? null : (
+            <label className="btn btn-primary files__upload">
+              Выбрать файл
+              <input
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/webp"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (file) void pick(file);
+                }}
+              />
+            </label>
+          )}
 
           <div className="check">
             <input

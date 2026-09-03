@@ -766,7 +766,7 @@ function PricingPage() {
     /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Что важно знать" }),
       /* @__PURE__ */ jsxs("ul", { className: "reading", children: [
-        /* @__PURE__ */ jsx("li", { children: "Первые 7 дней после регистрации — «Стандартный», без привязки карты." }),
+        /* @__PURE__ */ jsx("li", { children: "Первые 7 дней после подтверждения почты — «Стандартный», без привязки карты." }),
         /* @__PURE__ */ jsx("li", { children: "Оплата разовая за выбранный срок. Продление прибавляет дни к концу текущего, а не обнуляет его." }),
         /* @__PURE__ */ jsx("li", { children: "Когда оплаченный срок кончается, ничего не удаляется: доски и файлы остаются на месте, аккаунт просто возвращается к бесплатным пределам." }),
         /* @__PURE__ */ jsx("li", { children: "Ученики и коллеги, которых вы позвали по ссылке, не платят ничего и никогда." })
@@ -1032,7 +1032,7 @@ function PlanPage() {
   const chosen = plans.find((plan) => plan.code === code) ?? null;
   const price = chosen ? chosen[period.field] : 0;
   const upgrade = Boolean(
-    chosen && mine && mine.kind !== "free" && chosen.sort > mine.plan.sort
+    chosen && mine && mine.kind !== "free" && mine.upcoming.length === 0 && chosen.sort > mine.plan.sort
   );
   const pay = async () => {
     if (!chosen) return;
@@ -1196,7 +1196,7 @@ function PlanPage() {
                   onChange: () => setNow(false)
                 }
               ),
-              /* @__PURE__ */ jsx("label", { htmlFor: "startLater", children: "После текущего срока — оплаченные дни не теряются" })
+              /* @__PURE__ */ jsx("label", { htmlFor: "startLater", children: "После текущего срока — ни один его день не теряется" })
             ] }),
             /* @__PURE__ */ jsxs("div", { className: "check", children: [
               /* @__PURE__ */ jsx(
@@ -1211,14 +1211,17 @@ function PlanPage() {
               /* @__PURE__ */ jsxs("label", { htmlFor: "startNow", children: [
                 "Сразу — оставшиеся дни «",
                 mine.plan.name,
-                "» сгорят"
+                "» сгорят, вернуть их будет нельзя"
               ] })
             ] })
           ] }) : null,
           chosen && mine && mine.kind !== "free" && !upgrade ? /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
-            "Срок встанет в очередь и начнётся ",
-            until ? `${until}` : "после текущего",
-            ": оплаченные дни не пропадают."
+            "Срок встанет в очередь и начнётся",
+            " ",
+            mine.upcoming.length > 0 ? day(mine.upcoming[mine.upcoming.length - 1].endsAt) : until ?? "после текущего",
+            ":",
+            " ",
+            "ни один оплаченный день не пропадает."
           ] }) : null,
           /* @__PURE__ */ jsxs("div", { className: "check", style: { marginTop: "var(--sp-3)" }, children: [
             /* @__PURE__ */ jsx(
@@ -3374,7 +3377,7 @@ function FilesPanel({ onInsert, onClose }) {
     setError(null);
     try {
       const bytes = await file.arrayBuffer();
-      if (keep) {
+      if (keep && (library == null ? void 0 : library.allowed) !== false) {
         setBusy("Загружаем в библиотеку…");
         await uploadToLibrary(file);
         await load();
@@ -3488,7 +3491,7 @@ function FilesPanel({ onInsert, onClose }) {
     busy ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: busy }) : null,
     view === "library" ? /* @__PURE__ */ jsxs("div", { className: "files__body", children: [
       library && !library.allowed ? /* @__PURE__ */ jsx("p", { className: "note note-info", children: "Библиотека документов и страницы PDF — на платных тарифах. Картинки из буфера можно вставлять на любом." }) : null,
-      /* @__PURE__ */ jsxs("label", { className: "btn btn-primary files__upload", children: [
+      library && !library.allowed ? null : /* @__PURE__ */ jsxs("label", { className: "btn btn-primary files__upload", children: [
         "Выбрать файл",
         /* @__PURE__ */ jsx(
           "input",
@@ -5631,8 +5634,9 @@ const OFFER = {
         p("8.1. При оплате Пользователь вправе выбрать автоматическое продление Подписки. По умолчанию оно выключено и включается только явным действием Пользователя."),
         p("8.2. При включённом автоматическом продлении за 1 (одни) сутки до окончания оплаченного срока с той же банковской карты списывается вознаграждение за следующий срок той же продолжительности по действующей на момент списания цене."),
         p("8.3. Автоматическое продление отключается Пользователем в любой момент в личном кабинете, в разделе «Мой тариф». Уже оплаченный срок при этом сохраняется полностью."),
-        p("8.4. Если списание не прошло, Подписка не продлевается: учётная запись возвращается к пределам Бесплатного тарифа в порядке пункта 6.6. Повторные попытки списания не производятся."),
-        p("8.5. Включить автоматическое продление для уже оплаченной Подписки, при оплате которой оно не было выбрано, технически невозможно: платёжный сервис допускает повторные списания только по счёту, помеченному соответствующим образом в момент оплаты. Автоматическое продление может быть выбрано при следующей оплате.")
+        p("8.4. Если списание не прошло, попытки повторяются в течение оставшихся суток срока. Если ни одна не удалась, Подписка не продлевается: учётная запись возвращается к пределам Бесплатного тарифа в порядке пункта 6.6."),
+        p("8.5. Автоматическое продление не производится, если на момент окончания срока Пользователем уже оплачен следующий срок: платить дважды за одно и то же время не требуется."),
+        p("8.6. Включить автоматическое продление для уже оплаченной Подписки, при оплате которой оно не было выбрано, технически невозможно: платёжный сервис допускает повторные списания только по счёту, помеченному соответствующим образом в момент оплаты. Автоматическое продление может быть выбрано при следующей оплате.")
       ]
     },
     {
