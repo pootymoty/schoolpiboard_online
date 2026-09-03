@@ -18,6 +18,9 @@ import type { Tool, ToolSettings } from '../board/tools';
 import type { ItemData, ItemType, Point } from '../board/protocol';
 import { erase } from '../board/erase';
 import { TextInput } from '../board/TextInput';
+import {
+  cellAt, cellRect, cellText, resized as resizedTable, tableBox, withCell,
+} from '../board/tables';
 import { fontOf } from '../board/render';
 import { boundsOf, pointsOf, translate } from '../board/geometry';
 import { measureText } from '../board/handles';
@@ -84,6 +87,11 @@ export function BoardPage(): ReactElement {
 
   /** Куда поставить надпись. Пока задано — на холсте открыто поле ввода. */
   const [textAt, setTextAt] = useState<Point | null>(null);
+
+  /** Какую ячейку таблицы правим прямо сейчас. */
+  const [cellEdit, setCellEdit] = useState<
+    { itemId: number; row: number; col: number; at: Point } | null
+  >(null);
 
   // Повторный щелчок по уже выбранному рисующему инструменту открывает
   // его параметры — отдельной кнопки настройки для этого не нужно.
@@ -310,8 +318,57 @@ export function BoardPage(): ReactElement {
     hub.commitItem(`${ref}-new`, 'text', data);
   };
 
+  /**
+   * Открывает поле ввода в ячейке таблицы.
+   *
+   * Поле ставится в саму ячейку, а не рядом: набранное должно оказаться
+   * там же, куда смотрит человек.
+   */
+  const editCell = (itemId: number, world: Point) => {
+    const item = hub.items.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+
+    const where = cellAt(item.data, world);
+    if (!where) return;
+
+    const rect = cellRect(tableBox(item.data), where.row, where.col);
+
+    setCellEdit({
+      itemId,
+      row: where.row,
+      col: where.col,
+      at: { x: rect.x + 3, y: rect.y + rect.height / 2 - (item.data.fontSize ?? 20) * 0.6, p: 1 },
+    });
+  };
+
+  const commitCell = (text: string) => {
+    const edit = cellEdit;
+    setCellEdit(null);
+    if (!edit) return;
+
+    const item = hub.items.find((candidate) => candidate.id === edit.itemId);
+    if (!item) return;
+
+    hub.updateItem(item.id, withCell(item.data, edit.row, edit.col, text));
+  };
+
   const selectedItems = hub.items.filter((item) => selection.includes(item.id));
+
+  /** Таблица, ячейку которой правят: из неё берутся цвет и размер шрифта. */
+  const tableItem = cellEdit
+    ? hub.items.find((item) => item.id === cellEdit.itemId) ?? null
+    : null;
+
   const selectionBounds = selectedItems.length > 0 ? boundsOf(selectedItems) : null;
+
+  /**
+   * На узком экране панель выделения встаёт на место инструментов.
+   * Ширина берётся от холста, а не от окна: холст и есть то место, где
+   * панелям тесно.
+   */
+  const docked = Boolean(
+    selectionBounds && hub.canEdit && canvasSize.width > 0 && canvasSize.width < 720,
+  );
 
   /** Копия выделенного со сдвигом — чтобы копия не легла ровно поверх оригинала. */
   const duplicateSelection = () => {
@@ -687,6 +744,10 @@ export function BoardPage(): ReactElement {
 
           {/* Панель показывается всем: наблюдателю нужны рука и масштаб,
               а рисующие кнопки у него просто заблокированы. */}
+          {/* Пока на узком экране что-то выбрано, слева стоит панель
+              выделения, а не инструменты: две панели там не помещаются,
+              и раньше они наезжали друг на друга и на кнопку участников. */}
+          {docked ? null : (
           <DrawToolbar
             tool={tool}
             settings={settings}
@@ -697,6 +758,7 @@ export function BoardPage(): ReactElement {
             onUndo={history.undo}
             onRedo={history.redo}
           />
+          )}
 
           <ViewToolbar
             canManage={hub.canManage}
@@ -751,6 +813,7 @@ export function BoardPage(): ReactElement {
               pending.current.set(tempId, { ref, snapshot: { ref, type, data } });
               hub.commitItem(tempId, type, data);
             }}
+            onCellAt={editCell}
             onErase={eraseAt}
             onEraseEnd={() => erased.current.clear()}
             onDrawStart={() => setShowParams(false)}
@@ -816,6 +879,26 @@ export function BoardPage(): ReactElement {
                   setError('Скопировать не вышло — браузер не дал доступ к буферу.')
                 ));
               }}
+              onDone={() => setSelection([])}
+              onTable={(rows, cols) => {
+                const item = selectedItems[0];
+                if (item) hub.updateItem(item.id, resizedTable(item.data, rows, cols));
+              }}
+            />
+          ) : null}
+
+          {cellEdit ? (
+            <TextInput
+              at={cellEdit.at}
+              viewport={viewport}
+              bounds={canvasSize}
+              settings={{
+                color: tableItem?.data.color ?? settings.table.color,
+                fontSize: tableItem?.data.fontSize ?? settings.table.fontSize,
+              }}
+              initial={tableItem ? cellText(tableItem.data, cellEdit.row, cellEdit.col) : ''}
+              onCommit={commitCell}
+              onCancel={() => setCellEdit(null)}
             />
           ) : null}
 

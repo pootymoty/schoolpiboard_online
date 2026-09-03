@@ -335,6 +335,13 @@ const IconMenu = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* 
   /* @__PURE__ */ jsx("path", { d: "M3 12h18" }),
   /* @__PURE__ */ jsx("path", { d: "M3 18h18" })
 ] }) });
+const IconTable = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("rect", { x: "3", y: "4", width: "18", height: "16", rx: "2" }),
+  /* @__PURE__ */ jsx("path", { d: "M3 10h18" }),
+  /* @__PURE__ */ jsx("path", { d: "M3 15h18" }),
+  /* @__PURE__ */ jsx("path", { d: "M9 4v16" }),
+  /* @__PURE__ */ jsx("path", { d: "M15 4v16" })
+] }) });
 function Menu({ label, children, trigger, triggerClassName = "btn-tool" }) {
   const [open, setOpen] = useState(false);
   const box = useRef(null);
@@ -2279,6 +2286,76 @@ function preload(refs) {
     }, 3e3);
   });
 }
+const MAX_ROWS = 20;
+const MAX_COLS = 12;
+const DEFAULT_ROWS = 3;
+const DEFAULT_COLS = 3;
+const MIN_CELL = 24;
+function clampRows(value) {
+  return Math.max(1, Math.min(MAX_ROWS, Math.round(value)));
+}
+function clampCols(value) {
+  return Math.max(1, Math.min(MAX_COLS, Math.round(value)));
+}
+function tableBox(data) {
+  const x1 = data.x1 ?? 0;
+  const y1 = data.y1 ?? 0;
+  const x2 = data.x2 ?? x1;
+  const y2 = data.y2 ?? y1;
+  return {
+    x: Math.min(x1, x2),
+    y: Math.min(y1, y2),
+    width: Math.max(MIN_CELL, Math.abs(x2 - x1)),
+    height: Math.max(MIN_CELL, Math.abs(y2 - y1)),
+    rows: clampRows(data.rows ?? DEFAULT_ROWS),
+    cols: clampCols(data.cols ?? DEFAULT_COLS)
+  };
+}
+function cellRect(box, row, col) {
+  const width = box.width / box.cols;
+  const height = box.height / box.rows;
+  return { x: box.x + col * width, y: box.y + row * height, width, height };
+}
+function cellAt(data, point) {
+  const box = tableBox(data);
+  if (point.x < box.x || point.x > box.x + box.width) return null;
+  if (point.y < box.y || point.y > box.y + box.height) return null;
+  const col = Math.min(box.cols - 1, Math.floor((point.x - box.x) / (box.width / box.cols)));
+  const row = Math.min(box.rows - 1, Math.floor((point.y - box.y) / (box.height / box.rows)));
+  return { row, col };
+}
+function cellText(data, row, col) {
+  var _a;
+  const box = tableBox(data);
+  return ((_a = data.cells) == null ? void 0 : _a[row * box.cols + col]) ?? "";
+}
+function withCell(data, row, col, text) {
+  const box = tableBox(data);
+  const cells = normalizeCells(data.cells, box.rows, box.cols);
+  cells[row * box.cols + col] = text;
+  return { ...data, rows: box.rows, cols: box.cols, cells };
+}
+function normalizeCells(cells, rows, cols) {
+  const result = new Array(rows * cols).fill("");
+  if (!cells) return result;
+  for (let index = 0; index < Math.min(cells.length, result.length); index += 1) {
+    result[index] = cells[index] ?? "";
+  }
+  return result;
+}
+function resized$1(data, rows, cols) {
+  const box = tableBox(data);
+  const nextRows = clampRows(rows);
+  const nextCols = clampCols(cols);
+  const before = normalizeCells(data.cells, box.rows, box.cols);
+  const after = new Array(nextRows * nextCols).fill("");
+  for (let row = 0; row < Math.min(box.rows, nextRows); row += 1) {
+    for (let col = 0; col < Math.min(box.cols, nextCols); col += 1) {
+      after[row * nextCols + col] = before[row * box.cols + col];
+    }
+  }
+  return { ...data, rows: nextRows, cols: nextCols, cells: after };
+}
 function dashOf(style, width) {
   const unit = Math.max(1, width);
   if (style === "dash") return [unit * 3, unit * 2];
@@ -2415,26 +2492,44 @@ function drawGrid(context, style, color, width, height, offsetX, offsetY, scale)
     context.restore();
     return;
   }
-  if (style === "rhombus") {
+  const diagonals = (down) => {
     context.beginPath();
     for (let x = startX - height; x < width + height; x += step) {
-      context.moveTo(x, 0);
-      context.lineTo(x + height, height);
-      context.moveTo(x, height);
-      context.lineTo(x + height, 0);
+      context.moveTo(x, down ? 0 : height);
+      context.lineTo(x + height, down ? height : 0);
     }
     context.stroke();
-    context.restore();
-    return;
-  }
-  if (style === "line") {
+  };
+  const ruled = (spacing) => {
     context.lineWidth = 0.8;
     context.beginPath();
-    for (let y = startY; y < height; y += step) {
+    for (let y = offsetY % spacing; y < height; y += spacing) {
       context.moveTo(0, y);
       context.lineTo(width, y);
     }
     context.stroke();
+  };
+  if (style === "rhombus") {
+    diagonals(true);
+    diagonals(false);
+    context.restore();
+    return;
+  }
+  if (style === "triangle") {
+    ruled(step);
+    context.lineWidth = 1;
+    diagonals(true);
+    diagonals(false);
+    context.restore();
+    return;
+  }
+  if (style === "line") {
+    ruled(step);
+    context.restore();
+    return;
+  }
+  if (style === "wide") {
+    ruled(step * 2);
     context.restore();
     return;
   }
@@ -2455,6 +2550,10 @@ function drawGrid(context, style, color, width, height, offsetX, offsetY, scale)
   for (let x = startX; x < width; x += step) line(x, height, true, index++);
   index = 0;
   for (let y = startY; y < height; y += step) line(y, width, false, index++);
+  if (style === "hybrid") {
+    context.lineWidth = 0.6;
+    diagonals(true);
+  }
   context.restore();
 }
 function drawImage(context, data, imageRef) {
@@ -2474,10 +2573,46 @@ function drawImage(context, data, imageRef) {
   context.strokeRect(x, y, width, height);
   context.restore();
 }
+function drawTable(context, data) {
+  var _a;
+  const box = tableBox(data);
+  context.setLineDash([]);
+  context.lineWidth = Math.max(1, data.width / 2);
+  context.beginPath();
+  for (let col = 0; col <= box.cols; col += 1) {
+    const x = box.x + box.width / box.cols * col;
+    context.moveTo(x, box.y);
+    context.lineTo(x, box.y + box.height);
+  }
+  for (let row = 0; row <= box.rows; row += 1) {
+    const y = box.y + box.height / box.rows * row;
+    context.moveTo(box.x, y);
+    context.lineTo(box.x + box.width, y);
+  }
+  context.stroke();
+  if (!((_a = data.cells) == null ? void 0 : _a.length)) return;
+  context.font = fontOf(data);
+  context.textBaseline = "middle";
+  const padding = Math.min(6, box.width / box.cols / 6);
+  for (let row = 0; row < box.rows; row += 1) {
+    for (let col = 0; col < box.cols; col += 1) {
+      const text = data.cells[row * box.cols + col];
+      if (!text) continue;
+      const cell = cellRect(box, row, col);
+      context.save();
+      context.beginPath();
+      context.rect(cell.x, cell.y, cell.width, cell.height);
+      context.clip();
+      context.fillText(text, cell.x + padding, cell.y + cell.height / 2);
+      context.restore();
+    }
+  }
+}
 function drawItem(context, type, data, imageRef = null) {
   context.save();
   applyStyle(context, data);
   if (type === "text") drawText(context, data);
+  else if (type === "table") drawTable(context, data);
   else if (type === "shape") drawShape(context, data);
   else if (type === "image") drawImage(context, data, imageRef);
   else drawStroke(context, data);
@@ -2545,7 +2680,7 @@ function distanceToSegment(point, from, to) {
 function hits(item, point, radius) {
   const points = pointsOf(item.data);
   const reach = radius + item.data.width / 2;
-  if (item.type === "text" || item.type === "image" || item.data.shape === "ellipse") {
+  if (item.type === "text" || item.type === "image" || item.type === "table" || item.data.shape === "ellipse") {
     const box = boundsOf([item]);
     return Boolean(box) && point.x >= box.x - radius && point.x <= box.x + box.width + radius && point.y >= box.y - radius && point.y <= box.y + box.height + radius;
   }
@@ -2725,6 +2860,7 @@ function BoardCanvas({
   onCommit,
   onDrawStart,
   onTextAt,
+  onCellAt,
   onErase,
   onEraseEnd
 }) {
@@ -2748,6 +2884,20 @@ function BoardCanvas({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const drawnBy = () => {
     const { tool: active, settings: current } = latest.current;
+    if (active === "table") {
+      const it = current.table;
+      return {
+        type: "table",
+        data: {
+          color: it.color,
+          width: it.width,
+          fontSize: it.fontSize,
+          rows: it.rows,
+          cols: it.cols,
+          cells: []
+        }
+      };
+    }
     if (active === "shapes") {
       const it = current.shapes;
       return {
@@ -2990,8 +3140,15 @@ function BoardCanvas({
         onSelection(chosen.includes(hit.id) ? chosen.filter((id) => id !== hit.id) : [...chosen, hit.id]);
         return;
       }
+      const repeat = chosen.length === 1 && chosen[0] === hit.id;
       if (!chosen.includes(hit.id)) onSelection([hit.id]);
-      moving.current = { pointerId: event.pointerId, from: point, dx: 0, dy: 0 };
+      moving.current = {
+        pointerId: event.pointerId,
+        from: point,
+        dx: 0,
+        dy: 0,
+        cell: hit.type === "table" && repeat ? hit.id : null
+      };
       return;
     }
     if (latest.current.tool === "text") {
@@ -3010,7 +3167,7 @@ function BoardCanvas({
       sent: 0,
       from: point,
       to: point,
-      preview: () => brush.type === "shape" ? { x1: record.from.x, y1: record.from.y, x2: record.to.x, y2: record.to.y } : { points: record.points }
+      preview: () => brush.type === "shape" || brush.type === "table" ? { x1: record.from.x, y1: record.from.y, x2: record.to.x, y2: record.to.y } : { points: record.points }
     };
     drawing.current = record;
     if (brush.type === "stroke") {
@@ -3088,7 +3245,7 @@ function BoardCanvas({
     }
     const stroke = drawing.current;
     if (!stroke || stroke.pointerId !== event.pointerId) return;
-    if (latest.current.tool === "shapes") {
+    if (latest.current.tool === "shapes" || latest.current.tool === "table") {
       stroke.to = shiftAware(event, stroke.from, point);
       schedule();
       return;
@@ -3144,6 +3301,8 @@ function BoardCanvas({
       moving.current = null;
       if (drag.dx !== 0 || drag.dy !== 0) {
         onMoved(latest.current.selection, drag.dx, drag.dy);
+      } else if (drag.cell !== null) {
+        onCellAt(drag.cell, drag.from);
       }
       schedule();
       return;
@@ -3153,7 +3312,7 @@ function BoardCanvas({
     drawing.current = null;
     const brush = drawnBy();
     const geometry = stroke.preview();
-    const meaningful = brush.type === "shape" ? Math.hypot(stroke.to.x - stroke.from.x, stroke.to.y - stroke.from.y) > 2 : stroke.points.length > 1;
+    const meaningful = brush.type === "shape" || brush.type === "table" ? Math.hypot(stroke.to.x - stroke.from.x, stroke.to.y - stroke.from.y) > 2 : stroke.points.length > 1;
     if (meaningful) {
       onCommit(brush.type, { ...brush.data, ...geometry }, stroke.tempId);
     } else if (brush.type === "stroke") {
@@ -3654,7 +3813,7 @@ function FilesPanel({ onInsert, onClose }) {
     ] }) : null
   ] });
 }
-const DRAWING_TOOLS = ["pen1", "pen2", "marker", "eraser", "shapes", "text"];
+const DRAWING_TOOLS = ["pen1", "pen2", "marker", "eraser", "shapes", "text", "table"];
 const SIZES = [1, 5, 10, 15, 20, 30];
 const OPACITIES = [20, 40, 50, 70, 100];
 const ERASER_SIZES = [8, 16, 26, 60, 120];
@@ -3682,7 +3841,15 @@ const PALETTE = [
   "#B7950B",
   "#1E8449",
   "#1F618D",
-  "#8E44AD"
+  "#8E44AD",
+  "#FFFFFF",
+  "#C0392B",
+  "#D35400",
+  "#F1C40F",
+  "#27AE60",
+  "#16A085",
+  "#2E86C1",
+  "#C2185B"
 ];
 const DEFAULT_SETTINGS = {
   pen1: { color: "#2A211C", width: 5, opacity: 100 },
@@ -3691,12 +3858,14 @@ const DEFAULT_SETTINGS = {
   marker: { color: "#B7950B", width: 20, opacity: 40 },
   shapes: { color: "#1F618D", width: 5, opacity: 100, shape: "rect", lineStyle: "solid" },
   text: { color: "#2A211C", fontSize: 24 },
+  table: { color: "#2A211C", width: 3, fontSize: 20, rows: 3, cols: 3 },
   eraser: { size: 26 }
 };
 function toolColor(tool, settings) {
   if (tool === "pen1" || tool === "pen2" || tool === "marker") return settings[tool].color;
   if (tool === "shapes") return settings.shapes.color;
   if (tool === "text") return settings.text.color;
+  if (tool === "table") return settings.table.color;
   return null;
 }
 function DrawToolbar({
@@ -3760,7 +3929,8 @@ function DrawToolbar({
     pick("marker", /* @__PURE__ */ jsx(IconMarker, {}), "Маркер"),
     pick("eraser", /* @__PURE__ */ jsx(IconEraser, {}), "Ластик"),
     pick("text", /* @__PURE__ */ jsx(IconText, {}), "Текст"),
-    pick("shapes", /* @__PURE__ */ jsx(IconShapes, {}), "Фигуры")
+    pick("shapes", /* @__PURE__ */ jsx(IconShapes, {}), "Фигуры"),
+    pick("table", /* @__PURE__ */ jsx(IconTable, {}), "Таблица")
   ] });
 }
 function ViewToolbar({
@@ -3871,18 +4041,29 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
   const patchShape = (patch) => {
     onChange({ ...settings, shapes: { ...settings.shapes, ...patch } });
   };
-  const swatches = (current, apply) => /* @__PURE__ */ jsx("div", { className: "params__row", children: PALETTE.map((value) => /* @__PURE__ */ jsx(
-    "button",
-    {
-      className: "swatch",
-      type: "button",
-      "aria-pressed": current === value,
-      "aria-label": `Цвет ${value}`,
-      style: { background: value },
-      onClick: () => apply(value)
-    },
-    value
-  )) });
+  const swatches = (current, apply) => /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
+    PALETTE.map((value) => /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "swatch",
+        type: "button",
+        "aria-pressed": current === value,
+        "aria-label": `Цвет ${value}`,
+        style: { background: value },
+        onClick: () => apply(value)
+      },
+      value
+    )),
+    /* @__PURE__ */ jsx("label", { className: "swatch swatch--custom", title: "Свой цвет", children: /* @__PURE__ */ jsx(
+      "input",
+      {
+        type: "color",
+        value: current,
+        onChange: (event) => apply(event.target.value),
+        "aria-label": "Свой цвет"
+      }
+    ) })
+  ] });
   return /* @__PURE__ */ jsxs("div", { className: "params", role: "dialog", "aria-label": "Параметры инструмента", children: [
     /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
       /* @__PURE__ */ jsx("span", { className: "params__title", children: titleOf(tool) }),
@@ -4016,6 +4197,47 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
       )) }),
       /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет" }),
       swatches(settings.text.color, (color) => onChange({ ...settings, text: { ...settings.text, color } }))
+    ] }) : null,
+    tool === "table" ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Строк" }),
+      /* @__PURE__ */ jsx("div", { className: "params__row", children: [2, 3, 4, 5, 6, 8, 10].map((value) => /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet btn-sm",
+          type: "button",
+          "aria-pressed": settings.table.rows === value,
+          onClick: () => onChange({ ...settings, table: { ...settings.table, rows: value } }),
+          children: value
+        },
+        value
+      )) }),
+      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Столбцов" }),
+      /* @__PURE__ */ jsx("div", { className: "params__row", children: [2, 3, 4, 5, 6, 8].map((value) => /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet btn-sm",
+          type: "button",
+          "aria-pressed": settings.table.cols === value,
+          onClick: () => onChange({ ...settings, table: { ...settings.table, cols: value } }),
+          children: value
+        },
+        value
+      )) }),
+      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Размер шрифта" }),
+      /* @__PURE__ */ jsx("div", { className: "params__row", children: [14, 16, 20, 24, 32].map((value) => /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet btn-sm",
+          type: "button",
+          "aria-pressed": settings.table.fontSize === value,
+          onClick: () => onChange({ ...settings, table: { ...settings.table, fontSize: value } }),
+          children: value
+        },
+        value
+      )) }),
+      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет" }),
+      swatches(settings.table.color, (color) => onChange({ ...settings, table: { ...settings.table, color } })),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "Растяните рамку на доске. Чтобы заполнить ячейку — выберите таблицу и нажмите на ячейку ещё раз." })
     ] }) : null
   ] });
 }
@@ -4025,6 +4247,7 @@ function titleOf(tool) {
   if (tool === "marker") return "Маркер";
   if (tool === "eraser") return "Ластик";
   if (tool === "text") return "Текст";
+  if (tool === "table") return "Таблица";
   return "Фигуры";
 }
 function erase(item, at, radius) {
@@ -4080,8 +4303,16 @@ function splitBySegment(data, points, at, reach) {
   return { kind: "keep" };
 }
 const MIN_WIDTH = 96;
-function TextInput({ at, viewport, bounds, settings, onCommit, onCancel }) {
-  const [value, setValue] = useState("");
+function TextInput({
+  at,
+  viewport,
+  bounds,
+  settings,
+  initial,
+  onCommit,
+  onCancel
+}) {
+  const [value, setValue] = useState(initial ?? "");
   const [size, setSize] = useState({ width: MIN_WIDTH, height: 0 });
   const field = useRef(null);
   useEffect(() => {
@@ -4151,10 +4382,15 @@ function SelectionPanel({
   onDuplicate,
   onDelete,
   onReorder,
-  onCopyText
+  onCopyText,
+  onDone,
+  onTable
 }) {
   const text = items.length === 1 && items[0].type === "text" ? items[0].data.text ?? "" : null;
-  const pinned = canvas.width > 0 && canvas.width < NARROW;
+  const table = items.length === 1 && items[0].type === "table" ? items[0] : null;
+  const rows = table ? clampRows(table.data.rows ?? DEFAULT_ROWS) : 0;
+  const cols = table ? clampCols(table.data.cols ?? DEFAULT_COLS) : 0;
+  const docked = canvas.width > 0 && canvas.width < NARROW;
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
   const above = corner.y - 8 - HEIGHT >= 8;
@@ -4172,8 +4408,8 @@ function SelectionPanel({
   return /* @__PURE__ */ jsxs(
     "div",
     {
-      className: pinned ? "selection-panel selection-panel--pinned" : "selection-panel",
-      style: pinned ? void 0 : { left, top, transform: "translateX(-50%)" },
+      className: docked ? "selection-panel selection-panel--docked" : "selection-panel",
+      style: docked ? void 0 : { left, top, transform: "translateX(-50%)" },
       role: "toolbar",
       "aria-label": "Действия с выделенным",
       children: [
@@ -4188,17 +4424,76 @@ function SelectionPanel({
           },
           value
         )) }),
+        table ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
+          /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool btn-tool--tiny",
+                type: "button",
+                title: "Убрать строку",
+                disabled: rows <= 1,
+                onClick: () => onTable(rows - 1, cols),
+                children: "−"
+              }
+            ),
+            /* @__PURE__ */ jsxs("span", { className: "selection-panel__count", children: [
+              rows,
+              "×",
+              cols
+            ] }),
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool btn-tool--tiny",
+                type: "button",
+                title: "Добавить строку",
+                disabled: rows >= MAX_ROWS,
+                onClick: () => onTable(rows + 1, cols),
+                children: "+"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool btn-tool--tiny",
+                type: "button",
+                title: "Убрать столбец",
+                disabled: cols <= 1,
+                onClick: () => onTable(rows, cols - 1),
+                children: "−"
+              }
+            ),
+            /* @__PURE__ */ jsx("span", { className: "selection-panel__count", children: "столбцы" }),
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool btn-tool--tiny",
+                type: "button",
+                title: "Добавить столбец",
+                disabled: cols >= MAX_COLS,
+                onClick: () => onTable(rows, cols + 1),
+                children: "+"
+              }
+            )
+          ] })
+        ] }) : null,
         /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
         /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onDuplicate, title: "Дублировать (Ctrl+D)", children: /* @__PURE__ */ jsx(IconCopy, {}) }),
         /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onDelete, title: "Удалить (Delete)", children: /* @__PURE__ */ jsx(IconTrash, {}) }),
-        pinned ? (
+        docked ? (
           // На телефоне три точки только путали: на что там жать, было не
-          // понять без подписи. Прокручиваемый ряд кнопок — тот же приём,
-          // что уже прижился в панели инструментов.
+          // понять без подписи. Кнопки столбиком — тот же приём, что уже
+          // прижился в панели инструментов.
           /* @__PURE__ */ jsxs(Fragment, { children: [
             /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onReorder(true), title: "На передний план", children: /* @__PURE__ */ jsx(IconToFront, {}) }),
             /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onReorder(false), title: "На задний план", children: /* @__PURE__ */ jsx(IconToBack, {}) }),
-            text ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onCopyText(text), title: "Скопировать текст", children: /* @__PURE__ */ jsx(IconCopy, {}) }) : null
+            text ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onCopyText(text), title: "Скопировать текст", children: /* @__PURE__ */ jsx(IconCopy, {}) }) : null,
+            /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
+            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onDone, title: "Готово — снять выделение", children: /* @__PURE__ */ jsx(IconCheck, {}) })
           ] })
         ) : (
           // На ПК места хватает — а вот словесная подпись читается быстрее,
@@ -4216,16 +4511,44 @@ function SelectionPanel({
     }
   );
 }
-const COLORS = ["#FFFDF8", "#FFFFFF", "#F4F1E8", "#EAF2F8", "#EAF6EE", "#2A211C"];
+const COLORS = [
+  "#FFFDF8",
+  "#FFFFFF",
+  "#F4F1E8",
+  "#FDF3C6",
+  "#FBE0D2",
+  "#F9D5DC",
+  "#E5D9F2",
+  "#EAF2F8",
+  "#EAF6EE",
+  "#F1F1F1",
+  "#2A211C",
+  "#17171B",
+  "#0B2545",
+  "#14342B",
+  "#2A1B3D"
+];
 const GRIDS = [
   { kind: "none", label: "Без сетки" },
-  { kind: "line", label: "Линия" },
+  { kind: "line", label: "Узкая линейка" },
+  { kind: "wide", label: "Широкая линейка" },
   { kind: "dot", label: "Точка" },
   { kind: "square", label: "Клетка" },
   { kind: "graph", label: "График" },
-  { kind: "rhombus", label: "Ромб" }
+  { kind: "hybrid", label: "Гибридная" },
+  { kind: "rhombus", label: "Ромб" },
+  { kind: "triangle", label: "Треугольник" }
 ];
-const GRID_COLORS = ["#D9CFC0", "#C7D6E5", "#CFE0D2", "#E0CFCF", "#5A4A3E"];
+const GRID_COLORS = [
+  "#D9CFC0",
+  "#C7D6E5",
+  "#CFE0D2",
+  "#E0CFCF",
+  "#D5D5DC",
+  "#5A4A3E",
+  "#3E4A5A",
+  "#8C8C99"
+];
 function BackgroundPanel({ value, onChange, onClose }) {
   return /* @__PURE__ */ jsxs("div", { className: "params params--right", role: "dialog", "aria-label": "Оформление фона", children: [
     /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
@@ -4233,18 +4556,29 @@ function BackgroundPanel({ value, onChange, onClose }) {
       /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
     ] }),
     /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет" }),
-    /* @__PURE__ */ jsx("div", { className: "params__row", children: COLORS.map((color) => /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "swatch",
-        type: "button",
-        "aria-pressed": value.background === color,
-        "aria-label": `Фон ${color}`,
-        style: { background: color },
-        onClick: () => onChange({ ...value, background: color })
-      },
-      color
-    )) }),
+    /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
+      COLORS.map((color) => /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "swatch",
+          type: "button",
+          "aria-pressed": value.background === color,
+          "aria-label": `Фон ${color}`,
+          style: { background: color },
+          onClick: () => onChange({ ...value, background: color })
+        },
+        color
+      )),
+      /* @__PURE__ */ jsx("label", { className: "swatch swatch--custom", title: "Свой цвет фона", children: /* @__PURE__ */ jsx(
+        "input",
+        {
+          type: "color",
+          value: value.background,
+          onChange: (event) => onChange({ ...value, background: event.target.value }),
+          "aria-label": "Свой цвет фона"
+        }
+      ) })
+    ] }),
     /* @__PURE__ */ jsx("p", { className: "params__label", children: "Разлиновка" }),
     /* @__PURE__ */ jsx("div", { className: "params__row", children: GRIDS.map((grid) => /* @__PURE__ */ jsx(
       "button",
@@ -4258,18 +4592,29 @@ function BackgroundPanel({ value, onChange, onClose }) {
       grid.kind
     )) }),
     /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет разлиновки" }),
-    /* @__PURE__ */ jsx("div", { className: "params__row", children: GRID_COLORS.map((color) => /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "swatch",
-        type: "button",
-        "aria-pressed": value.gridColor === color,
-        "aria-label": `Разлиновка ${color}`,
-        style: { background: color },
-        onClick: () => onChange({ ...value, gridColor: color })
-      },
-      color
-    )) })
+    /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
+      GRID_COLORS.map((color) => /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "swatch",
+          type: "button",
+          "aria-pressed": value.gridColor === color,
+          "aria-label": `Разлиновка ${color}`,
+          style: { background: color },
+          onClick: () => onChange({ ...value, gridColor: color })
+        },
+        color
+      )),
+      /* @__PURE__ */ jsx("label", { className: "swatch swatch--custom", title: "Свой цвет разлиновки", children: /* @__PURE__ */ jsx(
+        "input",
+        {
+          type: "color",
+          value: value.gridColor,
+          onChange: (event) => onChange({ ...value, gridColor: event.target.value }),
+          "aria-label": "Свой цвет разлиновки"
+        }
+      ) })
+    ] })
   ] });
 }
 const MAX_MINUTES = 180;
@@ -4380,7 +4725,9 @@ const TIPS = [
   { keys: "Ctrl + A", what: "выделить всё" },
   { keys: "Delete, Backspace", what: "удалить выделенное" },
   { keys: "Esc", what: "снять выделение, закрыть панель" },
-  { keys: "Enter в поле надписи", what: "закрепить; Shift + Enter — новая строка" }
+  { keys: "Enter в поле надписи", what: "закрепить; Shift + Enter — новая строка" },
+  { keys: "Таблица: тычок в выбранную", what: "заполнить ячейку" },
+  { keys: "Таблица: выбрать и «+ / −»", what: "добавить или убрать строку, столбец" }
 ];
 function HelpPanel({ onClose }) {
   return /* @__PURE__ */ jsxs("div", { className: "params params--right", role: "dialog", "aria-label": "Справка", children: [
@@ -4731,6 +5078,7 @@ function BoardPage() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [textAt, setTextAt] = useState(null);
+  const [cellEdit, setCellEdit] = useState(null);
   const setTool = (next) => {
     setShowParams(next === tool && DRAWING_TOOLS.includes(next) ? !showParams : false);
     setToolRaw(next);
@@ -4883,8 +5231,33 @@ function BoardPage() {
     pending.current.set(`${ref}-new`, { ref, snapshot: { ref, type: "text", data } });
     hub.commitItem(`${ref}-new`, "text", data);
   };
+  const editCell = (itemId, world) => {
+    const item = hub.items.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    const where = cellAt(item.data, world);
+    if (!where) return;
+    const rect = cellRect(tableBox(item.data), where.row, where.col);
+    setCellEdit({
+      itemId,
+      row: where.row,
+      col: where.col,
+      at: { x: rect.x + 3, y: rect.y + rect.height / 2 - (item.data.fontSize ?? 20) * 0.6, p: 1 }
+    });
+  };
+  const commitCell = (text) => {
+    const edit = cellEdit;
+    setCellEdit(null);
+    if (!edit) return;
+    const item = hub.items.find((candidate) => candidate.id === edit.itemId);
+    if (!item) return;
+    hub.updateItem(item.id, withCell(item.data, edit.row, edit.col, text));
+  };
   const selectedItems = hub.items.filter((item) => selection.includes(item.id));
+  const tableItem = cellEdit ? hub.items.find((item) => item.id === cellEdit.itemId) ?? null : null;
   const selectionBounds = selectedItems.length > 0 ? boundsOf(selectedItems) : null;
+  const docked = Boolean(
+    selectionBounds && hub.canEdit && canvasSize.width > 0 && canvasSize.width < 720
+  );
   const duplicateSelection = () => {
     for (const item of selectedItems) {
       const ref = `c${item.id}-${Date.now().toString(36)}`;
@@ -5161,7 +5534,7 @@ function BoardPage() {
                 children: board.title
               }
             ) : /* @__PURE__ */ jsx("p", { className: "board-title__text", children: board.title }) }),
-            /* @__PURE__ */ jsx(
+            docked ? null : /* @__PURE__ */ jsx(
               DrawToolbar,
               {
                 tool,
@@ -5228,6 +5601,7 @@ function BoardPage() {
                   pending.current.set(tempId, { ref, snapshot: { ref, type, data } });
                   hub.commitItem(tempId, type, data);
                 },
+                onCellAt: editCell,
                 onErase: eraseAt,
                 onEraseEnd: () => erased.current.clear(),
                 onDrawStart: () => setShowParams(false),
@@ -5276,7 +5650,27 @@ function BoardPage() {
                 onCopyText: (text) => {
                   var _a;
                   (_a = navigator.clipboard) == null ? void 0 : _a.writeText(text).catch(() => setError("Скопировать не вышло — браузер не дал доступ к буферу."));
+                },
+                onDone: () => setSelection([]),
+                onTable: (rows, cols) => {
+                  const item = selectedItems[0];
+                  if (item) hub.updateItem(item.id, resized$1(item.data, rows, cols));
                 }
+              }
+            ) : null,
+            cellEdit ? /* @__PURE__ */ jsx(
+              TextInput,
+              {
+                at: cellEdit.at,
+                viewport,
+                bounds: canvasSize,
+                settings: {
+                  color: (tableItem == null ? void 0 : tableItem.data.color) ?? settings.table.color,
+                  fontSize: (tableItem == null ? void 0 : tableItem.data.fontSize) ?? settings.table.fontSize
+                },
+                initial: tableItem ? cellText(tableItem.data, cellEdit.row, cellEdit.col) : "",
+                onCommit: commitCell,
+                onCancel: () => setCellEdit(null)
               }
             ) : null,
             textAt ? /* @__PURE__ */ jsx(

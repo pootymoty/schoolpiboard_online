@@ -32,6 +32,8 @@ interface Props {
   onDrawStart: () => void;
   /** Ткнули текстом: здесь появится поле ввода. */
   onTextAt: (world: Point) => void;
+  /** Ткнули в ячейку уже выбранной таблицы: там откроется поле ввода. */
+  onCellAt: (itemId: number, world: Point) => void;
   /** Ластик прошёл по точке: что стереть и что оставить, решает страница. */
   onErase: (at: Point, radius: number) => void;
   /** Ластик отпустили — можно забыть, что уже стёрли за этот проход. */
@@ -60,7 +62,8 @@ const ERASE_RADIUS = 8;
  */
 export function BoardCanvas({
   hub, tool, settings, viewport, background, selection,
-  onViewport, onSize, onSelection, onMoved, onCommit, onDrawStart, onTextAt, onErase, onEraseEnd,
+  onViewport, onSize, onSelection, onMoved, onCommit, onDrawStart, onTextAt, onCellAt,
+  onErase, onEraseEnd,
 }: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
@@ -104,8 +107,16 @@ export function BoardCanvas({
   /** Рамка выделения, пока её тянут. В мировых координатах. */
   const marquee = useRef<{ pointerId: number; from: Point; to: Point } | null>(null);
 
-  /** Перетаскивание выделенного: откуда начали и сколько уже сдвинули. */
-  const moving = useRef<{ pointerId: number; from: Point; dx: number; dy: number } | null>(null);
+  /**
+   * Перетаскивание выделенного: откуда начали и сколько уже сдвинули.
+   *
+   * `cell` — номер таблицы, если тычок пришёлся в неё уже выбранную.
+   * Решаем по отпусканию: пока палец на экране, это с равным успехом
+   * может оказаться перетаскиванием.
+   */
+  const moving = useRef<
+    { pointerId: number; from: Point; dx: number; dy: number; cell: number | null } | null
+  >(null);
 
   /** Указатель, которым сейчас стирают. */
   const erasing = useRef<number | null>(null);
@@ -135,6 +146,21 @@ export function BoardCanvas({
   /** Каким объектом обернётся текущий жест рисования. */
   const drawnBy = (): { type: ItemType; data: ItemData } => {
     const { tool: active, settings: current } = latest.current;
+
+    if (active === 'table') {
+      const it = current.table;
+      return {
+        type: 'table',
+        data: {
+          color: it.color,
+          width: it.width,
+          fontSize: it.fontSize,
+          rows: it.rows,
+          cols: it.cols,
+          cells: [],
+        },
+      };
+    }
 
     if (active === 'shapes') {
       const it = current.shapes;
@@ -489,9 +515,16 @@ export function BoardCanvas({
       // Тычок в уже выделенное сохраняет выборку: иначе перетащить
       // несколько объектов было бы нельзя — первый же тычок сбрасывал бы
       // остальные.
+      const repeat = chosen.length === 1 && chosen[0] === hit.id;
       if (!chosen.includes(hit.id)) onSelection([hit.id]);
 
-      moving.current = { pointerId: event.pointerId, from: point, dx: 0, dy: 0 };
+      moving.current = {
+        pointerId: event.pointerId,
+        from: point,
+        dx: 0,
+        dy: 0,
+        cell: hit.type === 'table' && repeat ? hit.id : null,
+      };
       return;
     }
 
@@ -517,7 +550,7 @@ export function BoardCanvas({
       sent: 0,
       from: point,
       to: point,
-      preview: (): Partial<ItemData> => (brush.type === 'shape'
+      preview: (): Partial<ItemData> => (brush.type === 'shape' || brush.type === 'table'
         ? { x1: record.from.x, y1: record.from.y, x2: record.to.x, y2: record.to.y }
         : { points: record.points }),
     };
@@ -625,7 +658,7 @@ export function BoardCanvas({
     // протягивалась линия.
     if (!stroke || stroke.pointerId !== event.pointerId) return;
 
-    if (latest.current.tool === 'shapes') {
+    if (latest.current.tool === 'shapes' || latest.current.tool === 'table') {
       stroke.to = shiftAware(event, stroke.from, point);
       schedule();
       return;
@@ -700,6 +733,10 @@ export function BoardCanvas({
 
       if (drag.dx !== 0 || drag.dy !== 0) {
         onMoved(latest.current.selection, drag.dx, drag.dy);
+      } else if (drag.cell !== null) {
+        // Таблица уже была выбрана и с места не сдвинулась — значит
+        // хотели заполнить ячейку, а не переставить таблицу.
+        onCellAt(drag.cell, drag.from);
       }
 
       schedule();
@@ -715,7 +752,7 @@ export function BoardCanvas({
     const geometry = stroke.preview();
 
     // Тычок без протяжки — это промах, а не объект: не закрепляем.
-    const meaningful = brush.type === 'shape'
+    const meaningful = brush.type === 'shape' || brush.type === 'table'
       ? Math.hypot(stroke.to.x - stroke.from.x, stroke.to.y - stroke.from.y) > 2
       : stroke.points.length > 1;
 

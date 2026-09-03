@@ -11,6 +11,8 @@ interface Props {
   /** Габариты холста: поле не должно уезжать за его край. */
   bounds: { width: number; height: number };
   settings: TextSettings;
+  /** Что уже написано — при правке ячейки таблицы поле открывается не пустым. */
+  initial?: string;
   onCommit: (text: string) => void;
   onCancel: () => void;
 }
@@ -29,8 +31,10 @@ const MIN_WIDTH = 96;
  * Широкое поле по умолчанию не даёт понять, где на доске окажется
  * надпись: оно занимает всё, куда она могла бы попасть.
  */
-export function TextInput({ at, viewport, bounds, settings, onCommit, onCancel }: Props): ReactElement {
-  const [value, setValue] = useState('');
+export function TextInput({
+  at, viewport, bounds, settings, initial, onCommit, onCancel,
+}: Props): ReactElement {
+  const [value, setValue] = useState(initial ?? '');
   const [size, setSize] = useState({ width: MIN_WIDTH, height: 0 });
   const field = useRef<HTMLTextAreaElement | null>(null);
 

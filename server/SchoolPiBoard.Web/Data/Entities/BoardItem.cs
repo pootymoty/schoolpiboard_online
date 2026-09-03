@@ -21,8 +21,12 @@ public class BoardItem
     public const string TypeText = "text";
     public const string TypeImage = "image";
 
+    /// <summary>Таблица: сетка и текст по ячейкам, один объект целиком.</summary>
+    public const string TypeTable = "table";
+
     /// <summary>Типы, которые сервер принимает. Всё прочее — отказ.</summary>
-    public static readonly string[] KnownTypes = { TypeStroke, TypeShape, TypeText, TypeImage };
+    public static readonly string[] KnownTypes =
+        { TypeStroke, TypeShape, TypeText, TypeImage, TypeTable };
 
     public long Id { get; set; }
 

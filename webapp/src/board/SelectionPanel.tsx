@@ -2,10 +2,11 @@ import type { ReactElement } from 'react';
 import type { BoardItem } from './protocol';
 import type { Bounds } from './geometry';
 import { PALETTE } from './tools';
+import { DEFAULT_COLS, DEFAULT_ROWS, MAX_COLS, MAX_ROWS, clampCols, clampRows } from './tables';
 import { toScreen } from './viewport';
 import type { Viewport } from './viewport';
 import { Menu } from '../components/Menu';
-import { IconCopy, IconToBack, IconToFront, IconTrash } from '../components/Icons';
+import { IconCheck, IconCopy, IconToBack, IconToFront, IconTrash } from '../components/Icons';
 
 interface Props {
   items: BoardItem[];
@@ -18,6 +19,10 @@ interface Props {
   onDelete: () => void;
   onReorder: (toFront: boolean) => void;
   onCopyText: (text: string) => void;
+  /** Снять выделение: на телефоне это ещё и «верни панель инструментов». */
+  onDone: () => void;
+  /** Изменить размерность выбранной таблицы. */
+  onTable: (rows: number, cols: number) => void;
 }
 
 /** Примерная ширина панели — по ней она прижимается к краям холста. */
@@ -33,12 +38,14 @@ const LEFT_GUTTER = 72;
 const BOTTOM_GUTTER = 60;
 
 /**
- * Ниже этой ширины панель перестаёт летать над выделением и садится
- * полосой у нижнего края холста.
+ * Ниже этой ширины панель встаёт на место вертикальной панели
+ * инструментов, слева.
  *
- * На маленьком экране выделенное часто оказывается под панелью или за
- * краем, и панель приходилось бы искать. Двигать ради неё сам холст
- * нельзя: на большом экране это дёргало бы вид без всякой нужды.
+ * Летающая панель на телефоне оказывалась то под пальцем, то за краем;
+ * полоса у нижнего края закрывала кнопку участников. А место слева в этот
+ * момент занято тем, что всё равно не нужно: пока объект выбран, человек
+ * работает с ним, а не выбирает перо. Кнопка «Готово» снимает выделение
+ * и возвращает инструменты.
  */
 const NARROW = 720;
 
@@ -53,12 +60,19 @@ const NARROW = 720;
  * его приходится дольше, чем подпись.
  */
 export function SelectionPanel({
-  items, bounds, viewport, canvas, onColor, onDuplicate, onDelete, onReorder, onCopyText,
+  items, bounds, viewport, canvas, onColor, onDuplicate, onDelete, onReorder, onCopyText, onDone,
+  onTable,
 }: Props): ReactElement {
   // Надпись — единственное, что имеет смысл забрать с доски текстом.
   // На телефоне выделить её иначе нечем: холст рисованный, а не вёрстка.
   const text = items.length === 1 && items[0].type === 'text' ? items[0].data.text ?? '' : null;
-  const pinned = canvas.width > 0 && canvas.width < NARROW;
+
+  // Строки и столбцы правятся у выбранной таблицы, а не при построении:
+  // сколько их нужно, обычно выясняется уже по ходу заполнения.
+  const table = items.length === 1 && items[0].type === 'table' ? items[0] : null;
+  const rows = table ? clampRows(table.data.rows ?? DEFAULT_ROWS) : 0;
+  const cols = table ? clampCols(table.data.cols ?? DEFAULT_COLS) : 0;
+  const docked = canvas.width > 0 && canvas.width < NARROW;
 
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
@@ -85,8 +99,8 @@ export function SelectionPanel({
 
   return (
     <div
-      className={pinned ? 'selection-panel selection-panel--pinned' : 'selection-panel'}
-      style={pinned ? undefined : { left, top, transform: 'translateX(-50%)' }}
+      className={docked ? 'selection-panel selection-panel--docked' : 'selection-panel'}
+      style={docked ? undefined : { left, top, transform: 'translateX(-50%)' }}
       role="toolbar"
       aria-label="Действия с выделенным"
     >
@@ -103,6 +117,56 @@ export function SelectionPanel({
         ))}
       </div>
 
+      {table ? (
+        <>
+          <span className="toolbar__divider" aria-hidden="true" />
+
+          <div className="selection-panel__table">
+            <button
+              className="btn-tool btn-tool--tiny"
+              type="button"
+              title="Убрать строку"
+              disabled={rows <= 1}
+              onClick={() => onTable(rows - 1, cols)}
+            >
+              −
+            </button>
+            <span className="selection-panel__count">{rows}×{cols}</span>
+            <button
+              className="btn-tool btn-tool--tiny"
+              type="button"
+              title="Добавить строку"
+              disabled={rows >= MAX_ROWS}
+              onClick={() => onTable(rows + 1, cols)}
+            >
+              +
+            </button>
+          </div>
+
+          <div className="selection-panel__table">
+            <button
+              className="btn-tool btn-tool--tiny"
+              type="button"
+              title="Убрать столбец"
+              disabled={cols <= 1}
+              onClick={() => onTable(rows, cols - 1)}
+            >
+              −
+            </button>
+            <span className="selection-panel__count">столбцы</span>
+            <button
+              className="btn-tool btn-tool--tiny"
+              type="button"
+              title="Добавить столбец"
+              disabled={cols >= MAX_COLS}
+              onClick={() => onTable(rows, cols + 1)}
+            >
+              +
+            </button>
+          </div>
+        </>
+      ) : null}
+
       <span className="toolbar__divider" aria-hidden="true" />
 
       <button className="btn-tool" type="button" onClick={onDuplicate} title="Дублировать (Ctrl+D)">
@@ -112,10 +176,10 @@ export function SelectionPanel({
         <IconTrash />
       </button>
 
-      {pinned ? (
+      {docked ? (
         // На телефоне три точки только путали: на что там жать, было не
-        // понять без подписи. Прокручиваемый ряд кнопок — тот же приём,
-        // что уже прижился в панели инструментов.
+        // понять без подписи. Кнопки столбиком — тот же приём, что уже
+        // прижился в панели инструментов.
         <>
           <button className="btn-tool" type="button" onClick={() => onReorder(true)} title="На передний план">
             <IconToFront />
@@ -128,6 +192,12 @@ export function SelectionPanel({
               <IconCopy />
             </button>
           ) : null}
+
+          <span className="toolbar__divider" aria-hidden="true" />
+
+          <button className="btn-tool" type="button" onClick={onDone} title="Готово — снять выделение">
+            <IconCheck />
+          </button>
         </>
       ) : (
         // На ПК места хватает — а вот словесная подпись читается быстрее,

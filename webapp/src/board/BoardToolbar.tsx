@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
-  IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconText, IconTrash, IconUndo,
+  IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
+  IconTrash, IconUndo,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -72,6 +73,7 @@ export function DrawToolbar({
       {pick('eraser', <IconEraser />, 'Ластик')}
       {pick('text', <IconText />, 'Текст')}
       {pick('shapes', <IconShapes />, 'Фигуры')}
+      {pick('table', <IconTable />, 'Таблица')}
     </div>
   );
 }

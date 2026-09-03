@@ -313,3 +313,16 @@ export const IconMenu = (props: Props): ReactElement => (
 export const IconChevronDown = (props: Props): ReactElement => (
   <Svg {...props}><path d="M6 9l6 6 6-6" /></Svg>
 );
+
+/** Таблица: сетка три на три — по ней узнают инструмент. */
+export const IconTable = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M3 15h18" />
+      <path d="M9 4v16" />
+      <path d="M15 4v16" />
+    </g>
+  </Svg>
+);

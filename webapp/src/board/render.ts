@@ -1,4 +1,5 @@
 import { imageFor } from './images';
+import { cellRect, tableBox } from './tables';
 import type { ItemData, ItemType, LineStyle, Point } from './protocol';
 
 /**
@@ -195,33 +196,61 @@ export function drawGrid(
     return;
   }
 
-  if (style === 'rhombus') {
+  /** Диагонали под 45° в одну сторону — из них собраны ромб и треугольник. */
+  const diagonals = (down: boolean) => {
     context.beginPath();
     for (let x = startX - height; x < width + height; x += step) {
-      context.moveTo(x, 0);
-      context.lineTo(x + height, height);
-      context.moveTo(x, height);
-      context.lineTo(x + height, 0);
+      context.moveTo(x, down ? 0 : height);
+      context.lineTo(x + height, down ? height : 0);
     }
     context.stroke();
+  };
+
+  /** Горизонтали с заданным шагом — линейка. */
+  const ruled = (spacing: number) => {
+    context.lineWidth = 0.8;
+    context.beginPath();
+    for (let y = offsetY % spacing; y < height; y += spacing) {
+      context.moveTo(0, y);
+      context.lineTo(width, y);
+    }
+    context.stroke();
+  };
+
+  if (style === 'rhombus') {
+    diagonals(true);
+    diagonals(false);
+    context.restore();
+    return;
+  }
+
+  if (style === 'triangle') {
+    // Горизонтали и обе диагонали: сетка из равных треугольников —
+    // по ней от руки рисуют объёмные тела.
+    ruled(step);
+    context.lineWidth = 1;
+    diagonals(true);
+    diagonals(false);
     context.restore();
     return;
   }
 
   if (style === 'line') {
     // Только горизонтальные — как в линованной тетради.
-    context.lineWidth = 0.8;
-    context.beginPath();
-    for (let y = startY; y < height; y += step) {
-      context.moveTo(0, y);
-      context.lineTo(width, y);
-    }
-    context.stroke();
+    ruled(step);
     context.restore();
     return;
   }
 
-  // Квадрат и график отличаются только частотой крупной линии.
+  if (style === 'wide') {
+    // Вдвое реже: под крупный почерк и под запись в две строки.
+    ruled(step * 2);
+    context.restore();
+    return;
+  }
+
+  // Квадрат, график и гибридная строятся на одной клетке: график
+  // усиливает каждую пятую линию, гибридная добавляет диагональ.
   const bold = style === 'graph' ? 5 : 0;
 
   const line = (from: number, limit: number, vertical: boolean, index: number) => {
@@ -242,6 +271,11 @@ export function drawGrid(
 
   index = 0;
   for (let y = startY; y < height; y += step) line(y, width, false, index++);
+
+  if (style === 'hybrid') {
+    context.lineWidth = 0.6;
+    diagonals(true);
+  }
 
   context.restore();
 }
@@ -272,6 +306,59 @@ function drawImage(context: CanvasRenderingContext2D, data: ItemData, imageRef: 
   context.restore();
 }
 
+/**
+ * Таблица: сетка и текст по ячейкам.
+ *
+ * Текст обрезается границами ячейки, а не переносится: перенос менял бы
+ * высоту строки, а высота здесь задана рамкой, и таблица начинала бы
+ * дышать при каждом набранном слове.
+ */
+function drawTable(context: CanvasRenderingContext2D, data: ItemData): void {
+  const box = tableBox(data);
+
+  context.setLineDash([]);
+  context.lineWidth = Math.max(1, data.width / 2);
+
+  context.beginPath();
+
+  for (let col = 0; col <= box.cols; col += 1) {
+    const x = box.x + (box.width / box.cols) * col;
+    context.moveTo(x, box.y);
+    context.lineTo(x, box.y + box.height);
+  }
+
+  for (let row = 0; row <= box.rows; row += 1) {
+    const y = box.y + (box.height / box.rows) * row;
+    context.moveTo(box.x, y);
+    context.lineTo(box.x + box.width, y);
+  }
+
+  context.stroke();
+
+  if (!data.cells?.length) return;
+
+  context.font = fontOf(data);
+  context.textBaseline = 'middle';
+
+  const padding = Math.min(6, box.width / box.cols / 6);
+
+  for (let row = 0; row < box.rows; row += 1) {
+    for (let col = 0; col < box.cols; col += 1) {
+      const text = data.cells[row * box.cols + col];
+      if (!text) continue;
+
+      const cell = cellRect(box, row, col);
+
+      context.save();
+      context.beginPath();
+      context.rect(cell.x, cell.y, cell.width, cell.height);
+      context.clip();
+      context.fillText(text, cell.x + padding, cell.y + cell.height / 2);
+      context.restore();
+    }
+  }
+}
+
 export function drawItem(
   context: CanvasRenderingContext2D,
   type: ItemType,
@@ -282,6 +369,7 @@ export function drawItem(
   applyStyle(context, data);
 
   if (type === 'text') drawText(context, data);
+  else if (type === 'table') drawTable(context, data);
   else if (type === 'shape') drawShape(context, data);
   else if (type === 'image') drawImage(context, data, imageRef);
   else drawStroke(context, data);

@@ -47,6 +47,18 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
           onClick={() => apply(value)}
         />
       ))}
+
+      {/* Произвольный цвет: палитра закрывает обычные случаи, но
+          «тот самый зелёный из учебника» в ней не окажется никогда.
+          Берём готовое окно браузера — своё было бы хуже и тяжелее. */}
+      <label className="swatch swatch--custom" title="Свой цвет">
+        <input
+          type="color"
+          value={current}
+          onChange={(event) => apply(event.target.value)}
+          aria-label="Свой цвет"
+        />
+      </label>
     </div>
   );
 
@@ -211,6 +223,65 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
           ))}
         </>
       ) : null}
+
+      {tool === 'table' ? (
+        <>
+          <p className="params__label">Строк</p>
+          <div className="params__row">
+            {[2, 3, 4, 5, 6, 8, 10].map((value) => (
+              <button
+                key={value}
+                className="btn-quiet btn-sm"
+                type="button"
+                aria-pressed={settings.table.rows === value}
+                onClick={() => onChange({ ...settings, table: { ...settings.table, rows: value } })}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+
+          <p className="params__label">Столбцов</p>
+          <div className="params__row">
+            {[2, 3, 4, 5, 6, 8].map((value) => (
+              <button
+                key={value}
+                className="btn-quiet btn-sm"
+                type="button"
+                aria-pressed={settings.table.cols === value}
+                onClick={() => onChange({ ...settings, table: { ...settings.table, cols: value } })}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+
+          <p className="params__label">Размер шрифта</p>
+          <div className="params__row">
+            {[14, 16, 20, 24, 32].map((value) => (
+              <button
+                key={value}
+                className="btn-quiet btn-sm"
+                type="button"
+                aria-pressed={settings.table.fontSize === value}
+                onClick={() => onChange({ ...settings, table: { ...settings.table, fontSize: value } })}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+
+          <p className="params__label">Цвет</p>
+          {swatches(settings.table.color, (color) => (
+            onChange({ ...settings, table: { ...settings.table, color } })
+          ))}
+
+          <p className="text-muted small" style={{ margin: 'var(--sp-2) 0 0' }}>
+            Растяните рамку на доске. Чтобы заполнить ячейку — выберите таблицу
+            и нажмите на ячейку ещё раз.
+          </p>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -221,5 +292,6 @@ function titleOf(tool: Tool): string {
   if (tool === 'marker') return 'Маркер';
   if (tool === 'eraser') return 'Ластик';
   if (tool === 'text') return 'Текст';
+  if (tool === 'table') return 'Таблица';
   return 'Фигуры';
 }

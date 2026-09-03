@@ -22,6 +22,8 @@ const TIPS: { keys: string; what: string }[] = [
   { keys: 'Delete, Backspace', what: 'удалить выделенное' },
   { keys: 'Esc', what: 'снять выделение, закрыть панель' },
   { keys: 'Enter в поле надписи', what: 'закрепить; Shift + Enter — новая строка' },
+  { keys: 'Таблица: тычок в выбранную', what: 'заполнить ячейку' },
+  { keys: 'Таблица: выбрать и «+ / −»', what: 'добавить или убрать строку, столбец' },
 ];
 
 export function HelpPanel({ onClose }: Props): ReactElement {

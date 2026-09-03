@@ -11,7 +11,7 @@ export interface Point {
  * Тип объекта. Все фигуры — один тип с уточнением в `data.shape`: иначе
  * каждая новая фигура требовала бы менять и сервер, и базу.
  */
-export type ItemType = 'stroke' | 'shape' | 'text' | 'image';
+export type ItemType = 'stroke' | 'shape' | 'text' | 'image' | 'table';
 
 export type ShapeKind =
   | 'line' | 'arrow' | 'rect' | 'ellipse'
@@ -43,6 +43,11 @@ export interface ItemData {
    */
   ratio?: number;
 
+  /** Таблица: размерность и содержимое ячеек по строкам, слева направо. */
+  rows?: number;
+  cols?: number;
+  cells?: string[];
+
   color: string;
   width: number;
   /** 0..1. Маркер рисуется полупрозрачным. */
@@ -72,7 +77,9 @@ export interface Cursor {
   y: number;
 }
 
-export type GridStyle = 'none' | 'line' | 'dot' | 'square' | 'graph' | 'rhombus';
+export type GridStyle =
+  | 'none' | 'line' | 'wide' | 'dot' | 'square'
+  | 'graph' | 'hybrid' | 'rhombus' | 'triangle';
 
 /** Оформление холста — свойство доски, общее для всех. */
 export interface Background {
