@@ -550,7 +550,7 @@ public sealed class BoardHub : Hub
                     id = page.Id,
                     title = page.Title,
                     visibility = page.Visibility,
-                    viewers = viewers.TryGetValue(page.Id, out var list) ? list : Array.Empty<string>()
+                    viewers = viewers.TryGetValue(page.Id, out var list) ? list : new List<string>()
                 })
             },
             Context.ConnectionAborted);
