@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Page } from '../components/Layout';
+import { SHOWN_PLANS } from '../content/plans';
 import type { Plan } from '../api/types';
 import { IconCheck, IconClose } from '../components/Icons';
 
@@ -28,13 +29,19 @@ function storage(bytes: number): string {
  */
 export function PricingPage(): ReactElement {
   const { user } = useAuth();
-  const [plans, setPlans] = useState<Plan[]>([]);
+  // Начинаем с известного списка, а не с пустого: страница собирается в
+  // статический HTML, и на сборке спросить сервер не у кого — иначе
+  // поисковик получил бы «Тарифы» без единой цены. Ответ сервера эти
+  // значения заменяет.
+  const [plans, setPlans] = useState<Plan[]>(SHOWN_PLANS);
   const [period, setPeriod] = useState(PERIODS[0]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api<Plan[]>('/plans')
       .then(setPlans)
+      // Сервер не ответил — на экране остаются те же тарифы, что и в
+      // собранной странице. Ошибку показываем: цены могли измениться.
       .catch((reason) => setError(
         reason instanceof ApiError ? reason.message : 'Не удалось загрузить тарифы.',
       ));
