@@ -1040,6 +1040,36 @@ body.no-scroll {
 
 .library__formula-text { font-size: var(--fs-sm); }
 
+.library__keep {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    padding: var(--sp-1) 0;
+}
+
+.library__keep .input { width: 100%; }
+
+.library__note { color: var(--danger, #B03A2E); }
+
+.library__mine {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+}
+
+.library__mine .library__pick {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sp-2);
+}
+
+/* Число объектов в заготовке: по нему видно, что ставится на доску —
+   один значок или чертёж на полстраницы. */
+.library__count {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
 /* --- Панель над выделением ---------------------------------------------------- */
 
 .selection-panel {

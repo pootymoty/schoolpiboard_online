@@ -31,6 +31,7 @@ builder.Services.AddScoped<BoardItemService>();
 builder.Services.AddScoped<PageService>();
 builder.Services.AddSingleton<FileStorage>();
 builder.Services.AddScoped<LibraryService>();
+builder.Services.AddScoped<TemplateService>();
 builder.Services.AddScoped<SubscriptionService>();
 builder.Services.AddScoped<KeyServerClient>();
 
@@ -121,6 +122,7 @@ app.UseRateLimiter();
 app.MapAuthEndpoints();
 app.MapBoardEndpoints();
 app.MapFileEndpoints();
+app.MapTemplateEndpoints();
 app.MapBillingEndpoints();
 
 // Без RequireAuthorization: на доску пускают и гостя, у которого учётной

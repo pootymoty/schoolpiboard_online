@@ -31,6 +31,8 @@ public class AppDbContext : DbContext
 
     public DbSet<BillingOrder> BillingOrders => Set<BillingOrder>();
 
+    public DbSet<UserTemplate> UserTemplates => Set<UserTemplate>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(entity =>
@@ -322,6 +324,28 @@ public class AppDbContext : DbContext
             // Подтверждение приходит по номеру счёта, и он же не даёт
             // завести два заказа на один счёт.
             entity.HasIndex(x => x.InvoiceId).IsUnique();
+        });
+
+        model.Entity<UserTemplate>(entity =>
+        {
+            entity.ToTable("user_templates");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.UserId).HasColumnName("user_id");
+            entity.Property(x => x.Title).HasColumnName("title").IsRequired();
+            entity.Property(x => x.Body).HasColumnName("body").IsRequired();
+            entity.Property(x => x.Count).HasColumnName("count");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+
+            // Список читается своим и по алфавиту не сортируется: свежая
+            // заготовка нужна чаще старой.
+            entity.HasIndex(x => new { x.UserId, x.CreatedAt });
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

@@ -30,6 +30,7 @@ import { BackgroundPanel } from '../board/BackgroundPanel';
 import { PagesPanel } from '../board/PagesPanel';
 import { LibraryPanel } from '../board/LibraryPanel';
 import type { Template } from '../board/library';
+import type { TemplateItem } from '../api/templates';
 import { TimerPanel } from '../board/TimerPanel';
 import { HelpPanel } from '../board/HelpPanel';
 import { exportPng } from '../board/exportPng';
@@ -647,6 +648,53 @@ export function BoardPage(): ReactElement {
   }, [history, send]);
 
   /**
+   * Своя заготовка из папки «Мои».
+   *
+   * Она уже собрана — остаётся перенести её к середине видимой части
+   * холста. Размер не трогаем: заготовку сохраняли такой, какой она
+   * нужна, и подгонять её под окно значило бы менять кегль подписей.
+   */
+  const insertItems = useCallback((items: TemplateItem[]) => {
+    if (items.length === 0) return;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const item of items) {
+      for (const point of pointsOf(item.data)) {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+      }
+    }
+
+    if (minX === Infinity) return;
+
+    const view = viewportRef.current;
+    const size = canvasRef.current;
+    const center = toWorld(view, size.width / 2, size.height / 2);
+
+    const dx = center.x - (minX + maxX) / 2;
+    const dy = center.y - (minY + maxY) / 2;
+
+    const stamp = Date.now().toString(36);
+    const snapshots: ItemSnapshot[] = [];
+
+    items.forEach((item, index) => {
+      const ref = `m${stamp}-${index}`;
+      const data = translate(item.data, dx, dy);
+
+      snapshots.push({ ref, type: item.type, data });
+      send(ref, item.type, data);
+    });
+
+    history.push({ kind: 'create', items: snapshots });
+  }, [history, send]);
+
+  /**
    * Вставка чего угодно из буфера: картинка ложится картинкой, текст —
    * надписью, файл — как обычная загрузка. Гостю это закрыто вместе со
    * всей загрузкой файлов.
@@ -1033,7 +1081,13 @@ export function BoardPage(): ReactElement {
           {showLibrary && hub.canEdit ? (
             <LibraryPanel
               onInsert={insertTemplate}
+              onInsertItems={insertItems}
               onText={pasteText}
+              // Картинки в заготовку не идут: файл принадлежит своей доске.
+              selection={selectedItems
+                .filter((item) => item.type !== 'image')
+                .map((item) => ({ type: item.type, data: item.data }))}
+              canKeep={state?.me.isGuest === false}
               onClose={() => setShowLibrary(false)}
             />
           ) : null}

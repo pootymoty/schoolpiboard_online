@@ -5654,16 +5654,73 @@ const FORMULAS = [
     ]
   }
 ];
+function listTemplates() {
+  return api("/templates");
+}
+function saveTemplate(title, items) {
+  return api("/templates", {
+    method: "POST",
+    body: { title, body: JSON.stringify(items) }
+  });
+}
+function deleteTemplate(templateId) {
+  return api(`/templates/${templateId}`, { method: "DELETE" });
+}
+function itemsOf(template) {
+  try {
+    const parsed = JSON.parse(template.body);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 const TABS = [
   ...TEMPLATE_GROUPS.map((group) => ({ kind: group.kind, title: group.title })),
   { kind: "symbols", title: "Знаки" },
-  { kind: "formulas", title: "Формулы" }
+  { kind: "formulas", title: "Формулы" },
+  { kind: "mine", title: "Мои" }
 ];
-function LibraryPanel({ onInsert, onText, onClose }) {
+function LibraryPanel({
+  onInsert,
+  onInsertItems,
+  onText,
+  selection,
+  canKeep,
+  onClose
+}) {
   const [tab, setTab] = useState("axes");
   const [chosen, setChosen] = useState(null);
   const [params, setParams] = useState(defaultParams);
+  const [mine, setMine] = useState(null);
+  const [title, setTitle] = useState("");
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(false);
   const templates = TEMPLATES.filter((one) => one.group === tab);
+  useEffect(() => {
+    if (tab !== "mine" || !canKeep || mine !== null) return;
+    let alive = true;
+    listTemplates().then((rows) => alive && setMine(rows)).catch((reason) => {
+      if (!alive) return;
+      setMine([]);
+      setNote(reason instanceof ApiError ? reason.message : "Не удалось прочитать заготовки.");
+    });
+    return () => {
+      alive = false;
+    };
+  }, [tab, canKeep, mine]);
+  const keep = () => {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    saveTemplate(title.trim(), selection).then((saved) => {
+      setMine((current) => [saved, ...current ?? []]);
+      setTitle("");
+    }).catch((reason) => setNote(reason instanceof ApiError ? reason.message : "Не удалось сохранить.")).finally(() => setBusy(false));
+  };
+  const drop = (template) => {
+    if (!window.confirm(`Удалить заготовку «${template.title}»?`)) return;
+    deleteTemplate(template.id).then(() => setMine((current) => (current ?? []).filter((one) => one.id !== template.id))).catch((reason) => setNote(reason instanceof ApiError ? reason.message : "Не удалось удалить."));
+  };
   const tune = (id, key, value) => {
     setParams((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
   };
@@ -5717,6 +5774,7 @@ function LibraryPanel({ onInsert, onText, onClose }) {
         onClick: () => {
           setTab(one.kind);
           setChosen(null);
+          setNote(null);
         },
         children: one.title
       },
@@ -5779,7 +5837,67 @@ function LibraryPanel({ onInsert, onText, onClose }) {
         },
         one.label
       ))
-    ] }, row.title)) }) : null
+    ] }, row.title)) }) : null,
+    tab === "mine" ? /* @__PURE__ */ jsx("div", { className: "library__list", children: !canKeep ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Свои заготовки хранятся в учётной записи. Гостю на доске они недоступны." }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Выделите на доске готовый чертёж и сохраните его под именем — он встанет сюда и будет доступен на любой другой доске. Картинки в заготовку не попадают: файл остаётся у своей доски." }),
+      /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            className: "input",
+            type: "text",
+            value: title,
+            maxLength: 80,
+            placeholder: "Название заготовки",
+            onChange: (event) => setTitle(event.target.value)
+          }
+        ),
+        /* @__PURE__ */ jsxs(
+          "button",
+          {
+            className: "btn btn-sm",
+            type: "button",
+            disabled: busy || title.trim().length === 0 || selection.length === 0,
+            onClick: keep,
+            title: selection.length === 0 ? "Сначала выделите объекты на доске" : void 0,
+            children: [
+              "Сохранить выделенное (",
+              selection.length,
+              ")"
+            ]
+          }
+        )
+      ] }),
+      note ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: note }) : null,
+      mine === null ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Читаем…" }) : null,
+      mine !== null && mine.length === 0 ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Пока пусто." }) : null,
+      (mine ?? []).map((one) => /* @__PURE__ */ jsxs("div", { className: "library__mine", children: [
+        /* @__PURE__ */ jsxs(
+          "button",
+          {
+            className: "btn-quiet library__pick",
+            type: "button",
+            onClick: () => onInsertItems(itemsOf(one)),
+            title: "Поставить на доску",
+            children: [
+              one.title,
+              /* @__PURE__ */ jsx("span", { className: "library__count", children: one.count })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-quiet btn-sm",
+            type: "button",
+            onClick: () => drop(one),
+            "aria-label": `Удалить заготовку ${one.title}`,
+            title: "Удалить заготовку",
+            children: /* @__PURE__ */ jsx(IconTrash, {})
+          }
+        )
+      ] }, one.id))
+    ] }) }) : null
   ] });
 }
 const MAX_MINUTES = 180;
@@ -5890,6 +6008,7 @@ const TIPS = [
   { keys: "Ctrl + A", what: "выделить всё" },
   { keys: "Ctrl + C, Ctrl + X, Ctrl + V", what: "копировать, вырезать, вставить — на другой странице и на другой доске" },
   { keys: "Страницы в верхней панели", what: "занятие идёт по страницам; каждый ходит по ним сам" },
+  { keys: "Заготовки в верхней панели", what: "оси, объёмные фигуры, знаки и формулы — настраиваются до вставки" },
   { keys: "Двойной щелчок по названию", what: "переименовать страницу — у владельца" },
   { keys: "Замок в панели выделения", what: "запереть объект: не двигается и не стирается" },
   { keys: "Курсор → Указка", what: "след, который видят все и который сам гаснет" },
@@ -6674,6 +6793,36 @@ function BoardPage() {
     });
     history.push({ kind: "create", items: snapshots });
   }, [history, send2]);
+  const insertItems = useCallback((items) => {
+    if (items.length === 0) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const item of items) {
+      for (const point of pointsOf(item.data)) {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+      }
+    }
+    if (minX === Infinity) return;
+    const view = viewportRef.current;
+    const size = canvasRef.current;
+    const center = toWorld(view, size.width / 2, size.height / 2);
+    const dx = center.x - (minX + maxX) / 2;
+    const dy = center.y - (minY + maxY) / 2;
+    const stamp = Date.now().toString(36);
+    const snapshots = [];
+    items.forEach((item, index) => {
+      const ref = `m${stamp}-${index}`;
+      const data = translate(item.data, dx, dy);
+      snapshots.push({ ref, type: item.type, data });
+      send2(ref, item.type, data);
+    });
+    history.push({ kind: "create", items: snapshots });
+  }, [history, send2]);
   useEffect(() => {
     if (!hub.canEdit || (state == null ? void 0 : state.me.isGuest) !== false) return;
     const onPaste = (event) => {
@@ -6973,7 +7122,10 @@ function BoardPage() {
               LibraryPanel,
               {
                 onInsert: insertTemplate,
+                onInsertItems: insertItems,
                 onText: pasteText,
+                selection: selectedItems.filter((item) => item.type !== "image").map((item) => ({ type: item.type, data: item.data })),
+                canKeep: (state == null ? void 0 : state.me.isGuest) === false,
                 onClose: () => setShowLibrary(false)
               }
             ) : null,
