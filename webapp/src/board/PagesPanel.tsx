@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ReactElement } from 'react';
 import type { BoardPageInfo, PageVisibility, Participant } from './protocol';
-import { IconCheck, IconTrash } from '../components/Icons';
+import { IconArrowDown, IconArrowUp, IconCheck, IconEye, IconTrash } from '../components/Icons';
 
 interface Props {
   pages: BoardPageInfo[];
@@ -100,24 +100,27 @@ export function PagesPanel({
 
             {canManage ? (
               <span className="pages__tools">
+                {/* Значки, а не знаки: стрелка и шестерёнка из шрифта
+                    стояли в одном ряду с рисованной корзиной и заметно
+                    отличались от неё и толщиной, и размером. */}
                 <button
-                  className="btn-tool btn-tool--tiny" type="button" title="Выше"
+                  className="btn-tool btn-tool--tiny" type="button" title="Выше" aria-label="Выше"
                   disabled={index === 0} onClick={() => move(index, -1)}
                 >
-                  ↑
+                  <IconArrowUp size={14} />
                 </button>
                 <button
-                  className="btn-tool btn-tool--tiny" type="button" title="Ниже"
+                  className="btn-tool btn-tool--tiny" type="button" title="Ниже" aria-label="Ниже"
                   disabled={index === pages.length - 1} onClick={() => move(index, 1)}
                 >
-                  ↓
+                  <IconArrowDown size={14} />
                 </button>
                 <button
                   className="btn-tool btn-tool--tiny" type="button" title="Кому видна"
-                  aria-pressed={tuning === page.id}
+                  aria-label="Кому видна" aria-pressed={tuning === page.id}
                   onClick={() => setTuning(tuning === page.id ? null : page.id)}
                 >
-                  ⚙
+                  <IconEye size={14} />
                 </button>
                 <button
                   className="btn-tool btn-tool--tiny" type="button" title="Удалить страницу"

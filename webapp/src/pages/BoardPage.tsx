@@ -165,6 +165,16 @@ export function BoardPage(): ReactElement {
 
   // Номер объекта известен только после закрепления на сервере — тогда же
   // ссылка и связывается с ним.
+  /**
+   * Что выделить, как только сервер назовёт номера.
+   *
+   * Вставленное — заготовку, свою заготовку, содержимое буфера — человек
+   * почти всегда двигает следом: он ставит чертёж примерно туда, а потом
+   * подгоняет. Выделять его руками после каждой вставки — лишний шаг,
+   * а на телефоне ещё и промах по мелкому объекту.
+   */
+  const toSelect = useRef<string[]>([]);
+
   useEffect(() => {
     // Разбираем весь список: разобранное из ожидания уже вычеркнуто и
     // второй раз не попадётся.
@@ -178,6 +188,25 @@ export function BoardPage(): ReactElement {
 
       if (waiting.snapshot) history.push({ kind: 'create', items: [waiting.snapshot] });
     }
+
+    // Ждём, пока номера получит всё вставленное: выделить половину
+    // чертежа хуже, чем не выделить ничего — потянув за неё, человек
+    // разорвёт рисунок пополам.
+    if (toSelect.current.length === 0) return;
+
+    const born = toSelect.current
+      .map((ref) => refToId.current.get(ref))
+      .filter((itemId): itemId is number => itemId !== undefined);
+
+    if (born.length < toSelect.current.length) return;
+
+    toSelect.current = [];
+    setSelection(born);
+
+    // И курсор: выделить вставленное, оставив в руке перо, значит
+    // предложить потянуть за него и нарисовать поверх линию.
+    setToolRaw('select');
+    setShowParams(false);
   }, [hub.commits, history]);
 
   /** Ссылка объекта: своя, если он наш, иначе заводим новую. */
@@ -438,14 +467,21 @@ export function BoardPage(): ReactElement {
 
   /** Копия выделенного со сдвигом — чтобы копия не легла ровно поверх оригинала. */
   const duplicateSelection = () => {
+    const born: string[] = [];
+
     for (const item of selectedItems) {
       const ref = `c${item.id}-${Date.now().toString(36)}`;
       const data = translate(item.data, 16, 16);
       const snapshot = { ref, type: item.type, data, imageRef: item.imageRef };
 
+      born.push(ref);
       pending.current.set(`${ref}-new`, { ref, snapshot });
       hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
     }
+
+    // Выделение переезжает на копию: следующее движение почти всегда —
+    // отодвинуть её от оригинала.
+    toSelect.current = born;
   };
 
   /**
@@ -490,11 +526,51 @@ export function BoardPage(): ReactElement {
       setError('Картинки не перенеслись: файл остаётся у своей доски. Остальное вставлено.');
     }
 
-    const born: string[] = [];
+    // Куда класть. Копию сдвигаем на четверть клетки от оригинала —
+    // ровно поверх него её было бы не отличить. Но если оригинал остался
+    // на другой странице или просто за краем окна, такой сдвиг кладёт
+    // вставленное туда, где человек его не увидит, и нажатие выглядит
+    // как ничего не сделавшее. Тогда вставляем в середину видимого.
+    let dx = 24;
+    let dy = 24;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
 
     for (const item of items) {
-      const ref = `v${Date.now().toString(36)}-${born.length}`;
-      const data = translate(item.data, 24, 24);
+      for (const point of pointsOf(item.data)) {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+      }
+    }
+
+    if (minX !== Infinity) {
+      const view = viewportRef.current;
+      const size = canvasRef.current;
+
+      const corner = toScreen(view, minX + 24, minY + 24);
+      const far = toScreen(view, maxX + 24, maxY + 24);
+
+      const visible = far.x > 0 && far.y > 0
+        && corner.x < size.width && corner.y < size.height;
+
+      if (!visible) {
+        const center = toWorld(view, size.width / 2, size.height / 2);
+        dx = center.x - (minX + maxX) / 2;
+        dy = center.y - (minY + maxY) / 2;
+      }
+    }
+
+    const born: string[] = [];
+    const stamp = Date.now().toString(36);
+
+    for (const item of items) {
+      const ref = `v${stamp}-${born.length}`;
+      const data = translate(item.data, dx, dy);
 
       born.push(ref);
       pending.current.set(`${ref}-new`, {
@@ -503,6 +579,10 @@ export function BoardPage(): ReactElement {
       });
       hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
     }
+
+    // Вставленное сразу выделено: по нему видно, что вставка произошла,
+    // и его можно тут же перетащить.
+    toSelect.current = born;
   };
 
   const lockSelection = (locked: boolean) => {
@@ -718,6 +798,9 @@ export function BoardPage(): ReactElement {
       send(ref, draft.type, draft.data);
     });
 
+    // Вставленное сразу выделяем: чертёж почти всегда двигают следом.
+    toSelect.current = snapshots.map((one) => one.ref);
+
     // Одна запись в истории на всю заготовку: отменять чертёж по линии —
     // полсотни нажатий, и до нужного места человек не доберётся.
     history.push({ kind: 'create', items: snapshots });
@@ -767,6 +850,7 @@ export function BoardPage(): ReactElement {
       send(ref, item.type, data);
     });
 
+    toSelect.current = snapshots.map((one) => one.ref);
     history.push({ kind: 'create', items: snapshots });
   }, [history, send]);
 

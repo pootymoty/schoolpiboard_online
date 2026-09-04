@@ -1743,12 +1743,32 @@ body.no-scroll {
     cursor: pointer;
 }
 
-/* Размерность таблицы: «минус — число — плюс» одной группой, чтобы
-   не читалось как три отдельные кнопки. */
+/* Строки и столбцы: «минус — название — плюс» одной группой, чтобы не
+   читалось как три отдельные кнопки. Само число строк и столбцов стоит
+   под ними одной строкой: прежде оно занимало место названия, и было
+   не понять, что именно меняет соседняя пара кнопок. */
+.selection-panel__sizes {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+}
+
 .selection-panel__table {
     display: flex;
     align-items: center;
     gap: 2px;
+}
+
+.selection-panel__what {
+    min-width: 64px;
+    text-align: center;
+    font-size: var(--fs-xs);
+}
+
+.selection-panel__size {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
 }
 
 .btn-tool--tiny {

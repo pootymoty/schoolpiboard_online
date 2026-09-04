@@ -8,7 +8,8 @@ import { toScreen } from './viewport';
 import type { Viewport } from './viewport';
 import { Menu } from '../components/Menu';
 import {
-  IconCheck, IconCopy, IconLockClosed, IconLockOpen, IconToBack, IconToFront, IconTrash,
+  IconCheck, IconCopy, IconCopyText, IconDuplicate, IconLockClosed, IconLockOpen,
+  IconToBack, IconToFront, IconTrash,
 } from '../components/Icons';
 
 interface Props {
@@ -151,48 +152,60 @@ export function SelectionPanel({
         <>
           <span className="toolbar__divider" aria-hidden="true" />
 
-          <div className="selection-panel__table">
-            <button
-              className="btn-tool btn-tool--tiny"
-              type="button"
-              title="Убрать строку"
-              disabled={rows <= 1}
-              onClick={() => onTable(rows - 1, cols)}
-            >
-              −
-            </button>
-            <span className="selection-panel__count">{rows}×{cols}</span>
-            <button
-              className="btn-tool btn-tool--tiny"
-              type="button"
-              title="Добавить строку"
-              disabled={rows >= MAX_ROWS}
-              onClick={() => onTable(rows + 1, cols)}
-            >
-              +
-            </button>
-          </div>
+          {/* Под кнопками стоит название того, что они меняют, а
+              размерность — отдельной строкой внизу. Прежде размерность
+              стояла в одной строке со строками, а слово «столбцы» — в
+              другой, и понять, что именно меняется, было нельзя. */}
+          <div className="selection-panel__sizes">
+            <div className="selection-panel__table">
+              <button
+                className="btn-tool btn-tool--tiny"
+                type="button"
+                aria-label="Убрать строку"
+                title="Убрать строку"
+                disabled={rows <= 1}
+                onClick={() => onTable(rows - 1, cols)}
+              >
+                −
+              </button>
+              <span className="selection-panel__what">Строки</span>
+              <button
+                className="btn-tool btn-tool--tiny"
+                type="button"
+                aria-label="Добавить строку"
+                title="Добавить строку"
+                disabled={rows >= MAX_ROWS}
+                onClick={() => onTable(rows + 1, cols)}
+              >
+                +
+              </button>
+            </div>
 
-          <div className="selection-panel__table">
-            <button
-              className="btn-tool btn-tool--tiny"
-              type="button"
-              title="Убрать столбец"
-              disabled={cols <= 1}
-              onClick={() => onTable(rows, cols - 1)}
-            >
-              −
-            </button>
-            <span className="selection-panel__count">столбцы</span>
-            <button
-              className="btn-tool btn-tool--tiny"
-              type="button"
-              title="Добавить столбец"
-              disabled={cols >= MAX_COLS}
-              onClick={() => onTable(rows, cols + 1)}
-            >
-              +
-            </button>
+            <div className="selection-panel__table">
+              <button
+                className="btn-tool btn-tool--tiny"
+                type="button"
+                aria-label="Убрать столбец"
+                title="Убрать столбец"
+                disabled={cols <= 1}
+                onClick={() => onTable(rows, cols - 1)}
+              >
+                −
+              </button>
+              <span className="selection-panel__what">Столбцы</span>
+              <button
+                className="btn-tool btn-tool--tiny"
+                type="button"
+                aria-label="Добавить столбец"
+                title="Добавить столбец"
+                disabled={cols >= MAX_COLS}
+                onClick={() => onTable(rows, cols + 1)}
+              >
+                +
+              </button>
+            </div>
+
+            <span className="selection-panel__size">{rows} × {cols}</span>
           </div>
         </>
       ) : null}
@@ -216,7 +229,7 @@ export function SelectionPanel({
       {locked ? null : (
         <>
           <button className="btn-tool" type="button" onClick={onDuplicate} title="Дублировать (Ctrl+D)">
-            <IconCopy />
+            <IconDuplicate />
           </button>
           <button className="btn-tool" type="button" onClick={onDelete} title="Удалить (Delete)">
             <IconTrash />
@@ -237,7 +250,7 @@ export function SelectionPanel({
           </button>
           {text ? (
             <button className="btn-tool" type="button" onClick={() => onCopyText(text)} title="Скопировать текст">
-              <IconCopy />
+              <IconCopyText />
             </button>
           ) : null}
 

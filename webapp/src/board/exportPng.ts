@@ -1,7 +1,7 @@
 import type { BoardItem, Background } from './protocol';
 import { boundsOf } from './geometry';
 import { preload } from './images';
-import { drawItem } from './render';
+import { drawGrid, drawItem } from './render';
 
 /** Поля вокруг содержимого, чтобы штрихи не упирались в край. */
 const PADDING = 32;
@@ -45,6 +45,21 @@ export async function renderBoard(
 
   context.fillStyle = background.background;
   context.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Разлиновка — часть фона доски, а не украшение экрана: на клетчатом
+  // листе по клеткам считают, а лист без неё — не тот лист, на котором
+  // шло занятие. Рисуется до сдвига мира: сетка живёт в координатах
+  // холста, и ей нужно знать, куда попал ноль мира.
+  drawGrid(
+    context,
+    background.gridStyle,
+    background.gridColor,
+    canvas.width,
+    canvas.height,
+    (PADDING - bounds.x) * scale,
+    (PADDING - bounds.y) * scale,
+    scale,
+  );
 
   // Сдвигаем мир так, чтобы содержимое легло в поля.
   context.scale(scale, scale);

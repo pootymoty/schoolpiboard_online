@@ -150,22 +150,63 @@ export const IconCopy = (props: Props): ReactElement => (
   </Svg>
 );
 
-/** На передний план. */
-export const IconToFront = (props: Props): ReactElement => (
+/**
+ * Дублировать.
+ *
+ * Не второй лист, как у копирования, а лист с плюсом: две стопки бумаги
+ * рядом читаются одинаково, и на телефоне их приходилось различать по
+ * положению, а не по рисунку.
+ */
+export const IconDuplicate = (props: Props): ReactElement => (
   <Svg {...props}>
     <g>
-      <rect x="8" y="3" width="13" height="13" rx="2" />
-      <path d="M16 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h3" />
+      <rect x="3" y="3" width="12" height="12" rx="2" />
+      <path d="M19 14v7" />
+      <path d="M15.5 17.5h7" />
     </g>
   </Svg>
 );
 
-/** На задний план. */
+/**
+ * Скопировать текст. Буква и стрелка наружу: копий на панели несколько,
+ * и отличать их должен рисунок, а не подпись.
+ */
+export const IconCopyText = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <path d="M4 7V5h9v2" />
+      <path d="M8.5 5v11" />
+      <path d="M6 16h5" />
+      <path d="M15 15h6" />
+      <path d="M18 12l3 3-3 3" />
+    </g>
+  </Svg>
+);
+
+/**
+ * На передний план и на задний.
+ *
+ * Прежние значки были зеркальными: две рамки, различавшиеся только тем,
+ * какая сверху. На телефоне это читалось дольше, чем подпись. Теперь
+ * решает стрелка — вверх или вниз, — а стопка только напоминает, что
+ * речь о слоях.
+ */
+export const IconToFront = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="3" y="12" width="11" height="9" rx="2" />
+      <path d="M19 21V9" />
+      <path d="M15.5 12.5L19 9l3.5 3.5" />
+    </g>
+  </Svg>
+);
+
 export const IconToBack = (props: Props): ReactElement => (
   <Svg {...props}>
     <g>
-      <rect x="3" y="8" width="13" height="13" rx="2" />
-      <path d="M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3" />
+      <rect x="3" y="3" width="11" height="9" rx="2" />
+      <path d="M19 3v12" />
+      <path d="M15.5 11.5L19 15l3.5-3.5" />
     </g>
   </Svg>
 );
@@ -368,4 +409,23 @@ export const IconMail = (props: Props): ReactElement => (
       <path d="M3 7l9 6 9-6" />
     </g>
   </Svg>
+);
+
+/** Кому видна страница: глаз. Шестерёнка обещала настройки, а тут одно право. */
+export const IconEye = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </g>
+  </Svg>
+);
+
+/** Выше и ниже по порядку — в полосе страниц. */
+export const IconArrowUp = (props: Props): ReactElement => (
+  <Svg {...props}><g><path d="M12 20V5" /><path d="M6 11l6-6 6 6" /></g></Svg>
+);
+
+export const IconArrowDown = (props: Props): ReactElement => (
+  <Svg {...props}><g><path d="M12 4v15" /><path d="M6 13l6 6 6-6" /></g></Svg>
 );

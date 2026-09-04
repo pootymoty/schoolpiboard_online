@@ -272,13 +272,27 @@ const IconCopy = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* 
   /* @__PURE__ */ jsx("rect", { x: "9", y: "9", width: "11", height: "11", rx: "2" }),
   /* @__PURE__ */ jsx("path", { d: "M5 15V6a1 1 0 0 1 1-1h9" })
 ] }) });
+const IconDuplicate = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("rect", { x: "3", y: "3", width: "12", height: "12", rx: "2" }),
+  /* @__PURE__ */ jsx("path", { d: "M19 14v7" }),
+  /* @__PURE__ */ jsx("path", { d: "M15.5 17.5h7" })
+] }) });
+const IconCopyText = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M4 7V5h9v2" }),
+  /* @__PURE__ */ jsx("path", { d: "M8.5 5v11" }),
+  /* @__PURE__ */ jsx("path", { d: "M6 16h5" }),
+  /* @__PURE__ */ jsx("path", { d: "M15 15h6" }),
+  /* @__PURE__ */ jsx("path", { d: "M18 12l3 3-3 3" })
+] }) });
 const IconToFront = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
-  /* @__PURE__ */ jsx("rect", { x: "8", y: "3", width: "13", height: "13", rx: "2" }),
-  /* @__PURE__ */ jsx("path", { d: "M16 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h3" })
+  /* @__PURE__ */ jsx("rect", { x: "3", y: "12", width: "11", height: "9", rx: "2" }),
+  /* @__PURE__ */ jsx("path", { d: "M19 21V9" }),
+  /* @__PURE__ */ jsx("path", { d: "M15.5 12.5L19 9l3.5 3.5" })
 ] }) });
 const IconToBack = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
-  /* @__PURE__ */ jsx("rect", { x: "3", y: "8", width: "13", height: "13", rx: "2" }),
-  /* @__PURE__ */ jsx("path", { d: "M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3" })
+  /* @__PURE__ */ jsx("rect", { x: "3", y: "3", width: "11", height: "9", rx: "2" }),
+  /* @__PURE__ */ jsx("path", { d: "M19 3v12" }),
+  /* @__PURE__ */ jsx("path", { d: "M15.5 11.5L19 15l3.5-3.5" })
 ] }) });
 const IconMarker = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("path", { d: "M4 20h6l9.5-9.5a2.5 2.5 0 0 0-3.5-3.5L6 16.5z" }),
@@ -360,6 +374,18 @@ const IconLibrary = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: 
 const IconMail = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("rect", { x: "3", y: "5", width: "18", height: "14", rx: "2" }),
   /* @__PURE__ */ jsx("path", { d: "M3 7l9 6 9-6" })
+] }) });
+const IconEye = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" }),
+  /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "2.5" })
+] }) });
+const IconArrowUp = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M12 20V5" }),
+  /* @__PURE__ */ jsx("path", { d: "M6 11l6-6 6 6" })
+] }) });
+const IconArrowDown = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M12 4v15" }),
+  /* @__PURE__ */ jsx("path", { d: "M6 13l6 6 6-6" })
 ] }) });
 function Menu({ label, children, trigger, triggerClassName = "btn-tool" }) {
   const [open, setOpen] = useState(false);
@@ -4873,59 +4899,66 @@ function SelectionPanel({
         ] }),
         table ? /* @__PURE__ */ jsxs(Fragment, { children: [
           /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-          /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
-            /* @__PURE__ */ jsx(
-              "button",
-              {
-                className: "btn-tool btn-tool--tiny",
-                type: "button",
-                title: "Убрать строку",
-                disabled: rows <= 1,
-                onClick: () => onTable(rows - 1, cols),
-                children: "−"
-              }
-            ),
-            /* @__PURE__ */ jsxs("span", { className: "selection-panel__count", children: [
-              rows,
-              "×",
-              cols
+          /* @__PURE__ */ jsxs("div", { className: "selection-panel__sizes", children: [
+            /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
+              /* @__PURE__ */ jsx(
+                "button",
+                {
+                  className: "btn-tool btn-tool--tiny",
+                  type: "button",
+                  "aria-label": "Убрать строку",
+                  title: "Убрать строку",
+                  disabled: rows <= 1,
+                  onClick: () => onTable(rows - 1, cols),
+                  children: "−"
+                }
+              ),
+              /* @__PURE__ */ jsx("span", { className: "selection-panel__what", children: "Строки" }),
+              /* @__PURE__ */ jsx(
+                "button",
+                {
+                  className: "btn-tool btn-tool--tiny",
+                  type: "button",
+                  "aria-label": "Добавить строку",
+                  title: "Добавить строку",
+                  disabled: rows >= MAX_ROWS,
+                  onClick: () => onTable(rows + 1, cols),
+                  children: "+"
+                }
+              )
             ] }),
-            /* @__PURE__ */ jsx(
-              "button",
-              {
-                className: "btn-tool btn-tool--tiny",
-                type: "button",
-                title: "Добавить строку",
-                disabled: rows >= MAX_ROWS,
-                onClick: () => onTable(rows + 1, cols),
-                children: "+"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
-            /* @__PURE__ */ jsx(
-              "button",
-              {
-                className: "btn-tool btn-tool--tiny",
-                type: "button",
-                title: "Убрать столбец",
-                disabled: cols <= 1,
-                onClick: () => onTable(rows, cols - 1),
-                children: "−"
-              }
-            ),
-            /* @__PURE__ */ jsx("span", { className: "selection-panel__count", children: "столбцы" }),
-            /* @__PURE__ */ jsx(
-              "button",
-              {
-                className: "btn-tool btn-tool--tiny",
-                type: "button",
-                title: "Добавить столбец",
-                disabled: cols >= MAX_COLS,
-                onClick: () => onTable(rows, cols + 1),
-                children: "+"
-              }
-            )
+            /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
+              /* @__PURE__ */ jsx(
+                "button",
+                {
+                  className: "btn-tool btn-tool--tiny",
+                  type: "button",
+                  "aria-label": "Убрать столбец",
+                  title: "Убрать столбец",
+                  disabled: cols <= 1,
+                  onClick: () => onTable(rows, cols - 1),
+                  children: "−"
+                }
+              ),
+              /* @__PURE__ */ jsx("span", { className: "selection-panel__what", children: "Столбцы" }),
+              /* @__PURE__ */ jsx(
+                "button",
+                {
+                  className: "btn-tool btn-tool--tiny",
+                  type: "button",
+                  "aria-label": "Добавить столбец",
+                  title: "Добавить столбец",
+                  disabled: cols >= MAX_COLS,
+                  onClick: () => onTable(rows, cols + 1),
+                  children: "+"
+                }
+              )
+            ] }),
+            /* @__PURE__ */ jsxs("span", { className: "selection-panel__size", children: [
+              rows,
+              " × ",
+              cols
+            ] })
           ] })
         ] }) : null,
         /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
@@ -4942,7 +4975,7 @@ function SelectionPanel({
         ),
         /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onCopy, title: "Копировать (Ctrl+C)", children: /* @__PURE__ */ jsx(IconCopy, {}) }),
         locked ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onDuplicate, title: "Дублировать (Ctrl+D)", children: /* @__PURE__ */ jsx(IconCopy, {}) }),
+          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onDuplicate, title: "Дублировать (Ctrl+D)", children: /* @__PURE__ */ jsx(IconDuplicate, {}) }),
           /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onDelete, title: "Удалить (Delete)", children: /* @__PURE__ */ jsx(IconTrash, {}) })
         ] }),
         docked ? (
@@ -4952,7 +4985,7 @@ function SelectionPanel({
           /* @__PURE__ */ jsxs(Fragment, { children: [
             /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onReorder(true), title: "На передний план", children: /* @__PURE__ */ jsx(IconToFront, {}) }),
             /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onReorder(false), title: "На задний план", children: /* @__PURE__ */ jsx(IconToBack, {}) }),
-            text ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onCopyText(text), title: "Скопировать текст", children: /* @__PURE__ */ jsx(IconCopy, {}) }) : null,
+            text ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onCopyText(text), title: "Скопировать текст", children: /* @__PURE__ */ jsx(IconCopyText, {}) }) : null,
             /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
             /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onDone, title: "Готово — снять выделение", children: /* @__PURE__ */ jsx(IconCheck, {}) })
           ] })
@@ -5155,9 +5188,10 @@ function PagesPanel({
               className: "btn-tool btn-tool--tiny",
               type: "button",
               title: "Выше",
+              "aria-label": "Выше",
               disabled: index === 0,
               onClick: () => move(index, -1),
-              children: "↑"
+              children: /* @__PURE__ */ jsx(IconArrowUp, { size: 14 })
             }
           ),
           /* @__PURE__ */ jsx(
@@ -5166,9 +5200,10 @@ function PagesPanel({
               className: "btn-tool btn-tool--tiny",
               type: "button",
               title: "Ниже",
+              "aria-label": "Ниже",
               disabled: index === pages.length - 1,
               onClick: () => move(index, 1),
-              children: "↓"
+              children: /* @__PURE__ */ jsx(IconArrowDown, { size: 14 })
             }
           ),
           /* @__PURE__ */ jsx(
@@ -5177,9 +5212,10 @@ function PagesPanel({
               className: "btn-tool btn-tool--tiny",
               type: "button",
               title: "Кому видна",
+              "aria-label": "Кому видна",
               "aria-pressed": tuning === page.id,
               onClick: () => setTuning(tuning === page.id ? null : page.id),
-              children: "⚙"
+              children: /* @__PURE__ */ jsx(IconEye, { size: 14 })
             }
           ),
           /* @__PURE__ */ jsx(
@@ -6286,6 +6322,16 @@ async function renderBoard(items, background) {
   if (!context) return null;
   context.fillStyle = background.background;
   context.fillRect(0, 0, canvas.width, canvas.height);
+  drawGrid(
+    context,
+    background.gridStyle,
+    background.gridColor,
+    canvas.width,
+    canvas.height,
+    (PADDING - bounds.x) * scale,
+    (PADDING - bounds.y) * scale,
+    scale
+  );
   context.scale(scale, scale);
   context.translate(PADDING - bounds.x, PADDING - bounds.y);
   for (const item of items) drawItem(context, item.type, item.data, item.imageRef);
@@ -6724,6 +6770,7 @@ function BoardPage() {
     move: (refs, dx, dy) => hub.moveItems(idsOf(refs), dx, dy),
     remove: (refs) => hub.deleteItems(idsOf(refs))
   });
+  const toSelect = useRef([]);
   useEffect(() => {
     for (const commit of hub.commits) {
       const waiting = pending.current.get(commit.tempId);
@@ -6733,6 +6780,13 @@ function BoardPage() {
       idToRef.current.set(commit.itemId, waiting.ref);
       if (waiting.snapshot) history.push({ kind: "create", items: [waiting.snapshot] });
     }
+    if (toSelect.current.length === 0) return;
+    const born = toSelect.current.map((ref) => refToId.current.get(ref)).filter((itemId) => itemId !== void 0);
+    if (born.length < toSelect.current.length) return;
+    toSelect.current = [];
+    setSelection(born);
+    setToolRaw("select");
+    setShowParams(false);
   }, [hub.commits, history]);
   const refOf = useCallback((itemId) => {
     const existing = idToRef.current.get(itemId);
@@ -6913,13 +6967,16 @@ function BoardPage() {
     selectionBounds && hub.canEdit && canvasSize.width > 0 && canvasSize.width < 720
   );
   const duplicateSelection = () => {
+    const born = [];
     for (const item of selectedItems) {
       const ref = `c${item.id}-${Date.now().toString(36)}`;
       const data = translate(item.data, 16, 16);
       const snapshot = { ref, type: item.type, data, imageRef: item.imageRef };
+      born.push(ref);
       pending.current.set(`${ref}-new`, { ref, snapshot });
       hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
     }
+    toSelect.current = born;
   };
   const copySelection = () => {
     if (selectedItems.length === 0) return;
@@ -6945,10 +7002,37 @@ function BoardPage() {
     if (items.length < clip.items.length) {
       setError("Картинки не перенеслись: файл остаётся у своей доски. Остальное вставлено.");
     }
-    const born = [];
+    let dx = 24;
+    let dy = 24;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
     for (const item of items) {
-      const ref = `v${Date.now().toString(36)}-${born.length}`;
-      const data = translate(item.data, 24, 24);
+      for (const point of pointsOf(item.data)) {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+      }
+    }
+    if (minX !== Infinity) {
+      const view = viewportRef.current;
+      const size = canvasRef.current;
+      const corner = toScreen(view, minX + 24, minY + 24);
+      const far = toScreen(view, maxX + 24, maxY + 24);
+      const visible = far.x > 0 && far.y > 0 && corner.x < size.width && corner.y < size.height;
+      if (!visible) {
+        const center = toWorld(view, size.width / 2, size.height / 2);
+        dx = center.x - (minX + maxX) / 2;
+        dy = center.y - (minY + maxY) / 2;
+      }
+    }
+    const born = [];
+    const stamp = Date.now().toString(36);
+    for (const item of items) {
+      const ref = `v${stamp}-${born.length}`;
+      const data = translate(item.data, dx, dy);
       born.push(ref);
       pending.current.set(`${ref}-new`, {
         ref,
@@ -6956,6 +7040,7 @@ function BoardPage() {
       });
       hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
     }
+    toSelect.current = born;
   };
   const lockSelection = (locked) => {
     for (const item of selectedItems) {
@@ -7090,6 +7175,7 @@ function BoardPage() {
       snapshots.push({ ref, type: draft.type, data: draft.data });
       send2(ref, draft.type, draft.data);
     });
+    toSelect.current = snapshots.map((one) => one.ref);
     history.push({ kind: "create", items: snapshots });
   }, [history, send2]);
   const insertItems = useCallback((items) => {
@@ -7120,6 +7206,7 @@ function BoardPage() {
       snapshots.push({ ref, type: item.type, data });
       send2(ref, item.type, data);
     });
+    toSelect.current = snapshots.map((one) => one.ref);
     history.push({ kind: "create", items: snapshots });
   }, [history, send2]);
   useEffect(() => {
