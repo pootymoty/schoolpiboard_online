@@ -357,6 +357,10 @@ const IconLibrary = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: 
   /* @__PURE__ */ jsx("rect", { x: "10", y: "4", width: "5", height: "16", rx: "1" }),
   /* @__PURE__ */ jsx("path", { d: "M17.5 5.2l3.3 15" })
 ] }) });
+const IconMail = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("rect", { x: "3", y: "5", width: "18", height: "14", rx: "2" }),
+  /* @__PURE__ */ jsx("path", { d: "M3 7l9 6 9-6" })
+] }) });
 function Menu({ label, children, trigger, triggerClassName = "btn-tool" }) {
   const [open, setOpen] = useState(false);
   const box = useRef(null);
@@ -4276,6 +4280,8 @@ function ViewToolbar({
   onBackground,
   onFiles,
   onLibrary,
+  onSummary,
+  summaryCount,
   onTimer,
   onHelp,
   onExport,
@@ -4306,6 +4312,10 @@ function ViewToolbar({
     canUpload ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFiles, title: "Вставить файл или страницу PDF", children: /* @__PURE__ */ jsx(IconImage, {}) }) : null,
     canEdit ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onLibrary, title: "Заготовки: чертежи, знаки, формулы", children: /* @__PURE__ */ jsx(IconLibrary, {}) }) : null,
     canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
+    /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", children: [
+      /* @__PURE__ */ jsx(IconMail, {}),
+      summaryCount > 0 ? /* @__PURE__ */ jsx("span", { className: "badge-dot", children: summaryCount }) : null
+    ] }),
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onExport, title: "Сохранить картинкой", children: /* @__PURE__ */ jsx(IconDownload, {}) }),
     canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBackground, title: "Фон и разлиновка", children: /* @__PURE__ */ jsx(IconGrid, {}) }),
@@ -5929,6 +5939,197 @@ function LibraryPanel({
     ] }) }) : null
   ] });
 }
+function askSummary(boardId, email, guestToken) {
+  return api(`/boards/${boardId}/summary/request`, {
+    method: "POST",
+    body: { email },
+    guestToken
+  });
+}
+function listSummaryRequests(boardId) {
+  return api(`/boards/${boardId}/summary/requests`);
+}
+function declineSummaryRequest(boardId, requestId) {
+  return api(`/boards/${boardId}/summary/requests/${requestId}/decline`, { method: "POST" });
+}
+async function sendSummary(boardId, requestId, pages) {
+  const form = new FormData();
+  if (requestId !== null) form.append("requestId", String(requestId));
+  for (const page of pages) form.append("pages", page.blob, page.name);
+  const headers = {};
+  const token = readToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  let response;
+  try {
+    response = await fetch(`${API_URL}/boards/${boardId}/summary`, {
+      method: "POST",
+      headers,
+      body: form
+    });
+  } catch {
+    throw new ApiError(0, "network", "Сервер не отвечает. Проверьте подключение.");
+  }
+  if (response.ok) return;
+  const text = await response.text();
+  const details = text ? JSON.parse(text) : {};
+  throw new ApiError(response.status, "error", details.message ?? "Конспект не отправился.");
+}
+const MAX_SHEETS = 12;
+function SummaryPanel({
+  boardId,
+  canManage,
+  requests,
+  onResolved,
+  collect,
+  onClose
+}) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(null);
+  const [note, setNote] = useState(null);
+  const [done, setDone] = useState(false);
+  const fail = (reason, fallback) => {
+    setNote(reason instanceof ApiError ? reason.message : fallback);
+    setBusy(null);
+  };
+  const ask = async () => {
+    setBusy("Отправляем просьбу…");
+    setNote(null);
+    try {
+      await askSummary(boardId, email.trim(), readGuestToken(boardId));
+      setBusy(null);
+      setDone(true);
+    } catch (reason) {
+      fail(reason, "Не удалось попросить конспект.");
+    }
+  };
+  const send2 = async (requestId) => {
+    setNote(null);
+    setBusy("Собираем листы…");
+    try {
+      const sheets = await collect();
+      if (sheets.length === 0) {
+        setBusy(null);
+        setNote("Отправлять нечего: на страницах пусто.");
+        return;
+      }
+      setBusy(`Отправляем ${sheets.length} л.…`);
+      await sendSummary(boardId, requestId, sheets);
+      if (requestId !== null) onResolved(requestId);
+      setBusy(null);
+      setDone(true);
+    } catch (reason) {
+      fail(reason, "Конспект не отправился.");
+    }
+  };
+  const decline = async (requestId) => {
+    try {
+      await declineSummaryRequest(boardId, requestId);
+      onResolved(requestId);
+    } catch (reason) {
+      fail(reason, "Не удалось отклонить просьбу.");
+    }
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "params params--right", role: "dialog", "aria-label": "Конспект занятия", children: [
+    /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
+      /* @__PURE__ */ jsx("span", { className: "params__title", children: "Конспект" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
+    ] }),
+    canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsxs("p", { className: "library__hint", children: [
+        "Каждая страница занятия уходит письмом отдельным листом — не больше ",
+        MAX_SHEETS,
+        ". Пустые страницы пропускаются."
+      ] }),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn btn-sm btn-block",
+          type: "button",
+          disabled: busy !== null,
+          onClick: () => void send2(null),
+          children: "Отправить себе"
+        }
+      ),
+      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Просят конспект" }),
+      requests.length === 0 ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Пока никто не просил." }) : /* @__PURE__ */ jsx("div", { className: "library__list", children: requests.map((request) => /* @__PURE__ */ jsxs("div", { className: "summary__row", children: [
+        /* @__PURE__ */ jsxs("span", { className: "summary__who", children: [
+          request.askedName,
+          /* @__PURE__ */ jsx("span", { className: "library__count", children: request.email })
+        ] }),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn btn-sm",
+            type: "button",
+            disabled: busy !== null,
+            onClick: () => void send2(request.id),
+            children: "Отправить"
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-quiet btn-sm",
+            type: "button",
+            disabled: busy !== null,
+            onClick: () => void decline(request.id),
+            children: "Отказать"
+          }
+        )
+      ] }, request.id)) })
+    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Оставьте адрес — учитель решит, отправлять ли конспект занятия. Письмо придёт от него, а не от вас: адрес не увидит никто, кроме него." }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          className: "input",
+          type: "email",
+          value: email,
+          maxLength: 254,
+          placeholder: "почта@пример.ру",
+          onChange: (event) => setEmail(event.target.value)
+        }
+      ),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn btn-sm btn-block",
+          type: "button",
+          disabled: busy !== null || email.trim().length < 5,
+          onClick: () => void ask(),
+          children: "Попросить конспект"
+        }
+      )
+    ] }),
+    busy ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: busy }) : null,
+    note ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: note }) : null,
+    done && !busy && !note ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: canManage ? "Письмо ушло." : "Просьба передана учителю." }) : null
+  ] });
+}
+const POLL_MS$2 = 2e4;
+function useSummaryRequests(boardId, canManage) {
+  const [requests, setRequests] = useState([]);
+  const reload = useCallback(async () => {
+    if (!canManage) return;
+    try {
+      setRequests(await listSummaryRequests(boardId));
+    } catch {
+    }
+  }, [boardId, canManage]);
+  useEffect(() => {
+    if (!canManage) {
+      setRequests([]);
+      return;
+    }
+    void reload();
+    const timer = window.setInterval(reload, POLL_MS$2);
+    return () => window.clearInterval(timer);
+  }, [canManage, reload]);
+  const forget = useCallback((requestId) => {
+    setRequests((current) => current.filter((one) => one.id !== requestId));
+  }, []);
+  return { requests, reload, forget };
+}
 const MAX_MINUTES = 180;
 function clamp(raw, limit) {
   const value = Number.parseInt(raw, 10);
@@ -6038,6 +6239,9 @@ const TIPS = [
   { keys: "Ctrl + C, Ctrl + X, Ctrl + V", what: "копировать, вырезать, вставить — на другой странице и на другой доске" },
   { keys: "Страницы в верхней панели", what: "занятие идёт по страницам; каждый ходит по ним сам" },
   { keys: "Заготовки в верхней панели", what: "оси, объёмные фигуры, знаки и формулы — настраиваются до вставки" },
+  { keys: "Заготовки → Мои", what: "сохранить выделенный чертёж под именем и ставить его на любой доске" },
+  { keys: "Файлы → Разложить по страницам", what: "каждый лист PDF — отдельной страницей занятия, запертой подложкой" },
+  { keys: "Конверт в верхней панели", what: "конспект занятия письмом: участник просит, владелец отправляет" },
   { keys: "Двойной щелчок по названию", what: "переименовать страницу — у владельца" },
   { keys: "Замок в панели выделения", what: "запереть объект: не двигается и не стирается" },
   { keys: "Курсор → Указка", what: "след, который видят все и который сам гаснет" },
@@ -6067,19 +6271,29 @@ function HelpPanel({ onClose }) {
   ] });
 }
 const PADDING = 32;
-async function exportPng(items, background, title) {
+const MAX_SIDE = 4e3;
+async function renderBoard(items, background) {
   const bounds = boundsOf(items);
-  if (!bounds) return false;
+  if (!bounds) return null;
   await preload(items.map((item) => item.imageRef).filter((ref) => Boolean(ref)));
+  const width = bounds.width + PADDING * 2;
+  const height = bounds.height + PADDING * 2;
+  const scale = Math.min(1, MAX_SIDE / Math.max(width, height));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil(bounds.width + PADDING * 2);
-  canvas.height = Math.ceil(bounds.height + PADDING * 2);
+  canvas.width = Math.max(1, Math.ceil(width * scale));
+  canvas.height = Math.max(1, Math.ceil(height * scale));
   const context = canvas.getContext("2d");
-  if (!context) return false;
+  if (!context) return null;
   context.fillStyle = background.background;
   context.fillRect(0, 0, canvas.width, canvas.height);
+  context.scale(scale, scale);
   context.translate(PADDING - bounds.x, PADDING - bounds.y);
   for (const item of items) drawItem(context, item.type, item.data, item.imageRef);
+  return canvas;
+}
+async function exportPng(items, background, title) {
+  const canvas = await renderBoard(items, background);
+  if (!canvas) return false;
   const link = document.createElement("a");
   link.download = `${title || "Доска"}.png`;
   link.href = canvas.toDataURL("image/png");
@@ -6345,6 +6559,16 @@ function useBoardHub(boardId) {
     clearBoard: useCallback(() => call("ClearBoard", page()), [call]),
     openPage: useCallback((id) => call("OpenPage", id), [call]),
     addPage: useCallback((title) => call("AddPage", title ?? null), [call]),
+    pageItems: useCallback(async (id) => {
+      const hub = connection.current;
+      if ((hub == null ? void 0 : hub.state) !== HubConnectionState.Connected) return [];
+      try {
+        const answer = await hub.invoke("PageItems", id);
+        return (answer == null ? void 0 : answer.items) ?? [];
+      } catch {
+        return [];
+      }
+    }, []),
     addPageNow: useCallback(async (title) => {
       const hub = connection.current;
       if ((hub == null ? void 0 : hub.state) !== HubConnectionState.Connected) return null;
@@ -6464,6 +6688,7 @@ function BoardPage() {
   const [showFiles, setShowFiles] = useState(false);
   const [showPages, setShowPages] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -6484,6 +6709,7 @@ function BoardPage() {
   const [selection, setSelection] = useState([]);
   const hub = useBoardHub(id);
   const queue = useWaitingQueue(id, hub.canManage);
+  const summaries = useSummaryRequests(id, hub.canManage);
   const refToId = useRef(/* @__PURE__ */ new Map());
   const idToRef = useRef(/* @__PURE__ */ new Map());
   const pending = useRef(/* @__PURE__ */ new Map());
@@ -6789,6 +7015,18 @@ function BoardPage() {
     };
     hub.commitItem(`d${Date.now().toString(36)}-${pageId}`, "image", data, uploaded.imageRef, pageId);
   }, [hub, id]);
+  const collectSummary = useCallback(async () => {
+    const sheets = [];
+    for (const page of hub.pages) {
+      if (sheets.length >= MAX_SHEETS) break;
+      const items = page.id === hub.pageId ? hub.items : await hub.pageItems(page.id);
+      const canvas = await renderBoard(items, hub.background);
+      if (!canvas) continue;
+      const name = page.title.replace(/[\\/]/g, "-").trim() || `Лист ${sheets.length + 1}`;
+      sheets.push({ name: `${name}.png`, blob: await toPng(canvas) });
+    }
+    return sheets;
+  }, [hub]);
   const goToCursor = useCallback((connectionId) => {
     const at = hub.cursors.find((cursor) => cursor.id === connectionId);
     if (!at) return;
@@ -7108,6 +7346,8 @@ function BoardPage() {
                 pageLabel: hub.pages.length === 0 ? "—" : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`,
                 onFiles: () => setShowFiles((current) => !current),
                 onLibrary: () => setShowLibrary((current) => !current),
+                onSummary: () => setShowSummary((current) => !current),
+                summaryCount: summaries.requests.length,
                 scale: viewport.scale,
                 onBackground: () => setShowBackground((current) => !current),
                 onTimer: () => setShowTimer((current) => !current),
@@ -7216,6 +7456,17 @@ function BoardPage() {
                 onReorder: hub.reorderPages,
                 onVisibility: hub.setPageVisibility,
                 onClose: () => setShowPages(false)
+              }
+            ) : null,
+            showSummary ? /* @__PURE__ */ jsx(
+              SummaryPanel,
+              {
+                boardId: id,
+                canManage: hub.canManage,
+                requests: summaries.requests,
+                onResolved: summaries.forget,
+                collect: collectSummary,
+                onClose: () => setShowSummary(false)
               }
             ) : null,
             showBackground && hub.canManage ? /* @__PURE__ */ jsx(

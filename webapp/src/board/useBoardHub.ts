@@ -65,6 +65,11 @@ export interface BoardHub {
   addPage: (title?: string) => void;
   /** Заводит страницу и отвечает её номером. Пусто — не завелась. */
   addPageNow: (title: string) => Promise<number | null>;
+  /**
+   * Содержимое страницы, не открывая её у себя. Нужно для конспекта:
+   * листать всё занятие на глазах у остальных ради письма незачем.
+   */
+  pageItems: (pageId: number) => Promise<BoardItem[]>;
   renamePage: (pageId: number, title: string) => void;
   deletePage: (pageId: number) => void;
   reorderPages: (order: number[]) => void;
@@ -411,6 +416,17 @@ export function useBoardHub(boardId: number): BoardHub {
 
     openPage: useCallback((id: number) => call('OpenPage', id), [call]),
     addPage: useCallback((title?: string) => call('AddPage', title ?? null), [call]),
+    pageItems: useCallback(async (id: number) => {
+      const hub = connection.current;
+      if (hub?.state !== HubConnectionState.Connected) return [];
+
+      try {
+        const answer = await hub.invoke<{ items: BoardItem[] } | null>('PageItems', id);
+        return answer?.items ?? [];
+      } catch {
+        return [];
+      }
+    }, []),
     addPageNow: useCallback(async (title: string) => {
       const hub = connection.current;
       if (hub?.state !== HubConnectionState.Connected) return null;

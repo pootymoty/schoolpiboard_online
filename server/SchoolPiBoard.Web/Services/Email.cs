@@ -5,9 +5,16 @@ using SchoolPiBoard.Web.Configuration;
 
 namespace SchoolPiBoard.Web.Services;
 
+/// <summary>Вложение письма: конспект уходит листами, а не ссылкой.</summary>
+public sealed record EmailAttachment(string Name, byte[] Content, string ContentType);
+
 public interface IEmailSender
 {
     Task<bool> SendAsync(string to, string subject, string html, string text, CancellationToken cancellationToken);
+
+    Task<bool> SendAsync(
+        string to, string subject, string html, string text,
+        IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -25,13 +32,24 @@ public sealed class SmtpEmailSender : IEmailSender
         _logger = logger;
     }
 
-    public async Task<bool> SendAsync(string to, string subject, string html, string text, CancellationToken cancellationToken)
+    public Task<bool> SendAsync(string to, string subject, string html, string text, CancellationToken cancellationToken)
+        => SendAsync(to, subject, html, text, Array.Empty<EmailAttachment>(), cancellationToken);
+
+    public async Task<bool> SendAsync(
+        string to, string subject, string html, string text,
+        IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken)
     {
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress("SchoolPiBoard", _options.From));
         message.To.Add(MailboxAddress.Parse(to));
         message.Subject = subject;
-        message.Body = new BodyBuilder { HtmlBody = html, TextBody = text }.ToMessageBody();
+
+        var body = new BodyBuilder { HtmlBody = html, TextBody = text };
+
+        foreach (var attachment in attachments)
+            body.Attachments.Add(attachment.Name, attachment.Content, ContentType.Parse(attachment.ContentType));
+
+        message.Body = body.ToMessageBody();
 
         try
         {
@@ -145,6 +163,39 @@ public static class EmailTemplates
              {renew}
 
              Что доступно и сколько израсходовано — на странице «Мой тариф».
+             """);
+    }
+
+    /// <summary>
+    /// Конспект занятия.
+    ///
+    /// Листы идут вложениями, а не ссылками: письмо должно открываться и
+    /// через полгода, когда доски уже нет, а ссылка на неё ведёт в пустоту.
+    /// </summary>
+    public static (string Subject, string Html, string Text) Summary(string boardTitle, int pages)
+    {
+        var word = pages switch
+        {
+            1 => "лист",
+            >= 2 and <= 4 => "листа",
+            _ => "листов",
+        };
+
+        var name = string.IsNullOrWhiteSpace(boardTitle) ? "Занятие" : boardTitle;
+
+        return (
+            $"Конспект занятия: {name} — SchoolPiBoard",
+            $"""
+             <p>Здравствуйте!</p>
+             <p>Во вложении конспект занятия «{name}» — {pages} {word}.</p>
+             <p>Листы приложены картинками и открываются любым просмотрщиком.</p>
+             """,
+            $"""
+             Здравствуйте!
+
+             Во вложении конспект занятия «{name}» — {pages} {word}.
+
+             Листы приложены картинками и открываются любым просмотрщиком.
              """);
     }
 

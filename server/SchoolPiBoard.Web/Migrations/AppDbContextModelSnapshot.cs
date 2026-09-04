@@ -662,6 +662,54 @@ namespace SchoolPiBoard.Web.Migrations
                     b.ToTable("user_templates", (string)null);
                 });
 
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.SummaryRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AskedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("asked_by");
+
+                    b.Property<string>("AskedName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("asked_name");
+
+                    b.Property<long>("BoardId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("board_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("email");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BoardId", "Status", "CreatedAt");
+
+                    b.ToTable("summary_requests", (string)null);
+                });
+
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardItem", b =>
                 {
                     b.HasOne("SchoolPiBoard.Web.Data.Entities.Board", "Board")
@@ -761,6 +809,17 @@ namespace SchoolPiBoard.Web.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.SummaryRequest", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.Board", "Board")
+                        .WithMany()
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Board");
                 });
 
 #pragma warning restore 612, 618

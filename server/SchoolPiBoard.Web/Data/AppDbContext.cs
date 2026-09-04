@@ -33,6 +33,8 @@ public class AppDbContext : DbContext
 
     public DbSet<UserTemplate> UserTemplates => Set<UserTemplate>();
 
+    public DbSet<SummaryRequest> SummaryRequests => Set<SummaryRequest>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(entity =>
@@ -345,6 +347,30 @@ public class AppDbContext : DbContext
             entity.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<SummaryRequest>(entity =>
+        {
+            entity.ToTable("summary_requests");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.BoardId).HasColumnName("board_id");
+            entity.Property(x => x.Email).HasColumnName("email").IsRequired();
+            entity.Property(x => x.AskedBy).HasColumnName("asked_by").IsRequired();
+            entity.Property(x => x.AskedName).HasColumnName("asked_name").IsRequired();
+            entity.Property(x => x.Status).HasColumnName("status").IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.ResolvedAt).HasColumnName("resolved_at");
+
+            // Владелец смотрит неразобранные по своей доске, свежие сверху;
+            // по этой же паре считается предел на отправку за час.
+            entity.HasIndex(x => new { x.BoardId, x.Status, x.CreatedAt });
+
+            entity.HasOne(x => x.Board)
+                .WithMany()
+                .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

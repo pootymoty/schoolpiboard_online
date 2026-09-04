@@ -359,3 +359,13 @@ export const IconLibrary = (props: Props): ReactElement => (
     </g>
   </Svg>
 );
+
+/** Конспект по почте: конверт. */
+export const IconMail = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 7l9 6 9-6" />
+    </g>
+  </Svg>
+);

@@ -578,6 +578,27 @@ public sealed class BoardHub : Hub
     }
 
     /// <summary>
+    /// Содержимое страницы, не открывая её у себя.
+    ///
+    /// Нужно тому, кто собирает конспект: листы рисует браузер, а
+    /// перелистывать ради этого всё занятие на глазах у остальных —
+    /// значит показывать им чужую работу и сбивать себе вид.
+    ///
+    /// Права те же, что у открытия: спрятанную страницу так не прочесть.
+    /// </summary>
+    public async Task<object?> PageItems(long pageId)
+    {
+        var presence = _presence.Find(Context.ConnectionId);
+        if (presence is null) return null;
+
+        var page = await RequirePageAsync(presence, pageId);
+        if (page is null) return null;
+
+        var items = await _items.ListAsync(page.Id, Context.ConnectionAborted);
+        return new { pageId = page.Id, items = items.Select(ToDto) };
+    }
+
+    /// <summary>
     /// Заводит страницу и называет её номер.
     ///
     /// Номер нужен тому, кто раскладывает PDF: страницу заводят и тут же

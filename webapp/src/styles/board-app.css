@@ -1070,6 +1070,27 @@ body.no-scroll {
     color: var(--text-muted);
 }
 
+/* Просьба о конспекте: кто просит, куда слать и две кнопки решения. */
+.summary__row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    flex-wrap: wrap;
+}
+
+.summary__who {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 120px;
+    min-width: 0;
+    font-size: var(--fs-sm);
+}
+
+.summary__who .library__count {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* --- Панель над выделением ---------------------------------------------------- */
 
 .selection-panel {

@@ -29,11 +29,13 @@ import { SelectionPanel } from '../board/SelectionPanel';
 import { BackgroundPanel } from '../board/BackgroundPanel';
 import { PagesPanel } from '../board/PagesPanel';
 import { LibraryPanel } from '../board/LibraryPanel';
+import { MAX_SHEETS, SummaryPanel } from '../board/SummaryPanel';
+import { useSummaryRequests } from '../board/useSummaryRequests';
 import type { Template } from '../board/library';
 import type { TemplateItem } from '../api/templates';
 import { TimerPanel } from '../board/TimerPanel';
 import { HelpPanel } from '../board/HelpPanel';
-import { exportPng } from '../board/exportPng';
+import { exportPng, renderBoard } from '../board/exportPng';
 import { uploadBoardImage } from '../api/files';
 import { canvasFromFile, toPng } from '../board/pdf';
 import { useBoardHub } from '../board/useBoardHub';
@@ -87,6 +89,7 @@ export function BoardPage(): ReactElement {
   const [showFiles, setShowFiles] = useState(false);
   const [showPages, setShowPages] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
   /** Есть ли что вставлять. Кнопка вставки без содержимого только мешает. */
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
@@ -128,6 +131,7 @@ export function BoardPage(): ReactElement {
 
   const hub = useBoardHub(id);
   const queue = useWaitingQueue(id, hub.canManage);
+  const summaries = useSummaryRequests(id, hub.canManage);
 
   /**
    * Устойчивые ссылки на свои объекты.
@@ -599,6 +603,34 @@ export function BoardPage(): ReactElement {
   }, [hub, id]);
 
   /**
+   * Листы занятия для письма.
+   *
+   * Открытая страница берётся из того, что уже нарисовано, остальные
+   * доспрашиваются у сервера: перелистывать всё занятие на глазах у
+   * остальных ради письма незачем.
+   *
+   * Пустые страницы пропускаются: лист без единого штриха в конспекте —
+   * это лист, который получатель откроет и закроет.
+   */
+  const collectSummary = useCallback(async () => {
+    const sheets: { name: string; blob: Blob }[] = [];
+
+    for (const page of hub.pages) {
+      if (sheets.length >= MAX_SHEETS) break;
+
+      const items = page.id === hub.pageId ? hub.items : await hub.pageItems(page.id);
+      const canvas = await renderBoard(items, hub.background);
+      if (!canvas) continue;
+
+      // Косая черта в названии страницы превратила бы имя вложения в путь.
+      const name = page.title.replace(/[\\/]/g, '-').trim() || `Лист ${sheets.length + 1}`;
+      sheets.push({ name: `${name}.png`, blob: await toPng(canvas) });
+    }
+
+    return sheets;
+  }, [hub]);
+
+  /**
    * Переносит холст к курсору участника.
    *
    * Масштаб не трогаем: человек подбирал его под свою работу, и менять
@@ -1034,6 +1066,8 @@ export function BoardPage(): ReactElement {
             }
             onFiles={() => setShowFiles((current) => !current)}
             onLibrary={() => setShowLibrary((current) => !current)}
+            onSummary={() => setShowSummary((current) => !current)}
+            summaryCount={summaries.requests.length}
             scale={viewport.scale}
             onBackground={() => setShowBackground((current) => !current)}
             onTimer={() => setShowTimer((current) => !current)}
@@ -1160,6 +1194,17 @@ export function BoardPage(): ReactElement {
               onReorder={hub.reorderPages}
               onVisibility={hub.setPageVisibility}
               onClose={() => setShowPages(false)}
+            />
+          ) : null}
+
+          {showSummary ? (
+            <SummaryPanel
+              boardId={id}
+              canManage={hub.canManage}
+              requests={summaries.requests}
+              onResolved={summaries.forget}
+              collect={collectSummary}
+              onClose={() => setShowSummary(false)}
             />
           ) : null}
 

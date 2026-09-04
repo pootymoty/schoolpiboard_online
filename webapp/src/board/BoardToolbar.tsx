@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
-  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary,
+  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -91,6 +91,9 @@ interface ViewProps {
   onBackground: () => void;
   onFiles: () => void;
   onLibrary: () => void;
+  onSummary: () => void;
+  /** Сколько просьб о конспекте ждёт владельца — точкой на кнопке. */
+  summaryCount: number;
   onTimer: () => void;
   onHelp: () => void;
   onExport: () => void;
@@ -106,7 +109,7 @@ interface ViewProps {
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
 export function ViewToolbar({
   canManage, canEdit, canUpload, scale, onZoom, onResetZoom, onFit,
-  onBackground, onFiles, onLibrary, onTimer, onHelp, onExport, onClear,
+  onBackground, onFiles, onLibrary, onSummary, summaryCount, onTimer, onHelp, onExport, onClear,
   canPaste, onPaste, onPages, pageLabel,
 }: ViewProps): ReactElement {
   return (
@@ -160,6 +163,13 @@ export function ViewToolbar({
           <IconPaste />
         </button>
       ) : null}
+
+      {/* Конспект рядом с сохранением: и то и другое — «забрать занятие
+          с собой», разница только в том, себе на диск или письмом. */}
+      <button className="btn-tool" type="button" onClick={onSummary} title="Конспект занятия по почте">
+        <IconMail />
+        {summaryCount > 0 ? <span className="badge-dot">{summaryCount}</span> : null}
+      </button>
 
       {/* Сохранить картинкой может любой: это его же занятие. */}
       <button className="btn-tool" type="button" onClick={onExport} title="Сохранить картинкой">
