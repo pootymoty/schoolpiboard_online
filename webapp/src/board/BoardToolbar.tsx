@@ -32,6 +32,8 @@ export function DrawToolbar({
   const pick = (which: Tool, icon: ReactElement, title: string, needsEdit = true) => {
     const dot = toolColor(which, settings);
 
+    const label = needsEdit && !canEdit ? 'Доступно редактору' : title;
+
     return (
       <button
         className="btn-tool"
@@ -39,7 +41,10 @@ export function DrawToolbar({
         aria-pressed={tool === which}
         onClick={() => onTool(which)}
         disabled={needsEdit && !canEdit}
-        title={needsEdit && !canEdit ? 'Доступно редактору' : title}
+        title={label}
+        // Своя подсказка вместо системной: та появляется через секунду
+        // с лишним, а к тому времени в незнакомый значок уже ткнули.
+        data-tip={label}
       >
         {icon}
         {dot ? <span className="tool-dot" style={{ background: dot }} aria-hidden="true" /> : null}
@@ -52,6 +57,7 @@ export function DrawToolbar({
       <button
         className="btn-tool" type="button" onClick={onUndo}
         disabled={!canEdit || !canUndo} title="Отменить (Ctrl+Z)" aria-label="Отменить"
+        data-tip="Отменить (Ctrl+Z)"
       >
         <IconUndo />
       </button>
@@ -59,6 +65,7 @@ export function DrawToolbar({
       <button
         className="btn-tool" type="button" onClick={onRedo}
         disabled={!canEdit || !canRedo} title="Повторить (Ctrl+Y)" aria-label="Повторить"
+        data-tip="Повторить (Ctrl+Y)"
       >
         <IconRedo />
       </button>
@@ -116,35 +123,35 @@ export function ViewToolbar({
     <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
       {/* Масштаб доступен всем: наблюдателю он нужен ровно так же. */}
       <div className="zoom">
-        <button className="btn-tool" type="button" onClick={() => onZoom(1 / 1.15)} aria-label="Отдалить">−</button>
-        <button className="zoom__value" type="button" onClick={onResetZoom} title="Вернуть 100 %">
+        <button className="btn-tool" type="button" onClick={() => onZoom(1 / 1.15)} aria-label="Отдалить" data-tip="Отдалить">−</button>
+        <button className="zoom__value" type="button" onClick={onResetZoom} title="Вернуть 100 %" data-tip="Вернуть 100 %">
           {Math.round(scale * 100)} %
         </button>
-        <button className="btn-tool" type="button" onClick={() => onZoom(1.15)} aria-label="Приблизить">+</button>
-        <button className="btn-tool" type="button" onClick={onFit} title="Показать всё нарисованное">⤢</button>
+        <button className="btn-tool" type="button" onClick={() => onZoom(1.15)} aria-label="Приблизить" data-tip="Приблизить">+</button>
+        <button className="btn-tool" type="button" onClick={onFit} title="Показать всё нарисованное" data-tip="Показать всё нарисованное">⤢</button>
       </div>
 
       <span className="toolbar__divider" aria-hidden="true" />
 
       {/* Страницы рядом с масштабом: и то и другое — про то, на что
           человек сейчас смотрит, а не про то, чем рисует. */}
-      <button className="btn-tool btn-tool--wide" type="button" onClick={onPages} title="Страницы занятия">
+      <button className="btn-tool btn-tool--wide" type="button" onClick={onPages} title="Страницы занятия" data-tip="Страницы занятия">
         <IconPages />
         <span className="btn-tool__label">{pageLabel}</span>
       </button>
 
       <span className="toolbar__divider" aria-hidden="true" />
 
-      <button className="btn-tool" type="button" onClick={onHelp} title="Что умеет доска">
+      <button className="btn-tool" type="button" onClick={onHelp} title="Что умеет доска" data-tip="Что умеет доска">
         <IconHelp />
       </button>
 
-      <button className="btn-tool" type="button" onClick={onTimer} title="Таймер">
+      <button className="btn-tool" type="button" onClick={onTimer} title="Таймер" data-tip="Таймер">
         <IconTimer />
       </button>
 
       {canUpload ? (
-        <button className="btn-tool" type="button" onClick={onFiles} title="Вставить файл или страницу PDF">
+        <button className="btn-tool" type="button" onClick={onFiles} title="Вставить файл или страницу PDF" data-tip="Вставить файл или страницу PDF">
           <IconImage />
         </button>
       ) : null}
@@ -152,36 +159,36 @@ export function ViewToolbar({
       {/* Заготовки рядом с файлами: и то и другое — «положить на доску
           готовое», а не «нарисовать самому». */}
       {canEdit ? (
-        <button className="btn-tool" type="button" onClick={onLibrary} title="Заготовки: чертежи, знаки, формулы">
+        <button className="btn-tool" type="button" onClick={onLibrary} title="Заготовки: чертежи, знаки, формулы" data-tip="Заготовки: чертежи, знаки, формулы">
           <IconLibrary />
         </button>
       ) : null}
 
       {/* Вставка отдельной кнопкой: на планшете Ctrl+V нажать нечем. */}
       {canPaste ? (
-        <button className="btn-tool" type="button" onClick={onPaste} title="Вставить из буфера доски (Ctrl+V)">
+        <button className="btn-tool" type="button" onClick={onPaste} title="Вставить из буфера доски (Ctrl+V)" data-tip="Вставить из буфера доски (Ctrl+V)">
           <IconPaste />
         </button>
       ) : null}
 
       {/* Конспект рядом с сохранением: и то и другое — «забрать занятие
           с собой», разница только в том, себе на диск или письмом. */}
-      <button className="btn-tool" type="button" onClick={onSummary} title="Конспект занятия по почте">
+      <button className="btn-tool" type="button" onClick={onSummary} title="Конспект занятия по почте" data-tip="Конспект занятия по почте">
         <IconMail />
         {summaryCount > 0 ? <span className="badge-dot">{summaryCount}</span> : null}
       </button>
 
       {/* Сохранить картинкой может любой: это его же занятие. */}
-      <button className="btn-tool" type="button" onClick={onExport} title="Сохранить картинкой">
+      <button className="btn-tool" type="button" onClick={onExport} title="Сохранить картинкой" data-tip="Сохранить картинкой">
         <IconDownload />
       </button>
 
       {canManage ? (
         <>
-          <button className="btn-tool" type="button" onClick={onBackground} title="Фон и разлиновка">
+          <button className="btn-tool" type="button" onClick={onBackground} title="Фон и разлиновка" data-tip="Фон и разлиновка">
             <IconGrid />
           </button>
-          <button className="btn-tool" type="button" onClick={onClear} title="Очистить страницу">
+          <button className="btn-tool" type="button" onClick={onClear} title="Очистить страницу" data-tip="Очистить страницу">
             <IconTrash />
           </button>
         </>

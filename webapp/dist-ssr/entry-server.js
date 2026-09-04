@@ -4242,6 +4242,7 @@ function DrawToolbar({
 }) {
   const pick = (which, icon, title, needsEdit = true) => {
     const dot = toolColor(which, settings);
+    const label = needsEdit && !canEdit ? "Доступно редактору" : title;
     return /* @__PURE__ */ jsxs(
       "button",
       {
@@ -4250,7 +4251,8 @@ function DrawToolbar({
         "aria-pressed": tool === which,
         onClick: () => onTool(which),
         disabled: needsEdit && !canEdit,
-        title: needsEdit && !canEdit ? "Доступно редактору" : title,
+        title: label,
+        "data-tip": label,
         children: [
           icon,
           dot ? /* @__PURE__ */ jsx("span", { className: "tool-dot", style: { background: dot }, "aria-hidden": "true" }) : null
@@ -4268,6 +4270,7 @@ function DrawToolbar({
         disabled: !canEdit || !canUndo,
         title: "Отменить (Ctrl+Z)",
         "aria-label": "Отменить",
+        "data-tip": "Отменить (Ctrl+Z)",
         children: /* @__PURE__ */ jsx(IconUndo, {})
       }
     ),
@@ -4280,6 +4283,7 @@ function DrawToolbar({
         disabled: !canEdit || !canRedo,
         title: "Повторить (Ctrl+Y)",
         "aria-label": "Повторить",
+        "data-tip": "Повторить (Ctrl+Y)",
         children: /* @__PURE__ */ jsx(IconRedo, {})
       }
     ),
@@ -4319,33 +4323,33 @@ function ViewToolbar({
 }) {
   return /* @__PURE__ */ jsxs("div", { className: "toolbar toolbar--view", role: "toolbar", "aria-label": "Масштаб и вид", children: [
     /* @__PURE__ */ jsxs("div", { className: "zoom", children: [
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onZoom(1 / 1.15), "aria-label": "Отдалить", children: "−" }),
-      /* @__PURE__ */ jsxs("button", { className: "zoom__value", type: "button", onClick: onResetZoom, title: "Вернуть 100 %", children: [
+      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onZoom(1 / 1.15), "aria-label": "Отдалить", "data-tip": "Отдалить", children: "−" }),
+      /* @__PURE__ */ jsxs("button", { className: "zoom__value", type: "button", onClick: onResetZoom, title: "Вернуть 100 %", "data-tip": "Вернуть 100 %", children: [
         Math.round(scale * 100),
         " %"
       ] }),
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onZoom(1.15), "aria-label": "Приблизить", children: "+" }),
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFit, title: "Показать всё нарисованное", children: "⤢" })
+      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onZoom(1.15), "aria-label": "Приблизить", "data-tip": "Приблизить", children: "+" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFit, title: "Показать всё нарисованное", "data-tip": "Показать всё нарисованное", children: "⤢" })
     ] }),
     /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-    /* @__PURE__ */ jsxs("button", { className: "btn-tool btn-tool--wide", type: "button", onClick: onPages, title: "Страницы занятия", children: [
+    /* @__PURE__ */ jsxs("button", { className: "btn-tool btn-tool--wide", type: "button", onClick: onPages, title: "Страницы занятия", "data-tip": "Страницы занятия", children: [
       /* @__PURE__ */ jsx(IconPages, {}),
       /* @__PURE__ */ jsx("span", { className: "btn-tool__label", children: pageLabel })
     ] }),
     /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onHelp, title: "Что умеет доска", children: /* @__PURE__ */ jsx(IconHelp, {}) }),
-    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
-    canUpload ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFiles, title: "Вставить файл или страницу PDF", children: /* @__PURE__ */ jsx(IconImage, {}) }) : null,
-    canEdit ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onLibrary, title: "Заготовки: чертежи, знаки, формулы", children: /* @__PURE__ */ jsx(IconLibrary, {}) }) : null,
-    canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
-    /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", children: [
+    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onHelp, title: "Что умеет доска", "data-tip": "Что умеет доска", children: /* @__PURE__ */ jsx(IconHelp, {}) }),
+    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", "data-tip": "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
+    canUpload ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFiles, title: "Вставить файл или страницу PDF", "data-tip": "Вставить файл или страницу PDF", children: /* @__PURE__ */ jsx(IconImage, {}) }) : null,
+    canEdit ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onLibrary, title: "Заготовки: чертежи, знаки, формулы", "data-tip": "Заготовки: чертежи, знаки, формулы", children: /* @__PURE__ */ jsx(IconLibrary, {}) }) : null,
+    canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
+    /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", "data-tip": "Конспект занятия по почте", children: [
       /* @__PURE__ */ jsx(IconMail, {}),
       summaryCount > 0 ? /* @__PURE__ */ jsx("span", { className: "badge-dot", children: summaryCount }) : null
     ] }),
-    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onExport, title: "Сохранить картинкой", children: /* @__PURE__ */ jsx(IconDownload, {}) }),
+    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onExport, title: "Сохранить картинкой", "data-tip": "Сохранить картинкой", children: /* @__PURE__ */ jsx(IconDownload, {}) }),
     canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBackground, title: "Фон и разлиновка", children: /* @__PURE__ */ jsx(IconGrid, {}) }),
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClear, title: "Очистить страницу", children: /* @__PURE__ */ jsx(IconTrash, {}) })
+      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBackground, title: "Фон и разлиновка", "data-tip": "Фон и разлиновка", children: /* @__PURE__ */ jsx(IconGrid, {}) }),
+      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClear, title: "Очистить страницу", "data-tip": "Очистить страницу", children: /* @__PURE__ */ jsx(IconTrash, {}) })
     ] }) : null
   ] });
 }

@@ -780,6 +780,69 @@ body.no-scroll {
     margin: var(--sp-1) 0;
 }
 
+/* --- Подсказки на кнопках ------------------------------------------------- */
+
+/*
+ * Название инструмента при наведении.
+ *
+ * Системная подсказка из атрибута title остаётся — она нужна и
+ * скринридеру, и тому, у кого что-то не так с CSS, — но появляется она
+ * почти через секунду, а к этому времени в незнакомый значок уже ткнули.
+ *
+ * Только там, где наведение вообще есть: на сенсорном экране такая
+ * подсказка вылезала бы после каждого касания и висела бы поверх холста.
+ */
+@media (hover: hover) and (pointer: fine) {
+    .btn-tool[data-tip]::after {
+        content: attr(data-tip);
+        position: absolute;
+        z-index: 20;
+        padding: 4px 8px;
+        border-radius: var(--radius-sm);
+        background: var(--text);
+        color: var(--surface);
+        font-size: var(--fs-xs);
+        line-height: 1.2;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity var(--transition) .35s, visibility 0s linear .35s;
+    }
+
+    .btn-tool[data-tip]:hover::after,
+    .btn-tool[data-tip]:focus-visible::after {
+        opacity: 1;
+        visibility: visible;
+        transition-delay: .35s, 0s;
+    }
+
+    /* У вертикальной полосы — сбоку: снизу подсказка легла бы на
+       соседнюю кнопку, в которую как раз и целятся дальше. */
+    .toolbar--vertical .btn-tool[data-tip]::after {
+        left: calc(100% + 8px);
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    /* У верхней полосы — под кнопкой: справа и слева соседи вплотную. */
+    .toolbar--view .btn-tool[data-tip]::after,
+    .zoom .btn-tool[data-tip]::after,
+    .zoom .zoom__value[data-tip]::after {
+        top: calc(100% + 8px);
+        right: 0;
+    }
+
+    .zoom__value[data-tip] { position: relative; }
+}
+
+/* Подсказка выходит за край полосы, а полоса умеет прокручиваться и
+   потому обрезает всё лишнее. Отпускаем обрезку там, где прокрутка и не
+   нужна: в окне такой высоты все инструменты помещаются целиком. */
+@media (min-width: 720px) and (min-height: 760px) {
+    .toolbar--vertical { overflow: visible; }
+}
+
 /* --- Масштаб и вид: горизонтальная полоса в правом верхнем углу ------------- */
 
 .toolbar--view {
