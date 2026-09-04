@@ -555,6 +555,50 @@ export function BoardPage(): ReactElement {
   }, [hub, id]);
 
   /**
+   * Лист PDF отдельной страницей доски.
+   *
+   * Страницу заводим и тут же кладём на неё лист, не открывая её у себя:
+   * иначе разбор двадцатистраничного файла превратился бы в двадцать
+   * перелистываний на глазах у всего занятия.
+   *
+   * Лист заперт — по нему пишут, а сдвинуть его случайно нельзя. Отпереть
+   * можно замком в панели выделения.
+   */
+  const spreadPage = useCallback(async (blob: Blob, name: string, ratio: number) => {
+    const uploaded = await uploadBoardImage(id, blob, name, readGuestToken(id));
+
+    const pageId = await hub.addPageNow(name);
+    if (pageId === null) throw new Error('Страница не завелась: на доске их предел.');
+
+    const view = viewportRef.current;
+    const size = canvasRef.current;
+
+    // Шире, чем разовая вставка: здесь лист — вся страница, а не
+    // картинка рядом с записями.
+    const width = (size.width > 0 ? size.width * 0.7 : 640) / view.scale;
+    const height = width / (ratio > 0 ? ratio : 1);
+
+    const center = toWorld(view, size.width / 2, size.height / 2);
+    const x1 = center.x - width / 2;
+    const y1 = center.y - height / 2;
+
+    const data: ItemData = {
+      x1,
+      y1,
+      x2: x1 + width,
+      y2: y1 + height,
+      ratio,
+      locked: true,
+      color: '#000000',
+      width: 0,
+    };
+
+    // Без ссылки и без истории: объект лёг на чужую страницу, и отменять
+    // его поштучно незачем — не нужна вся раскладка, удаляют страницы.
+    hub.commitItem(`d${Date.now().toString(36)}-${pageId}`, 'image', data, uploaded.imageRef, pageId);
+  }, [hub, id]);
+
+  /**
    * Переносит холст к курсору участника.
    *
    * Масштаб не трогаем: человек подбирал его под свою работу, и менять
@@ -1075,7 +1119,12 @@ export function BoardPage(): ReactElement {
           {showHelp ? <HelpPanel onClose={() => setShowHelp(false)} /> : null}
 
           {showFiles ? (
-            <FilesPanel onInsert={insertImage} onClose={() => setShowFiles(false)} />
+            <FilesPanel
+              onInsert={insertImage}
+              onSpread={spreadPage}
+              canSpread={hub.canManage}
+              onClose={() => setShowFiles(false)}
+            />
           ) : null}
 
           {showLibrary && hub.canEdit ? (

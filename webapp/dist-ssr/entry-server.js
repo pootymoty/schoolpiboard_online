@@ -3759,7 +3759,7 @@ function canvasFromFile(file) {
 const INSERT_WIDTH = 1600;
 const CROP_WIDTH = 1100;
 const PAGE_STEP = 60;
-function FilesPanel({ onInsert, onClose }) {
+function FilesPanel({ onInsert, onSpread, canSpread, onClose }) {
   const [library, setLibrary] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -3882,6 +3882,21 @@ function FilesPanel({ onInsert, onClose }) {
       onClose();
     } catch (reason) {
       fail(reason, "Не удалось вставить страницы.");
+    }
+  };
+  const spreadPages = async () => {
+    if (!document2 || selected.length === 0) return;
+    const order = [...selected].sort((a, b) => a - b);
+    setError(null);
+    try {
+      for (const [index, page] of order.entries()) {
+        setBusy(`Раскладываем: ${index + 1} из ${order.length}…`);
+        const canvas = await renderPage(document2, page, INSERT_WIDTH);
+        await onSpread(await toPng(canvas), `${documentName} — с. ${page}`, canvas.width / canvas.height);
+      }
+      onClose();
+    } catch (reason) {
+      fail(reason, "Не удалось разложить страницы.");
     }
   };
   const startCrop = async (page) => {
@@ -4016,7 +4031,7 @@ function FilesPanel({ onInsert, onClose }) {
       ] }) : null
     ] }) : null,
     view === "pages" && document2 ? /* @__PURE__ */ jsxs("div", { className: "files__body", children: [
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Отметьте страницы — их вставим целиком. Обрезать можно любую, по одной." }),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Отметьте страницы. Их можно вставить сюда, одну рядом с другой, или разложить — каждую отдельной страницей занятия. Обрезать можно любую, по одной." }),
       /* @__PURE__ */ jsx("div", { className: "files__pages", children: thumbs.map((thumb, index) => {
         const page = index + 1;
         const chosen = selected.includes(page);
@@ -4057,11 +4072,25 @@ function FilesPanel({ onInsert, onClose }) {
           disabled: selected.length === 0 || busy !== null,
           onClick: () => void insertPages(),
           children: [
-            "Вставить ",
+            "Вставить на эту страницу ",
             selected.length > 0 ? `(${selected.length})` : ""
           ]
         }
-      )
+      ),
+      canSpread ? /* @__PURE__ */ jsxs(
+        "button",
+        {
+          className: "btn-outline btn-block",
+          type: "button",
+          disabled: selected.length === 0 || busy !== null,
+          onClick: () => void spreadPages(),
+          title: "Каждый лист — отдельной страницей занятия, запертой подложкой",
+          children: [
+            "Разложить по страницам ",
+            selected.length > 0 ? `(${selected.length})` : ""
+          ]
+        }
+      ) : null
     ] }) : null,
     view === "crop" && source ? /* @__PURE__ */ jsxs("div", { className: "files__body", children: [
       /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Обведите нужный кусок — или вставьте целиком." }),
@@ -6301,7 +6330,7 @@ function useBoardHub(boardId) {
     beginItem: useCallback((id, type, data) => call("BeginItem", id, page(), type, data), [call]),
     appendPoints: useCallback((id, points) => call("AppendPoints", id, page(), points), [call]),
     commitItem: useCallback(
-      (id, type, data, imageRef) => call("CommitItem", id, page(), type, data, imageRef ?? null),
+      (id, type, data, imageRef, pageId2) => call("CommitItem", id, pageId2 ?? page(), type, data, imageRef ?? null),
       [call]
     ),
     cancelItem: useCallback((id) => call("CancelItem", id, page()), [call]),
@@ -6316,6 +6345,15 @@ function useBoardHub(boardId) {
     clearBoard: useCallback(() => call("ClearBoard", page()), [call]),
     openPage: useCallback((id) => call("OpenPage", id), [call]),
     addPage: useCallback((title) => call("AddPage", title ?? null), [call]),
+    addPageNow: useCallback(async (title) => {
+      const hub = connection.current;
+      if ((hub == null ? void 0 : hub.state) !== HubConnectionState.Connected) return null;
+      try {
+        return await hub.invoke("AddPage", title);
+      } catch {
+        return null;
+      }
+    }, []),
     renamePage: useCallback((id, title) => call("RenamePage", id, title), [call]),
     deletePage: useCallback((id) => call("DeletePage", id), [call]),
     reorderPages: useCallback((order) => call("ReorderPages", order), [call]),
@@ -6728,6 +6766,29 @@ function BoardPage() {
     });
     hub.commitItem(`${ref}-new`, "image", data, uploaded.imageRef);
   }, [hub, id]);
+  const spreadPage = useCallback(async (blob, name, ratio) => {
+    const uploaded = await uploadBoardImage(id, blob, name, readGuestToken(id));
+    const pageId = await hub.addPageNow(name);
+    if (pageId === null) throw new Error("Страница не завелась: на доске их предел.");
+    const view = viewportRef.current;
+    const size = canvasRef.current;
+    const width = (size.width > 0 ? size.width * 0.7 : 640) / view.scale;
+    const height = width / (ratio > 0 ? ratio : 1);
+    const center = toWorld(view, size.width / 2, size.height / 2);
+    const x1 = center.x - width / 2;
+    const y1 = center.y - height / 2;
+    const data = {
+      x1,
+      y1,
+      x2: x1 + width,
+      y2: y1 + height,
+      ratio,
+      locked: true,
+      color: "#000000",
+      width: 0
+    };
+    hub.commitItem(`d${Date.now().toString(36)}-${pageId}`, "image", data, uploaded.imageRef, pageId);
+  }, [hub, id]);
   const goToCursor = useCallback((connectionId) => {
     const at = hub.cursors.find((cursor) => cursor.id === connectionId);
     if (!at) return;
@@ -7117,7 +7178,15 @@ function BoardPage() {
             ),
             showTimer ? /* @__PURE__ */ jsx(TimerPanel, { onClose: () => setShowTimer(false) }) : null,
             showHelp ? /* @__PURE__ */ jsx(HelpPanel, { onClose: () => setShowHelp(false) }) : null,
-            showFiles ? /* @__PURE__ */ jsx(FilesPanel, { onInsert: insertImage, onClose: () => setShowFiles(false) }) : null,
+            showFiles ? /* @__PURE__ */ jsx(
+              FilesPanel,
+              {
+                onInsert: insertImage,
+                onSpread: spreadPage,
+                canSpread: hub.canManage,
+                onClose: () => setShowFiles(false)
+              }
+            ) : null,
             showLibrary && hub.canEdit ? /* @__PURE__ */ jsx(
               LibraryPanel,
               {

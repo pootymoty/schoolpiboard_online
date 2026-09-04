@@ -577,10 +577,17 @@ public sealed class BoardHub : Hub
             Context.ConnectionAborted);
     }
 
-    public async Task AddPage(string? title)
+    /// <summary>
+    /// Заводит страницу и называет её номер.
+    ///
+    /// Номер нужен тому, кто раскладывает PDF: страницу заводят и тут же
+    /// кладут на неё лист, не открывая её у себя. Обычный вызов из полосы
+    /// страниц ответ просто не читает.
+    /// </summary>
+    public async Task<long?> AddPage(string? title)
     {
         var presence = await RequireOwnerAsync();
-        if (presence is null) return;
+        if (presence is null) return null;
 
         var page = await _pages.AddAsync(presence.BoardId, title, Context.ConnectionAborted);
 
@@ -588,10 +595,11 @@ public sealed class BoardHub : Hub
         {
             await Clients.Caller.SendAsync(
                 "Error", "too_many_pages", $"Больше {BoardPage.MaxPerBoard} страниц на доске не бывает.");
-            return;
+            return null;
         }
 
         await PublishAsync(presence.BoardId, "PagesChanged", new { by = Context.ConnectionId });
+        return page.Id;
     }
 
     public async Task RenamePage(long pageId, string? title)

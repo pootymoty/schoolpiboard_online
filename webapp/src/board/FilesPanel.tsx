@@ -10,6 +10,10 @@ import { canvasFromFile, cropCanvas, openDocument, renderPage, toPng } from './p
 interface Props {
   /** Кладёт готовую картинку на доску. Панель не знает ни про хаб, ни про хранилище. */
   onInsert: (blob: Blob, name: string, ratio: number) => Promise<void>;
+  /** Заводит отдельную страницу доски и кладёт лист на неё. */
+  onSpread: (blob: Blob, name: string, ratio: number) => Promise<void>;
+  /** Заводить страницы может только владелец — остальным кнопки не показываем. */
+  canSpread: boolean;
   onClose: () => void;
 }
 
@@ -31,7 +35,7 @@ type View = 'library' | 'pages' | 'crop';
  * рисует и режет тот, кто вставляет. Загруженный однажды файл остаётся в
  * библиотеке — второй раз тот же учебник загружать не нужно.
  */
-export function FilesPanel({ onInsert, onClose }: Props): ReactElement {
+export function FilesPanel({ onInsert, onSpread, canSpread, onClose }: Props): ReactElement {
   const [library, setLibrary] = useState<Library | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -192,6 +196,33 @@ export function FilesPanel({ onInsert, onClose }: Props): ReactElement {
       onClose();
     } catch (reason) {
       fail(reason, 'Не удалось вставить страницы.');
+    }
+  };
+
+  /**
+   * Отмеченные листы — каждый на свою страницу доски.
+   *
+   * По порядку и по одному: страницы должны встать в том же порядке, что
+   * в файле, а параллельная заливка двадцати листов сразу — это двадцать
+   * загрузок в одну сеть.
+   */
+  const spreadPages = async () => {
+    if (!document || selected.length === 0) return;
+
+    const order = [...selected].sort((a, b) => a - b);
+    setError(null);
+
+    try {
+      for (const [index, page] of order.entries()) {
+        setBusy(`Раскладываем: ${index + 1} из ${order.length}…`);
+
+        const canvas = await renderPage(document, page, INSERT_WIDTH);
+        await onSpread(await toPng(canvas), `${documentName} — с. ${page}`, canvas.width / canvas.height);
+      }
+
+      onClose();
+    } catch (reason) {
+      fail(reason, 'Не удалось разложить страницы.');
     }
   };
 
@@ -374,7 +405,8 @@ export function FilesPanel({ onInsert, onClose }: Props): ReactElement {
       {view === 'pages' && document ? (
         <div className="files__body">
           <p className="text-muted small">
-            Отметьте страницы — их вставим целиком. Обрезать можно любую, по одной.
+            Отметьте страницы. Их можно вставить сюда, одну рядом с другой, или разложить —
+            каждую отдельной страницей занятия. Обрезать можно любую, по одной.
           </p>
 
           <div className="files__pages">
@@ -419,8 +451,22 @@ export function FilesPanel({ onInsert, onClose }: Props): ReactElement {
             disabled={selected.length === 0 || busy !== null}
             onClick={() => void insertPages()}
           >
-            Вставить {selected.length > 0 ? `(${selected.length})` : ''}
+            Вставить на эту страницу {selected.length > 0 ? `(${selected.length})` : ''}
           </button>
+
+          {/* Разложить по страницам может только владелец: страницы
+              заводит он. */}
+          {canSpread ? (
+            <button
+              className="btn-outline btn-block"
+              type="button"
+              disabled={selected.length === 0 || busy !== null}
+              onClick={() => void spreadPages()}
+              title="Каждый лист — отдельной страницей занятия, запертой подложкой"
+            >
+              Разложить по страницам {selected.length > 0 ? `(${selected.length})` : ''}
+            </button>
+          ) : null}
         </div>
       ) : null}
 

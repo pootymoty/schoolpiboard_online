@@ -45,7 +45,14 @@ export interface BoardHub {
   sendCursor: (x: number, y: number) => void;
   beginItem: (tempId: string, type: ItemType, data: ItemData) => void;
   appendPoints: (tempId: string, points: ItemData['points']) => void;
-  commitItem: (tempId: string, type: ItemType, data: ItemData, imageRef?: string | null) => void;
+  /**
+   * Закрепляет объект. Страница по умолчанию — открытая; чужая нужна
+   * тому, кто раскладывает PDF: лист кладётся на только что заведённую
+   * страницу, не открывая её у себя.
+   */
+  commitItem: (
+    tempId: string, type: ItemType, data: ItemData, imageRef?: string | null, pageId?: number,
+  ) => void;
   cancelItem: (tempId: string) => void;
   setBackground: (background: Background) => void;
   moveItems: (ids: number[], dx: number, dy: number) => void;
@@ -56,6 +63,8 @@ export interface BoardHub {
 
   openPage: (pageId: number) => void;
   addPage: (title?: string) => void;
+  /** Заводит страницу и отвечает её номером. Пусто — не завелась. */
+  addPageNow: (title: string) => Promise<number | null>;
   renamePage: (pageId: number, title: string) => void;
   deletePage: (pageId: number) => void;
   reorderPages: (order: number[]) => void;
@@ -383,7 +392,9 @@ export function useBoardHub(boardId: number): BoardHub {
     beginItem: useCallback((id, type, data) => call('BeginItem', id, page(), type, data), [call]),
     appendPoints: useCallback((id, points) => call('AppendPoints', id, page(), points), [call]),
     commitItem: useCallback(
-      (id, type, data, imageRef) => call('CommitItem', id, page(), type, data, imageRef ?? null),
+      (id, type, data, imageRef, pageId) => (
+        call('CommitItem', id, pageId ?? page(), type, data, imageRef ?? null)
+      ),
       [call],
     ),
     cancelItem: useCallback((id: string) => call('CancelItem', id, page()), [call]),
@@ -400,6 +411,16 @@ export function useBoardHub(boardId: number): BoardHub {
 
     openPage: useCallback((id: number) => call('OpenPage', id), [call]),
     addPage: useCallback((title?: string) => call('AddPage', title ?? null), [call]),
+    addPageNow: useCallback(async (title: string) => {
+      const hub = connection.current;
+      if (hub?.state !== HubConnectionState.Connected) return null;
+
+      try {
+        return await hub.invoke<number | null>('AddPage', title);
+      } catch {
+        return null;
+      }
+    }, []),
     renamePage: useCallback((id: number, title: string) => call('RenamePage', id, title), [call]),
     deletePage: useCallback((id: number) => call('DeletePage', id), [call]),
     reorderPages: useCallback((order: number[]) => call('ReorderPages', order), [call]),
