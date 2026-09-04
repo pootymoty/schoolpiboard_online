@@ -352,6 +352,11 @@ const IconPages = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /*
   /* @__PURE__ */ jsx("rect", { x: "4", y: "3", width: "12", height: "15", rx: "2" }),
   /* @__PURE__ */ jsx("path", { d: "M8 21h9a2 2 0 002-2V8" })
 ] }) });
+const IconLibrary = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("rect", { x: "3", y: "4", width: "5", height: "16", rx: "1" }),
+  /* @__PURE__ */ jsx("rect", { x: "10", y: "4", width: "5", height: "16", rx: "1" }),
+  /* @__PURE__ */ jsx("path", { d: "M17.5 5.2l3.3 15" })
+] }) });
 function Menu({ label, children, trigger, triggerClassName = "btn-tool" }) {
   const [open, setOpen] = useState(false);
   const box = useRef(null);
@@ -2504,6 +2509,25 @@ function drawShape(context, data) {
     context.fill();
     context.restore();
   };
+  if (data.shape === "arcUp" || data.shape === "arcDown") {
+    const x1 = data.x1 ?? 0;
+    const y1 = data.y1 ?? 0;
+    const x2 = data.x2 ?? 0;
+    const y2 = data.y2 ?? 0;
+    const from = data.shape === "arcDown" ? 0 : Math.PI;
+    context.beginPath();
+    context.ellipse(
+      (x1 + x2) / 2,
+      (y1 + y2) / 2,
+      Math.abs(x2 - x1) / 2,
+      Math.abs(y2 - y1) / 2,
+      0,
+      from,
+      from + Math.PI
+    );
+    context.stroke();
+    return;
+  }
   if (data.shape === "ellipse") {
     const x1 = data.x1 ?? 0;
     const y1 = data.y1 ?? 0;
@@ -2725,7 +2749,7 @@ function translate(data, dx, dy) {
   return {
     ...data,
     points: (_a = data.points) == null ? void 0 : _a.map(shift),
-    segments: (_b = data.segments) == null ? void 0 : _b.map((segment) => segment.map(shift)),
+    segments: (_b = data.segments) == null ? void 0 : _b.map((segment2) => segment2.map(shift)),
     x1: data.x1 === void 0 ? void 0 : data.x1 + dx,
     y1: data.y1 === void 0 ? void 0 : data.y1 + dy,
     x2: data.x2 === void 0 ? void 0 : data.x2 + dx,
@@ -2786,7 +2810,7 @@ function distanceToSegment(point, from, to) {
 function hits(item, point, radius) {
   const points = pointsOf(item.data);
   const reach = radius + item.data.width / 2;
-  if (item.type === "text" || item.type === "image" || item.type === "table" || item.data.shape === "ellipse") {
+  if (item.type === "text" || item.type === "image" || item.type === "table" || item.data.shape === "ellipse" || item.data.shape === "arcUp" || item.data.shape === "arcDown") {
     if (item.data.angle) return inside(points, point);
     const box = boundsOf([item]);
     return Boolean(box) && point.x >= box.x - radius && point.x <= box.x + box.width + radius && point.y >= box.y - radius && point.y <= box.y + box.height + radius;
@@ -2887,7 +2911,7 @@ function handlesFor(item, box) {
 function angleTo(center, point) {
   return Math.atan2(point.y - center.y, point.x - center.x) * 180 / Math.PI;
 }
-function resized(data, origin, handle, dx, dy) {
+function resized(data, origin2, handle, dx, dy) {
   var _a, _b, _c, _d;
   if (handle === "p1") return { ...data, x1: (data.x1 ?? 0) + dx, y1: (data.y1 ?? 0) + dy };
   if (handle === "p2") return { ...data, x2: (data.x2 ?? 0) + dx, y2: (data.y2 ?? 0) + dy };
@@ -2896,12 +2920,12 @@ function resized(data, origin, handle, dx, dy) {
     const back = radians(-spin);
     const localDx = dx * Math.cos(back) - dy * Math.sin(back);
     const localDy = dx * Math.sin(back) + dy * Math.cos(back);
-    const next = resized({ ...data, angle: 0 }, origin, handle, localDx, localDy);
-    const before = anchorOf(origin, handle);
-    const after = anchorOf(boxOf(next) ?? origin, handle);
+    const next = resized({ ...data, angle: 0 }, origin2, handle, localDx, localDy);
+    const before = anchorOf(origin2, handle);
+    const after = anchorOf(boxOf(next) ?? origin2, handle);
     const was = rotatePoint(
       { ...before, p: 1 },
-      { x: origin.x + origin.width / 2, y: origin.y + origin.height / 2 },
+      { x: origin2.x + origin2.width / 2, y: origin2.y + origin2.height / 2 },
       spin
     );
     const now = rotatePoint(
@@ -2923,27 +2947,27 @@ function resized(data, origin, handle, dx, dy) {
       y2: (next.y2 ?? 0) + shiftY
     };
   }
-  const left = origin.x + (handle.includes("w") ? dx : 0);
-  const right = origin.x + origin.width + (handle.includes("e") ? dx : 0);
-  const top = origin.y + (handle.startsWith("n") ? dy : 0);
-  const bottom = origin.y + origin.height + (handle.startsWith("s") ? dy : 0);
+  const left = origin2.x + (handle.includes("w") ? dx : 0);
+  const right = origin2.x + origin2.width + (handle.includes("e") ? dx : 0);
+  const top = origin2.y + (handle.startsWith("n") ? dy : 0);
+  const bottom = origin2.y + origin2.height + (handle.startsWith("s") ? dy : 0);
   const width = Math.max(1, right - left);
   const height = Math.max(1, bottom - top);
   if (data.ratio !== void 0 && data.ratio > 0) {
-    const byWidth = origin.width > 0 ? width / origin.width : 1;
-    const byHeight = origin.height > 0 ? height / origin.height : 1;
+    const byWidth = origin2.width > 0 ? width / origin2.width : 1;
+    const byHeight = origin2.height > 0 ? height / origin2.height : 1;
     const horizontal = handle === "e" || handle === "w";
     const vertical = handle === "n" || handle === "s";
     const factor = horizontal ? byWidth : vertical ? byHeight : Math.max(byWidth, byHeight);
-    const nextWidth = Math.max(8, origin.width * factor);
+    const nextWidth = Math.max(8, origin2.width * factor);
     const nextHeight = nextWidth / data.ratio;
-    const x = handle.includes("w") ? origin.x + origin.width - nextWidth : origin.x;
-    const y = handle.startsWith("n") ? origin.y + origin.height - nextHeight : origin.y;
+    const x = handle.includes("w") ? origin2.x + origin2.width - nextWidth : origin2.x;
+    const y = handle.startsWith("n") ? origin2.y + origin2.height - nextHeight : origin2.y;
     return { ...data, x1: x, y1: y, x2: x + nextWidth, y2: y + nextHeight };
   }
   if (data.text !== void 0) {
-    const byWidth = origin.width > 0 ? width / origin.width : 1;
-    const byHeight = origin.height > 0 ? height / origin.height : 1;
+    const byWidth = origin2.width > 0 ? width / origin2.width : 1;
+    const byHeight = origin2.height > 0 ? height / origin2.height : 1;
     const horizontal = handle === "e" || handle === "w";
     const vertical = handle === "n" || handle === "s";
     const factor = horizontal ? byWidth : vertical ? byHeight : Math.max(byWidth, byHeight);
@@ -2951,10 +2975,10 @@ function resized(data, origin, handle, dx, dy) {
     const box = measureText(data.text ?? "", fontSize);
     return {
       ...data,
-      x1: handle.includes("w") ? origin.x + origin.width - box.width : left,
-      y1: handle.startsWith("n") ? origin.y + origin.height - box.height : top,
-      x2: (handle.includes("w") ? origin.x + origin.width - box.width : left) + box.width,
-      y2: (handle.startsWith("n") ? origin.y + origin.height - box.height : top) + box.height,
+      x1: handle.includes("w") ? origin2.x + origin2.width - box.width : left,
+      y1: handle.startsWith("n") ? origin2.y + origin2.height - box.height : top,
+      x2: (handle.includes("w") ? origin2.x + origin2.width - box.width : left) + box.width,
+      y2: (handle.startsWith("n") ? origin2.y + origin2.height - box.height : top) + box.height,
       fontSize
     };
   }
@@ -4214,6 +4238,7 @@ function DrawToolbar({
 }
 function ViewToolbar({
   canManage,
+  canEdit,
   canUpload,
   scale,
   onZoom,
@@ -4221,6 +4246,7 @@ function ViewToolbar({
   onFit,
   onBackground,
   onFiles,
+  onLibrary,
   onTimer,
   onHelp,
   onExport,
@@ -4249,6 +4275,7 @@ function ViewToolbar({
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onHelp, title: "Что умеет доска", children: /* @__PURE__ */ jsx(IconHelp, {}) }),
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
     canUpload ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFiles, title: "Вставить файл или страницу PDF", children: /* @__PURE__ */ jsx(IconImage, {}) }) : null,
+    canEdit ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onLibrary, title: "Заготовки: чертежи, знаки, формулы", children: /* @__PURE__ */ jsx(IconLibrary, {}) }) : null,
     canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onExport, title: "Сохранить картинкой", children: /* @__PURE__ */ jsx(IconDownload, {}) }),
     canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
@@ -4615,10 +4642,10 @@ function erase(item, at, radius) {
   if (before.length === 0) return { kind: "keep" };
   const after = [];
   let touched = false;
-  for (const segment of before) {
-    const pieces = eraseSegment(segment, at, reach);
+  for (const segment2 of before) {
+    const pieces = eraseSegment(segment2, at, reach);
     if (pieces === null) {
-      after.push(segment);
+      after.push(segment2);
       continue;
     }
     touched = true;
@@ -5177,6 +5204,584 @@ function PagesPanel({
     pages.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Вам пока не открыта ни одна страница этой доски." }) : null
   ] });
 }
+function segment(frame, a, b, hidden = false) {
+  return {
+    type: "shape",
+    data: {
+      shape: "line",
+      x1: a.x,
+      y1: a.y,
+      x2: b.x,
+      y2: b.y,
+      color: frame.color,
+      width: frame.width,
+      // Невидимый ребро — пунктиром: так его чертят в учебнике, и так
+      // сразу видно, что фигура объёмная, а не плоская.
+      lineStyle: hidden ? "dash" : "solid"
+    }
+  };
+}
+function ray(frame, a, b) {
+  return {
+    type: "shape",
+    data: {
+      shape: "arrow",
+      x1: a.x,
+      y1: a.y,
+      x2: b.x,
+      y2: b.y,
+      color: frame.color,
+      width: frame.width,
+      lineStyle: "solid"
+    }
+  };
+}
+function oval(frame, at, rx, ry, hidden = false) {
+  return {
+    type: "shape",
+    data: {
+      shape: "ellipse",
+      x1: at.x - rx,
+      y1: at.y - ry,
+      x2: at.x + rx,
+      y2: at.y + ry,
+      color: frame.color,
+      width: frame.width,
+      lineStyle: hidden ? "dash" : "solid"
+    }
+  };
+}
+function halfOval(frame, at, rx, ry, half, hidden = false) {
+  return {
+    type: "shape",
+    data: {
+      shape: half === "up" ? "arcUp" : "arcDown",
+      x1: at.x - rx,
+      y1: at.y - ry,
+      x2: at.x + rx,
+      y2: at.y + ry,
+      color: frame.color,
+      width: frame.width,
+      lineStyle: hidden ? "dash" : "solid"
+    }
+  };
+}
+function caption(frame, at, text, anchor, fontSize = frame.fontSize) {
+  const box = measureText(text, fontSize);
+  const dx = anchor === "center" ? -box.width / 2 : anchor === "right" ? -box.width : 0;
+  const x1 = at.x + dx;
+  const y1 = at.y - box.height / 2;
+  return {
+    type: "text",
+    data: {
+      x1,
+      y1,
+      x2: x1 + box.width,
+      y2: y1 + box.height,
+      text,
+      fontSize,
+      color: frame.color,
+      width: 1
+    }
+  };
+}
+function unitFor(size, divisions) {
+  const raw = size / (2 * divisions + 1.6);
+  return Math.max(GRID_STEP, Math.round(raw / GRID_STEP) * GRID_STEP);
+}
+function origin(frame) {
+  return {
+    x: Math.round(frame.cx / GRID_STEP) * GRID_STEP,
+    y: Math.round(frame.cy / GRID_STEP) * GRID_STEP
+  };
+}
+const PLANE = {
+  id: "plane",
+  title: "Координатная плоскость",
+  group: "axes",
+  hint: "Оси с засечками по клеткам доски. Саму клетку включают в «Фоне» — разлиновка «График».",
+  knobs: [
+    { key: "divisions", label: "Делений по оси", kind: "number", min: 2, max: 12 },
+    { key: "labels", label: "Подписи делений", kind: "toggle", min: 0, max: 1 }
+  ],
+  defaults: { divisions: 5, labels: 1 },
+  build: (frame, params) => {
+    const n = Math.round(params.divisions);
+    const unit = unitFor(frame.size, n);
+    const at = origin(frame);
+    const reach = n * unit + unit * 0.7;
+    const tick = Math.max(4, unit * 0.16);
+    const small = Math.max(11, frame.fontSize * 0.8);
+    const drafts = [
+      ray(frame, { x: at.x - reach, y: at.y }, { x: at.x + reach, y: at.y }),
+      ray(frame, { x: at.x, y: at.y + reach }, { x: at.x, y: at.y - reach })
+    ];
+    for (let i = 1; i <= n; i += 1) {
+      for (const sign of [1, -1]) {
+        const x = at.x + sign * i * unit;
+        const y = at.y + sign * i * unit;
+        drafts.push(segment(frame, { x, y: at.y - tick }, { x, y: at.y + tick }));
+        drafts.push(segment(frame, { x: at.x - tick, y }, { x: at.x + tick, y }));
+        if (params.labels) {
+          drafts.push(caption(frame, { x, y: at.y + tick + small }, String(sign * i), "center", small));
+          drafts.push(caption(
+            frame,
+            { x: at.x - tick - small * 0.4, y },
+            String(-sign * i),
+            "right",
+            small
+          ));
+        }
+      }
+    }
+    drafts.push(caption(frame, { x: at.x - small * 0.7, y: at.y + small * 0.9 }, "O", "right", small));
+    drafts.push(caption(frame, { x: at.x + reach, y: at.y - small }, "x", "center", small));
+    drafts.push(caption(frame, { x: at.x + small, y: at.y - reach }, "y", "left", small));
+    return drafts;
+  }
+};
+const NUMBER_LINE = {
+  id: "number-line",
+  title: "Числовая прямая",
+  group: "axes",
+  hint: "Прямая с нулём и засечками — под сравнение чисел, дроби и модуль.",
+  knobs: [
+    { key: "divisions", label: "Делений в каждую сторону", kind: "number", min: 2, max: 12 },
+    { key: "labels", label: "Подписи делений", kind: "toggle", min: 0, max: 1 }
+  ],
+  defaults: { divisions: 5, labels: 1 },
+  build: (frame, params) => {
+    const n = Math.round(params.divisions);
+    const unit = unitFor(frame.size, n);
+    const at = origin(frame);
+    const reach = n * unit + unit * 0.7;
+    const tick = Math.max(5, unit * 0.2);
+    const small = Math.max(11, frame.fontSize * 0.8);
+    const drafts = [
+      ray(frame, { x: at.x - reach, y: at.y }, { x: at.x + reach, y: at.y }),
+      segment(frame, { x: at.x, y: at.y - tick }, { x: at.x, y: at.y + tick }),
+      caption(frame, { x: at.x, y: at.y + tick + small }, "0", "center", small)
+    ];
+    for (let i = 1; i <= n; i += 1) {
+      for (const sign of [1, -1]) {
+        const x = at.x + sign * i * unit;
+        drafts.push(segment(frame, { x, y: at.y - tick }, { x, y: at.y + tick }));
+        if (params.labels) {
+          drafts.push(caption(frame, { x, y: at.y + tick + small }, String(sign * i), "center", small));
+        }
+      }
+    }
+    return drafts;
+  }
+};
+function baseVertices(center, rx, ry, sides) {
+  const angles = [];
+  for (let k = 0; k < sides; k += 1) angles.push(-Math.PI / 2 + 2 * Math.PI * k / sides);
+  const edge = Math.max(...angles.map((angle) => Math.abs(Math.cos(angle))));
+  return angles.map((angle) => ({
+    at: { x: center.x + rx * Math.cos(angle), y: center.y + ry * Math.sin(angle) },
+    hidden: Math.sin(angle) < -1e-6 && Math.abs(Math.cos(angle)) < edge - 1e-6
+  }));
+}
+const BOX = {
+  id: "box",
+  title: "Параллелепипед",
+  group: "solid",
+  hint: "Куб получается, если высота и глубина равны ширине.",
+  knobs: [
+    { key: "height", label: "Высота", kind: "number", min: 30, max: 140, suffix: "% ширины" },
+    { key: "depth", label: "Глубина", kind: "number", min: 10, max: 70, suffix: "% ширины" }
+  ],
+  defaults: { height: 70, depth: 35 },
+  build: (frame, params) => {
+    const width = frame.size * 0.62;
+    const height = width * params.height / 100;
+    const depth = width * params.depth / 100;
+    const left = frame.cx - (width + depth) / 2;
+    const top = frame.cy - (height + depth) / 2 + depth;
+    const d = { x: left, y: top };
+    const c = { x: left + width, y: top };
+    const b = { x: left + width, y: top + height };
+    const a = { x: left, y: top + height };
+    const shift = (point) => ({ x: point.x + depth, y: point.y - depth });
+    const [da, ca, ba, aa] = [shift(d), shift(c), shift(b), shift(a)];
+    return [
+      segment(frame, d, c),
+      segment(frame, c, b),
+      segment(frame, b, a),
+      segment(frame, a, d),
+      segment(frame, da, ca),
+      segment(frame, ca, ba),
+      segment(frame, ba, aa, true),
+      segment(frame, aa, da, true),
+      segment(frame, d, da),
+      segment(frame, c, ca),
+      segment(frame, b, ba),
+      segment(frame, a, aa, true)
+    ];
+  }
+};
+function standing(frame, sides, heightPercent, top) {
+  const rx = frame.size * 0.34;
+  const ry = rx * 0.34;
+  const height = frame.size * heightPercent / 100;
+  const bottom = baseVertices({ x: frame.cx, y: frame.cy + height / 2 }, rx, ry, sides);
+  const drafts = [];
+  for (let k = 0; k < sides; k += 1) {
+    const next = (k + 1) % sides;
+    drafts.push(segment(frame, bottom[k].at, bottom[next].at, bottom[k].hidden || bottom[next].hidden));
+  }
+  if (top === "apex") {
+    const apex = { x: frame.cx, y: frame.cy - height / 2 };
+    for (const vertex of bottom) drafts.push(segment(frame, vertex.at, apex, vertex.hidden));
+    return drafts;
+  }
+  const upper = baseVertices({ x: frame.cx, y: frame.cy - height / 2 }, rx, ry, sides);
+  for (let k = 0; k < sides; k += 1) {
+    drafts.push(segment(frame, upper[k].at, upper[(k + 1) % sides].at));
+    drafts.push(segment(frame, bottom[k].at, upper[k].at, bottom[k].hidden));
+  }
+  return drafts;
+}
+const PRISM = {
+  id: "prism",
+  title: "Призма",
+  group: "solid",
+  hint: "Основание — правильный многоугольник. Четыре угла дают прямую призму на ромбическом основании.",
+  knobs: [
+    { key: "sides", label: "Углов в основании", kind: "number", min: 3, max: 8 },
+    { key: "height", label: "Высота", kind: "number", min: 30, max: 130, suffix: "% размера" }
+  ],
+  defaults: { sides: 6, height: 80 },
+  build: (frame, params) => standing(frame, Math.round(params.sides), params.height, "base")
+};
+const PYRAMID = {
+  id: "pyramid",
+  title: "Пирамида",
+  group: "solid",
+  hint: "Правильная пирамида с вершиной над серединой основания.",
+  knobs: [
+    { key: "sides", label: "Углов в основании", kind: "number", min: 3, max: 8 },
+    { key: "height", label: "Высота", kind: "number", min: 30, max: 130, suffix: "% размера" }
+  ],
+  defaults: { sides: 4, height: 85 },
+  build: (frame, params) => standing(frame, Math.round(params.sides), params.height, "apex")
+};
+const TETRAHEDRON = {
+  id: "tetrahedron",
+  title: "Тетраэдр",
+  group: "solid",
+  hint: "Пирамида на треугольном основании: дальнее ребро идёт пунктиром.",
+  knobs: [
+    { key: "height", label: "Высота", kind: "number", min: 40, max: 140, suffix: "% размера" }
+  ],
+  defaults: { height: 90 },
+  build: (frame, params) => standing(frame, 3, params.height, "apex")
+};
+const SPHERE = {
+  id: "sphere",
+  title: "Шар",
+  group: "solid",
+  hint: "Окружность с экватором: ближняя половина сплошная, дальняя пунктиром.",
+  knobs: [
+    { key: "tilt", label: "Наклон экватора", kind: "number", min: 8, max: 50, suffix: "% радиуса" },
+    { key: "radius", label: "Показать радиус", kind: "toggle", min: 0, max: 1 }
+  ],
+  defaults: { tilt: 26, radius: 0 },
+  build: (frame, params) => {
+    const r = frame.size * 0.34;
+    const ry = r * params.tilt / 100;
+    const at = { x: frame.cx, y: frame.cy };
+    const drafts = [
+      oval(frame, at, r, r),
+      halfOval(frame, at, r, ry, "down"),
+      halfOval(frame, at, r, ry, "up", true)
+    ];
+    if (params.radius) {
+      const end = { x: at.x + r * 0.71, y: at.y - r * 0.71 };
+      drafts.push(segment(frame, at, end));
+      drafts.push(caption(frame, { x: (at.x + end.x) / 2 - frame.fontSize * 0.6, y: (at.y + end.y) / 2 }, "R", "right"));
+    }
+    return drafts;
+  }
+};
+const CYLINDER = {
+  id: "cylinder",
+  title: "Цилиндр",
+  group: "solid",
+  hint: "Нижнее основание чертится наполовину пунктиром — оно за телом.",
+  knobs: [
+    { key: "height", label: "Высота", kind: "number", min: 30, max: 150, suffix: "% размера" },
+    { key: "tilt", label: "Наклон основания", kind: "number", min: 12, max: 45, suffix: "% радиуса" }
+  ],
+  defaults: { height: 85, tilt: 30 },
+  build: (frame, params) => {
+    const rx = frame.size * 0.3;
+    const ry = rx * params.tilt / 100;
+    const height = frame.size * params.height / 100;
+    const top = { x: frame.cx, y: frame.cy - height / 2 };
+    const bottom = { x: frame.cx, y: frame.cy + height / 2 };
+    return [
+      oval(frame, top, rx, ry),
+      halfOval(frame, bottom, rx, ry, "down"),
+      halfOval(frame, bottom, rx, ry, "up", true),
+      segment(frame, { x: top.x - rx, y: top.y }, { x: bottom.x - rx, y: bottom.y }),
+      segment(frame, { x: top.x + rx, y: top.y }, { x: bottom.x + rx, y: bottom.y })
+    ];
+  }
+};
+const CONE = {
+  id: "cone",
+  title: "Конус",
+  group: "solid",
+  hint: "Вершина над серединой основания; дальняя половина основания пунктиром.",
+  knobs: [
+    { key: "height", label: "Высота", kind: "number", min: 40, max: 160, suffix: "% размера" },
+    { key: "tilt", label: "Наклон основания", kind: "number", min: 12, max: 45, suffix: "% радиуса" }
+  ],
+  defaults: { height: 100, tilt: 30 },
+  build: (frame, params) => {
+    const rx = frame.size * 0.3;
+    const ry = rx * params.tilt / 100;
+    const height = frame.size * params.height / 100;
+    const apex = { x: frame.cx, y: frame.cy - height / 2 };
+    const bottom = { x: frame.cx, y: frame.cy + height / 2 };
+    return [
+      halfOval(frame, bottom, rx, ry, "down"),
+      halfOval(frame, bottom, rx, ry, "up", true),
+      segment(frame, apex, { x: bottom.x - rx, y: bottom.y }),
+      segment(frame, apex, { x: bottom.x + rx, y: bottom.y })
+    ];
+  }
+};
+const TEMPLATES = [
+  PLANE,
+  NUMBER_LINE,
+  BOX,
+  PRISM,
+  PYRAMID,
+  TETRAHEDRON,
+  SPHERE,
+  CYLINDER,
+  CONE
+];
+const TEMPLATE_GROUPS = [
+  { kind: "axes", title: "Координаты" },
+  { kind: "solid", title: "Объёмные фигуры" }
+];
+function defaultParams() {
+  return Object.fromEntries(TEMPLATES.map((one) => [one.id, { ...one.defaults }]));
+}
+const MATH_SYMBOLS = [
+  {
+    title: "Действия и сравнение",
+    items: ["·", "×", "÷", "±", "∓", "≠", "≈", "≡", "≤", "≥", "≪", "≫", "√", "∛", "∞", "‰", "%"]
+  },
+  {
+    title: "Степени и индексы",
+    items: ["⁰", "¹", "²", "³", "⁴", "ⁿ", "₀", "₁", "₂", "₃", "ₙ", "′", "″"]
+  },
+  {
+    title: "Множества и логика",
+    items: ["∈", "∉", "⊂", "⊆", "⊄", "∪", "∩", "∅", "ℕ", "ℤ", "ℚ", "ℝ", "∀", "∃", "⇒", "⇔", "¬"]
+  },
+  {
+    title: "Геометрия",
+    items: ["°", "∠", "⊥", "∥", "△", "□", "≅", "∼", "⌒", "↔", "→", "⊙"]
+  },
+  {
+    title: "Анализ",
+    items: ["∑", "∏", "∫", "∂", "∆", "∇", "lim", "→", "≐", "d", "′"]
+  },
+  {
+    title: "Греческие",
+    items: ["α", "β", "γ", "δ", "ε", "θ", "λ", "μ", "π", "ρ", "σ", "τ", "φ", "χ", "ψ", "ω", "Δ", "Σ", "Ω"]
+  }
+];
+const FORMULAS = [
+  {
+    title: "Алгебра",
+    items: [
+      { label: "Квадрат суммы", text: "(a + b)² = a² + 2ab + b²" },
+      { label: "Квадрат разности", text: "(a − b)² = a² − 2ab + b²" },
+      { label: "Разность квадратов", text: "a² − b² = (a − b)(a + b)" },
+      { label: "Сумма кубов", text: "a³ + b³ = (a + b)(a² − ab + b²)" },
+      { label: "Разность кубов", text: "a³ − b³ = (a − b)(a² + ab + b²)" },
+      { label: "Дискриминант", text: "D = b² − 4ac" },
+      { label: "Корни квадратного", text: "x₁,₂ = (−b ± √D) / 2a" },
+      { label: "Теорема Виета", text: "x₁ + x₂ = −b/a,  x₁ · x₂ = c/a" },
+      { label: "Степени", text: "aⁿ · aᵐ = aⁿ⁺ᵐ,  (aⁿ)ᵐ = aⁿᵐ" },
+      { label: "Логарифм", text: "log_a(xy) = log_a x + log_a y" }
+    ]
+  },
+  {
+    title: "Геометрия",
+    items: [
+      { label: "Теорема Пифагора", text: "a² + b² = c²" },
+      { label: "Площадь треугольника", text: "S = ½ · a · h" },
+      { label: "Площадь круга", text: "S = πR²" },
+      { label: "Длина окружности", text: "C = 2πR" },
+      { label: "Объём параллелепипеда", text: "V = a · b · c" },
+      { label: "Объём призмы", text: "V = S_осн · h" },
+      { label: "Объём пирамиды", text: "V = ⅓ · S_осн · h" },
+      { label: "Объём цилиндра", text: "V = πR²h" },
+      { label: "Объём конуса", text: "V = ⅓ · πR²h" },
+      { label: "Объём шара", text: "V = ⁴⁄₃ · πR³" },
+      { label: "Площадь сферы", text: "S = 4πR²" }
+    ]
+  },
+  {
+    title: "Тригонометрия",
+    items: [
+      { label: "Основное тождество", text: "sin²α + cos²α = 1" },
+      { label: "Тангенс", text: "tg α = sin α / cos α" },
+      { label: "Синус суммы", text: "sin(α + β) = sin α cos β + cos α sin β" },
+      { label: "Косинус суммы", text: "cos(α + β) = cos α cos β − sin α sin β" },
+      { label: "Двойной угол", text: "sin 2α = 2 sin α cos α" },
+      { label: "Теорема синусов", text: "a / sin A = b / sin B = c / sin C" },
+      { label: "Теорема косинусов", text: "c² = a² + b² − 2ab · cos C" }
+    ]
+  },
+  {
+    title: "Физика",
+    items: [
+      { label: "Скорость", text: "v = s / t" },
+      { label: "Плотность", text: "ρ = m / V" },
+      { label: "Второй закон Ньютона", text: "F = m · a" },
+      { label: "Работа", text: "A = F · s" },
+      { label: "Кинетическая энергия", text: "E = mv² / 2" },
+      { label: "Закон Ома", text: "I = U / R" }
+    ]
+  }
+];
+const TABS = [
+  ...TEMPLATE_GROUPS.map((group) => ({ kind: group.kind, title: group.title })),
+  { kind: "symbols", title: "Знаки" },
+  { kind: "formulas", title: "Формулы" }
+];
+function LibraryPanel({ onInsert, onText, onClose }) {
+  const [tab, setTab] = useState("axes");
+  const [chosen, setChosen] = useState(null);
+  const [params, setParams] = useState(defaultParams);
+  const templates = TEMPLATES.filter((one) => one.group === tab);
+  const tune = (id, key, value) => {
+    setParams((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
+  };
+  const knobsOf = (template) => /* @__PURE__ */ jsx("div", { className: "library__knobs", children: template.knobs.map((knob) => {
+    const value = params[template.id][knob.key];
+    if (knob.kind === "toggle") {
+      return /* @__PURE__ */ jsxs("label", { className: "library__toggle", children: [
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "checkbox",
+            checked: value > 0,
+            onChange: (event) => tune(template.id, knob.key, event.target.checked ? 1 : 0)
+          }
+        ),
+        knob.label
+      ] }, knob.key);
+    }
+    return /* @__PURE__ */ jsxs("label", { className: "library__knob", children: [
+      /* @__PURE__ */ jsxs("span", { className: "library__knob-name", children: [
+        knob.label,
+        /* @__PURE__ */ jsxs("b", { children: [
+          value,
+          knob.suffix ? ` ${knob.suffix}` : ""
+        ] })
+      ] }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          type: "range",
+          min: knob.min,
+          max: knob.max,
+          step: 1,
+          value,
+          onChange: (event) => tune(template.id, knob.key, Number(event.target.value))
+        }
+      )
+    ] }, knob.key);
+  }) });
+  return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Заготовки", children: [
+    /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
+      /* @__PURE__ */ jsx("span", { className: "params__title", children: "Заготовки" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
+    ] }),
+    /* @__PURE__ */ jsx("div", { className: "params__row library__tabs", children: TABS.map((one) => /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-quiet btn-sm",
+        type: "button",
+        "aria-pressed": tab === one.kind,
+        onClick: () => {
+          setTab(one.kind);
+          setChosen(null);
+        },
+        children: one.title
+      },
+      one.kind
+    )) }),
+    templates.length > 0 ? /* @__PURE__ */ jsx("div", { className: "library__list", children: templates.map((template) => /* @__PURE__ */ jsxs("div", { className: "library__item", children: [
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet library__pick",
+          type: "button",
+          "aria-pressed": chosen === template.id,
+          onClick: () => setChosen(chosen === template.id ? null : template.id),
+          children: template.title
+        }
+      ),
+      chosen === template.id ? /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx("p", { className: "library__hint", children: template.hint }),
+        knobsOf(template),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn btn-sm",
+            type: "button",
+            onClick: () => onInsert(template, params[template.id]),
+            children: "Вставить"
+          }
+        )
+      ] }) : null
+    ] }, template.id)) }) : null,
+    tab === "symbols" ? /* @__PURE__ */ jsxs("div", { className: "library__list", children: [
+      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Знак встаёт надписью посреди видимой части доски — дальше его двигают и правят как обычный текст." }),
+      MATH_SYMBOLS.map((row) => /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsx("p", { className: "params__label", children: row.title }),
+        /* @__PURE__ */ jsx("div", { className: "params__row library__glyphs", children: row.items.map((glyph, index) => /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-quiet library__glyph",
+            type: "button",
+            onClick: () => onText(glyph),
+            title: `Вставить ${glyph}`,
+            children: glyph
+          },
+          `${row.title}-${index}`
+        )) })
+      ] }, row.title))
+    ] }) : null,
+    tab === "formulas" ? /* @__PURE__ */ jsx("div", { className: "library__list", children: FORMULAS.map((row) => /* @__PURE__ */ jsxs("div", { children: [
+      /* @__PURE__ */ jsx("p", { className: "params__label", children: row.title }),
+      row.items.map((one) => /* @__PURE__ */ jsxs(
+        "button",
+        {
+          className: "btn-quiet library__formula",
+          type: "button",
+          onClick: () => onText(one.text),
+          children: [
+            /* @__PURE__ */ jsx("span", { className: "library__formula-name", children: one.label }),
+            /* @__PURE__ */ jsx("span", { className: "library__formula-text", children: one.text })
+          ]
+        },
+        one.label
+      ))
+    ] }, row.title)) }) : null
+  ] });
+}
 const MAX_MINUTES = 180;
 function clamp(raw, limit) {
   const value = Number.parseInt(raw, 10);
@@ -5349,7 +5954,7 @@ function useBoardHub(boardId) {
   const [participants, setParticipants] = useState([]);
   const [cursors, setCursors] = useState([]);
   const [me, setMe] = useState(null);
-  const [lastCommit, setLastCommit] = useState(null);
+  const [commits, setCommits] = useState([]);
   const [background, setBackgroundState] = useState(DEFAULT_BACKGROUND);
   const [pages, setPages] = useState([]);
   const [pageId, setPageId] = useState(null);
@@ -5389,7 +5994,10 @@ function useBoardHub(boardId) {
         });
         if (payload.pageId !== current.current) break;
         setItems((items2) => [...items2.filter((x) => x.id !== payload.item.id), payload.item]);
-        setLastCommit({ tempId: payload.tempId, itemId: payload.item.id });
+        setCommits((current2) => [...current2, {
+          tempId: payload.tempId,
+          itemId: payload.item.id
+        }].slice(-500));
         break;
       case "ItemsMoved":
         setItems((current2) => current2.map((item) => payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item));
@@ -5566,7 +6174,7 @@ function useBoardHub(boardId) {
     participants,
     cursors,
     me,
-    lastCommit,
+    commits,
     background,
     pages,
     pageId,
@@ -5698,6 +6306,7 @@ function BoardPage() {
   const [showHelp, setShowHelp] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const [showPages, setShowPages] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -5733,15 +6342,15 @@ function BoardPage() {
     remove: (refs) => hub.deleteItems(idsOf(refs))
   });
   useEffect(() => {
-    const commit = hub.lastCommit;
-    if (!commit) return;
-    const waiting = pending.current.get(commit.tempId);
-    if (!waiting) return;
-    pending.current.delete(commit.tempId);
-    refToId.current.set(waiting.ref, commit.itemId);
-    idToRef.current.set(commit.itemId, waiting.ref);
-    if (waiting.snapshot) history.push({ kind: "create", items: [waiting.snapshot] });
-  }, [hub.lastCommit, history]);
+    for (const commit of hub.commits) {
+      const waiting = pending.current.get(commit.tempId);
+      if (!waiting) continue;
+      pending.current.delete(commit.tempId);
+      refToId.current.set(waiting.ref, commit.itemId);
+      idToRef.current.set(commit.itemId, waiting.ref);
+      if (waiting.snapshot) history.push({ kind: "create", items: [waiting.snapshot] });
+    }
+  }, [hub.commits, history]);
   const refOf = useCallback((itemId) => {
     const existing = idToRef.current.get(itemId);
     if (existing) return existing;
@@ -6038,6 +6647,33 @@ function BoardPage() {
     pending.current.set(`${ref}-new`, { ref, snapshot: { ref, type: "text", data } });
     hub.commitItem(`${ref}-new`, "text", data);
   }, [hub]);
+  const insertTemplate = useCallback((template, params) => {
+    const view = viewportRef.current;
+    const size = canvasRef.current;
+    const center = toWorld(view, size.width / 2, size.height / 2);
+    const side = (size.width > 0 ? Math.min(size.width, size.height) : 520) * 0.62 / view.scale;
+    const style = settingsRef.current;
+    const drafts = template.build(
+      {
+        cx: center.x,
+        cy: center.y,
+        size: side,
+        color: style.shapes.color,
+        width: style.shapes.width,
+        fontSize: style.text.fontSize
+      },
+      params
+    );
+    if (drafts.length === 0) return;
+    const stamp = Date.now().toString(36);
+    const snapshots = [];
+    drafts.forEach((draft, index) => {
+      const ref = `g${stamp}-${index}`;
+      snapshots.push({ ref, type: draft.type, data: draft.data });
+      send2(ref, draft.type, draft.data);
+    });
+    history.push({ kind: "create", items: snapshots });
+  }, [history, send2]);
   useEffect(() => {
     if (!hub.canEdit || (state == null ? void 0 : state.me.isGuest) !== false) return;
     const onPaste = (event) => {
@@ -6254,12 +6890,14 @@ function BoardPage() {
               ViewToolbar,
               {
                 canManage: hub.canManage,
+                canEdit: hub.canEdit,
                 canUpload: hub.canEdit && !me.isGuest,
                 canPaste: hasClip && hub.canEdit,
                 onPaste: pasteClip,
                 onPages: () => setShowPages((current) => !current),
                 pageLabel: hub.pages.length === 0 ? "—" : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`,
                 onFiles: () => setShowFiles((current) => !current),
+                onLibrary: () => setShowLibrary((current) => !current),
                 scale: viewport.scale,
                 onBackground: () => setShowBackground((current) => !current),
                 onTimer: () => setShowTimer((current) => !current),
@@ -6331,6 +6969,14 @@ function BoardPage() {
             showTimer ? /* @__PURE__ */ jsx(TimerPanel, { onClose: () => setShowTimer(false) }) : null,
             showHelp ? /* @__PURE__ */ jsx(HelpPanel, { onClose: () => setShowHelp(false) }) : null,
             showFiles ? /* @__PURE__ */ jsx(FilesPanel, { onInsert: insertImage, onClose: () => setShowFiles(false) }) : null,
+            showLibrary && hub.canEdit ? /* @__PURE__ */ jsx(
+              LibraryPanel,
+              {
+                onInsert: insertTemplate,
+                onText: pasteText,
+                onClose: () => setShowLibrary(false)
+              }
+            ) : null,
             showPages ? /* @__PURE__ */ jsx(
               PagesPanel,
               {

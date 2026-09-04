@@ -130,6 +130,28 @@ function drawShape(context: CanvasRenderingContext2D, data: ItemData): void {
     context.restore();
   };
 
+  // Половина эллипса. Заливки у неё нет: незамкнутый контур залился бы
+  // отсечённой хордой, а на чертеже это выглядит как ошибка.
+  if (data.shape === 'arcUp' || data.shape === 'arcDown') {
+    const x1 = data.x1 ?? 0;
+    const y1 = data.y1 ?? 0;
+    const x2 = data.x2 ?? 0;
+    const y2 = data.y2 ?? 0;
+
+    // Ось экрана направлена вниз, поэтому нижней половине отвечают углы
+    // от нуля до π, а верхней — следующие полкруга.
+    const from = data.shape === 'arcDown' ? 0 : Math.PI;
+
+    context.beginPath();
+    context.ellipse(
+      (x1 + x2) / 2, (y1 + y2) / 2,
+      Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2,
+      0, from, from + Math.PI,
+    );
+    context.stroke();
+    return;
+  }
+
   if (data.shape === 'ellipse') {
     const x1 = data.x1 ?? 0;
     const y1 = data.y1 ?? 0;

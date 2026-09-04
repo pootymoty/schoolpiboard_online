@@ -26,8 +26,15 @@ export interface BoardHub {
   cursors: Cursor[];
   /** Наш идентификатор подключения — чтобы не рисовать собственный курсор. */
   me: string | null;
-  /** Последний закреплённый объект: по нему свой штрих узнаёт свой номер. */
-  lastCommit: { tempId: string; itemId: number } | null;
+  /**
+   * Закреплённые объекты: по ним свой штрих узнаёт свой номер.
+   *
+   * Список, а не последний: закрепления приходят пачкой — вставка
+   * заготовки это полсотни объектов сразу, — и одно значение состояния
+   * React успел бы перезаписать, не показав промежуточные. Тогда часть
+   * своих объектов осталась бы без номера, а отмена сняла бы не всё.
+   */
+  commits: { tempId: string; itemId: number }[];
   background: Background;
 
   /** Полоса страниц — только те, что открыты этому участнику. */
@@ -74,7 +81,7 @@ export function useBoardHub(boardId: number): BoardHub {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [cursors, setCursors] = useState<Cursor[]>([]);
   const [me, setMe] = useState<string | null>(null);
-  const [lastCommit, setLastCommit] = useState<{ tempId: string; itemId: number } | null>(null);
+  const [commits, setCommits] = useState<{ tempId: string; itemId: number }[]>([]);
   const [background, setBackgroundState] = useState<Background>(DEFAULT_BACKGROUND);
   const [pages, setPages] = useState<BoardPageInfo[]>([]);
   const [pageId, setPageId] = useState<number | null>(null);
@@ -131,7 +138,10 @@ export function useBoardHub(boardId: number): BoardHub {
         if (payload.pageId !== current.current) break;
 
         setItems((items) => [...items.filter((x) => x.id !== payload.item.id), payload.item]);
-        setLastCommit({ tempId: payload.tempId, itemId: payload.item.id });
+        // Хвост подрезаем: разобранное давно не нужно, а доска живёт долго.
+        setCommits((current) => [...current, {
+          tempId: payload.tempId, itemId: payload.item.id,
+        }].slice(-500));
         break;
 
       case 'ItemsMoved':
@@ -367,7 +377,7 @@ export function useBoardHub(boardId: number): BoardHub {
   const page = () => current.current ?? 0;
 
   return {
-    status, error, role, canEdit, canManage, items, live, participants, cursors, me, lastCommit, background,
+    status, error, role, canEdit, canManage, items, live, participants, cursors, me, commits, background,
     pages, pageId,
     sendCursor: useCallback((x: number, y: number) => call('Cursor', x, y), [call]),
     beginItem: useCallback((id, type, data) => call('BeginItem', id, page(), type, data), [call]),

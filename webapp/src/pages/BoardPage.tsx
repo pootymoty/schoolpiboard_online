@@ -28,6 +28,8 @@ import { measureText } from '../board/handles';
 import { SelectionPanel } from '../board/SelectionPanel';
 import { BackgroundPanel } from '../board/BackgroundPanel';
 import { PagesPanel } from '../board/PagesPanel';
+import { LibraryPanel } from '../board/LibraryPanel';
+import type { Template } from '../board/library';
 import { TimerPanel } from '../board/TimerPanel';
 import { HelpPanel } from '../board/HelpPanel';
 import { exportPng } from '../board/exportPng';
@@ -83,6 +85,7 @@ export function BoardPage(): ReactElement {
   const [showHelp, setShowHelp] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const [showPages, setShowPages] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
 
   /** Есть ли что вставлять. Кнопка вставки без содержимого только мешает. */
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
@@ -158,18 +161,19 @@ export function BoardPage(): ReactElement {
   // Номер объекта известен только после закрепления на сервере — тогда же
   // ссылка и связывается с ним.
   useEffect(() => {
-    const commit = hub.lastCommit;
-    if (!commit) return;
+    // Разбираем весь список: разобранное из ожидания уже вычеркнуто и
+    // второй раз не попадётся.
+    for (const commit of hub.commits) {
+      const waiting = pending.current.get(commit.tempId);
+      if (!waiting) continue;
 
-    const waiting = pending.current.get(commit.tempId);
-    if (!waiting) return;
+      pending.current.delete(commit.tempId);
+      refToId.current.set(waiting.ref, commit.itemId);
+      idToRef.current.set(commit.itemId, waiting.ref);
 
-    pending.current.delete(commit.tempId);
-    refToId.current.set(waiting.ref, commit.itemId);
-    idToRef.current.set(commit.itemId, waiting.ref);
-
-    if (waiting.snapshot) history.push({ kind: 'create', items: [waiting.snapshot] });
-  }, [hub.lastCommit, history]);
+      if (waiting.snapshot) history.push({ kind: 'create', items: [waiting.snapshot] });
+    }
+  }, [hub.commits, history]);
 
   /** Ссылка объекта: своя, если он наш, иначе заводим новую. */
   const refOf = useCallback((itemId: number) => {
@@ -599,6 +603,50 @@ export function BoardPage(): ReactElement {
   }, [hub]);
 
   /**
+   * Заготовка из библиотеки.
+   *
+   * Собирается здесь, а не в панели: только доска знает, куда смотрит
+   * человек и в каком масштабе. Размер берём от видимой части холста —
+   * заготовка должна занимать примерно одно и то же место на экране и
+   * при мелком масштабе, и при крупном.
+   */
+  const insertTemplate = useCallback((template: Template, params: Record<string, number>) => {
+    const view = viewportRef.current;
+    const size = canvasRef.current;
+
+    const center = toWorld(view, size.width / 2, size.height / 2);
+    const side = ((size.width > 0 ? Math.min(size.width, size.height) : 520) * 0.62) / view.scale;
+
+    const style = settingsRef.current;
+    const drafts = template.build(
+      {
+        cx: center.x,
+        cy: center.y,
+        size: side,
+        color: style.shapes.color,
+        width: style.shapes.width,
+        fontSize: style.text.fontSize,
+      },
+      params,
+    );
+
+    if (drafts.length === 0) return;
+
+    const stamp = Date.now().toString(36);
+    const snapshots: ItemSnapshot[] = [];
+
+    drafts.forEach((draft, index) => {
+      const ref = `g${stamp}-${index}`;
+      snapshots.push({ ref, type: draft.type, data: draft.data });
+      send(ref, draft.type, draft.data);
+    });
+
+    // Одна запись в истории на всю заготовку: отменять чертёж по линии —
+    // полсотни нажатий, и до нужного места человек не доберётся.
+    history.push({ kind: 'create', items: snapshots });
+  }, [history, send]);
+
+  /**
    * Вставка чего угодно из буфера: картинка ложится картинкой, текст —
    * надписью, файл — как обычная загрузка. Гостю это закрыто вместе со
    * всей загрузкой файлов.
@@ -882,6 +930,7 @@ export function BoardPage(): ReactElement {
 
           <ViewToolbar
             canManage={hub.canManage}
+            canEdit={hub.canEdit}
             canUpload={hub.canEdit && !me.isGuest}
             canPaste={hasClip && hub.canEdit}
             onPaste={pasteClip}
@@ -892,6 +941,7 @@ export function BoardPage(): ReactElement {
                 : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`
             }
             onFiles={() => setShowFiles((current) => !current)}
+            onLibrary={() => setShowLibrary((current) => !current)}
             scale={viewport.scale}
             onBackground={() => setShowBackground((current) => !current)}
             onTimer={() => setShowTimer((current) => !current)}
@@ -978,6 +1028,14 @@ export function BoardPage(): ReactElement {
 
           {showFiles ? (
             <FilesPanel onInsert={insertImage} onClose={() => setShowFiles(false)} />
+          ) : null}
+
+          {showLibrary && hub.canEdit ? (
+            <LibraryPanel
+              onInsert={insertTemplate}
+              onText={pasteText}
+              onClose={() => setShowLibrary(false)}
+            />
           ) : null}
 
           {showPages ? (

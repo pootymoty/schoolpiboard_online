@@ -947,6 +947,99 @@ body.no-scroll {
     border-radius: 999px;
 }
 
+/* --- Библиотека заготовок ----------------------------------------------------- */
+
+/* Шире и выше обычной панели: здесь список с настройками, а не ряд
+   кнопок, и в узкую колонку формула не помещается ни на одной строке. */
+.params--tall {
+    width: min(320px, calc(100% - var(--sp-5)));
+    max-height: calc(100% - var(--sp-5));
+}
+
+.library__tabs { margin-bottom: var(--sp-2); }
+
+.library__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+}
+
+.library__item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+}
+
+.library__pick {
+    justify-content: flex-start;
+    width: 100%;
+    text-align: left;
+}
+
+.library__hint {
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.library__knobs {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    padding: var(--sp-1) 0;
+}
+
+.library__knob {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: var(--fs-xs);
+}
+
+.library__knob-name {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    color: var(--text-muted);
+}
+
+.library__knob input[type="range"] { width: 100%; }
+
+.library__toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    font-size: var(--fs-xs);
+}
+
+/* Знаки набираются в ряд одинаковыми квадратами: так в них попадают
+   пальцем и так видно, что это набор, а не список команд. */
+.library__glyphs { gap: 4px; }
+
+.library__glyph {
+    min-width: 32px;
+    justify-content: center;
+    font-size: var(--fs-base);
+}
+
+.library__formula {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    width: 100%;
+    height: auto;
+    padding: 4px 8px;
+    text-align: left;
+}
+
+.library__formula-name {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.library__formula-text { font-size: var(--fs-sm); }
+
 /* --- Панель над выделением ---------------------------------------------------- */
 
 .selection-panel {

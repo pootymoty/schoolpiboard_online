@@ -15,7 +15,14 @@ export type ItemType = 'stroke' | 'shape' | 'text' | 'image' | 'table';
 
 export type ShapeKind =
   | 'line' | 'arrow' | 'rect' | 'ellipse'
-  | 'triangle' | 'trapezoid' | 'parallelogram' | 'rhombus';
+  | 'triangle' | 'trapezoid' | 'parallelogram' | 'rhombus'
+  /**
+   * Половины эллипса. В списке фигур их нет намеренно: рисовать полукруг
+   * протяжкой незачем, а вот собирать из них объёмные заготовки — шар,
+   * цилиндр, конус — нужно, и дальняя половина основания там идёт
+   * пунктиром, чего целым эллипсом не изобразить.
+   */
+  | 'arcUp' | 'arcDown';
 
 export type LineStyle = 'solid' | 'dash' | 'dashdot' | 'dot';
 

@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
-  IconTrash, IconUndo, IconPaste, IconPages,
+  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -80,6 +80,8 @@ export function DrawToolbar({
 
 interface ViewProps {
   canManage: boolean;
+  /** Наблюдателю класть на доску нечего: у него нет права рисовать. */
+  canEdit: boolean;
   /** Гостю загрузка закрыта: файлы кладут только те, у кого есть учётная запись. */
   canUpload: boolean;
   scale: number;
@@ -88,6 +90,7 @@ interface ViewProps {
   onFit: () => void;
   onBackground: () => void;
   onFiles: () => void;
+  onLibrary: () => void;
   onTimer: () => void;
   onHelp: () => void;
   onExport: () => void;
@@ -102,8 +105,9 @@ interface ViewProps {
 
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
 export function ViewToolbar({
-  canManage, canUpload, scale, onZoom, onResetZoom, onFit,
-  onBackground, onFiles, onTimer, onHelp, onExport, onClear, canPaste, onPaste, onPages, pageLabel,
+  canManage, canEdit, canUpload, scale, onZoom, onResetZoom, onFit,
+  onBackground, onFiles, onLibrary, onTimer, onHelp, onExport, onClear,
+  canPaste, onPaste, onPages, pageLabel,
 }: ViewProps): ReactElement {
   return (
     <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
@@ -139,6 +143,14 @@ export function ViewToolbar({
       {canUpload ? (
         <button className="btn-tool" type="button" onClick={onFiles} title="Вставить файл или страницу PDF">
           <IconImage />
+        </button>
+      ) : null}
+
+      {/* Заготовки рядом с файлами: и то и другое — «положить на доску
+          готовое», а не «нарисовать самому». */}
+      {canEdit ? (
+        <button className="btn-tool" type="button" onClick={onLibrary} title="Заготовки: чертежи, знаки, формулы">
+          <IconLibrary />
         </button>
       ) : null}
 

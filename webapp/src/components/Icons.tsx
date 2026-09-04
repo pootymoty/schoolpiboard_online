@@ -348,3 +348,14 @@ export const IconPages = (props: Props): ReactElement => (
     </g>
   </Svg>
 );
+
+/** Библиотека заготовок: книги на полке. */
+export const IconLibrary = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="3" y="4" width="5" height="16" rx="1" />
+      <rect x="10" y="4" width="5" height="16" rx="1" />
+      <path d="M17.5 5.2l3.3 15" />
+    </g>
+  </Svg>
+);
