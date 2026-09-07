@@ -104,9 +104,15 @@ public static class BillingEndpoints
             // таким при оплате: Робокасса задним числом это не разрешает.
             // Показывать переключатель, который заведомо не сработает, —
             // хуже, чем честно объяснить, что его нет.
-            var order = access.Subscription?.InvoiceId is null
+            // Спрашиваем про последний оплаченный срок, а не про
+            // действующий: продлевается всё оплаченное разом, и галочка
+            // должна показывать состояние того срока, по которому пойдёт
+            // списание.
+            var last = await subscriptions.LastPaidAsync(user.Id, ct);
+
+            var order = last?.InvoiceId is null
                 ? null
-                : await subscriptions.FindOrderAsync(access.Subscription.InvoiceId, ct);
+                : await subscriptions.FindOrderAsync(last.InvoiceId, ct);
 
             // Перейти на отложенный тариф досрочно — только вверх по уровню.
             var next = upcoming.FirstOrDefault();
@@ -118,7 +124,7 @@ public static class BillingEndpoints
                 ToDto(access.Plan),
                 access.Subscription?.Kind ?? "free",
                 access.Until,
-                access.Subscription?.AutoRenew ?? false,
+                last?.AutoRenew ?? false,
                 order?.AutoRenew ?? false,
                 await subscriptions.BoardCountAsync(user.Id, ct),
                 await library.UsedAsync(user.Id, ct),
@@ -159,6 +165,25 @@ public static class BillingEndpoints
             // остался бы на своей дате — с разрывом или наложением. Такая
             // покупка просто встаёт в конец очереди.
             var queued = await subscriptions.UpcomingAsync(user.Id, ct);
+
+            // В очереди стоит не больше одного уровня. Дни к тому же уровню
+            // докупаются свободно — это то же самое продление; а вот второй
+            // уровень поверх первого превратил бы срок в лестницу, по
+            // которой человек не смог бы сказать, что у него сейчас и что
+            // будет через месяц. Чтобы взять другой уровень, отложенный
+            // нужно сначала включить — и там честно сказано, что остаток
+            // текущего срока при этом сгорит.
+            var waiting = queued.FirstOrDefault(x => x.Plan is not null);
+
+            if (waiting?.Plan is not null && waiting.Plan.Code != plan.Code)
+            {
+                return Results.BadRequest(new
+                {
+                    message = $"В очереди уже стоит тариф «{waiting.Plan.Name}». "
+                        + "Докупить дни к нему можно, а другой тариф — только после того, как "
+                        + "включите отложенный сейчас: тогда неиспользованные дни текущего срока сгорят."
+                });
+            }
 
             var startNow = request.StartNow
                 && access.Subscription is not null
@@ -274,11 +299,12 @@ public static class BillingEndpoints
             if (subscription is null)
                 return Results.BadRequest(new { message = "Срок не разобран." });
 
-            if (paid.AutoRenew && !subscription.AutoRenew)
-            {
-                subscription.AutoRenew = true;
-                await db.SaveChangesAsync(ct);
-            }
+            // Автопродление — свойство учётной записи, а не отдельного
+            // срока: списание должно быть одно, и решает его последняя
+            // оплата. Иначе у человека с двумя оплаченными сроками
+            // осталась бы галочка от старой покупки, о которой он уже
+            // забыл, — и списание пришло бы «ниоткуда».
+            await subscriptions.ApplyAutoRenewAsync(paid.UserId, subscription.Id, paid.AutoRenew, ct);
 
             if (order is not null)
                 await subscriptions.MarkOrderPaidAsync(order, paid.PaidAt ?? DateTime.UtcNow, ct);

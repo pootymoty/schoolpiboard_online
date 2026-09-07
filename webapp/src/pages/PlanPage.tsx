@@ -146,6 +146,14 @@ export function PlanPage(): ReactElement {
   const price = chosen ? chosen[period.field] : 0;
 
   /**
+   * Тариф, уже стоящий в очереди. Пока он там, другой купить нельзя:
+   * два разных уровня подряд превратили бы срок в лестницу, по которой
+   * не сказать, что действует сейчас и что будет через месяц.
+   */
+  const waiting = mine?.upcoming[0] ?? null;
+  const blocked = Boolean(waiting && chosen && waiting.planCode !== chosen.code);
+
+  /**
    * Повышение уровня поверх действующего платного срока — единственный
    * случай, когда есть смысл спрашивать «сразу или после». Понижать
    * досрочно нельзя: это потеря оплаченных дней без всякой выгоды.
@@ -454,10 +462,19 @@ export function PlanPage(): ReactElement {
                   </p>
                 ) : null}
 
+                {blocked && waiting ? (
+                  <p className="note note-warning" style={{ marginTop: 'var(--sp-3)' }}>
+                    В очереди уже стоит тариф «{waiting.planName}» — он начнётся{' '}
+                    {day(waiting.startsAt)}. Докупить дни к нему можно прямо сейчас. Чтобы взять
+                    другой тариф, сначала включите отложенный кнопкой «Перейти сейчас» выше:
+                    неиспользованные дни текущего срока при этом сгорят.
+                  </p>
+                ) : null}
+
                 <button
                   className="btn-primary btn-block"
                   type="button"
-                  disabled={!chosen || busy}
+                  disabled={!chosen || busy || blocked}
                   onClick={() => void pay()}
                   style={{ marginTop: 'var(--sp-4)' }}
                 >

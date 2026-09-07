@@ -1091,6 +1091,8 @@ function PlanPage() {
   }, []);
   const chosen = plans.find((plan) => plan.code === code) ?? null;
   const price = chosen ? chosen[period.field] : 0;
+  const waiting = (mine == null ? void 0 : mine.upcoming[0]) ?? null;
+  const blocked = Boolean(waiting && chosen && waiting.planCode !== chosen.code);
   const upgrade = Boolean(
     chosen && mine && mine.kind !== "free" && mine.upcoming.length === 0 && chosen.sort > mine.plan.sort
   );
@@ -1319,12 +1321,20 @@ function PlanPage() {
             price,
             " ₽, за сутки до конца оплаченного срока, с той же карты. За трое суток до списания придёт письмо. Выключить продление можно в любой момент здесь же, в разделе «Автопродление»; оплаченные дни при этом остаются при вас."
           ] }) : null,
+          blocked && waiting ? /* @__PURE__ */ jsxs("p", { className: "note note-warning", style: { marginTop: "var(--sp-3)" }, children: [
+            "В очереди уже стоит тариф «",
+            waiting.planName,
+            "» — он начнётся",
+            " ",
+            day(waiting.startsAt),
+            ". Докупить дни к нему можно прямо сейчас. Чтобы взять другой тариф, сначала включите отложенный кнопкой «Перейти сейчас» выше: неиспользованные дни текущего срока при этом сгорят."
+          ] }) : null,
           /* @__PURE__ */ jsx(
             "button",
             {
               className: "btn-primary btn-block",
               type: "button",
-              disabled: !chosen || busy,
+              disabled: !chosen || busy || blocked,
               onClick: () => void pay(),
               style: { marginTop: "var(--sp-4)" },
               children: busy ? "Готовим оплату…" : `Оплатить ${price} ₽`

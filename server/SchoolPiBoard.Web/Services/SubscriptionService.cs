@@ -165,17 +165,31 @@ public sealed class SubscriptionService
     /// </summary>
     public async Task<bool> SetAutoRenewAsync(long userId, bool value, CancellationToken cancellationToken)
     {
+        // Именно последний оплаченный срок, а не действующий: продлевать
+        // нужно от конца всего оплаченного. Стой флаг на текущем сроке,
+        // а за ним в очереди другой — списание пришло бы за время, которое
+        // уже оплачено.
+        var last = await LastPaidAsync(userId, cancellationToken);
+        if (last is null) return false;
+
+        await ApplyAutoRenewAsync(userId, last.Id, value, cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// Последний из оплаченных сроков — тот, что кончается позже всех.
+    /// На нём и живёт автопродление: оно продлевает всё оплаченное, а не
+    /// ближайший к концу кусок.
+    /// </summary>
+    public Task<Subscription?> LastPaidAsync(long userId, CancellationToken cancellationToken)
+    {
         var now = DateTime.UtcNow;
 
-        // Именно действующая: отложенная покупка кончается позже, и прежде
-        // переключатель менял её, а человеку показывал состояние текущей —
-        // выглядело как «нажал, и ничего не произошло».
-        var current = await CurrentAsync(userId, now, cancellationToken);
-        if (current is null) return false;
-
-        current.AutoRenew = value;
-        await _db.SaveChangesAsync(cancellationToken);
-        return true;
+        return _db.Subscriptions
+            .Include(x => x.Plan)
+            .Where(x => x.UserId == userId && x.EndsAt > now)
+            .OrderByDescending(x => x.EndsAt)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>Подписка, действующая прямо сейчас.</summary>
@@ -316,6 +330,43 @@ public sealed class SubscriptionService
             .Where(x => x.UserId == userId && x.InvoiceId != null && x.Kind == Subscription.KindPaid)
             .OrderByDescending(x => x.EndsAt)
             .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// Переносит автопродление на только что оплаченный срок.
+    ///
+    /// Флаг снимается со всех прочих сроков и ставится (или не ставится)
+    /// на новый: автопродление — свойство учётной записи, а не каждой
+    /// покупки по отдельности. Списание должно быть одно, и решает его
+    /// последняя оплата; иначе у купившего второй срок осталась бы
+    /// галочка от первой покупки, о которой он уже забыл.
+    ///
+    /// Ставится именно на новый срок ещё и потому, что он всегда последний
+    /// в очереди: продлевать нужно от конца всего оплаченного, а не от
+    /// конца того, что кончается раньше.
+    /// </summary>
+    public async Task ApplyAutoRenewAsync(
+        long userId, long subscriptionId, bool autoRenew, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+
+        var mine = await _db.Subscriptions
+            .Where(x => x.UserId == userId && x.EndsAt > now)
+            .ToListAsync(cancellationToken);
+
+        foreach (var subscription in mine)
+        {
+            var wanted = subscription.Id == subscriptionId && autoRenew;
+            if (subscription.AutoRenew == wanted) continue;
+
+            subscription.AutoRenew = wanted;
+
+            // Предупреждение относилось к прежнему решению: если продление
+            // включили заново, о новом списании нужно сообщить снова.
+            if (!wanted) subscription.RenewalNoticeAt = null;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
 
     /// <summary>
     /// Подписки, которые пора продлевать: с автопродлением и кончающиеся
