@@ -321,17 +321,6 @@ public sealed class SubscriptionService
             .ToListAsync(cancellationToken);
 
     /// <summary>
-    /// Последний оплаченный счёт человека — по нему Робокасса списывает
-    /// повторно. Пробный период сюда не годится: карты за ним нет.
-    /// </summary>
-    public Task<Subscription?> LastPaidAsync(long userId, CancellationToken cancellationToken)
-        => _db.Subscriptions
-            .Include(x => x.Plan)
-            .Where(x => x.UserId == userId && x.InvoiceId != null && x.Kind == Subscription.KindPaid)
-            .OrderByDescending(x => x.EndsAt)
-            .FirstOrDefaultAsync(cancellationToken);
-
-    /// <summary>
     /// Переносит автопродление на только что оплаченный срок.
     ///
     /// Флаг снимается со всех прочих сроков и ставится (или не ставится)
