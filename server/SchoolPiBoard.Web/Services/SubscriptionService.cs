@@ -332,6 +332,36 @@ public sealed class SubscriptionService
             .ToListAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Подписки, о списании по которым пора предупредить: с автопродлением,
+    /// кончающиеся в ближайшие дни и ещё не предупреждённые.
+    ///
+    /// Списание без предупреждения — то, из-за чего люди пишут в банк
+    /// «я этого не заказывал», даже когда заказывали. Письмо за несколько
+    /// дней стоит дешевле любого такого разбирательства.
+    /// </summary>
+    public Task<List<Subscription>> DueForNoticeAsync(TimeSpan ahead, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var edge = now + ahead;
+
+        return _db.Subscriptions
+            .Include(x => x.Plan)
+            .Where(x => x.AutoRenew && x.EndsAt > now && x.EndsAt <= edge
+                && x.InvoiceId != null && x.RenewalNoticeAt == null)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>Отмечает, что о списании предупредили. Второй раз писать незачем.</summary>
+    public async Task MarkNoticedAsync(long subscriptionId, CancellationToken cancellationToken)
+    {
+        var subscription = await _db.Subscriptions.FindAsync(new object[] { subscriptionId }, cancellationToken);
+        if (subscription is null) return;
+
+        subscription.RenewalNoticeAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     /// <summary>Сколько досок у человека сейчас. По ним считается предел тарифа.</summary>
     public Task<int> BoardCountAsync(long userId, CancellationToken cancellationToken)
         => _db.Boards.CountAsync(x => x.OwnerId == userId && x.DeletedAt == null, cancellationToken);

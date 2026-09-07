@@ -199,6 +199,38 @@ public static class EmailTemplates
              """);
     }
 
+    /// <summary>
+    /// Предупреждение о предстоящем списании.
+    ///
+    /// Письмо приходит заранее, а не в момент списания: смысл в том,
+    /// чтобы человек успел отказаться, если передумал. Поэтому в нём
+    /// названы и сумма, и дата, и место, где выключается продление.
+    /// </summary>
+    public static (string Subject, string Html, string Text) RenewalSoon(
+        string planName, int days, int amount, DateTime chargeAt, string planUrl)
+    {
+        var when = Day(chargeAt);
+
+        return (
+            $"Подписка продлится {when}: {planName} — SchoolPiBoard",
+            $"""
+             <p>Здравствуйте!</p>
+             <p>{when} мы спишем {amount} ₽ с карты, которой вы платили, и продлим тариф
+             «{planName}» ещё на {days} дн. — вы включали автоматическое продление.</p>
+             <p>Если продлевать не нужно, выключите автопродление до этой даты:
+             <a href="{planUrl}">Мой тариф</a>. Оплаченные дни при этом остаются при вас.</p>
+             """,
+            $"""
+             Здравствуйте!
+
+             {when} мы спишем {amount} ₽ с карты, которой вы платили, и продлим тариф
+             «{planName}» ещё на {days} дн. — вы включали автоматическое продление.
+
+             Если продлевать не нужно, выключите автопродление до этой даты на странице
+             «Мой тариф»: {planUrl}. Оплаченные дни при этом остаются при вас.
+             """);
+    }
+
     /// <summary>Дата по-русски: в письме её читают глазами, а не разбирают кодом.</summary>
     private static string Day(DateTime moment)
         => moment.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("ru-RU"));

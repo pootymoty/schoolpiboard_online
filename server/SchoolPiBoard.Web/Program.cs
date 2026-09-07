@@ -33,6 +33,7 @@ builder.Services.AddSingleton<FileStorage>();
 builder.Services.AddScoped<LibraryService>();
 builder.Services.AddScoped<TemplateService>();
 builder.Services.AddScoped<SummaryService>();
+builder.Services.AddScoped<ConsentService>();
 builder.Services.AddScoped<SubscriptionService>();
 builder.Services.AddScoped<KeyServerClient>();
 

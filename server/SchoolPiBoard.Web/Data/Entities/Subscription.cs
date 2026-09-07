@@ -51,6 +51,14 @@ public class Subscription
     /// </summary>
     public bool AutoRenew { get; set; }
 
+    /// <summary>
+    /// Когда отправлено предупреждение о предстоящем списании.
+    ///
+    /// Хранится, чтобы не написать дважды: проход идёт каждый час, и без
+    /// отметки человек получал бы одно и то же письмо семьдесят два раза.
+    /// </summary>
+    public DateTime? RenewalNoticeAt { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public Plan? Plan { get; set; }

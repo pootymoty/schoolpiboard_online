@@ -66,6 +66,8 @@ export function LegalPage(): ReactElement {
           <Link to="/legal/terms">Соглашение</Link>
           {' · '}
           <Link to="/legal/privacy">Персональные данные</Link>
+          {' · '}
+          <Link to="/legal/consent">Согласие на обработку</Link>
         </p>
       </article>
     </Page>

@@ -195,6 +195,7 @@ export function Footer(): ReactElement {
       <div className="row">
         <Link to="/legal/terms">Соглашение</Link>
         <Link to="/legal/privacy">Персональные данные</Link>
+        <Link to="/legal/consent">Согласие на обработку</Link>
         <Link to="/legal/offer">Оферта</Link>
         <Link to="/about">Контакты</Link>
       </div>

@@ -23,7 +23,14 @@ public sealed record PlanDto(
     bool HasLibrary);
 
 /// <summary>Заказ на оплату: какой тариф, на какой срок и когда начать.</summary>
-public sealed record CheckoutRequest(string? PlanCode, int Days, bool AutoRenew, bool StartNow);
+/// <summary>
+/// Заказ подписки. <c>Consent</c> — текст, под которым человек согласился
+/// на автосписания: он приходит от браузера и ложится в журнал согласий,
+/// чтобы в споре было видно не «галочка стояла», а что именно было
+/// написано рядом с ней в тот день.
+/// </summary>
+public sealed record CheckoutRequest(
+    string? PlanCode, int Days, bool AutoRenew, bool StartNow, string? Consent);
 
 /// <summary>Оплаченный срок, который ещё не начался.</summary>
 public sealed record UpcomingDto(string PlanCode, string PlanName, DateTime StartsAt, DateTime EndsAt);
@@ -40,7 +47,7 @@ public sealed record OrderDto(
     DateTime? PaidAt);
 
 /// <summary>Переключатель автопродления.</summary>
-public sealed record AutoRenewRequest(bool Value);
+public sealed record AutoRenewRequest(bool Value, string? Consent);
 
 /// <summary>Сообщение сервера ключей об оплате.</summary>
 public sealed record PaidCallback(
@@ -125,8 +132,9 @@ public static class BillingEndpoints
         // ---------- Оплата ----------
 
         app.MapPost("/api/billing/checkout", async (
-            [FromBody] CheckoutRequest request, ClaimsPrincipal principal, AppDbContext db,
-            SubscriptionService subscriptions, KeyServerClient keys, CancellationToken ct) =>
+            [FromBody] CheckoutRequest request, HttpContext http, ClaimsPrincipal principal, AppDbContext db,
+            SubscriptionService subscriptions, KeyServerClient keys, ConsentService consents,
+            CancellationToken ct) =>
         {
             var user = await AuthEndpoints.CurrentUser(principal, db, ct);
             if (user is null) return Results.Unauthorized();
@@ -168,17 +176,43 @@ public static class BillingEndpoints
             await subscriptions.RememberOrderAsync(
                 user.Id, invoice.InvoiceId, plan, request.Days, price.Value, request.AutoRenew, startNow, ct);
 
+            // Согласие на автосписания записываем отдельно от заказа: заказ
+            // говорит, что купили, а журнал — на что человек согласился и
+            // под каким текстом. В споре о списании спросят второе.
+            if (request.AutoRenew)
+            {
+                await consents.GivenAsync(
+                    user.Id, ConsentEvent.SourcePurchase, request.Consent ?? string.Empty,
+                    plan.Code, request.Days, price.Value, Ip(http), ct);
+            }
+
             return Results.Ok(new { invoice.PaymentUrl, invoice.Amount });
         }).RequireAuthorization();
 
         app.MapPost("/api/billing/auto-renew", async (
-            [FromBody] AutoRenewRequest request, ClaimsPrincipal principal, AppDbContext db,
-            SubscriptionService subscriptions, CancellationToken ct) =>
+            [FromBody] AutoRenewRequest request, HttpContext http, ClaimsPrincipal principal, AppDbContext db,
+            SubscriptionService subscriptions, ConsentService consents, CancellationToken ct) =>
         {
             var user = await AuthEndpoints.CurrentUser(principal, db, ct);
             if (user is null) return Results.Unauthorized();
 
             var changed = await subscriptions.SetAutoRenewAsync(user.Id, request.Value, ct);
+
+            if (changed)
+            {
+                // Отзыв записываем так же, как согласие: без него нельзя
+                // показать, что человек выключил списания раньше даты.
+                if (request.Value)
+                {
+                    await consents.GivenAsync(
+                        user.Id, ConsentEvent.SourceProfile, request.Consent ?? string.Empty,
+                        string.Empty, 0, 0, Ip(http), ct);
+                }
+                else
+                {
+                    await consents.WithdrawnAsync(user.Id, ConsentEvent.SourceProfile, Ip(http), ct);
+                }
+            }
 
             return changed
                 ? Results.Ok(new { autoRenew = request.Value })
@@ -329,4 +363,23 @@ public static class BillingEndpoints
         plan.MaxStorageBytes,
         plan.MaxParticipants,
         plan.HasLibrary);
+
+    /// <summary>
+    /// Адрес, с которого пришло действие. За обратным прокси настоящий
+    /// адрес приходит заголовком — без него в журнале согласий стоял бы
+    /// один и тот же localhost у всех.
+    /// </summary>
+    private static string Ip(HttpContext http)
+    {
+        var forwarded = http.Request.Headers["X-Forwarded-For"].ToString();
+
+        if (!string.IsNullOrWhiteSpace(forwarded))
+        {
+            var first = forwarded.Split(',')[0].Trim();
+            if (first.Length > 0) return first;
+        }
+
+        return http.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
+    }
+
 }

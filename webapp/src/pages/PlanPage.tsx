@@ -58,6 +58,15 @@ export function PlanPage(): ReactElement {
   // карты человек даёт сам, а не забывает снять чужую галочку.
   const [renew, setRenew] = useState(false);
 
+  /**
+   * Текст, под которым человек соглашается на автосписания.
+   *
+   * Уезжает на сервер вместе с покупкой и ложится в журнал согласий:
+   * формулировку когда-нибудь поменяют, а в споре о списании спросят ту,
+   * что была написана рядом с галочкой в тот день.
+   */
+  const CONSENT = 'Я согласен на автоматические списания согласно условиям оферты';
+
   const loadOrders = () => {
     api<Order[]>('/billing/history').then(setOrders).catch(() => undefined);
   };
@@ -160,7 +169,13 @@ export function PlanPage(): ReactElement {
     try {
       const answer = await api<{ paymentUrl: string }>('/billing/checkout', {
         method: 'POST',
-        body: { planCode: chosen.code, days: period.days, autoRenew: renew, startNow: now && upgrade },
+        body: {
+          planCode: chosen.code,
+          days: period.days,
+          autoRenew: renew,
+          startNow: now && upgrade,
+          consent: renew ? `${CONSENT}. Списание раз в ${period.days} дн., ${price} ₽.` : null,
+        },
       });
 
       window.location.href = answer.paymentUrl;
@@ -191,7 +206,10 @@ export function PlanPage(): ReactElement {
 
   const toggleRenew = async (value: boolean) => {
     try {
-      await api('/billing/auto-renew', { method: 'POST', body: { value } });
+      await api('/billing/auto-renew', {
+        method: 'POST',
+        body: { value, consent: value ? CONSENT : null },
+      });
       load();
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось изменить автопродление.');
@@ -308,12 +326,16 @@ export function PlanPage(): ReactElement {
                       checked={mine.autoRenew}
                       onChange={(event) => void toggleRenew(event.target.checked)}
                     />
-                    <label htmlFor="autoRenew">Продлевать подписку автоматически</label>
+                    <label htmlFor="autoRenew">
+                      Я согласен на автоматические списания согласно условиям{' '}
+                      <Link to="/legal/offer" target="_blank" rel="noreferrer">оферты</Link>
+                    </label>
                   </div>
 
                   <p className="text-muted small">
-                    Списываем с той же карты за сутки до конца срока. Выключить можно
-                    в любой момент — оплаченные дни остаются при вас.
+                    Списываем с той же карты за сутки до конца срока, по действующей на тот
+                    момент цене тарифа. За трое суток до списания придёт письмо с суммой и датой.
+                    Снимите отметку — списаний не будет; оплаченные дни остаются при вас.
                   </p>
                 </>
               ) : (
@@ -405,6 +427,11 @@ export function PlanPage(): ReactElement {
                   </p>
                 ) : null}
 
+                {/* Согласие на автосписания — отдельным действием, и рядом
+                    с ним сказано всё, о чём человек соглашается: сумма,
+                    периодичность, день списания и где это выключается.
+                    Отметки по умолчанию нет: согласие, проставленное за
+                    человека, согласием не является. */}
                 <div className="check" style={{ marginTop: 'var(--sp-3)' }}>
                   <input
                     id="renewOnBuy"
@@ -412,8 +439,20 @@ export function PlanPage(): ReactElement {
                     checked={renew}
                     onChange={(event) => setRenew(event.target.checked)}
                   />
-                  <label htmlFor="renewOnBuy">Продлевать автоматически</label>
+                  <label htmlFor="renewOnBuy">
+                    Я согласен на автоматические списания согласно условиям{' '}
+                    <Link to="/legal/offer" target="_blank" rel="noreferrer">оферты</Link>
+                  </label>
                 </div>
+
+                {chosen && period ? (
+                  <p className="text-muted small">
+                    Списание — раз в {period.days} дн., по {price} ₽, за сутки до конца
+                    оплаченного срока, с той же карты. За трое суток до списания придёт письмо.
+                    Выключить продление можно в любой момент здесь же, в разделе
+                    «Автопродление»; оплаченные дни при этом остаются при вас.
+                  </p>
+                ) : null}
 
                 <button
                   className="btn-primary btn-block"

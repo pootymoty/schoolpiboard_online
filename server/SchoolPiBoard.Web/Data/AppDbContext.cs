@@ -35,6 +35,8 @@ public class AppDbContext : DbContext
 
     public DbSet<SummaryRequest> SummaryRequests => Set<SummaryRequest>();
 
+    public DbSet<ConsentEvent> ConsentEvents => Set<ConsentEvent>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(entity =>
@@ -248,6 +250,7 @@ public class AppDbContext : DbContext
             entity.Property(x => x.Source).HasColumnName("source").IsRequired();
             entity.Property(x => x.InvoiceId).HasColumnName("invoice_id");
             entity.Property(x => x.AutoRenew).HasColumnName("auto_renew");
+            entity.Property(x => x.RenewalNoticeAt).HasColumnName("renewal_notice_at");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
 
             // Действующую подписку ищут по владельцу и дате окончания.
@@ -371,6 +374,32 @@ public class AppDbContext : DbContext
             entity.HasOne(x => x.Board)
                 .WithMany()
                 .HasForeignKey(x => x.BoardId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<ConsentEvent>(entity =>
+        {
+            entity.ToTable("consent_events");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.UserId).HasColumnName("user_id");
+            entity.Property(x => x.Kind).HasColumnName("kind").IsRequired();
+            entity.Property(x => x.Source).HasColumnName("source").IsRequired();
+            entity.Property(x => x.Text).HasColumnName("text").IsRequired();
+            entity.Property(x => x.PlanCode).HasColumnName("plan_code").IsRequired();
+            entity.Property(x => x.Days).HasColumnName("days");
+            entity.Property(x => x.Amount).HasColumnName("amount");
+            entity.Property(x => x.Ip).HasColumnName("ip").IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+
+            // Историю читают по человеку и по времени — так её и спросят,
+            // если дойдёт до спора о списании.
+            entity.HasIndex(x => new { x.UserId, x.CreatedAt });
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

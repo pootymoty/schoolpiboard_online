@@ -1,3 +1,6 @@
+using Microsoft.EntityFrameworkCore;
+using SchoolPiBoard.Web.Configuration;
+using SchoolPiBoard.Web.Data;
 using SchoolPiBoard.Web.Data.Entities;
 
 namespace SchoolPiBoard.Web.Services;
@@ -20,6 +23,15 @@ public sealed class AutoRenewService : BackgroundService
 
     /// <summary>За сколько до конца просим списать.</summary>
     private static readonly TimeSpan Ahead = TimeSpan.FromDays(1);
+
+    /// <summary>
+    /// За сколько до конца предупреждаем письмом.
+    ///
+    /// Трое суток — чтобы письмо успели прочесть и, если передумали,
+    /// выключить продление до списания. Сутки, как у самого списания,
+    /// такой возможности почти не дают.
+    /// </summary>
+    private static readonly TimeSpan NoticeAhead = TimeSpan.FromDays(3);
 
     private readonly IServiceScopeFactory _scopes;
     private readonly ILogger<AutoRenewService> _logger;
@@ -55,6 +67,8 @@ public sealed class AutoRenewService : BackgroundService
 
         var subscriptions = scope.ServiceProvider.GetRequiredService<SubscriptionService>();
         var keys = scope.ServiceProvider.GetRequiredService<KeyServerClient>();
+
+        await NoticeAsync(scope.ServiceProvider, subscriptions, cancellationToken);
 
         foreach (var due in await subscriptions.DueForRenewalAsync(Ahead, cancellationToken))
         {
@@ -109,6 +123,47 @@ public sealed class AutoRenewService : BackgroundService
 
             _logger.LogInformation(
                 "Автопродление подписки {Id}: выставлен счёт {Invoice}.", due.Id, charged.InvoiceId);
+        }
+    }
+
+    /// <summary>
+    /// Предупреждает о предстоящем списании.
+    ///
+    /// Отдельным проходом и заранее: списание без предупреждения — то,
+    /// из-за чего пишут в банк «я этого не заказывал», даже когда
+    /// заказывали. Отметка о письме хранится у подписки, иначе почасовой
+    /// проход слал бы одно и то же письмо семьдесят два раза.
+    /// </summary>
+    private async Task NoticeAsync(
+        IServiceProvider services, SubscriptionService subscriptions, CancellationToken cancellationToken)
+    {
+        var db = services.GetRequiredService<AppDbContext>();
+        var email = services.GetRequiredService<IEmailSender>();
+        var options = services.GetRequiredService<AppOptions>();
+
+        foreach (var due in await subscriptions.DueForNoticeAsync(NoticeAhead, cancellationToken))
+        {
+            var plan = due.Plan;
+            if (plan is null) continue;
+
+            var days = (int)Math.Round((due.EndsAt - due.StartsAt).TotalDays);
+            var price = plan.PriceFor(days);
+            if (price is null or <= 0) continue;
+
+            var address = await db.Users
+                .Where(x => x.Id == due.UserId)
+                .Select(x => x.Email)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(address)) continue;
+
+            var letter = EmailTemplates.RenewalSoon(
+                plan.Name, days, price.Value, due.EndsAt - Ahead, options.PublicUrl + "/plan");
+
+            // Отметку ставим и когда письмо не ушло: почта могла отказать
+            // насовсем, а бесконечные попытки раз в час — это рассылка.
+            await email.SendAsync(address, letter.Subject, letter.Html, letter.Text, cancellationToken);
+            await subscriptions.MarkNoticedAsync(due.Id, cancellationToken);
         }
     }
 }

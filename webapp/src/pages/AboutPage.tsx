@@ -58,6 +58,8 @@ export function AboutPage(): ReactElement {
           <Link to="/legal/offer">Оферта</Link>
           {' · '}
           <Link to="/legal/privacy">Персональные данные</Link>
+          {' · '}
+          <Link to="/legal/consent">Согласие на обработку</Link>
         </p>
       </article>
     </Page>
