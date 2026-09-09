@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { COMPANY, HAS_COMPANY_DETAILS } from '../content/company';
 import { IconMenu } from './Icons';
@@ -39,10 +39,19 @@ function useTheme(): { theme: Theme; toggle: () => void } {
   return { theme, toggle };
 }
 
-/** Слайдер темы — вместо значка солнце/луна. */
-function ThemeSwitch({ theme, toggle }: { theme: Theme; toggle: () => void }): ReactElement {
+/**
+ * Слайдер темы.
+ *
+ * С подписью, а не голым ползунком: переключатель без слова читается как
+ * настройка чего угодно — от звука до уведомлений, — и понять, что это
+ * тема, можно было только нажав.
+ */
+function ThemeSwitch({
+  theme, toggle, label = 'Тёмная тема',
+}: { theme: Theme; toggle: () => void; label?: string }): ReactElement {
   return (
-    <label className="theme-switch" title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
+    <label className="theme-switch">
+      <span className="theme-switch__label">{label}</span>
       <input
         type="checkbox"
         checked={theme === 'dark'}
@@ -90,18 +99,19 @@ export function Header(): ReactElement {
 
       <span className="header__spacer" />
 
+      {/* Одни и те же разделы у гостя и у вошедшего, в одном и том же
+          месте: меню, которое перестраивается после входа, заставляет
+          искать заново то, что человек уже нашёл. «Главной» в списке нет —
+          на неё ведёт название слева, как на любом сайте. */}
       <nav className="desktop-menu" aria-label="Разделы сайта">
+        <NavLink to="/features">Возможности</NavLink>
+        <NavLink to="/pricing">Тарифы</NavLink>
+        <NavLink to="/faq">Вопросы</NavLink>
+
         {user ? (
           <>
-            <Link to="/">Главная</Link>
-            <Link to="/features">Возможности</Link>
-            <Link to="/pricing">Тарифы</Link>
-            <Link to="/boards">Мои доски</Link>
-            <Menu
-              label="Личный кабинет"
-              trigger="Личный кабинет"
-              triggerClassName="btn-tool btn-tool--wide"
-            >
+            <NavLink to="/boards">Мои доски</NavLink>
+            <Menu label="Личный кабинет" trigger="Личный кабинет" triggerClassName="header__menu">
               <Link className="btn btn-quiet menu__item" to="/plan">Мой тариф</Link>
               <Link className="btn btn-quiet menu__item" to="/profile">Настройки</Link>
               <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={logout}>
@@ -110,13 +120,7 @@ export function Header(): ReactElement {
             </Menu>
           </>
         ) : (
-          <>
-            <Link to="/">Главная</Link>
-            <Link to="/features">Возможности</Link>
-            <Link to="/pricing">Тарифы</Link>
-            <Link to="/faq">Вопросы</Link>
-            <Link to="/login">Войти</Link>
-          </>
+          <Link className="btn btn-primary btn-sm header__cta" to="/login">Войти</Link>
         )}
       </nav>
 
@@ -141,7 +145,6 @@ export function Header(): ReactElement {
         <ul>
           {user ? (
             <>
-              <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
               <li><Link to="/features" onClick={closeMobile}>Возможности</Link></li>
               <li><Link to="/pricing" onClick={closeMobile}>Тарифы</Link></li>
               <li><Link to="/faq" onClick={closeMobile}>Вопросы</Link></li>
@@ -165,20 +168,17 @@ export function Header(): ReactElement {
                 </ul>
               </li>
               <li className="navbar-item--switch">
-                <span className="navbar-item__label">Тёмная тема</span>
                 <ThemeSwitch theme={theme} toggle={toggle} />
               </li>
             </>
           ) : (
             <>
-              <li><Link to="/" onClick={closeMobile}>Главная</Link></li>
               <li><Link to="/features" onClick={closeMobile}>Возможности</Link></li>
               <li><Link to="/pricing" onClick={closeMobile}>Тарифы</Link></li>
               <li><Link to="/faq" onClick={closeMobile}>Вопросы</Link></li>
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
               <li><Link to="/login" onClick={closeMobile}>Войти</Link></li>
               <li className="navbar-item--switch">
-                <span className="navbar-item__label">Тёмная тема</span>
                 <ThemeSwitch theme={theme} toggle={toggle} />
               </li>
             </>

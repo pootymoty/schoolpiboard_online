@@ -5,7 +5,7 @@ import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server.mjs";
 import { createContext, useState, useCallback, useEffect, useMemo, useContext, useRef, useLayoutEffect } from "react";
-import { useLocation, Link, useNavigate, useSearchParams, useParams, Routes, Route, Navigate } from "react-router-dom";
+import { useLocation, Link, NavLink, useNavigate, useSearchParams, useParams, Routes, Route, Navigate } from "react-router-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 const API_URL = "http://localhost:5000";
 const TOKEN_KEY = "schoolpiboard.token";
@@ -441,8 +441,13 @@ function useTheme() {
   };
   return { theme, toggle };
 }
-function ThemeSwitch({ theme, toggle }) {
-  return /* @__PURE__ */ jsxs("label", { className: "theme-switch", title: theme === "dark" ? "Светлая тема" : "Тёмная тема", children: [
+function ThemeSwitch({
+  theme,
+  toggle,
+  label = "Тёмная тема"
+}) {
+  return /* @__PURE__ */ jsxs("label", { className: "theme-switch", children: [
+    /* @__PURE__ */ jsx("span", { className: "theme-switch__label", children: label }),
     /* @__PURE__ */ jsx(
       "input",
       {
@@ -477,31 +482,19 @@ function Header() {
   return /* @__PURE__ */ jsxs("header", { className: "header", children: [
     /* @__PURE__ */ jsx(Link, { className: "header__brand", to: user ? "/boards" : "/", children: "SchoolPiBoard" }),
     /* @__PURE__ */ jsx("span", { className: "header__spacer" }),
-    /* @__PURE__ */ jsx("nav", { className: "desktop-menu", "aria-label": "Разделы сайта", children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx(Link, { to: "/", children: "Главная" }),
-      /* @__PURE__ */ jsx(Link, { to: "/features", children: "Возможности" }),
-      /* @__PURE__ */ jsx(Link, { to: "/pricing", children: "Тарифы" }),
-      /* @__PURE__ */ jsx(Link, { to: "/boards", children: "Мои доски" }),
-      /* @__PURE__ */ jsxs(
-        Menu,
-        {
-          label: "Личный кабинет",
-          trigger: "Личный кабинет",
-          triggerClassName: "btn-tool btn-tool--wide",
-          children: [
-            /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet menu__item", to: "/plan", children: "Мой тариф" }),
-            /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet menu__item", to: "/profile", children: "Настройки" }),
-            /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: logout, children: "Выйти" })
-          ]
-        }
-      )
-    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx(Link, { to: "/", children: "Главная" }),
-      /* @__PURE__ */ jsx(Link, { to: "/features", children: "Возможности" }),
-      /* @__PURE__ */ jsx(Link, { to: "/pricing", children: "Тарифы" }),
-      /* @__PURE__ */ jsx(Link, { to: "/faq", children: "Вопросы" }),
-      /* @__PURE__ */ jsx(Link, { to: "/login", children: "Войти" })
-    ] }) }),
+    /* @__PURE__ */ jsxs("nav", { className: "desktop-menu", "aria-label": "Разделы сайта", children: [
+      /* @__PURE__ */ jsx(NavLink, { to: "/features", children: "Возможности" }),
+      /* @__PURE__ */ jsx(NavLink, { to: "/pricing", children: "Тарифы" }),
+      /* @__PURE__ */ jsx(NavLink, { to: "/faq", children: "Вопросы" }),
+      user ? /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }),
+        /* @__PURE__ */ jsxs(Menu, { label: "Личный кабинет", trigger: "Личный кабинет", triggerClassName: "header__menu", children: [
+          /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet menu__item", to: "/plan", children: "Мой тариф" }),
+          /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet menu__item", to: "/profile", children: "Настройки" }),
+          /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: logout, children: "Выйти" })
+        ] })
+      ] }) : /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-sm header__cta", to: "/login", children: "Войти" })
+    ] }),
     /* @__PURE__ */ jsx("span", { className: "theme-switch--header", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) }),
     /* @__PURE__ */ jsx(
       "button",
@@ -516,7 +509,6 @@ function Header() {
       }
     ),
     /* @__PURE__ */ jsx("div", { id: "navbar", className: mobileOpen ? "navbar navbar--show" : "navbar", children: /* @__PURE__ */ jsx("ul", { children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/", onClick: closeMobile, children: "Главная" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
@@ -540,21 +532,14 @@ function Header() {
           }, children: "Выйти" }) })
         ] })
       ] }),
-      /* @__PURE__ */ jsxs("li", { className: "navbar-item--switch", children: [
-        /* @__PURE__ */ jsx("span", { className: "navbar-item__label", children: "Тёмная тема" }),
-        /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle })
-      ] })
+      /* @__PURE__ */ jsx("li", { className: "navbar-item--switch", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
     ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/", onClick: closeMobile, children: "Главная" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/login", onClick: closeMobile, children: "Войти" }) }),
-      /* @__PURE__ */ jsxs("li", { className: "navbar-item--switch", children: [
-        /* @__PURE__ */ jsx("span", { className: "navbar-item__label", children: "Тёмная тема" }),
-        /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle })
-      ] })
+      /* @__PURE__ */ jsx("li", { className: "navbar-item--switch", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
     ] }) }) })
   ] });
 }

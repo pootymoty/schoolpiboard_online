@@ -76,11 +76,59 @@
 
 /* --- Разделы сайта: десктопное меню и мобильный бургер --------------------- */
 
+/* Разделы в один ряд и на одной высоте. Прежде «Личный кабинет» был
+   кнопкой с рамкой среди простых ссылок и выбивался и по высоте, и по
+   весу — ряд выглядел собранным из двух разных меню. */
 .desktop-menu {
     display: none;
     align-items: center;
-    gap: var(--sp-4);
+    gap: var(--sp-1);
 }
+
+.desktop-menu > a:not(.header__cta),
+.desktop-menu .header__menu {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 var(--sp-3);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-on-dark);
+    font: inherit;
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.desktop-menu > a:not(.header__cta):hover,
+.desktop-menu .header__menu:hover {
+    background: rgba(255, 255, 255, .12);
+    text-decoration: none;
+}
+
+/* Стрелка у «Личного кабинета»: без неё пункт неотличим от обычной
+   ссылки, и по нему щёлкают, ожидая перехода, а не списка. */
+.desktop-menu .header__menu::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    margin-left: var(--sp-1);
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+}
+
+/* Где человек находится — видно сразу, а не по догадке. */
+.desktop-menu > a.active {
+    background: rgba(255, 255, 255, .16);
+}
+
+/* «Войти» — единственное действие в шапке, и выглядит оно как действие:
+   обычная кнопка темы, а не ссылка в общем ряду. */
+.desktop-menu > a.header__cta { text-decoration: none; }
+.desktop-menu > a.header__cta:hover { text-decoration: none; }
 
 .theme-switch--header { display: none; }
 
@@ -122,9 +170,16 @@
 .navbar-item--switch {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     padding: var(--sp-3) var(--sp-2);
     border-bottom: 1px solid var(--line);
+}
+
+/* Подпись занимает строку, слайдер прижимается к правому краю — так же,
+   как выровнены названия разделов над ним. */
+.navbar-item--switch .theme-switch {
+    width: 100%;
+    justify-content: space-between;
+    color: var(--text);
 }
 
 .navbar-item__label {
@@ -185,7 +240,16 @@ body.no-scroll {
 .theme-switch {
     display: inline-flex;
     align-items: center;
+    gap: var(--sp-2);
     cursor: pointer;
+}
+
+/* Подпись к слайдеру: без неё переключатель читается как настройка чего
+   угодно, и понять, что это тема, можно только нажав. */
+.theme-switch__label {
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .theme-switch input {
