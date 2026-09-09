@@ -191,7 +191,7 @@ const PLANE: Template = {
   id: 'plane',
   title: 'Координатная плоскость',
   group: 'axes',
-  hint: 'Оси с засечками по клеткам доски. Саму клетку включают в «Фоне» — разлиновка «График».',
+  hint: 'Клетку включают в «Фоне» — разлиновка «График».',
   knobs: [
     { key: 'divisions', label: 'Делений по оси', kind: 'number', min: 2, max: 12 },
     { key: 'labels', label: 'Подписи делений', kind: 'toggle', min: 0, max: 1 },
@@ -241,7 +241,7 @@ const NUMBER_LINE: Template = {
   id: 'number-line',
   title: 'Числовая прямая',
   group: 'axes',
-  hint: 'Прямая с нулём и засечками — под сравнение чисел, дроби и модуль.',
+  hint: 'Прямая с нулём и засечками.',
   knobs: [
     { key: 'divisions', label: 'Делений в каждую сторону', kind: 'number', min: 2, max: 12 },
     { key: 'labels', label: 'Подписи делений', kind: 'toggle', min: 0, max: 1 },
@@ -309,7 +309,7 @@ const BOX: Template = {
   id: 'box',
   title: 'Параллелепипед',
   group: 'solid',
-  hint: 'Куб получается, если высота и глубина равны ширине.',
+  hint: 'Куб — если высота и глубина равны ширине.',
   knobs: [
     { key: 'height', label: 'Высота', kind: 'number', min: 30, max: 140, suffix: '% ширины' },
     { key: 'depth', label: 'Глубина', kind: 'number', min: 10, max: 70, suffix: '% ширины' },
@@ -388,7 +388,7 @@ const PRISM: Template = {
   id: 'prism',
   title: 'Призма',
   group: 'solid',
-  hint: 'Основание — правильный многоугольник. Четыре угла дают прямую призму на ромбическом основании.',
+  hint: 'Основание — правильный многоугольник.',
   knobs: [
     { key: 'sides', label: 'Углов в основании', kind: 'number', min: 3, max: 8 },
     { key: 'height', label: 'Высота', kind: 'number', min: 30, max: 130, suffix: '% размера' },
@@ -401,7 +401,7 @@ const PYRAMID: Template = {
   id: 'pyramid',
   title: 'Пирамида',
   group: 'solid',
-  hint: 'Правильная пирамида с вершиной над серединой основания.',
+  hint: 'Вершина над серединой основания.',
   knobs: [
     { key: 'sides', label: 'Углов в основании', kind: 'number', min: 3, max: 8 },
     { key: 'height', label: 'Высота', kind: 'number', min: 30, max: 130, suffix: '% размера' },
@@ -414,7 +414,7 @@ const TETRAHEDRON: Template = {
   id: 'tetrahedron',
   title: 'Тетраэдр',
   group: 'solid',
-  hint: 'Пирамида на треугольном основании: дальнее ребро идёт пунктиром.',
+  hint: 'Пирамида на треугольном основании.',
   knobs: [
     { key: 'height', label: 'Высота', kind: 'number', min: 40, max: 140, suffix: '% размера' },
   ],
@@ -426,7 +426,7 @@ const SPHERE: Template = {
   id: 'sphere',
   title: 'Шар',
   group: 'solid',
-  hint: 'Окружность с экватором: ближняя половина сплошная, дальняя пунктиром.',
+  hint: 'Окружность с экватором.',
   knobs: [
     { key: 'tilt', label: 'Наклон экватора', kind: 'number', min: 8, max: 50, suffix: '% радиуса' },
     { key: 'radius', label: 'Показать радиус', kind: 'toggle', min: 0, max: 1 },
@@ -457,7 +457,7 @@ const CYLINDER: Template = {
   id: 'cylinder',
   title: 'Цилиндр',
   group: 'solid',
-  hint: 'Нижнее основание чертится наполовину пунктиром — оно за телом.',
+  hint: 'Нижнее основание наполовину пунктиром.',
   knobs: [
     { key: 'height', label: 'Высота', kind: 'number', min: 30, max: 150, suffix: '% размера' },
     { key: 'tilt', label: 'Наклон основания', kind: 'number', min: 12, max: 45, suffix: '% радиуса' },
@@ -485,7 +485,7 @@ const CONE: Template = {
   id: 'cone',
   title: 'Конус',
   group: 'solid',
-  hint: 'Вершина над серединой основания; дальняя половина основания пунктиром.',
+  hint: 'Вершина над серединой основания.',
   knobs: [
     { key: 'height', label: 'Высота', kind: 'number', min: 40, max: 160, suffix: '% размера' },
     { key: 'tilt', label: 'Наклон основания', kind: 'number', min: 12, max: 45, suffix: '% радиуса' },

@@ -127,7 +127,7 @@ export function JoinPage(): ReactElement {
           <h1>Приглашение на доску</h1>
           <p className="note note-danger">{error}</p>
           <p className="text-muted small">
-            Возможно, ссылку перевыпустили. Попросите новую у того, кто вас позвал.
+            Попросите новую ссылку у того, кто вас позвал.
           </p>
         </div>
       </Page>
@@ -208,8 +208,7 @@ export function JoinPage(): ReactElement {
             </form>
 
             <p className="text-muted small">
-              Регистрироваться не нужно. Имя нужно только чтобы вас узнавали
-              на доске — оно нигде не сохраняется.
+              Регистрация не нужна. Имя видно на доске и нигде не сохраняется.
             </p>
 
             <p className="text-muted small">

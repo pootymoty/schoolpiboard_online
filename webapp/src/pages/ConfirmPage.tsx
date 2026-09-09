@@ -53,8 +53,7 @@ export function ConfirmPage(): ReactElement {
           <>
             <p className="note note-danger">{error}</p>
             <p className="text-muted small">
-              Ссылка действует сутки и срабатывает один раз. Если срок вышел,
-              запросите новое письмо на странице входа.
+              Ссылка действует сутки и срабатывает один раз.
             </p>
             <Link className="btn btn-primary" to="/login">На страницу входа</Link>
           </>

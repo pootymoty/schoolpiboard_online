@@ -1002,10 +1002,7 @@ export function BoardPage(): ReactElement {
         <div className="card">
           <h1>Доска</h1>
           <p className="note note-danger">{error}</p>
-          <p className="text-muted small">
-            Возможно, вас убрали с доски или ссылку перевыпустили. Попросите
-            новую у того, кто вас позвал.
-          </p>
+          <p className="text-muted small">Попросите новую ссылку у того, кто вас позвал.</p>
         </div>
       </BoardShell>
     );
@@ -1062,10 +1059,7 @@ export function BoardPage(): ReactElement {
         {error ?? hub.error ? <p className="note note-danger">{error ?? hub.error}</p> : null}
 
         {board.locked && board.canManage ? (
-          <p className="note note-warning">
-            Доска закрыта: новые по ссылке войти не могут. Те, кто уже здесь,
-            остаются.
-          </p>
+          <p className="note note-warning">Доска закрыта для новых участников.</p>
         ) : null}
 
         <section

@@ -129,8 +129,7 @@ function DangerCard({ onDeleted }: { onDeleted: () => void }): ReactElement {
     <div className="card">
       <h2 className="card-title">Удаление аккаунта</h2>
       <p className="text-muted small">
-        Войти станет нельзя. Ваши доски проработают у остальных участников
-        ещё полгода.
+        Войти станет нельзя. Доски проработают у участников ещё полгода.
       </p>
 
       {open ? (

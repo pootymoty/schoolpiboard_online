@@ -322,8 +322,7 @@ export function FilesPanel({ onInsert, onSpread, canSpread, onClose }: Props): R
         <div className="files__body">
           {library && !library.allowed ? (
             <p className="note note-info">
-              Библиотека документов и страницы PDF — на платных тарифах.
-              Картинки из буфера можно вставлять на любом.
+              Библиотека и PDF — на платных тарифах. Картинки из буфера — на любом.
             </p>
           ) : null}
 
@@ -356,7 +355,7 @@ export function FilesPanel({ onInsert, onSpread, canSpread, onClose }: Props): R
           </div>
 
           <p className="text-muted small">
-            PDF — можно выбрать страницы и обрезать. Картинки вставляются как есть.
+            PDF, PNG, JPEG.
           </p>
 
           {library ? (
@@ -405,8 +404,7 @@ export function FilesPanel({ onInsert, onSpread, canSpread, onClose }: Props): R
       {view === 'pages' && document ? (
         <div className="files__body">
           <p className="text-muted small">
-            Отметьте страницы. Их можно вставить сюда, одну рядом с другой, или разложить —
-            каждую отдельной страницей занятия. Обрезать можно любую, по одной.
+            Отметьте страницы.
           </p>
 
           <div className="files__pages">
@@ -472,7 +470,7 @@ export function FilesPanel({ onInsert, onSpread, canSpread, onClose }: Props): R
 
       {view === 'crop' && source ? (
         <div className="files__body">
-          <p className="text-muted small">Обведите нужный кусок — или вставьте целиком.</p>
+          <p className="text-muted small">Обведите нужный кусок.</p>
 
           <div
             className="files__crop"

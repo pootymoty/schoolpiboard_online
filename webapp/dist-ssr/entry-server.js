@@ -826,8 +826,8 @@ function PricingPage() {
       /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Что важно знать" }),
       /* @__PURE__ */ jsxs("ul", { className: "reading", children: [
         /* @__PURE__ */ jsx("li", { children: "Первые 7 дней после подтверждения почты — «Стандартный», без привязки карты." }),
-        /* @__PURE__ */ jsx("li", { children: "Оплата разовая за выбранный срок. Продление прибавляет дни к концу текущего, а не обнуляет его." }),
-        /* @__PURE__ */ jsx("li", { children: "Когда оплаченный срок кончается, ничего не удаляется: доски и файлы остаются на месте, аккаунт просто возвращается к бесплатным пределам." }),
+        /* @__PURE__ */ jsx("li", { children: "Продление прибавляет дни к концу текущего срока." }),
+        /* @__PURE__ */ jsx("li", { children: "После окончания срока доски и файлы остаются: аккаунт возвращается к бесплатным пределам." }),
         /* @__PURE__ */ jsx("li", { children: "Ученики и коллеги, которых вы позвали по ссылке, не платят ничего и никогда." })
       ] })
     ] })
@@ -1146,7 +1146,7 @@ function PlanPage() {
   const until = (mine == null ? void 0 : mine.until) ? new Date(mine.until).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : null;
   return /* @__PURE__ */ jsxs(Page, { narrow: true, children: [
     /* @__PURE__ */ jsx("div", { className: "page-header", children: /* @__PURE__ */ jsx("h1", { children: "Мой тариф" }) }),
-    outcome === "paid" ? /* @__PURE__ */ jsx("p", { className: "note note-info", children: "Оплата принята. Срок обновится в течение минуты — страница сама покажет новый." }) : null,
+    outcome === "paid" ? /* @__PURE__ */ jsx("p", { className: "note note-info", children: "Оплата принята — обновляем срок." }) : null,
     outcome === "failed" ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: "Оплата не прошла, деньги не списаны. Можно попробовать ещё раз." }) : null,
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     mine ? /* @__PURE__ */ jsxs(Fragment, { children: [
@@ -1155,23 +1155,22 @@ function PlanPage() {
         mine.kind === "trial" && until ? /* @__PURE__ */ jsxs("p", { className: "note note-info", children: [
           "Пробный период до ",
           until,
-          ". Дальше аккаунт вернётся к бесплатным пределам — ничего не пропадёт."
+          "."
         ] }) : null,
         mine.kind === "paid" && until ? /* @__PURE__ */ jsxs("p", { className: "text-muted", children: [
           "Оплачено до ",
           until,
           "."
         ] }) : null,
-        mine.kind === "free" ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Бесплатный тариф — без срока. Платный расширяет пределы и открывает библиотеку документов." }) : null,
+        mine.kind === "free" ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Без срока." }) : null,
         mine.upcoming.length > 0 ? /* @__PURE__ */ jsxs("div", { className: "note note-info", style: { marginTop: "var(--sp-3)" }, children: [
-          /* @__PURE__ */ jsx("p", { style: { margin: "0 0 var(--sp-2)" }, children: /* @__PURE__ */ jsx("strong", { children: "Уже оплачено дальше." }) }),
+          /* @__PURE__ */ jsx("p", { style: { margin: "0 0 var(--sp-2)" }, children: /* @__PURE__ */ jsx("strong", { children: "Дальше" }) }),
           mine.upcoming.map((next) => /* @__PURE__ */ jsxs("p", { style: { margin: "0 0 4px" }, children: [
             next.planName,
-            ": с ",
+            " — с ",
             day(next.startsAt),
             " до ",
-            day(next.endsAt),
-            "."
+            day(next.endsAt)
           ] }, next.startsAt)),
           mine.canStartUpcomingNow ? /* @__PURE__ */ jsx(
             "button",
@@ -1204,11 +1203,11 @@ function PlanPage() {
             /* @__PURE__ */ jsx(Bar, { used: mine.storageUsed, total: mine.plan.maxStorageBytes })
           ] }),
           /* @__PURE__ */ jsxs("p", { className: "text-muted small", style: { margin: 0 }, children: [
-            "На доске одновременно — до ",
+            "Участников на доске: до ",
             mine.plan.maxParticipants,
-            " человек, считая вас. Библиотека документов ",
-            mine.plan.hasLibrary ? "доступна" : "на платных тарифах",
-            "."
+            " · ",
+            "Библиотека: ",
+            mine.plan.hasLibrary ? "есть" : "нет"
           ] })
         ] })
       ] }),
@@ -1231,8 +1230,8 @@ function PlanPage() {
               /* @__PURE__ */ jsx(Link, { to: "/legal/offer", target: "_blank", rel: "noreferrer", children: "оферты" })
             ] })
           ] }),
-          /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Списываем с той же карты за сутки до конца срока, по действующей на тот момент цене тарифа. За трое суток до списания придёт письмо с суммой и датой. Снимите отметку — списаний не будет; оплаченные дни остаются при вас." })
-        ] }) : /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "При оплате этой подписки автопродление не выбиралось, и включить его задним числом нельзя: платёжная система разрешает повторные списания только по счёту, помеченному в момент оплаты. Отметьте «продлевать автоматически» при следующей покупке." })
+          /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Списание за сутки до конца срока. Письмо — за трое суток до него." })
+        ] }) : /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Доступно при следующей оплате." })
       ] }) : null,
       /* @__PURE__ */ jsxs("section", { className: "card", children: [
         /* @__PURE__ */ jsx("h2", { className: "card-title", children: mine.kind === "free" ? "Выбрать тариф" : "Продлить или сменить" }),
@@ -1271,7 +1270,7 @@ function PlanPage() {
                   onChange: () => setNow(false)
                 }
               ),
-              /* @__PURE__ */ jsx("label", { htmlFor: "startLater", children: "После текущего срока — ни один его день не теряется" })
+              /* @__PURE__ */ jsx("label", { htmlFor: "startLater", children: "После текущего срока" })
             ] }),
             /* @__PURE__ */ jsxs("div", { className: "check", children: [
               /* @__PURE__ */ jsx(
@@ -1286,17 +1285,14 @@ function PlanPage() {
               /* @__PURE__ */ jsxs("label", { htmlFor: "startNow", children: [
                 "Сразу — оставшиеся дни «",
                 mine.plan.name,
-                "» сгорят, вернуть их будет нельзя"
+                "» сгорят"
               ] })
             ] })
           ] }) : null,
           chosen && mine && mine.kind !== "free" && !upgrade ? /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
-            "Срок встанет в очередь и начнётся",
+            "Начнётся",
             " ",
-            mine.upcoming.length > 0 ? day(mine.upcoming[mine.upcoming.length - 1].endsAt) : until ?? "после текущего",
-            ":",
-            " ",
-            "ни один оплаченный день не пропадает."
+            mine.upcoming.length > 0 ? day(mine.upcoming[mine.upcoming.length - 1].endsAt) : until ?? "после текущего срока"
           ] }) : null,
           /* @__PURE__ */ jsxs("div", { className: "check", style: { marginTop: "var(--sp-3)" }, children: [
             /* @__PURE__ */ jsx(
@@ -1315,19 +1311,15 @@ function PlanPage() {
             ] })
           ] }),
           chosen && period ? /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
-            "Списание — раз в ",
-            period.days,
-            " дн., по ",
             price,
-            " ₽, за сутки до конца оплаченного срока, с той же карты. За трое суток до списания придёт письмо. Выключить продление можно в любой момент здесь же, в разделе «Автопродление»; оплаченные дни при этом остаются при вас."
+            " ₽ раз в ",
+            period.days,
+            " дн., за сутки до конца срока. Выключается в разделе «Автопродление»."
           ] }) : null,
           blocked && waiting ? /* @__PURE__ */ jsxs("p", { className: "note note-warning", style: { marginTop: "var(--sp-3)" }, children: [
-            "В очереди уже стоит тариф «",
+            "В очереди «",
             waiting.planName,
-            "» — он начнётся",
-            " ",
-            day(waiting.startsAt),
-            ". Докупить дни к нему можно прямо сейчас. Чтобы взять другой тариф, сначала включите отложенный кнопкой «Перейти сейчас» выше: неиспользованные дни текущего срока при этом сгорят."
+            "». Можно докупить дни к нему — или включить его сейчас кнопкой «Перейти сейчас» выше."
           ] }) : null,
           /* @__PURE__ */ jsx(
             "button",
@@ -1340,7 +1332,7 @@ function PlanPage() {
               children: busy ? "Готовим оплату…" : `Оплатить ${price} ₽`
             }
           ),
-          /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Оплата через Робокассу. Оплаченные дни прибавляются к концу текущего срока — ничего не пропадает." })
+          /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Оплата через Робокассу." })
         ] }),
         /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet btn-sm", to: "/pricing", children: "Сравнить тарифы" })
       ] }),
@@ -1365,8 +1357,7 @@ function PlanPage() {
             order.status === "pending" ? "ожидает оплаты" : null,
             order.status === "abandoned" ? "не завершён" : null
           ] })
-        ] }, order.invoiceId)) }),
-        /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Платёжная система сообщает нам только об успешной оплате. Поэтому неоплаченный счёт остаётся ожидающим и через сутки помечается незавершённым — это не отказ банка, а просто неоконченная покупка. Если деньги списались, а счёт всё ещё не оплачен, напишите нам." })
+        ] }, order.invoiceId)) })
       ] }) : null
     ] }) : error ? null : /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" })
   ] });
@@ -1492,7 +1483,7 @@ function RegisterPage() {
     return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("div", { className: "card", children: [
       /* @__PURE__ */ jsx("h1", { children: "Проверьте почту" }),
       /* @__PURE__ */ jsx("p", { children: done }),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Письмо не пришло? Загляните в «Спам», а затем запросите его заново на странице входа." }),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Не пришло — загляните в «Спам»." }),
       /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/login", children: "На страницу входа" })
     ] }) });
   }
@@ -1587,7 +1578,7 @@ function ConfirmPage() {
       /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/boards", children: "К доскам" })
     ] }) : error ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Ссылка действует сутки и срабатывает один раз. Если срок вышел, запросите новое письмо на странице входа." }),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Ссылка действует сутки и срабатывает один раз." }),
       /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/login", children: "На страницу входа" })
     ] }) : /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Подтверждаем…" })
   ] }) });
@@ -1809,7 +1800,7 @@ function BoardsPage() {
       ] })
     ] }) }),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    loading2 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty", children: "Досок пока нет. Создайте первую — ссылка на неё появится сразу, останется только отправить её тем, кого ждёте на занятии." }) : /* @__PURE__ */ jsx("ul", { className: "board-list", children: boards.map((board) => /* @__PURE__ */ jsxs("li", { className: "board-item", children: [
+    loading2 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty", children: "Досок пока нет." }) : /* @__PURE__ */ jsx("ul", { className: "board-list", children: boards.map((board) => /* @__PURE__ */ jsxs("li", { className: "board-item", children: [
       /* @__PURE__ */ jsx("span", { className: "people__icon", title: roleTitle$1(board.role), children: /* @__PURE__ */ jsx(RoleIcon$1, { role: board.role }) }),
       /* @__PURE__ */ jsx(Link, { className: "board-item__title", to: `/boards/${board.id}`, children: board.title }),
       board.locked ? /* @__PURE__ */ jsx("span", { className: "badge badge-warning", children: "закрыта" }) : null,
@@ -1964,7 +1955,7 @@ function DangerCard({ onDeleted }) {
   };
   return /* @__PURE__ */ jsxs("div", { className: "card", children: [
     /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Удаление аккаунта" }),
-    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Войти станет нельзя. Ваши доски проработают у остальных участников ещё полгода." }),
+    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Войти станет нельзя. Доски проработают у участников ещё полгода." }),
     open ? /* @__PURE__ */ jsxs("form", { onSubmit: submit, children: [
       /* @__PURE__ */ jsxs("div", { className: "field", children: [
         /* @__PURE__ */ jsx("label", { htmlFor: "deletePassword", children: "Подтвердите паролем" }),
@@ -4037,7 +4028,7 @@ function FilesPanel({ onInsert, onSpread, canSpread, onClose }) {
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     busy ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: busy }) : null,
     view === "library" ? /* @__PURE__ */ jsxs("div", { className: "files__body", children: [
-      library && !library.allowed ? /* @__PURE__ */ jsx("p", { className: "note note-info", children: "Библиотека документов и страницы PDF — на платных тарифах. Картинки из буфера можно вставлять на любом." }) : null,
+      library && !library.allowed ? /* @__PURE__ */ jsx("p", { className: "note note-info", children: "Библиотека и PDF — на платных тарифах. Картинки из буфера — на любом." }) : null,
       library && !library.allowed ? null : /* @__PURE__ */ jsxs("label", { className: "btn btn-primary files__upload", children: [
         "Выбрать файл",
         /* @__PURE__ */ jsx(
@@ -4066,7 +4057,7 @@ function FilesPanel({ onInsert, onSpread, canSpread, onClose }) {
         ),
         /* @__PURE__ */ jsx("label", { htmlFor: "keepFile", children: "Сохранить в библиотеку" })
       ] }),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "PDF — можно выбрать страницы и обрезать. Картинки вставляются как есть." }),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "PDF, PNG, JPEG." }),
       library ? /* @__PURE__ */ jsxs(Fragment, { children: [
         /* @__PURE__ */ jsxs("div", { className: "files__quota", children: [
           /* @__PURE__ */ jsx("div", { className: "files__bar", children: /* @__PURE__ */ jsx("span", { style: { width: percent(Math.min(library.used, library.quota), library.quota) } }) }),
@@ -4103,7 +4094,7 @@ function FilesPanel({ onInsert, onSpread, canSpread, onClose }) {
       ] }) : null
     ] }) : null,
     view === "pages" && document2 ? /* @__PURE__ */ jsxs("div", { className: "files__body", children: [
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Отметьте страницы. Их можно вставить сюда, одну рядом с другой, или разложить — каждую отдельной страницей занятия. Обрезать можно любую, по одной." }),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Отметьте страницы." }),
       /* @__PURE__ */ jsx("div", { className: "files__pages", children: thumbs.map((thumb, index) => {
         const page = index + 1;
         const chosen = selected.includes(page);
@@ -4165,7 +4156,7 @@ function FilesPanel({ onInsert, onSpread, canSpread, onClose }) {
       ) : null
     ] }) : null,
     view === "crop" && source ? /* @__PURE__ */ jsxs("div", { className: "files__body", children: [
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Обведите нужный кусок — или вставьте целиком." }),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Обведите нужный кусок." }),
       /* @__PURE__ */ jsxs(
         "div",
         {
@@ -4675,7 +4666,7 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
         ),
         /* @__PURE__ */ jsx("label", { htmlFor: "pointerMode", children: "Указка" })
       ] }),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "0 0 var(--sp-3)" }, children: "Проведите по пустому месту — след увидят все и он сам погаснет. Ничего не сохраняется. Пока указка включена, рамкой выделять нельзя." }),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "0 0 var(--sp-3)" }, children: "След виден всем и гаснет сам. Рамкой выделять при этом нельзя." }),
       /* @__PURE__ */ jsxs("div", { className: "check", children: [
         /* @__PURE__ */ jsx(
           "input",
@@ -4691,7 +4682,7 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
         ),
         /* @__PURE__ */ jsx("label", { htmlFor: "snapMode", children: "Прилипать к сетке" })
       ] }),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: 0 }, children: "Действует на построение, перемещение и растягивание. Выключено — всё встаёт ровно туда, куда ведёт рука." })
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: 0 }, children: "Построение, перемещение и растягивание — по клеткам." })
     ] }) : null,
     tool === "table" ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("p", { className: "params__label", children: "Строк" }),
@@ -4732,7 +4723,7 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
       )) }),
       /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет" }),
       swatches(settings.table.color, (color) => onChange({ ...settings, table: { ...settings.table, color } })),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "Растяните рамку на доске. Чтобы заполнить ячейку — выберите таблицу и нажмите на ячейку ещё раз." })
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "Растяните рамку. Заполнить ячейку — выбрать таблицу и нажать на ячейку." })
     ] }) : null
   ] });
 }
@@ -4898,6 +4889,7 @@ function SelectionPanel({
   const rows = table ? clampRows(table.data.rows ?? DEFAULT_ROWS) : 0;
   const cols = table ? clampCols(table.data.cols ?? DEFAULT_COLS) : 0;
   const docked = canvas.width > 0 && canvas.width < NARROW;
+  const cap = (text2) => docked ? /* @__PURE__ */ jsx("span", { className: "btn-tool__cap", children: text2 }) : null;
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
   const above = corner.y - 8 - HEIGHT >= 8;
@@ -5008,7 +5000,7 @@ function SelectionPanel({
           ] })
         ] }) : null,
         /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-        /* @__PURE__ */ jsx(
+        /* @__PURE__ */ jsxs(
           "button",
           {
             className: "btn-tool",
@@ -5016,24 +5008,48 @@ function SelectionPanel({
             onClick: () => onLock(!locked),
             "aria-pressed": locked,
             title: locked ? "Отпереть" : "Запереть: не двигается и не стирается",
-            children: locked ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconLockOpen, {})
+            children: [
+              locked ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconLockOpen, {}),
+              cap(locked ? "Отпереть" : "Запереть")
+            ]
           }
         ),
-        /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onCopy, title: "Копировать (Ctrl+C)", children: /* @__PURE__ */ jsx(IconCopy, {}) }),
+        /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onCopy, title: "Копировать (Ctrl+C)", children: [
+          /* @__PURE__ */ jsx(IconCopy, {}),
+          cap("Копия")
+        ] }),
         locked ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onDuplicate, title: "Дублировать (Ctrl+D)", children: /* @__PURE__ */ jsx(IconDuplicate, {}) }),
-          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onDelete, title: "Удалить (Delete)", children: /* @__PURE__ */ jsx(IconTrash, {}) })
+          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDuplicate, title: "Дублировать (Ctrl+D)", children: [
+            /* @__PURE__ */ jsx(IconDuplicate, {}),
+            cap("Дубль")
+          ] }),
+          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDelete, title: "Удалить (Delete)", children: [
+            /* @__PURE__ */ jsx(IconTrash, {}),
+            cap("Удалить")
+          ] })
         ] }),
         docked ? (
           // На телефоне три точки только путали: на что там жать, было не
           // понять без подписи. Кнопки столбиком — тот же приём, что уже
           // прижился в панели инструментов.
           /* @__PURE__ */ jsxs(Fragment, { children: [
-            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onReorder(true), title: "На передний план", children: /* @__PURE__ */ jsx(IconToFront, {}) }),
-            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onReorder(false), title: "На задний план", children: /* @__PURE__ */ jsx(IconToBack, {}) }),
-            text ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onCopyText(text), title: "Скопировать текст", children: /* @__PURE__ */ jsx(IconCopyText, {}) }) : null,
+            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onReorder(true), title: "На передний план", children: [
+              /* @__PURE__ */ jsx(IconToFront, {}),
+              cap("Вперёд")
+            ] }),
+            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onReorder(false), title: "На задний план", children: [
+              /* @__PURE__ */ jsx(IconToBack, {}),
+              cap("Назад")
+            ] }),
+            text ? /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onCopyText(text), title: "Скопировать текст", children: [
+              /* @__PURE__ */ jsx(IconCopyText, {}),
+              cap("Текст")
+            ] }) : null,
             /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onDone, title: "Готово — снять выделение", children: /* @__PURE__ */ jsx(IconCheck, {}) })
+            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDone, title: "Готово — снять выделение", children: [
+              /* @__PURE__ */ jsx(IconCheck, {}),
+              cap("Готово")
+            ] })
           ] })
         ) : (
           // На ПК места хватает — а вот словесная подпись читается быстрее,
@@ -5315,7 +5331,7 @@ function PagesPanel({
                 ] })
               ] }, one.connectionId);
             }),
-            participants.filter((one) => one.key !== meKey).length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "Отмечать некого: на доске пока никого нет. Пригласите — и вернитесь сюда." }) : /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "Гость держится в списке, пока идёт занятие: придя по ссылке заново, он станет другим участником, и отметку придётся поставить снова." })
+            participants.filter((one) => one.key !== meKey).length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "На доске пока никого нет." }) : /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "Гость держится в списке, пока идёт занятие." })
           ] }) : null
         ] }) : null,
         page.id === pageId ? /* @__PURE__ */ jsx(IconCheck, { size: 16 }) : null
@@ -5420,7 +5436,7 @@ const PLANE = {
   id: "plane",
   title: "Координатная плоскость",
   group: "axes",
-  hint: "Оси с засечками по клеткам доски. Саму клетку включают в «Фоне» — разлиновка «График».",
+  hint: "Клетку включают в «Фоне» — разлиновка «График».",
   knobs: [
     { key: "divisions", label: "Делений по оси", kind: "number", min: 2, max: 12 },
     { key: "labels", label: "Подписи делений", kind: "toggle", min: 0, max: 1 }
@@ -5465,7 +5481,7 @@ const NUMBER_LINE = {
   id: "number-line",
   title: "Числовая прямая",
   group: "axes",
-  hint: "Прямая с нулём и засечками — под сравнение чисел, дроби и модуль.",
+  hint: "Прямая с нулём и засечками.",
   knobs: [
     { key: "divisions", label: "Делений в каждую сторону", kind: "number", min: 2, max: 12 },
     { key: "labels", label: "Подписи делений", kind: "toggle", min: 0, max: 1 }
@@ -5508,7 +5524,7 @@ const BOX = {
   id: "box",
   title: "Параллелепипед",
   group: "solid",
-  hint: "Куб получается, если высота и глубина равны ширине.",
+  hint: "Куб — если высота и глубина равны ширине.",
   knobs: [
     { key: "height", label: "Высота", kind: "number", min: 30, max: 140, suffix: "% ширины" },
     { key: "depth", label: "Глубина", kind: "number", min: 10, max: 70, suffix: "% ширины" }
@@ -5568,7 +5584,7 @@ const PRISM = {
   id: "prism",
   title: "Призма",
   group: "solid",
-  hint: "Основание — правильный многоугольник. Четыре угла дают прямую призму на ромбическом основании.",
+  hint: "Основание — правильный многоугольник.",
   knobs: [
     { key: "sides", label: "Углов в основании", kind: "number", min: 3, max: 8 },
     { key: "height", label: "Высота", kind: "number", min: 30, max: 130, suffix: "% размера" }
@@ -5580,7 +5596,7 @@ const PYRAMID = {
   id: "pyramid",
   title: "Пирамида",
   group: "solid",
-  hint: "Правильная пирамида с вершиной над серединой основания.",
+  hint: "Вершина над серединой основания.",
   knobs: [
     { key: "sides", label: "Углов в основании", kind: "number", min: 3, max: 8 },
     { key: "height", label: "Высота", kind: "number", min: 30, max: 130, suffix: "% размера" }
@@ -5592,7 +5608,7 @@ const TETRAHEDRON = {
   id: "tetrahedron",
   title: "Тетраэдр",
   group: "solid",
-  hint: "Пирамида на треугольном основании: дальнее ребро идёт пунктиром.",
+  hint: "Пирамида на треугольном основании.",
   knobs: [
     { key: "height", label: "Высота", kind: "number", min: 40, max: 140, suffix: "% размера" }
   ],
@@ -5603,7 +5619,7 @@ const SPHERE = {
   id: "sphere",
   title: "Шар",
   group: "solid",
-  hint: "Окружность с экватором: ближняя половина сплошная, дальняя пунктиром.",
+  hint: "Окружность с экватором.",
   knobs: [
     { key: "tilt", label: "Наклон экватора", kind: "number", min: 8, max: 50, suffix: "% радиуса" },
     { key: "radius", label: "Показать радиус", kind: "toggle", min: 0, max: 1 }
@@ -5630,7 +5646,7 @@ const CYLINDER = {
   id: "cylinder",
   title: "Цилиндр",
   group: "solid",
-  hint: "Нижнее основание чертится наполовину пунктиром — оно за телом.",
+  hint: "Нижнее основание наполовину пунктиром.",
   knobs: [
     { key: "height", label: "Высота", kind: "number", min: 30, max: 150, suffix: "% размера" },
     { key: "tilt", label: "Наклон основания", kind: "number", min: 12, max: 45, suffix: "% радиуса" }
@@ -5655,7 +5671,7 @@ const CONE = {
   id: "cone",
   title: "Конус",
   group: "solid",
-  hint: "Вершина над серединой основания; дальняя половина основания пунктиром.",
+  hint: "Вершина над серединой основания.",
   knobs: [
     { key: "height", label: "Высота", kind: "number", min: 40, max: 160, suffix: "% размера" },
     { key: "tilt", label: "Наклон основания", kind: "number", min: 12, max: 45, suffix: "% радиуса" }
@@ -5927,7 +5943,7 @@ function LibraryPanel({
       ] }) : null
     ] }, template.id)) }) : null,
     tab === "symbols" ? /* @__PURE__ */ jsxs("div", { className: "library__list", children: [
-      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Знак встаёт надписью посреди видимой части доски — дальше его двигают и правят как обычный текст." }),
+      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Знак встаёт надписью посреди холста." }),
       MATH_SYMBOLS.map((row) => /* @__PURE__ */ jsxs("div", { children: [
         /* @__PURE__ */ jsx("p", { className: "params__label", children: row.title }),
         /* @__PURE__ */ jsx("div", { className: "params__row library__glyphs", children: row.items.map((glyph, index) => /* @__PURE__ */ jsx(
@@ -5959,8 +5975,8 @@ function LibraryPanel({
         one.label
       ))
     ] }, row.title)) }) : null,
-    tab === "mine" ? /* @__PURE__ */ jsx("div", { className: "library__list", children: !canKeep ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Свои заготовки хранятся в учётной записи. Гостю на доске они недоступны." }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Выделите на доске готовый чертёж и сохраните его под именем — он встанет сюда и будет доступен на любой другой доске. Картинки в заготовку не попадают: файл остаётся у своей доски." }),
+    tab === "mine" ? /* @__PURE__ */ jsx("div", { className: "library__list", children: !canKeep ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Гостю недоступны: заготовки хранятся в учётной записи." }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Выделите чертёж и сохраните под именем — он будет доступен на любой доске. Картинки в заготовку не попадают." }),
       /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
         /* @__PURE__ */ jsx(
           "input",
@@ -6118,9 +6134,9 @@ function SummaryPanel({
     ] }),
     canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsxs("p", { className: "library__hint", children: [
-        "Каждая страница занятия уходит письмом отдельным листом — не больше ",
+        "Каждая страница — отдельным листом, не больше ",
         MAX_SHEETS,
-        ". Пустые страницы пропускаются."
+        ". Пустые пропускаются."
       ] }),
       /* @__PURE__ */ jsx(
         "button",
@@ -6160,7 +6176,7 @@ function SummaryPanel({
         )
       ] }, request.id)) })
     ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Оставьте адрес — учитель решит, отправлять ли конспект занятия. Письмо придёт от него, а не от вас: адрес не увидит никто, кроме него." }),
+      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Оставьте адрес — конспект отправит учитель. Адрес увидит только он." }),
       /* @__PURE__ */ jsx(
         "input",
         {
@@ -7365,7 +7381,7 @@ function BoardPage() {
     return /* @__PURE__ */ jsx(BoardShell, { children: /* @__PURE__ */ jsxs("div", { className: "card", children: [
       /* @__PURE__ */ jsx("h1", { children: "Доска" }),
       /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Возможно, вас убрали с доски или ссылку перевыпустили. Попросите новую у того, кто вас позвал." })
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Попросите новую ссылку у того, кто вас позвал." })
     ] }) });
   }
   if (!state) {
@@ -7407,7 +7423,7 @@ function BoardPage() {
         )
       ] }) : null,
       error ?? hub.error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error ?? hub.error }) : null,
-      board.locked && board.canManage ? /* @__PURE__ */ jsx("p", { className: "note note-warning", children: "Доска закрыта: новые по ссылке войти не могут. Те, кто уже здесь, остаются." }) : null,
+      board.locked && board.canManage ? /* @__PURE__ */ jsx("p", { className: "note note-warning", children: "Доска закрыта для новых участников." }) : null,
       /* @__PURE__ */ jsxs(
         "section",
         {
@@ -7830,7 +7846,7 @@ function JoinPage() {
     return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("div", { className: "card", children: [
       /* @__PURE__ */ jsx("h1", { children: "Приглашение на доску" }),
       /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Возможно, ссылку перевыпустили. Попросите новую у того, кто вас позвал." })
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Попросите новую ссылку у того, кто вас позвал." })
     ] }) });
   }
   if ((result == null ? void 0 : result.status) === "waiting") {
@@ -7893,7 +7909,7 @@ function JoinPage() {
         ] }),
         /* @__PURE__ */ jsx("button", { className: "btn-primary btn-block", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Войти на доску" })
       ] }),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Регистрироваться не нужно. Имя нужно только чтобы вас узнавали на доске — оно нигде не сохраняется." }),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Регистрация не нужна. Имя видно на доске и нигде не сохраняется." }),
       /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
         "Если у вас есть учётная запись,",
         " ",

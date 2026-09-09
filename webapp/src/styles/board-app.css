@@ -1188,6 +1188,23 @@ body.no-scroll {
     white-space: normal;
 }
 
+/* Подпись под значком в узкой панели: на телефоне нет ни наведения, ни
+   места для всплывающей подсказки, а восемь значков подряд читаются
+   дольше, чем слово. */
+.selection-panel--docked .btn-tool {
+    flex-direction: column;
+    gap: 1px;
+    min-height: 44px;
+    padding: 4px 2px;
+}
+
+.btn-tool__cap {
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+
 .selection-panel--docked::-webkit-scrollbar { display: none; }
 .selection-panel--docked > * { flex: none; }
 

@@ -277,8 +277,7 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
           </div>
 
           <p className="text-muted small" style={{ margin: '0 0 var(--sp-3)' }}>
-            Проведите по пустому месту — след увидят все и он сам погаснет.
-            Ничего не сохраняется. Пока указка включена, рамкой выделять нельзя.
+            След виден всем и гаснет сам. Рамкой выделять при этом нельзя.
           </p>
 
           <div className="check">
@@ -295,8 +294,7 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
           </div>
 
           <p className="text-muted small" style={{ margin: 0 }}>
-            Действует на построение, перемещение и растягивание. Выключено —
-            всё встаёт ровно туда, куда ведёт рука.
+            Построение, перемещение и растягивание — по клеткам.
           </p>
         </>
       ) : null}
@@ -354,8 +352,7 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
           ))}
 
           <p className="text-muted small" style={{ margin: 'var(--sp-2) 0 0' }}>
-            Растяните рамку на доске. Чтобы заполнить ячейку — выберите таблицу
-            и нажмите на ячейку ещё раз.
+            Растяните рамку. Заполнить ячейку — выбрать таблицу и нажать на ячейку.
           </p>
         </>
       ) : null}

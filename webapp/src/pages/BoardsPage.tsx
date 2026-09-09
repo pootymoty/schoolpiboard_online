@@ -98,8 +98,7 @@ export function BoardsPage(): ReactElement {
         <p className="text-muted">Загружаем…</p>
       ) : boards.length === 0 ? (
         <p className="empty">
-          Досок пока нет. Создайте первую — ссылка на неё появится сразу,
-          останется только отправить её тем, кого ждёте на занятии.
+          Досок пока нет.
         </p>
       ) : (
         <ul className="board-list">

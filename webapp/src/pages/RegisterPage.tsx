@@ -55,7 +55,7 @@ export function RegisterPage(): ReactElement {
           <h1>Проверьте почту</h1>
           <p>{done}</p>
           <p className="text-muted small">
-            Письмо не пришло? Загляните в «Спам», а затем запросите его заново на странице входа.
+            Не пришло — загляните в «Спам».
           </p>
           <Link className="btn btn-primary" to="/login">На страницу входа</Link>
         </div>

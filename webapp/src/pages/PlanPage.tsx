@@ -238,9 +238,7 @@ export function PlanPage(): ReactElement {
       </div>
 
       {outcome === 'paid' ? (
-        <p className="note note-info">
-          Оплата принята. Срок обновится в течение минуты — страница сама покажет новый.
-        </p>
+        <p className="note note-info">Оплата принята — обновляем срок.</p>
       ) : null}
 
       {outcome === 'failed' ? (
@@ -257,10 +255,7 @@ export function PlanPage(): ReactElement {
             <h2 className="card-title">{mine.plan.name}</h2>
 
             {mine.kind === 'trial' && until ? (
-              <p className="note note-info">
-                Пробный период до {until}. Дальше аккаунт вернётся к бесплатным пределам —
-                ничего не пропадёт.
-              </p>
+              <p className="note note-info">Пробный период до {until}.</p>
             ) : null}
 
             {mine.kind === 'paid' && until ? (
@@ -268,21 +263,16 @@ export function PlanPage(): ReactElement {
             ) : null}
 
             {mine.kind === 'free' ? (
-              <p className="text-muted">
-                Бесплатный тариф — без срока. Платный расширяет пределы и открывает
-                библиотеку документов.
-              </p>
+              <p className="text-muted">Без срока.</p>
             ) : null}
 
             {mine.upcoming.length > 0 ? (
               <div className="note note-info" style={{ marginTop: 'var(--sp-3)' }}>
-                <p style={{ margin: '0 0 var(--sp-2)' }}>
-                  <strong>Уже оплачено дальше.</strong>
-                </p>
+                <p style={{ margin: '0 0 var(--sp-2)' }}><strong>Дальше</strong></p>
 
                 {mine.upcoming.map((next) => (
                   <p key={next.startsAt} style={{ margin: '0 0 4px' }}>
-                    {next.planName}: с {day(next.startsAt)} до {day(next.endsAt)}.
+                    {next.planName} — с {day(next.startsAt)} до {day(next.endsAt)}
                   </p>
                 ))}
 
@@ -315,8 +305,9 @@ export function PlanPage(): ReactElement {
               </div>
 
               <p className="text-muted small" style={{ margin: 0 }}>
-                На доске одновременно — до {mine.plan.maxParticipants} человек, считая вас.
-                Библиотека документов {mine.plan.hasLibrary ? 'доступна' : 'на платных тарифах'}.
+                Участников на доске: до {mine.plan.maxParticipants}
+                {' · '}
+                Библиотека: {mine.plan.hasLibrary ? 'есть' : 'нет'}
               </p>
             </div>
           </section>
@@ -341,18 +332,11 @@ export function PlanPage(): ReactElement {
                   </div>
 
                   <p className="text-muted small">
-                    Списываем с той же карты за сутки до конца срока, по действующей на тот
-                    момент цене тарифа. За трое суток до списания придёт письмо с суммой и датой.
-                    Снимите отметку — списаний не будет; оплаченные дни остаются при вас.
+                    Списание за сутки до конца срока. Письмо — за трое суток до него.
                   </p>
                 </>
               ) : (
-                <p className="text-muted small">
-                  При оплате этой подписки автопродление не выбиралось, и включить его
-                  задним числом нельзя: платёжная система разрешает повторные списания
-                  только по счёту, помеченному в момент оплаты. Отметьте «продлевать
-                  автоматически» при следующей покупке.
-                </p>
+                <p className="text-muted small">Доступно при следующей оплате.</p>
               )}
             </section>
           ) : null}
@@ -403,9 +387,7 @@ export function PlanPage(): ReactElement {
                         checked={!now}
                         onChange={() => setNow(false)}
                       />
-                      <label htmlFor="startLater">
-                        После текущего срока — ни один его день не теряется
-                      </label>
+                      <label htmlFor="startLater">После текущего срока</label>
                     </div>
 
                     <div className="check">
@@ -416,8 +398,7 @@ export function PlanPage(): ReactElement {
                         onChange={() => setNow(true)}
                       />
                       <label htmlFor="startNow">
-                        Сразу — оставшиеся дни «{mine.plan.name}» сгорят,
-                        вернуть их будет нельзя
+                        Сразу — оставшиеся дни «{mine.plan.name}» сгорят
                       </label>
                     </div>
                   </>
@@ -425,21 +406,19 @@ export function PlanPage(): ReactElement {
 
                 {chosen && mine && mine.kind !== 'free' && !upgrade ? (
                   <p className="text-muted small">
-                    {/* Дата начала — конец последнего из уже оплаченных сроков,
-                        а не текущего: за ним может стоять очередь. */}
-                    Срок встанет в очередь и начнётся{' '}
+                    {/* Конец последнего из оплаченных сроков, а не текущего:
+                        за ним может стоять очередь. */}
+                    Начнётся{' '}
                     {mine.upcoming.length > 0
                       ? day(mine.upcoming[mine.upcoming.length - 1].endsAt)
-                      : until ?? 'после текущего'}:
-                    {' '}ни один оплаченный день не пропадает.
+                      : until ?? 'после текущего срока'}
                   </p>
                 ) : null}
 
-                {/* Согласие на автосписания — отдельным действием, и рядом
-                    с ним сказано всё, о чём человек соглашается: сумма,
-                    периодичность, день списания и где это выключается.
-                    Отметки по умолчанию нет: согласие, проставленное за
-                    человека, согласием не является. */}
+                {/* Отметки по умолчанию нет: согласие, проставленное за
+                    человека, согласием не является. Рядом — сумма,
+                    периодичность и день списания: этого требует платёжная
+                    система, и меньше здесь оставить нельзя. */}
                 <div className="check" style={{ marginTop: 'var(--sp-3)' }}>
                   <input
                     id="renewOnBuy"
@@ -455,19 +434,15 @@ export function PlanPage(): ReactElement {
 
                 {chosen && period ? (
                   <p className="text-muted small">
-                    Списание — раз в {period.days} дн., по {price} ₽, за сутки до конца
-                    оплаченного срока, с той же карты. За трое суток до списания придёт письмо.
-                    Выключить продление можно в любой момент здесь же, в разделе
-                    «Автопродление»; оплаченные дни при этом остаются при вас.
+                    {price} ₽ раз в {period.days} дн., за сутки до конца срока. Выключается
+                    в разделе «Автопродление».
                   </p>
                 ) : null}
 
                 {blocked && waiting ? (
                   <p className="note note-warning" style={{ marginTop: 'var(--sp-3)' }}>
-                    В очереди уже стоит тариф «{waiting.planName}» — он начнётся{' '}
-                    {day(waiting.startsAt)}. Докупить дни к нему можно прямо сейчас. Чтобы взять
-                    другой тариф, сначала включите отложенный кнопкой «Перейти сейчас» выше:
-                    неиспользованные дни текущего срока при этом сгорят.
+                    В очереди «{waiting.planName}». Можно докупить дни к нему — или включить
+                    его сейчас кнопкой «Перейти сейчас» выше.
                   </p>
                 ) : null}
 
@@ -481,10 +456,7 @@ export function PlanPage(): ReactElement {
                   {busy ? 'Готовим оплату…' : `Оплатить ${price} ₽`}
                 </button>
 
-                <p className="text-muted small">
-                  Оплата через Робокассу. Оплаченные дни прибавляются к концу
-                  текущего срока — ничего не пропадает.
-                </p>
+                <p className="text-muted small">Оплата через Робокассу.</p>
               </>
             )}
 
@@ -512,12 +484,7 @@ export function PlanPage(): ReactElement {
                 ))}
               </div>
 
-              <p className="text-muted small">
-                Платёжная система сообщает нам только об успешной оплате. Поэтому
-                неоплаченный счёт остаётся ожидающим и через сутки помечается
-                незавершённым — это не отказ банка, а просто неоконченная покупка.
-                Если деньги списались, а счёт всё ещё не оплачен, напишите нам.
-              </p>
+
             </section>
           ) : null}
         </>

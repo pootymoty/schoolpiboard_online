@@ -92,6 +92,16 @@ export function SelectionPanel({
   const cols = table ? clampCols(table.data.cols ?? DEFAULT_COLS) : 0;
   const docked = canvas.width > 0 && canvas.width < NARROW;
 
+  /**
+   * Подпись под значком — только в узкой панели.
+   *
+   * На телефоне у кнопок нет ни наведения, ни места для всплывающей
+   * подсказки, а восемь значков подряд читаются дольше, чем слово.
+   * В широкой панели значки стоят в ряд с подсказками, и подписи там
+   * только растянули бы её через весь холст.
+   */
+  const cap = (text: string) => (docked ? <span className="btn-tool__cap">{text}</span> : null);
+
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
 
@@ -220,19 +230,23 @@ export function SelectionPanel({
         title={locked ? 'Отпереть' : 'Запереть: не двигается и не стирается'}
       >
         {locked ? <IconLockClosed /> : <IconLockOpen />}
+        {cap(locked ? 'Отпереть' : 'Запереть')}
       </button>
 
       <button className="btn-tool" type="button" onClick={onCopy} title="Копировать (Ctrl+C)">
         <IconCopy />
+        {cap('Копия')}
       </button>
 
       {locked ? null : (
         <>
           <button className="btn-tool" type="button" onClick={onDuplicate} title="Дублировать (Ctrl+D)">
             <IconDuplicate />
+            {cap('Дубль')}
           </button>
           <button className="btn-tool" type="button" onClick={onDelete} title="Удалить (Delete)">
             <IconTrash />
+            {cap('Удалить')}
           </button>
         </>
       )}
@@ -244,13 +258,16 @@ export function SelectionPanel({
         <>
           <button className="btn-tool" type="button" onClick={() => onReorder(true)} title="На передний план">
             <IconToFront />
+            {cap('Вперёд')}
           </button>
           <button className="btn-tool" type="button" onClick={() => onReorder(false)} title="На задний план">
             <IconToBack />
+            {cap('Назад')}
           </button>
           {text ? (
             <button className="btn-tool" type="button" onClick={() => onCopyText(text)} title="Скопировать текст">
               <IconCopyText />
+              {cap('Текст')}
             </button>
           ) : null}
 
@@ -258,6 +275,7 @@ export function SelectionPanel({
 
           <button className="btn-tool" type="button" onClick={onDone} title="Готово — снять выделение">
             <IconCheck />
+            {cap('Готово')}
           </button>
         </>
       ) : (
