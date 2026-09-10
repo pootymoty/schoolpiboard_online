@@ -242,7 +242,33 @@ public sealed class AccountService
         if (!PasswordHasher.Verify(password ?? string.Empty, user.PasswordHash))
             return new AccountResult(AccountOutcome.InvalidCredentials, Message: "Пароль не подошёл.");
 
-        user.DeletedAt = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+
+        user.DeletedAt = now;
+
+        // Адрес освобождается сразу. Строка остаётся в базе ещё полгода
+        // ради досок, на которых работают другие, — но занимать ею почту
+        // нельзя: человек, удаливший запись, вправе завести новую на тот
+        // же адрес, а он оказывался занят навсегда.
+        //
+        // Прежний адрес не сохраняем: удаление на то и удаление. Домен
+        // .invalid зарезервирован стандартом — письмо туда не уйдёт даже
+        // по ошибке.
+        user.Email = $"deleted-{user.Id}@deleted.invalid";
+
+        // Пароль затираем: войти и так нельзя, но хеш от живого пароля,
+        // лежащий полгода, — это хеш от пароля, которым человек, скорее
+        // всего, пользуется где-то ещё.
+        user.PasswordHash = PasswordHasher.Hash(Guid.NewGuid().ToString("N"));
+
+        // Непогашенные письма гасим: ссылка восстановления пароля из
+        // старого письма иначе продолжала бы вести к удалённой записи.
+        var pending = await _db.EmailTokens
+            .Where(x => x.UserId == user.Id && x.UsedAt == null)
+            .ToListAsync(cancellationToken);
+
+        foreach (var token in pending) token.UsedAt = now;
+
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Удалена учётная запись {UserId}.", userId);

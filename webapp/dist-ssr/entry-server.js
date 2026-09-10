@@ -1940,7 +1940,7 @@ function DangerCard({ onDeleted }) {
   };
   return /* @__PURE__ */ jsxs("div", { className: "card", children: [
     /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Удаление аккаунта" }),
-    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Войти станет нельзя. Доски проработают у участников ещё полгода." }),
+    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Войти станет нельзя. Почта освободится сразу, доски проработают у участников ещё полгода." }),
     open ? /* @__PURE__ */ jsxs("form", { onSubmit: submit, children: [
       /* @__PURE__ */ jsxs("div", { className: "field", children: [
         /* @__PURE__ */ jsx("label", { htmlFor: "deletePassword", children: "Подтвердите паролем" }),
