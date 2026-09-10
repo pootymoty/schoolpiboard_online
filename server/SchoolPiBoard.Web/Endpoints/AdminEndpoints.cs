@@ -26,9 +26,9 @@ public sealed record AdminUserDto(
 public sealed record AdminPageDto(IReadOnlyList<AdminUserDto> Users, int Total, int Page, int Size);
 
 /// <summary>Просьба выслать код: кому и какую роль хотим поставить.</summary>
-public sealed record RoleRequest(bool Admin);
+public sealed record AdminRoleRequest(bool Admin);
 
-public sealed record RoleConfirm(bool Admin, string? Code);
+public sealed record AdminRoleConfirm(bool Admin, string? Code);
 
 /// <summary>Сводка по сервису — то, на что смотрят первым делом.</summary>
 public sealed record AdminStatsDto(
@@ -207,7 +207,7 @@ public static class AdminEndpoints
         // адреса, и одного нажатия для неё мало — угнанная сессия иначе
         // выдавала бы права сама себе.
         admin.MapPost("/users/{userId:long}/role/request", async (
-            long userId, RoleRequest request, ClaimsPrincipal principal,
+            long userId, AdminRoleRequest request, ClaimsPrincipal principal,
             AppDbContext db, RoleChangeService roles, IEmailSender emails,
             ILoggerFactory loggers, CancellationToken ct) =>
         {
@@ -243,7 +243,7 @@ public static class AdminEndpoints
         });
 
         admin.MapPost("/users/{userId:long}/role/confirm", async (
-            long userId, RoleConfirm request, ClaimsPrincipal principal,
+            long userId, AdminRoleConfirm request, ClaimsPrincipal principal,
             AppDbContext db, RoleChangeService roles, ILoggerFactory loggers, CancellationToken ct) =>
         {
             var who = await AdminAsync(principal, db, ct);
