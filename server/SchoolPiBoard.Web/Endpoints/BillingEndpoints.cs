@@ -122,8 +122,8 @@ public static class BillingEndpoints
 
             return Results.Ok(new MyPlanDto(
                 ToDto(access.Plan),
-                // У владельца сервиса подписки нет и не будет: пределы у
-                // него свои, и «бесплатный» ввёл бы его в заблуждение.
+                // У администратора пределы свои, и «бесплатный» ввёл бы
+                // его в заблуждение.
                 user.IsAdmin ? "admin" : access.Subscription?.Kind ?? "free",
                 access.Until,
                 last?.AutoRenew ?? false,

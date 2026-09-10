@@ -3,7 +3,7 @@ export interface User {
   id: number;
   email: string;
   displayName: string;
-  /** Владелец сервиса. Показывает пункт меню; доступ решает сервер. */
+  /** Администратор. Показывает пункт меню; доступ решает сервер. */
   isAdmin: boolean;
 }
 

@@ -48,17 +48,20 @@ public sealed class SubscriptionService
     /// заплатил за большее, и отдать ему меньшее было бы обманом.
     /// </summary>
     /// <summary>
-    /// Пределы владельца сервиса.
+    /// Пределы администратора.
     ///
-    /// Тариф ему не продают и не выдают: он не покупатель, а тот, кто
-    /// отвечает за сервис, — и запись в таблице подписок означала бы, что
-    /// однажды у неё кончится срок. Проще назвать пределы прямо здесь.
+    /// Тариф ему не продают и не выдают: запись в таблице подписок
+    /// означала бы, что однажды у неё кончится срок. Проще назвать
+    /// пределы прямо здесь.
+    ///
+    /// Купленная раньше подписка при этом не трогается: она лежит в базе
+    /// как лежала и снова начнёт действовать, если роль снимут.
     /// </summary>
     private static Plan AdminPlan() => new()
     {
         Id = 0,
         Code = "admin",
-        Name = "Владелец сервиса",
+        Name = "Администратор",
         Sort = 1000,
         MaxBoards = int.MaxValue,
         MaxParticipants = int.MaxValue,
@@ -392,9 +395,15 @@ public sealed class SubscriptionService
         var now = DateTime.UtcNow;
         var edge = now + ahead;
 
+        // Администраторов пропускаем: пределы у них свои, подписка не
+        // действует, и списывать за неё деньги — значит брать плату за
+        // то, чем человек не пользуется.
+        var admins = _db.Users.Where(x => x.Role == User.RoleAdmin).Select(x => x.Id);
+
         return _db.Subscriptions
             .Include(x => x.Plan)
-            .Where(x => x.AutoRenew && x.EndsAt > now && x.EndsAt <= edge && x.InvoiceId != null)
+            .Where(x => x.AutoRenew && x.EndsAt > now && x.EndsAt <= edge && x.InvoiceId != null
+                && !admins.Contains(x.UserId))
             .ToListAsync(cancellationToken);
     }
 
@@ -411,10 +420,13 @@ public sealed class SubscriptionService
         var now = DateTime.UtcNow;
         var edge = now + ahead;
 
+        var admins = _db.Users.Where(x => x.Role == User.RoleAdmin).Select(x => x.Id);
+
         return _db.Subscriptions
             .Include(x => x.Plan)
             .Where(x => x.AutoRenew && x.EndsAt > now && x.EndsAt <= edge
-                && x.InvoiceId != null && x.RenewalNoticeAt == null)
+                && x.InvoiceId != null && x.RenewalNoticeAt == null
+                && !admins.Contains(x.UserId))
             .ToListAsync(cancellationToken);
     }
 

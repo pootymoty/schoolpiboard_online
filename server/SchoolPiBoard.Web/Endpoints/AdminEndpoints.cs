@@ -166,7 +166,13 @@ public static class AdminEndpoints
                     user.CreatedAt,
                     user.LastSeenAt,
                     user.DeletedAt,
-                    user.IsAdmin ? "Владелец сервиса" : mine?.Plan?.Name ?? "Бесплатный",
+                    // У администратора рядом с ролью показываем и его
+                    // собственную подписку, если она куплена: роль
+                    // временная, а подписка никуда не делась и снова
+                    // начнёт действовать, когда роль снимут.
+                    user.IsAdmin
+                        ? mine?.Plan is null ? "Администратор" : $"Администратор · {mine.Plan.Name}"
+                        : mine?.Plan?.Name ?? "Бесплатный",
                     mine?.EndsAt,
                     mine?.AutoRenew ?? false,
                     boards.FirstOrDefault(x => x.UserId == user.Id)?.Count ?? 0,
@@ -274,7 +280,7 @@ public static class AdminEndpoints
         });
     }
 
-    /// <summary>Владелец сервиса — или ничего. Роль сверяется каждый раз.</summary>
+    /// <summary>Администратор — или ничего. Роль сверяется каждый раз.</summary>
     private static async Task<User?> AdminAsync(
         ClaimsPrincipal principal, AppDbContext db, CancellationToken cancellationToken)
     {
