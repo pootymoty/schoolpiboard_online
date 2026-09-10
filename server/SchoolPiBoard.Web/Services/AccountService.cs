@@ -129,21 +129,21 @@ public sealed class AccountService
     /// Приводит роль в соответствие со списком владельцев из настроек.
     ///
     /// Сверяется при каждом входе, а не однажды при создании: адрес могли
-    /// добавить в список позже, а могли и убрать — и тогда роль должна
-    /// уйти вместе с ним, без похода в базу руками.
+    /// добавить в список уже после того, как человек завёл учётную запись.
     /// </summary>
     private async Task SyncRoleAsync(User user, CancellationToken cancellationToken)
     {
-        var wanted = _options.AdminEmails.Contains(user.Email)
-            ? User.RoleAdmin
-            : User.RoleUser;
+        // Список только выдаёт роль, но не снимает: снятое отсюда
+        // отбирало бы права у тех, кому их выдали в панели, при первом же
+        // их входе. Список — это аварийный вход владельца, а не полный
+        // перечень администраторов.
+        if (!_options.AdminEmails.Contains(user.Email)) return;
+        if (user.Role == User.RoleAdmin) return;
 
-        if (user.Role == wanted) return;
-
-        user.Role = wanted;
+        user.Role = User.RoleAdmin;
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Роль учётной записи {UserId} теперь {Role}.", user.Id, wanted);
+        _logger.LogInformation("Учётная запись {UserId} признана владельцем сервиса.", user.Id);
     }
 
     public async Task<AccountResult> LoginAsync(string? email, string? password, CancellationToken cancellationToken)

@@ -4,7 +4,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
 import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server.mjs";
-import { createContext, useState, useCallback, useEffect, useMemo, useContext, useRef, useLayoutEffect } from "react";
+import { createContext, useState, useCallback, useEffect, useMemo, useContext, useRef, useLayoutEffect, Fragment as Fragment$1 } from "react";
 import { useLocation, Link, NavLink, useNavigate, useSearchParams, useParams, Navigate, Routes, Route } from "react-router-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 const API_URL = "http://localhost:5000";
@@ -1170,7 +1170,7 @@ function PlanPage() {
             }
           ) : null
         ] }) : null,
-        /* @__PURE__ */ jsxs("div", { className: "stack", style: { marginTop: "var(--sp-4)" }, children: [
+        mine.kind === "admin" ? null : /* @__PURE__ */ jsxs("div", { className: "stack", style: { marginTop: "var(--sp-4)" }, children: [
           /* @__PURE__ */ jsxs("div", { children: [
             /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: "0 0 2px" }, children: [
               "Доски: ",
@@ -8468,6 +8468,18 @@ function adminUsers(query, page, size, signal) {
 function adminOrders(userId) {
   return api(`/admin/users/${userId}/orders`);
 }
+function adminRoleRequest(userId, admin) {
+  return api(`/admin/users/${userId}/role/request`, {
+    method: "POST",
+    body: { admin }
+  });
+}
+function adminRoleConfirm(userId, admin, code) {
+  return api(`/admin/users/${userId}/role/confirm`, {
+    method: "POST",
+    body: { admin, code }
+  });
+}
 const SIZE = 20;
 const TYPING_MS = 250;
 function day(value) {
@@ -8490,6 +8502,9 @@ function AdminPage() {
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [role, setRole] = useState(null);
+  const [code, setCode] = useState("");
+  const [roleNote, setRoleNote] = useState(null);
   const pending = useRef(null);
   const load = useCallback((search, at) => {
     var _a;
@@ -8517,14 +8532,42 @@ function AdminPage() {
     if (!(user == null ? void 0 : user.isAdmin)) return;
     adminStats().then(setStats).catch(() => void 0);
   }, [user == null ? void 0 : user.isAdmin]);
-  const show = (userId) => {
-    if (open === userId) {
+  const show = (userId, what) => {
+    if ((open == null ? void 0 : open.id) === userId && open.what === what) {
       setOpen(null);
       return;
     }
-    setOpen(userId);
+    setOpen({ id: userId, what });
+    setRoleNote(null);
+    if (what === "role") {
+      setRole(null);
+      setCode("");
+      return;
+    }
     setOrders([]);
     adminOrders(userId).then(setOrders).catch(() => setOrders([]));
+  };
+  const askCode = (one) => {
+    setRoleNote(null);
+    setCode("");
+    adminRoleRequest(one.id, !one.isAdmin).then((answer) => setRole({ id: one.id, admin: !one.isAdmin, sentTo: answer.sentTo })).catch((reason) => setRoleNote(
+      reason instanceof ApiError ? reason.message : "Не удалось выслать код."
+    ));
+  };
+  const typeCode = (value) => {
+    const digits = value.replace(/\D/g, "").slice(0, 4);
+    setCode(digits);
+    setRoleNote(null);
+    if (digits.length < 4 || !role) return;
+    adminRoleConfirm(role.id, role.admin, digits).then(() => {
+      setRole(null);
+      setCode("");
+      setOpen(null);
+      load(query, page);
+    }).catch((reason) => {
+      setCode("");
+      setRoleNote(reason instanceof ApiError ? reason.message : "Код не подошёл.");
+    });
   };
   if (loading2) return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) });
   if (!(user == null ? void 0 : user.isAdmin)) return /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true });
@@ -8572,44 +8615,94 @@ function AdminPage() {
           /* @__PURE__ */ jsx("th", {})
         ] }) }),
         /* @__PURE__ */ jsxs("tbody", { children: [
-          rows.map((one) => /* @__PURE__ */ jsxs("tr", { className: one.deletedAt ? "admin__row--gone" : void 0, children: [
-            /* @__PURE__ */ jsxs("td", { children: [
-              /* @__PURE__ */ jsxs("span", { className: "admin__who", children: [
-                one.displayName,
-                one.isAdmin ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "админ" }) : null,
-                one.deletedAt ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "удалён" }) : null,
-                !one.emailConfirmed && !one.deletedAt ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "почта не подтверждена" }) : null
+          rows.map((one) => /* @__PURE__ */ jsxs(Fragment$1, { children: [
+            /* @__PURE__ */ jsxs("tr", { className: one.deletedAt ? "admin__row--gone" : void 0, children: [
+              /* @__PURE__ */ jsxs("td", { children: [
+                /* @__PURE__ */ jsxs("span", { className: "admin__who", children: [
+                  one.displayName,
+                  one.isAdmin ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "админ" }) : null,
+                  one.deletedAt ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "удалён" }) : null,
+                  !one.emailConfirmed && !one.deletedAt ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "почта не подтверждена" }) : null
+                ] }),
+                /* @__PURE__ */ jsx("span", { className: "text-muted small", children: one.email })
               ] }),
-              /* @__PURE__ */ jsx("span", { className: "text-muted small", children: one.email })
+              /* @__PURE__ */ jsx("td", { children: one.planName }),
+              /* @__PURE__ */ jsxs("td", { children: [
+                day(one.until),
+                one.autoRenew ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "продление" }) : null
+              ] }),
+              /* @__PURE__ */ jsx("td", { children: one.boards }),
+              /* @__PURE__ */ jsx("td", { children: one.paid }),
+              /* @__PURE__ */ jsxs("td", { children: [
+                one.spent,
+                " ₽"
+              ] }),
+              /* @__PURE__ */ jsx("td", { children: /* @__PURE__ */ jsxs("div", { className: "admin__actions", children: [
+                /* @__PURE__ */ jsx(
+                  "button",
+                  {
+                    className: "btn-quiet btn-sm",
+                    type: "button",
+                    onClick: () => show(one.id, "orders"),
+                    children: "Покупки"
+                  }
+                ),
+                one.deletedAt ? null : /* @__PURE__ */ jsx(
+                  "button",
+                  {
+                    className: "btn-quiet btn-sm",
+                    type: "button",
+                    onClick: () => show(one.id, "role"),
+                    children: "Роль"
+                  }
+                )
+              ] }) })
             ] }),
-            /* @__PURE__ */ jsx("td", { children: one.planName }),
-            /* @__PURE__ */ jsxs("td", { children: [
-              day(one.until),
-              one.autoRenew ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "продление" }) : null
-            ] }),
-            /* @__PURE__ */ jsx("td", { children: one.boards }),
-            /* @__PURE__ */ jsx("td", { children: one.paid }),
-            /* @__PURE__ */ jsxs("td", { children: [
-              one.spent,
-              " ₽"
-            ] }),
-            /* @__PURE__ */ jsx("td", { children: /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => show(one.id), children: open === one.id ? "Скрыть" : "Покупки" }) })
+            (open == null ? void 0 : open.id) === one.id && open.what === "orders" ? /* @__PURE__ */ jsx("tr", { className: "admin__open", children: /* @__PURE__ */ jsx("td", { colSpan: 7, children: orders.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: 0 }, children: "Покупок нет." }) : /* @__PURE__ */ jsx("div", { className: "stack", children: orders.map((order) => /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: 0 }, children: [
+              day(order.createdAt),
+              " · ",
+              order.planName,
+              ", ",
+              order.days,
+              " дн. — ",
+              order.amount,
+              " ₽",
+              " · ",
+              order.status === "paid" ? `оплачен ${day(order.paidAt)}` : "не оплачен",
+              order.autoRenew ? " · с продлением" : "",
+              " · счёт № ",
+              order.invoiceId
+            ] }, order.invoiceId)) }) }) }) : null,
+            (open == null ? void 0 : open.id) === one.id && open.what === "role" ? /* @__PURE__ */ jsx("tr", { className: "admin__open", children: /* @__PURE__ */ jsxs("td", { colSpan: 7, children: [
+              one.id === user.id ? /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: 0 }, children: "Свою роль изменить нельзя." }) : (role == null ? void 0 : role.id) === one.id ? /* @__PURE__ */ jsxs("div", { className: "admin__code", children: [
+                /* @__PURE__ */ jsxs("label", { htmlFor: `code-${one.id}`, className: "small", children: [
+                  "Код отправлен на ",
+                  role.sentTo,
+                  ". Действует 5 мин."
+                ] }),
+                /* @__PURE__ */ jsx(
+                  "input",
+                  {
+                    id: `code-${one.id}`,
+                    className: "input admin__code-input",
+                    type: "text",
+                    inputMode: "numeric",
+                    autoComplete: "one-time-code",
+                    autoFocus: true,
+                    maxLength: 4,
+                    value: code,
+                    placeholder: "0000",
+                    onChange: (event) => typeCode(event.target.value)
+                  }
+                )
+              ] }) : /* @__PURE__ */ jsxs("label", { className: "theme-switch", children: [
+                /* @__PURE__ */ jsx("span", { className: "theme-switch__label small", children: one.isAdmin ? "Администратор" : "Обычный пользователь" }),
+                /* @__PURE__ */ jsx("input", { type: "checkbox", checked: one.isAdmin, onChange: () => askCode(one) }),
+                /* @__PURE__ */ jsx("span", { className: "theme-switch__track", children: /* @__PURE__ */ jsx("span", { className: "theme-switch__thumb" }) })
+              ] }),
+              roleNote ? /* @__PURE__ */ jsx("p", { className: "note note-danger small", children: roleNote }) : null
+            ] }) }) : null
           ] }, one.id)),
-          open !== null ? /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsx("td", { colSpan: 7, children: orders.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: 0 }, children: "Покупок нет." }) : /* @__PURE__ */ jsx("div", { className: "stack", children: orders.map((order) => /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: 0 }, children: [
-            day(order.createdAt),
-            " · ",
-            order.planName,
-            ", ",
-            order.days,
-            " дн. — ",
-            order.amount,
-            " ₽",
-            " · ",
-            order.status === "paid" ? `оплачен ${day(order.paidAt)}` : "не оплачен",
-            order.autoRenew ? " · с продлением" : "",
-            " · счёт № ",
-            order.invoiceId
-          ] }, order.invoiceId)) }) }) }) : null,
           rows.length === 0 && !busy ? /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsx("td", { colSpan: 7, children: /* @__PURE__ */ jsx("span", { className: "text-muted", children: "Никого не нашлось." }) }) }) : null
         ] })
       ] }) }),

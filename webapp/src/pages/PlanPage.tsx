@@ -294,6 +294,10 @@ export function PlanPage(): ReactElement {
               </div>
             ) : null}
 
+            {/* Владельцу сервиса шкалы не нужны: считать проценты от
+                предела, которого нет, — значит рисовать полоску до
+                двух миллиардов. */}
+            {mine.kind === 'admin' ? null : (
             <div className="stack" style={{ marginTop: 'var(--sp-4)' }}>
               <div>
                 <p className="small" style={{ margin: '0 0 2px' }}>
@@ -315,6 +319,7 @@ export function PlanPage(): ReactElement {
                 Библиотека: {mine.plan.hasLibrary ? 'есть' : 'нет'}
               </p>
             </div>
+            )}
           </section>
 
           {mine.kind === 'paid' ? (

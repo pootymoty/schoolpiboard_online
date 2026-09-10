@@ -25,6 +25,11 @@ public sealed record AdminUserDto(
 
 public sealed record AdminPageDto(IReadOnlyList<AdminUserDto> Users, int Total, int Page, int Size);
 
+/// <summary>Просьба выслать код: кому и какую роль хотим поставить.</summary>
+public sealed record RoleRequest(bool Admin);
+
+public sealed record RoleConfirm(bool Admin, string? Code);
+
 /// <summary>Сводка по сервису — то, на что смотрят первым делом.</summary>
 public sealed record AdminStatsDto(
     int Users,
@@ -195,6 +200,77 @@ public static class AdminEndpoints
                 x.CreatedAt,
                 x.PaidAt,
             }));
+        });
+
+        // Смена роли в два шага: сначала код на почту того, кто меняет,
+        // потом ввод. Роль администратора открывает чужие покупки и чужие
+        // адреса, и одного нажатия для неё мало — угнанная сессия иначе
+        // выдавала бы права сама себе.
+        admin.MapPost("/users/{userId:long}/role/request", async (
+            long userId, RoleRequest request, ClaimsPrincipal principal,
+            AppDbContext db, RoleChangeService roles, IEmailSender emails,
+            ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            var who = await AdminAsync(principal, db, ct);
+            if (who is null) return Denied();
+
+            var target = await db.Users.FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (target is null) return Results.NotFound(new { message = "Учётная запись не найдена." });
+
+            if (target.Id == who.Id)
+                return Results.BadRequest(new { message = "Свою роль изменить нельзя." });
+
+            if (target.DeletedAt is not null)
+                return Results.BadRequest(new { message = "Учётная запись удалена." });
+
+            if (target.IsAdmin == request.Admin)
+                return Results.BadRequest(new { message = "Роль уже такая." });
+
+            var code = await roles.IssueAsync(who.Id, target.Id, request.Admin);
+
+            var letter = EmailTemplates.RoleCode(
+                code, target.Email, request.Admin, (int)RoleChangeService.Lifetime.TotalMinutes);
+
+            var sent = await emails.SendAsync(who.Email, letter.Subject, letter.Html, letter.Text, ct);
+
+            if (!sent)
+            {
+                loggers.CreateLogger("Admin").LogError("Код смены роли не отправлен на {Address}.", who.Email);
+                return Results.Json(new { message = "Письмо с кодом не ушло." }, statusCode: 502);
+            }
+
+            return Results.Ok(new { sentTo = who.Email });
+        });
+
+        admin.MapPost("/users/{userId:long}/role/confirm", async (
+            long userId, RoleConfirm request, ClaimsPrincipal principal,
+            AppDbContext db, RoleChangeService roles, ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            var who = await AdminAsync(principal, db, ct);
+            if (who is null) return Denied();
+
+            var target = await db.Users.FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (target is null) return Results.NotFound(new { message = "Учётная запись не найдена." });
+
+            if (target.Id == who.Id)
+                return Results.BadRequest(new { message = "Свою роль изменить нельзя." });
+
+            var outcome = await roles.CheckAsync(who.Id, target.Id, request.Admin, request.Code);
+
+            if (outcome == RoleCodeOutcome.Expired)
+                return Results.BadRequest(new { message = "Код истёк. Запросите новый." });
+
+            if (outcome == RoleCodeOutcome.Wrong)
+                return Results.BadRequest(new { message = "Код не подошёл." });
+
+            target.Role = request.Admin ? User.RoleAdmin : User.RoleUser;
+            await db.SaveChangesAsync(ct);
+
+            loggers.CreateLogger("Admin").LogWarning(
+                "Роль учётной записи {UserId} изменена на {Role} администратором {AdminId}.",
+                target.Id, target.Role, who.Id);
+
+            return Results.Ok(new { isAdmin = target.IsAdmin });
         });
     }
 

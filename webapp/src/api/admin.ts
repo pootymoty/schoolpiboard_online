@@ -69,3 +69,20 @@ export function adminUsers(
 export function adminOrders(userId: number): Promise<AdminOrder[]> {
   return api<AdminOrder[]>(`/admin/users/${userId}/orders`);
 }
+
+/** Просит выслать код подтверждения на почту того, кто меняет роль. */
+export function adminRoleRequest(userId: number, admin: boolean): Promise<{ sentTo: string }> {
+  return api<{ sentTo: string }>(`/admin/users/${userId}/role/request`, {
+    method: 'POST',
+    body: { admin },
+  });
+}
+
+export function adminRoleConfirm(
+  userId: number, admin: boolean, code: string,
+): Promise<{ isAdmin: boolean }> {
+  return api<{ isAdmin: boolean }>(`/admin/users/${userId}/role/confirm`, {
+    method: 'POST',
+    body: { admin, code },
+  });
+}

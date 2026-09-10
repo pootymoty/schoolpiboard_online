@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { Navigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
-import { adminOrders, adminStats, adminUsers } from '../api/admin';
+import {
+  adminOrders, adminRoleConfirm, adminRoleRequest, adminStats, adminUsers,
+} from '../api/admin';
 import type { AdminOrder, AdminStats, AdminUser } from '../api/admin';
 import { useAuth } from '../auth/AuthContext';
 import { Page } from '../components/Layout';
@@ -43,9 +45,25 @@ export function AdminPage(): ReactElement {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /** Чьи покупки раскрыты и какие именно. */
-  const [open, setOpen] = useState<number | null>(null);
+  /**
+   * Что раскрыто под строкой: покупки или роль.
+   *
+   * Раскрытая карточка живёт под своим человеком, а не в конце таблицы:
+   * иначе, нажав у третьего сверху, ответ приходится искать под
+   * двадцатым.
+   */
+  const [open, setOpen] = useState<{ id: number; what: 'orders' | 'role' } | null>(null);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
+
+  /**
+   * Смена роли: пока код не запрошен — переключатель, после — поле ввода.
+   *
+   * Живёт только в памяти страницы: обновили — код надо просить заново.
+   * Так и задумано, код на то и одноразовый.
+   */
+  const [role, setRole] = useState<{ id: number; admin: boolean; sentTo: string } | null>(null);
+  const [code, setCode] = useState('');
+  const [roleNote, setRoleNote] = useState<string | null>(null);
 
   const pending = useRef<AbortController | null>(null);
 
@@ -86,15 +104,59 @@ export function AdminPage(): ReactElement {
     adminStats().then(setStats).catch(() => undefined);
   }, [user?.isAdmin]);
 
-  const show = (userId: number) => {
-    if (open === userId) {
+  const show = (userId: number, what: 'orders' | 'role') => {
+    if (open?.id === userId && open.what === what) {
       setOpen(null);
       return;
     }
 
-    setOpen(userId);
+    setOpen({ id: userId, what });
+    setRoleNote(null);
+
+    if (what === 'role') {
+      setRole(null);
+      setCode('');
+      return;
+    }
+
     setOrders([]);
     adminOrders(userId).then(setOrders).catch(() => setOrders([]));
+  };
+
+  /** Просит код. Пока он не пришёл, роль не меняется ничем. */
+  const askCode = (one: AdminUser) => {
+    setRoleNote(null);
+    setCode('');
+
+    adminRoleRequest(one.id, !one.isAdmin)
+      .then((answer) => setRole({ id: one.id, admin: !one.isAdmin, sentTo: answer.sentTo }))
+      .catch((reason) => setRoleNote(
+        reason instanceof ApiError ? reason.message : 'Не удалось выслать код.',
+      ));
+  };
+
+  /**
+   * Проверка по четвёртой цифре: отдельная кнопка «Готово» здесь лишняя —
+   * код всё равно ровно четырёхзначный.
+   */
+  const typeCode = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 4);
+    setCode(digits);
+    setRoleNote(null);
+
+    if (digits.length < 4 || !role) return;
+
+    adminRoleConfirm(role.id, role.admin, digits)
+      .then(() => {
+        setRole(null);
+        setCode('');
+        setOpen(null);
+        load(query, page);
+      })
+      .catch((reason) => {
+        setCode('');
+        setRoleNote(reason instanceof ApiError ? reason.message : 'Код не подошёл.');
+      });
   };
 
   if (loading) return <Page narrow><p className="text-muted">Загружаем…</p></Page>;
@@ -160,7 +222,8 @@ export function AdminPage(): ReactElement {
             </thead>
             <tbody>
               {rows.map((one) => (
-                <tr key={one.id} className={one.deletedAt ? 'admin__row--gone' : undefined}>
+                <Fragment key={one.id}>
+                <tr className={one.deletedAt ? 'admin__row--gone' : undefined}>
                   <td>
                     <span className="admin__who">
                       {one.displayName}
@@ -181,34 +244,89 @@ export function AdminPage(): ReactElement {
                   <td>{one.paid}</td>
                   <td>{one.spent} ₽</td>
                   <td>
-                    <button className="btn-quiet btn-sm" type="button" onClick={() => show(one.id)}>
-                      {open === one.id ? 'Скрыть' : 'Покупки'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    <div className="admin__actions">
+                      <button
+                        className="btn-quiet btn-sm"
+                        type="button"
+                        onClick={() => show(one.id, 'orders')}
+                      >
+                        Покупки
+                      </button>
 
-              {open !== null ? (
-                <tr>
-                  <td colSpan={7}>
-                    {orders.length === 0 ? (
-                      <p className="text-muted small" style={{ margin: 0 }}>Покупок нет.</p>
-                    ) : (
-                      <div className="stack">
-                        {orders.map((order) => (
-                          <p key={order.invoiceId} className="small" style={{ margin: 0 }}>
-                            {day(order.createdAt)} · {order.planName}, {order.days} дн. — {order.amount} ₽
-                            {' · '}
-                            {order.status === 'paid' ? `оплачен ${day(order.paidAt)}` : 'не оплачен'}
-                            {order.autoRenew ? ' · с продлением' : ''}
-                            {' · счёт № '}{order.invoiceId}
-                          </p>
-                        ))}
-                      </div>
-                    )}
+                      {one.deletedAt ? null : (
+                        <button
+                          className="btn-quiet btn-sm"
+                          type="button"
+                          onClick={() => show(one.id, 'role')}
+                        >
+                          Роль
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
-              ) : null}
+
+                {open?.id === one.id && open.what === 'orders' ? (
+                  <tr className="admin__open">
+                    <td colSpan={7}>
+                      {orders.length === 0 ? (
+                        <p className="text-muted small" style={{ margin: 0 }}>Покупок нет.</p>
+                      ) : (
+                        <div className="stack">
+                          {orders.map((order) => (
+                            <p key={order.invoiceId} className="small" style={{ margin: 0 }}>
+                              {day(order.createdAt)} · {order.planName}, {order.days} дн. — {order.amount} ₽
+                              {' · '}
+                              {order.status === 'paid' ? `оплачен ${day(order.paidAt)}` : 'не оплачен'}
+                              {order.autoRenew ? ' · с продлением' : ''}
+                              {' · счёт № '}{order.invoiceId}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ) : null}
+
+                {open?.id === one.id && open.what === 'role' ? (
+                  <tr className="admin__open">
+                    <td colSpan={7}>
+                      {one.id === user.id ? (
+                        <p className="text-muted small" style={{ margin: 0 }}>Свою роль изменить нельзя.</p>
+                      ) : role?.id === one.id ? (
+                        <div className="admin__code">
+                          <label htmlFor={`code-${one.id}`} className="small">
+                            Код отправлен на {role.sentTo}. Действует 5 мин.
+                          </label>
+                          <input
+                            id={`code-${one.id}`}
+                            className="input admin__code-input"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            autoFocus
+                            maxLength={4}
+                            value={code}
+                            placeholder="0000"
+                            onChange={(event) => typeCode(event.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <label className="theme-switch">
+                          <span className="theme-switch__label small">
+                            {one.isAdmin ? 'Администратор' : 'Обычный пользователь'}
+                          </span>
+                          <input type="checkbox" checked={one.isAdmin} onChange={() => askCode(one)} />
+                          <span className="theme-switch__track"><span className="theme-switch__thumb" /></span>
+                        </label>
+                      )}
+
+                      {roleNote ? <p className="note note-danger small">{roleNote}</p> : null}
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
+              ))}
 
               {rows.length === 0 && !busy ? (
                 <tr><td colSpan={7}><span className="text-muted">Никого не нашлось.</span></td></tr>

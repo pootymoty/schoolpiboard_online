@@ -231,6 +231,36 @@ public static class EmailTemplates
              """);
     }
 
+    /// <summary>
+    /// Код подтверждения смены роли.
+    ///
+    /// В письме назван и тот, кому меняют роль, и на что: код, пришедший
+    /// без повода, должен читаться как «кто-то делает это от вашего
+    /// имени», а не как обычная рассылка.
+    /// </summary>
+    public static (string Subject, string Html, string Text) RoleCode(
+        string code, string target, bool makeAdmin, int minutes)
+    {
+        var what = makeAdmin ? "выдать права администратора" : "снять права администратора";
+
+        return (
+            $"Код подтверждения: {code} — SchoolPiBoard",
+            $"""
+             <p>Код подтверждения: <b>{code}</b></p>
+             <p>Им подтверждается действие «{what}» для учётной записи {target}.</p>
+             <p>Код действует {minutes} мин. Если вы этого не делали — не вводите код
+             и смените пароль.</p>
+             """,
+            $"""
+             Код подтверждения: {code}
+
+             Им подтверждается действие «{what}» для учётной записи {target}.
+
+             Код действует {minutes} мин. Если вы этого не делали — не вводите код
+             и смените пароль.
+             """);
+    }
+
     /// <summary>Дата по-русски: в письме её читают глазами, а не разбирают кодом.</summary>
     private static string Day(DateTime moment)
         => moment.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("ru-RU"));

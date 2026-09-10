@@ -2077,3 +2077,33 @@ body.no-scroll {
     gap: var(--sp-3);
     margin-top: var(--sp-3);
 }
+
+/* Кнопки в строке списка — рядом, а не столбиком: их две, и каждая
+   раскрывает своё под этой же строкой. */
+.admin__actions {
+    display: flex;
+    gap: var(--sp-1);
+}
+
+/* Раскрытое под человеком, а не в конце таблицы: нажав у третьего
+   сверху, ответ иначе приходится искать под двадцатым. */
+.admin__open > td {
+    background: var(--surface-2);
+    white-space: normal;
+}
+
+.admin__code {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+}
+
+/* Четыре цифры вразрядку: так видно, сколько уже набрано. */
+.admin__code-input {
+    width: 110px;
+    font-family: var(--font-mono);
+    font-size: var(--fs-lg);
+    letter-spacing: .35em;
+    text-align: center;
+}
