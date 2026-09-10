@@ -76,6 +76,15 @@
 
 /* --- Разделы сайта: десктопное меню и мобильный бургер --------------------- */
 
+.desktop-menu,
+.dropdown-menu,
+.navbar ul,
+.navbar-submenu {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
 /* Разделы в один ряд и на одной высоте. Прежде «Личный кабинет» был
    кнопкой с рамкой среди простых ссылок и выбивался и по высоте, и по
    весу — ряд выглядел собранным из двух разных меню. */
@@ -85,8 +94,8 @@
     gap: var(--sp-1);
 }
 
-.desktop-menu > a:not(.header__cta),
-.desktop-menu .header__menu {
+.desktop-menu a:not(.header__cta),
+.desktop-menu .dropdown-toggle {
     display: inline-flex;
     align-items: center;
     min-height: 36px;
@@ -100,35 +109,92 @@
     font-weight: 600;
     text-decoration: none;
     cursor: pointer;
+    transition: background-color .2s ease;
 }
 
-.desktop-menu > a:not(.header__cta):hover,
-.desktop-menu .header__menu:hover {
+.desktop-menu a:not(.header__cta):hover,
+.desktop-menu .dropdown-toggle:hover,
+.desktop-menu .dropdown-toggle.active {
     background: rgba(255, 255, 255, .12);
     text-decoration: none;
 }
 
+/* Где человек находится — видно сразу, а не по догадке. */
+.desktop-menu a.active:not(.dropdown-toggle) {
+    background: rgba(255, 255, 255, .16);
+}
+
+/* «Войти» — единственное действие в шапке, и выглядит оно как действие:
+   обычная кнопка темы, а не ссылка в общем ряду. */
+.desktop-menu a.header__cta { text-decoration: none; }
+.desktop-menu a.header__cta:hover { text-decoration: none; }
+
+.dropdown { position: relative; }
+
 /* Стрелка у «Личного кабинета»: без неё пункт неотличим от обычной
-   ссылки, и по нему щёлкают, ожидая перехода, а не списка. */
-.desktop-menu .header__menu::after {
-    content: '';
+   ссылки, и по нему щёлкают, ожидая перехода, а не списка. Поворот
+   привязан к тому же признаку, что и раскрытый список, — разойтись
+   они не могут. */
+.dropdown-arrow {
     width: 6px;
     height: 6px;
     margin-left: var(--sp-1);
     border-right: 2px solid currentColor;
     border-bottom: 2px solid currentColor;
     transform: translateY(-2px) rotate(45deg);
+    transition: transform .2s ease;
 }
 
-/* Где человек находится — видно сразу, а не по догадке. */
-.desktop-menu > a.active {
-    background: rgba(255, 255, 255, .16);
+.dropdown-toggle.active .dropdown-arrow { transform: translateY(1px) rotate(-135deg); }
+
+/* Закрытый список приподнят и прозрачен — открывается плавно, а не
+   рывком. `visibility` в переходе обязательна: без неё невидимый
+   список продолжает ловить нажатия по тому, что под ним. */
+.dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--sp-1));
+    z-index: 20;
+    min-width: 200px;
+    padding: var(--sp-1);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: opacity .2s ease, transform .2s ease, visibility .2s ease;
 }
 
-/* «Войти» — единственное действие в шапке, и выглядит оно как действие:
-   обычная кнопка темы, а не ссылка в общем ряду. */
-.desktop-menu > a.header__cta { text-decoration: none; }
-.desktop-menu > a.header__cta:hover { text-decoration: none; }
+.dropdown-menu.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.header .dropdown-menu a,
+.dropdown-menu button {
+    display: block;
+    width: 100%;
+    min-height: 40px;
+    padding: var(--sp-2) var(--sp-3);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-weight: 500;
+    line-height: 24px;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.header .dropdown-menu a:hover,
+.dropdown-menu button:hover { background: var(--surface-2); }
+
+.dropdown-menu__danger { color: var(--danger); }
 
 .theme-switch--header { display: none; }
 
@@ -138,11 +204,53 @@
     .theme-switch--header { display: inline-flex; }
 }
 
+/* --- Бургер: три полоски превращаются в крестик ---------------------------- */
+
 .hamburger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
     background: transparent;
-    border-color: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
     color: var(--text-on-dark);
+    cursor: pointer;
 }
+
+.hamburger:hover { background: rgba(255, 255, 255, .14); }
+
+/* Средняя полоска гаснет, крайние съезжаются к середине и
+   разворачиваются навстречу. Подменить значок готовым крестиком значило
+   бы показать итог, но не само превращение. */
+.hamburger-box {
+    position: relative;
+    display: block;
+    width: 22px;
+    height: 18px;
+}
+
+.hamburger-bar {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+    transition: transform .3s ease, opacity .2s ease, top .3s ease;
+}
+
+.hamburger-bar:nth-child(1) { top: 0; }
+.hamburger-bar:nth-child(2) { top: 8px; }
+.hamburger-bar:nth-child(3) { top: 16px; }
+
+.hamburger.is-open .hamburger-bar:nth-child(1) { top: 8px; transform: rotate(45deg); }
+.hamburger.is-open .hamburger-bar:nth-child(2) { opacity: 0; }
+.hamburger.is-open .hamburger-bar:nth-child(3) { top: 8px; transform: rotate(-45deg); }
+
+/* --- Панель разделов на узком экране --------------------------------------- */
 
 .navbar {
     position: fixed;
@@ -151,20 +259,20 @@
     width: 100%;
     height: calc(100dvh - var(--header-h));
     background: var(--surface);
+    /* Выезжает справа — с той стороны, где стоит бургер. */
     transform: translateX(100%);
-    transition: transform .25s ease;
+    transition: transform .3s ease;
     z-index: 30;
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .navbar--show { transform: translateX(0); }
 
 .navbar ul {
-    list-style: none;
-    margin: 0;
-    padding: var(--sp-3);
     display: flex;
     flex-direction: column;
+    padding: var(--sp-3);
 }
 
 .navbar-item--switch {
@@ -189,35 +297,44 @@
 
 .navbar li a,
 .navbar-dropdown__toggle {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
     padding: var(--sp-3) var(--sp-2);
-    color: var(--text);
-    text-decoration: none;
-    font-weight: 600;
+    border: 0;
     border-bottom: 1px solid var(--line);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    text-decoration: none;
     cursor: pointer;
 }
 
-.navbar-dropdown__toggle::after {
-    content: '▾';
-    float: right;
+.navbar-dropdown__arrow {
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
     transition: transform .2s ease;
 }
 
-.navbar-dropdown--active .navbar-dropdown__toggle::after {
-    transform: rotate(180deg);
-}
+.navbar-dropdown--active .navbar-dropdown__arrow { transform: translateY(2px) rotate(-135deg); }
 
+/* Список раскрывается на месте, а не всплывает поверх. Высота
+   содержимого заранее не известна, поэтому предел взят с запасом:
+   короткое число обрезало бы список у админа, где пунктов больше. */
 .navbar-submenu {
-    list-style: none;
-    margin: 0;
-    padding: 0 0 0 var(--sp-3);
+    padding-left: var(--sp-3);
     max-height: 0;
     overflow: hidden;
-    transition: max-height .25s ease;
+    transition: max-height .3s ease;
 }
 
-.navbar-dropdown--active .navbar-submenu { max-height: 320px; }
+.navbar-dropdown--active .navbar-submenu { max-height: 100vh; }
 
 .navbar-submenu li .menu__item {
     width: 100%;
@@ -233,6 +350,50 @@ body.no-scroll {
     overflow: hidden;
     position: fixed;
     width: 100%;
+}
+
+/* Обводка фокуса — только с клавиатуры: мыши и пальцу она не нужна, а
+   вот убрать её совсем значило бы потерять клавиатуру целиком. */
+.hamburger:focus-visible,
+.desktop-menu a:focus-visible,
+.desktop-menu .dropdown-toggle:focus-visible,
+.dropdown-menu a:focus-visible,
+.dropdown-menu button:focus-visible,
+.navbar li a:focus-visible,
+.navbar-dropdown__toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* Долгое нажатие по пункту меню не должно звать системное меню. */
+.hamburger,
+.desktop-menu a,
+.desktop-menu .dropdown-toggle,
+.dropdown-menu a,
+.dropdown-menu button,
+.navbar a,
+.navbar-dropdown__toggle,
+.header__brand {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+/* На сенсорном экране `:hover` срабатывает от касания и застревает до
+   следующего тычка: подсветка висела бы на пункте, с которого уже ушли. */
+@media (hover: none) {
+    .desktop-menu a:not(.header__cta):hover,
+    .desktop-menu .dropdown-toggle:hover,
+    .dropdown-menu a:hover,
+    .dropdown-menu button:hover,
+    .navbar li a:hover,
+    .navbar-dropdown__toggle:hover,
+    .hamburger:hover { background: transparent; }
+
+    .desktop-menu .dropdown-toggle.active:hover { background: rgba(255, 255, 255, .12); }
+    .header .dropdown-menu a:hover { background: transparent; }
 }
 
 /* --- Слайдер темы, вместо значка солнце/луна ------------------------------- */

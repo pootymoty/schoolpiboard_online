@@ -199,6 +199,231 @@ const COMPANY = {
   refundDays: 10
 };
 const HAS_COMPANY_DETAILS = !COMPANY.name.startsWith("ЗАГЛУШКА");
+function useTheme() {
+  const [theme, setTheme] = useState(() => typeof document === "undefined" ? "light" : document.documentElement.getAttribute("data-theme") || "light");
+  const toggle = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try {
+      localStorage.setItem("theme", next);
+    } catch {
+    }
+    setTheme(next);
+  };
+  return { theme, toggle };
+}
+function ThemeSwitch({
+  theme,
+  toggle,
+  label = "Тёмная тема"
+}) {
+  return /* @__PURE__ */ jsxs("label", { className: "theme-switch", children: [
+    /* @__PURE__ */ jsx("span", { className: "theme-switch__label", children: label }),
+    /* @__PURE__ */ jsx(
+      "input",
+      {
+        type: "checkbox",
+        checked: theme === "dark",
+        onChange: toggle,
+        "aria-label": theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"
+      }
+    ),
+    /* @__PURE__ */ jsx("span", { className: "theme-switch__track", children: /* @__PURE__ */ jsx("span", { className: "theme-switch__thumb" }) })
+  ] });
+}
+function useScrollLock(locked) {
+  useEffect(() => {
+    if (!locked) return void 0;
+    const saved = window.scrollY || 0;
+    document.body.style.top = `-${saved}px`;
+    document.body.classList.add("no-scroll");
+    return () => {
+      const root = document.documentElement;
+      const smooth = root.style.scrollBehavior;
+      root.style.scrollBehavior = "auto";
+      document.body.classList.remove("no-scroll");
+      document.body.style.top = "";
+      window.scrollTo(0, saved);
+      root.style.scrollBehavior = smooth;
+    };
+  }, [locked]);
+}
+function Header() {
+  const { user, logout } = useAuth();
+  const { theme, toggle } = useTheme();
+  const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [cabinetOpen, setCabinetOpen] = useState(false);
+  const [dropOpen, setDropOpen] = useState(false);
+  const drop = useRef(null);
+  const panel = useRef(null);
+  const burger = useRef(null);
+  useScrollLock(mobileOpen);
+  useEffect(() => {
+    setMobileOpen(false);
+    setCabinetOpen(false);
+    setDropOpen(false);
+  }, [location.pathname]);
+  const closeMobile = () => setMobileOpen(false);
+  useEffect(() => {
+    const outside = (event) => {
+      const target = event.target;
+      if (drop.current && !drop.current.contains(target)) setDropOpen(false);
+      if (panel.current && burger.current && !panel.current.contains(target) && !burger.current.contains(target)) {
+        setMobileOpen(false);
+      }
+    };
+    const escape = (event) => {
+      if (event.key !== "Escape") return;
+      setDropOpen(false);
+      setMobileOpen(false);
+    };
+    document.addEventListener("mousedown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, []);
+  useEffect(() => {
+    if (!mobileOpen) return void 0;
+    let from = 0;
+    const start = (event) => {
+      from = event.changedTouches[0].screenX;
+    };
+    const end = (event) => {
+      if (event.changedTouches[0].screenX > from + 50) setMobileOpen(false);
+    };
+    document.addEventListener("touchstart", start, { passive: true });
+    document.addEventListener("touchend", end, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", start);
+      document.removeEventListener("touchend", end);
+    };
+  }, [mobileOpen]);
+  return /* @__PURE__ */ jsxs("header", { className: "header", children: [
+    /* @__PURE__ */ jsx(Link, { className: "header__brand", to: user ? "/boards" : "/", children: "SchoolPiBoard" }),
+    /* @__PURE__ */ jsx("span", { className: "header__spacer" }),
+    /* @__PURE__ */ jsx("nav", { "aria-label": "Разделы сайта", children: /* @__PURE__ */ jsxs("ul", { className: "desktop-menu", children: [
+      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/features", children: "Возможности" }) }),
+      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/pricing", children: "Тарифы" }) }),
+      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/faq", children: "Вопросы" }) }),
+      user ? /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }) }),
+        /* @__PURE__ */ jsxs("li", { className: "dropdown", ref: drop, children: [
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: dropOpen ? "dropdown-toggle active" : "dropdown-toggle",
+              type: "button",
+              "aria-expanded": dropOpen,
+              onClick: () => setDropOpen((current) => !current),
+              children: [
+                "Личный кабинет",
+                /* @__PURE__ */ jsx("span", { className: "dropdown-arrow", "aria-hidden": "true" })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxs("ul", { className: dropOpen ? "dropdown-menu show" : "dropdown-menu", children: [
+            user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/admin", children: "Администрирование" }) }) : null,
+            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", children: "Мой тариф" }) }),
+            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", children: "Настройки" }) }),
+            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "dropdown-menu__danger", type: "button", onClick: logout, children: "Выйти" }) })
+          ] })
+        ] })
+      ] }) : /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-sm header__cta", to: "/login", children: "Войти" }) })
+    ] }) }),
+    /* @__PURE__ */ jsx("span", { className: "theme-switch--header", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) }),
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        ref: burger,
+        className: mobileOpen ? "hamburger is-open" : "hamburger",
+        type: "button",
+        onClick: () => setMobileOpen((current) => !current),
+        "aria-expanded": mobileOpen,
+        "aria-controls": "navbar",
+        "aria-label": mobileOpen ? "Закрыть меню" : "Открыть меню",
+        children: /* @__PURE__ */ jsxs("span", { className: "hamburger-box", "aria-hidden": "true", children: [
+          /* @__PURE__ */ jsx("span", { className: "hamburger-bar" }),
+          /* @__PURE__ */ jsx("span", { className: "hamburger-bar" }),
+          /* @__PURE__ */ jsx("span", { className: "hamburger-bar" })
+        ] })
+      }
+    ),
+    /* @__PURE__ */ jsx(
+      "div",
+      {
+        id: "navbar",
+        ref: panel,
+        className: mobileOpen ? "navbar navbar--show" : "navbar",
+        children: /* @__PURE__ */ jsx("ul", { children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/boards", onClick: closeMobile, children: "Мои доски" }) }),
+          /* @__PURE__ */ jsxs("li", { className: cabinetOpen ? "navbar-dropdown navbar-dropdown--active" : "navbar-dropdown", children: [
+            /* @__PURE__ */ jsxs(
+              "button",
+              {
+                className: "navbar-dropdown__toggle",
+                type: "button",
+                "aria-expanded": cabinetOpen,
+                onClick: () => setCabinetOpen((current) => !current),
+                children: [
+                  "Личный кабинет",
+                  /* @__PURE__ */ jsx("span", { className: "navbar-dropdown__arrow", "aria-hidden": "true" })
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsxs("ul", { className: "navbar-submenu", children: [
+              user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/admin", onClick: closeMobile, children: "Администрирование" }) }) : null,
+              /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", onClick: closeMobile, children: "Мой тариф" }) }),
+              /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", onClick: closeMobile, children: "Настройки" }) }),
+              /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: () => {
+                closeMobile();
+                logout();
+              }, children: "Выйти" }) })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsx("li", { className: "navbar-item--switch", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
+        ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/login", onClick: closeMobile, children: "Войти" }) }),
+          /* @__PURE__ */ jsx("li", { className: "navbar-item--switch", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
+        ] }) })
+      }
+    )
+  ] });
+}
+function Footer() {
+  return /* @__PURE__ */ jsxs("footer", { className: "app__footer", children: [
+    /* @__PURE__ */ jsxs("div", { className: "row", children: [
+      /* @__PURE__ */ jsx(Link, { to: "/legal/terms", children: "Соглашение" }),
+      /* @__PURE__ */ jsx(Link, { to: "/legal/offer", children: "Оферта" }),
+      /* @__PURE__ */ jsx(Link, { to: "/legal/privacy", children: "Персональные данные" }),
+      /* @__PURE__ */ jsx(Link, { to: "/about", children: "Контакты" })
+    ] }),
+    /* @__PURE__ */ jsx("p", { className: "small", style: { margin: 0 }, children: HAS_COMPANY_DETAILS ? `SchoolPiBoard · ${COMPANY.name} · ${COMPANY.email}` : "SchoolPiBoard · board.school-pi.online" })
+  ] });
+}
+function Page({ children, narrow }) {
+  return /* @__PURE__ */ jsxs("div", { className: "app", children: [
+    /* @__PURE__ */ jsx(Header, {}),
+    /* @__PURE__ */ jsx("main", { className: narrow ? "app__main app__main--narrow" : "app__main", children }),
+    /* @__PURE__ */ jsx(Footer, {})
+  ] });
+}
+function BoardShell({ children }) {
+  return /* @__PURE__ */ jsxs("div", { className: "app app--board", children: [
+    /* @__PURE__ */ jsx(Header, {}),
+    /* @__PURE__ */ jsx("main", { className: "app__main app__main--board", children })
+  ] });
+}
 function Svg$1({ size = 18, title, children }) {
   return /* @__PURE__ */ jsxs(
     "svg",
@@ -348,11 +573,6 @@ const IconImage = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /*
   /* @__PURE__ */ jsx("circle", { cx: "8.5", cy: "9.5", r: "1.5" }),
   /* @__PURE__ */ jsx("path", { d: "M21 16l-5-5-6 6-3-3-4 4" })
 ] }) });
-const IconMenu = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
-  /* @__PURE__ */ jsx("path", { d: "M3 6h18" }),
-  /* @__PURE__ */ jsx("path", { d: "M3 12h18" }),
-  /* @__PURE__ */ jsx("path", { d: "M3 18h18" })
-] }) });
 const IconTable = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("rect", { x: "3", y: "4", width: "18", height: "16", rx: "2" }),
   /* @__PURE__ */ jsx("path", { d: "M3 10h18" }),
@@ -391,184 +611,6 @@ const IconArrowDown = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children
   /* @__PURE__ */ jsx("path", { d: "M12 4v15" }),
   /* @__PURE__ */ jsx("path", { d: "M6 13l6 6 6-6" })
 ] }) });
-function Menu({ label, children, trigger, triggerClassName = "btn-tool" }) {
-  const [open, setOpen] = useState(false);
-  const box = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event) => {
-      if (box.current && !box.current.contains(event.target)) setOpen(false);
-    };
-    const onKey = (event) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-  return /* @__PURE__ */ jsxs("div", { className: "menu", ref: box, children: [
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: triggerClassName,
-        type: "button",
-        onClick: () => setOpen((current) => !current),
-        "aria-label": label,
-        "aria-expanded": open,
-        children: trigger ?? /* @__PURE__ */ jsx(IconMore, {})
-      }
-    ),
-    open ? (
-      // Щелчок по любому пункту закрывает меню: иначе после
-      // «Переименовать» оно осталось бы поверх открывшегося окна.
-      /* @__PURE__ */ jsx("div", { className: "menu__list", role: "menu", onClick: () => setOpen(false), children })
-    ) : null
-  ] });
-}
-function useTheme() {
-  const [theme, setTheme] = useState(() => typeof document === "undefined" ? "light" : document.documentElement.getAttribute("data-theme") || "light");
-  const toggle = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    try {
-      localStorage.setItem("theme", next);
-    } catch {
-    }
-    setTheme(next);
-  };
-  return { theme, toggle };
-}
-function ThemeSwitch({
-  theme,
-  toggle,
-  label = "Тёмная тема"
-}) {
-  return /* @__PURE__ */ jsxs("label", { className: "theme-switch", children: [
-    /* @__PURE__ */ jsx("span", { className: "theme-switch__label", children: label }),
-    /* @__PURE__ */ jsx(
-      "input",
-      {
-        type: "checkbox",
-        checked: theme === "dark",
-        onChange: toggle,
-        "aria-label": theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"
-      }
-    ),
-    /* @__PURE__ */ jsx("span", { className: "theme-switch__track", children: /* @__PURE__ */ jsx("span", { className: "theme-switch__thumb" }) })
-  ] });
-}
-function useScrollLock(locked) {
-  useEffect(() => {
-    if (!locked) return;
-    document.body.classList.add("no-scroll");
-    return () => document.body.classList.remove("no-scroll");
-  }, [locked]);
-}
-function Header() {
-  const { user, logout } = useAuth();
-  const { theme, toggle } = useTheme();
-  const location = useLocation();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [cabinetOpen, setCabinetOpen] = useState(false);
-  useScrollLock(mobileOpen);
-  useEffect(() => {
-    setMobileOpen(false);
-    setCabinetOpen(false);
-  }, [location.pathname]);
-  const closeMobile = () => setMobileOpen(false);
-  return /* @__PURE__ */ jsxs("header", { className: "header", children: [
-    /* @__PURE__ */ jsx(Link, { className: "header__brand", to: user ? "/boards" : "/", children: "SchoolPiBoard" }),
-    /* @__PURE__ */ jsx("span", { className: "header__spacer" }),
-    /* @__PURE__ */ jsxs("nav", { className: "desktop-menu", "aria-label": "Разделы сайта", children: [
-      /* @__PURE__ */ jsx(NavLink, { to: "/features", children: "Возможности" }),
-      /* @__PURE__ */ jsx(NavLink, { to: "/pricing", children: "Тарифы" }),
-      /* @__PURE__ */ jsx(NavLink, { to: "/faq", children: "Вопросы" }),
-      user ? /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }),
-        /* @__PURE__ */ jsxs(Menu, { label: "Личный кабинет", trigger: "Личный кабинет", triggerClassName: "header__menu", children: [
-          user.isAdmin ? /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet menu__item", to: "/admin", children: "Администрирование" }) : null,
-          /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet menu__item", to: "/plan", children: "Мой тариф" }),
-          /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet menu__item", to: "/profile", children: "Настройки" }),
-          /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: logout, children: "Выйти" })
-        ] })
-      ] }) : /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-sm header__cta", to: "/login", children: "Войти" })
-    ] }),
-    /* @__PURE__ */ jsx("span", { className: "theme-switch--header", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) }),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "hamburger btn-tool",
-        type: "button",
-        onClick: () => setMobileOpen((current) => !current),
-        "aria-expanded": mobileOpen,
-        "aria-controls": "navbar",
-        "aria-label": mobileOpen ? "Закрыть меню" : "Открыть меню",
-        children: /* @__PURE__ */ jsx(IconMenu, {})
-      }
-    ),
-    /* @__PURE__ */ jsx("div", { id: "navbar", className: mobileOpen ? "navbar navbar--show" : "navbar", children: /* @__PURE__ */ jsx("ul", { children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/boards", onClick: closeMobile, children: "Мои доски" }) }),
-      /* @__PURE__ */ jsxs("li", { className: cabinetOpen ? "navbar-dropdown navbar-dropdown--active" : "navbar-dropdown", children: [
-        /* @__PURE__ */ jsx(
-          "div",
-          {
-            className: "navbar-dropdown__toggle",
-            onClick: () => setCabinetOpen((current) => !current),
-            children: "Личный кабинет"
-          }
-        ),
-        /* @__PURE__ */ jsxs("ul", { className: "navbar-submenu", children: [
-          user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/admin", onClick: closeMobile, children: "Администрирование" }) }) : null,
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", onClick: closeMobile, children: "Мой тариф" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", onClick: closeMobile, children: "Настройки" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: () => {
-            closeMobile();
-            logout();
-          }, children: "Выйти" }) })
-        ] })
-      ] }),
-      /* @__PURE__ */ jsx("li", { className: "navbar-item--switch", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
-    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/login", onClick: closeMobile, children: "Войти" }) }),
-      /* @__PURE__ */ jsx("li", { className: "navbar-item--switch", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
-    ] }) }) })
-  ] });
-}
-function Footer() {
-  return /* @__PURE__ */ jsxs("footer", { className: "app__footer", children: [
-    /* @__PURE__ */ jsxs("div", { className: "row", children: [
-      /* @__PURE__ */ jsx(Link, { to: "/legal/terms", children: "Соглашение" }),
-      /* @__PURE__ */ jsx(Link, { to: "/legal/offer", children: "Оферта" }),
-      /* @__PURE__ */ jsx(Link, { to: "/legal/privacy", children: "Персональные данные" }),
-      /* @__PURE__ */ jsx(Link, { to: "/about", children: "Контакты" })
-    ] }),
-    /* @__PURE__ */ jsx("p", { className: "small", style: { margin: 0 }, children: HAS_COMPANY_DETAILS ? `SchoolPiBoard · ${COMPANY.name} · ${COMPANY.email}` : "SchoolPiBoard · board.school-pi.online" })
-  ] });
-}
-function Page({ children, narrow }) {
-  return /* @__PURE__ */ jsxs("div", { className: "app", children: [
-    /* @__PURE__ */ jsx(Header, {}),
-    /* @__PURE__ */ jsx("main", { className: narrow ? "app__main app__main--narrow" : "app__main", children }),
-    /* @__PURE__ */ jsx(Footer, {})
-  ] });
-}
-function BoardShell({ children }) {
-  return /* @__PURE__ */ jsxs("div", { className: "app app--board", children: [
-    /* @__PURE__ */ jsx(Header, {}),
-    /* @__PURE__ */ jsx("main", { className: "app__main app__main--board", children })
-  ] });
-}
 function LandingPage() {
   const { user } = useAuth();
   return /* @__PURE__ */ jsxs(Page, { children: [
@@ -1685,6 +1727,43 @@ function ResetPasswordPage() {
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Сохраняем…" : "Задать пароль" })
   ] }) });
+}
+function Menu({ label, children, trigger, triggerClassName = "btn-tool" }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event) => {
+      if (box.current && !box.current.contains(event.target)) setOpen(false);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return /* @__PURE__ */ jsxs("div", { className: "menu", ref: box, children: [
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: triggerClassName,
+        type: "button",
+        onClick: () => setOpen((current) => !current),
+        "aria-label": label,
+        "aria-expanded": open,
+        children: trigger ?? /* @__PURE__ */ jsx(IconMore, {})
+      }
+    ),
+    open ? (
+      // Щелчок по любому пункту закрывает меню: иначе после
+      // «Переименовать» оно осталось бы поверх открывшегося окна.
+      /* @__PURE__ */ jsx("div", { className: "menu__list", role: "menu", onClick: () => setOpen(false), children })
+    ) : null
+  ] });
 }
 function Modal({ title, onClose, children }) {
   const backdrop = useRef(null);

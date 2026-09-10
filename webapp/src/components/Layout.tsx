@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { COMPANY, HAS_COMPANY_DETAILS } from '../content/company';
-import { IconMenu } from './Icons';
-import { Menu } from './Menu';
+
 
 type Theme = 'light' | 'dark';
 
@@ -63,15 +62,35 @@ function ThemeSwitch({
   );
 }
 
-/** Запирает прокрутку страницы позади открытой на весь экран мобильной панели. */
+/**
+ * Запирает прокрутку страницы позади открытой на весь экран панели.
+ *
+ * Одного `overflow: hidden` для iOS Safari мало — страница всё равно
+ * проскальзывает под панелью; помогает только `position: fixed`. Но он
+ * же сбрасывает страницу в начало, поэтому положение запоминается до
+ * блокировки и возвращается после — мгновенно, иначе видно, как страница
+ * едет снизу вверх на глазах.
+ */
 function useScrollLock(locked: boolean): void {
   useEffect(() => {
-    if (!locked) return;
+    if (!locked) return undefined;
 
-    // Одного `overflow: hidden` для iOS Safari мало — страница всё равно
-    // проскальзывает под панелью; помогает только `position: fixed`.
+    const saved = window.scrollY || 0;
+
+    document.body.style.top = `-${saved}px`;
     document.body.classList.add('no-scroll');
-    return () => document.body.classList.remove('no-scroll');
+
+    return () => {
+      const root = document.documentElement;
+      const smooth = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
+
+      document.body.classList.remove('no-scroll');
+      document.body.style.top = '';
+      window.scrollTo(0, saved);
+
+      root.style.scrollBehavior = smooth;
+    };
   }, [locked]);
 }
 
@@ -83,15 +102,74 @@ export function Header(): ReactElement {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cabinetOpen, setCabinetOpen] = useState(false);
 
+  /** Открыто ли выпадающее меню кабинета на широком экране. */
+  const [dropOpen, setDropOpen] = useState(false);
+
+  const drop = useRef<HTMLLIElement | null>(null);
+  const panel = useRef<HTMLDivElement | null>(null);
+  const burger = useRef<HTMLButtonElement | null>(null);
+
   useScrollLock(mobileOpen);
 
-  // Переход по ссылке — сигнал, что мобильное меню своё дело сделало.
+  // Переход по ссылке — сигнал, что меню своё дело сделало.
   useEffect(() => {
     setMobileOpen(false);
     setCabinetOpen(false);
+    setDropOpen(false);
   }, [location.pathname]);
 
   const closeMobile = () => setMobileOpen(false);
+
+  // Щелчок мимо закрывает и выпадающее меню, и панель: открытое меню,
+  // которое закрывается только повторным щелчком по кнопке, приходится
+  // закрывать осознанно — а его просто перестают замечать.
+  useEffect(() => {
+    const outside = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      if (drop.current && !drop.current.contains(target)) setDropOpen(false);
+
+      if (panel.current && burger.current
+          && !panel.current.contains(target) && !burger.current.contains(target)) {
+        setMobileOpen(false);
+      }
+    };
+
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setDropOpen(false);
+      setMobileOpen(false);
+    };
+
+    document.addEventListener('mousedown', outside);
+    document.addEventListener('keydown', escape);
+
+    return () => {
+      document.removeEventListener('mousedown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, []);
+
+  // Смахивание вправо закрывает панель — в ту же сторону, куда она
+  // уезжает; оттуда же она и выехала.
+  useEffect(() => {
+    if (!mobileOpen) return undefined;
+
+    let from = 0;
+
+    const start = (event: TouchEvent) => { from = event.changedTouches[0].screenX; };
+    const end = (event: TouchEvent) => {
+      if (event.changedTouches[0].screenX > from + 50) setMobileOpen(false);
+    };
+
+    document.addEventListener('touchstart', start, { passive: true });
+    document.addEventListener('touchend', end, { passive: true });
+
+    return () => {
+      document.removeEventListener('touchstart', start);
+      document.removeEventListener('touchend', end);
+    };
+  }, [mobileOpen]);
 
   return (
     <header className="header">
@@ -103,28 +181,50 @@ export function Header(): ReactElement {
           месте: меню, которое перестраивается после входа, заставляет
           искать заново то, что человек уже нашёл. «Главной» в списке нет —
           на неё ведёт название слева, как на любом сайте. */}
-      <nav className="desktop-menu" aria-label="Разделы сайта">
-        <NavLink to="/features">Возможности</NavLink>
-        <NavLink to="/pricing">Тарифы</NavLink>
-        <NavLink to="/faq">Вопросы</NavLink>
+      <nav aria-label="Разделы сайта">
+        <ul className="desktop-menu">
+          <li><NavLink to="/features">Возможности</NavLink></li>
+          <li><NavLink to="/pricing">Тарифы</NavLink></li>
+          <li><NavLink to="/faq">Вопросы</NavLink></li>
 
-        {user ? (
-          <>
-            <NavLink to="/boards">Мои доски</NavLink>
-            <Menu label="Личный кабинет" trigger="Личный кабинет" triggerClassName="header__menu">
-              {user.isAdmin ? (
-                <Link className="btn btn-quiet menu__item" to="/admin">Администрирование</Link>
-              ) : null}
-              <Link className="btn btn-quiet menu__item" to="/plan">Мой тариф</Link>
-              <Link className="btn btn-quiet menu__item" to="/profile">Настройки</Link>
-              <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={logout}>
-                Выйти
-              </button>
-            </Menu>
-          </>
-        ) : (
-          <Link className="btn btn-primary btn-sm header__cta" to="/login">Войти</Link>
-        )}
+          {user ? (
+            <>
+              <li><NavLink to="/boards">Мои доски</NavLink></li>
+
+              {/* Подменю невидимо и приподнято, пока закрыто: появление
+                  плавное, а не рывком. Стрелка крутится по тому же
+                  признаку, что и открытость, — рассинхрона быть не может. */}
+              <li className="dropdown" ref={drop}>
+                <button
+                  className={dropOpen ? 'dropdown-toggle active' : 'dropdown-toggle'}
+                  type="button"
+                  aria-expanded={dropOpen}
+                  onClick={() => setDropOpen((current) => !current)}
+                >
+                  Личный кабинет
+                  <span className="dropdown-arrow" aria-hidden="true" />
+                </button>
+
+                <ul className={dropOpen ? 'dropdown-menu show' : 'dropdown-menu'}>
+                  {user.isAdmin ? (
+                    <li><Link to="/admin">Администрирование</Link></li>
+                  ) : null}
+                  <li><Link to="/plan">Мой тариф</Link></li>
+                  <li><Link to="/profile">Настройки</Link></li>
+                  <li>
+                    <button className="dropdown-menu__danger" type="button" onClick={logout}>
+                      Выйти
+                    </button>
+                  </li>
+                </ul>
+              </li>
+            </>
+          ) : (
+            <li>
+              <Link className="btn btn-primary btn-sm header__cta" to="/login">Войти</Link>
+            </li>
+          )}
+        </ul>
       </nav>
 
       {/* На узком экране слайдер темы лежит в бургер-меню, а не рядом с
@@ -133,18 +233,30 @@ export function Header(): ReactElement {
         <ThemeSwitch theme={theme} toggle={toggle} />
       </span>
 
+      {/* Крестик собирается из тех же трёх полосок: средняя гаснет,
+          крайние съезжаются к середине и разворачиваются навстречу.
+          Подменить значок на «✕» значило бы не показать превращение. */}
       <button
-        className="hamburger btn-tool"
+        ref={burger}
+        className={mobileOpen ? 'hamburger is-open' : 'hamburger'}
         type="button"
         onClick={() => setMobileOpen((current) => !current)}
         aria-expanded={mobileOpen}
         aria-controls="navbar"
         aria-label={mobileOpen ? 'Закрыть меню' : 'Открыть меню'}
       >
-        <IconMenu />
+        <span className="hamburger-box" aria-hidden="true">
+          <span className="hamburger-bar" />
+          <span className="hamburger-bar" />
+          <span className="hamburger-bar" />
+        </span>
       </button>
 
-      <div id="navbar" className={mobileOpen ? 'navbar navbar--show' : 'navbar'}>
+      <div
+        id="navbar"
+        ref={panel}
+        className={mobileOpen ? 'navbar navbar--show' : 'navbar'}
+      >
         <ul>
           {user ? (
             <>
@@ -154,12 +266,15 @@ export function Header(): ReactElement {
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
               <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
               <li className={cabinetOpen ? 'navbar-dropdown navbar-dropdown--active' : 'navbar-dropdown'}>
-                <div
+                <button
                   className="navbar-dropdown__toggle"
+                  type="button"
+                  aria-expanded={cabinetOpen}
                   onClick={() => setCabinetOpen((current) => !current)}
                 >
                   Личный кабинет
-                </div>
+                  <span className="navbar-dropdown__arrow" aria-hidden="true" />
+                </button>
                 <ul className="navbar-submenu">
                   {user.isAdmin ? (
                     <li><Link to="/admin" onClick={closeMobile}>Администрирование</Link></li>
