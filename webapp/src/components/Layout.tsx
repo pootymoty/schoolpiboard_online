@@ -112,6 +112,9 @@ export function Header(): ReactElement {
           <>
             <NavLink to="/boards">Мои доски</NavLink>
             <Menu label="Личный кабинет" trigger="Личный кабинет" triggerClassName="header__menu">
+              {user.isAdmin ? (
+                <Link className="btn btn-quiet menu__item" to="/admin">Администрирование</Link>
+              ) : null}
               <Link className="btn btn-quiet menu__item" to="/plan">Мой тариф</Link>
               <Link className="btn btn-quiet menu__item" to="/profile">Настройки</Link>
               <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={logout}>
@@ -158,6 +161,9 @@ export function Header(): ReactElement {
                   Личный кабинет
                 </div>
                 <ul className="navbar-submenu">
+                  {user.isAdmin ? (
+                    <li><Link to="/admin" onClick={closeMobile}>Администрирование</Link></li>
+                  ) : null}
                   <li><Link to="/plan" onClick={closeMobile}>Мой тариф</Link></li>
                   <li><Link to="/profile" onClick={closeMobile}>Настройки</Link></li>
                   <li>
@@ -194,15 +200,18 @@ export function Footer(): ReactElement {
     <footer className="app__footer">
       <div className="row">
         <Link to="/legal/terms">Соглашение</Link>
-        <Link to="/legal/privacy">Персональные данные</Link>
-        <Link to="/legal/consent">Согласие на обработку</Link>
         <Link to="/legal/offer">Оферта</Link>
+        <Link to="/legal/privacy">Персональные данные</Link>
         <Link to="/about">Контакты</Link>
       </div>
+
+      {/* В подвале — кто продавец и куда писать. Статус, ИНН и прочие
+          реквизиты живут в документах, куда ведут ссылки выше: в подвале
+          они превращают строку в выписку из реестра. */}
       <p className="small" style={{ margin: 0 }}>
         {HAS_COMPANY_DETAILS
-          ? `SchoolPiBoard · ${COMPANY.name}, ${COMPANY.status}, ИНН ${COMPANY.inn} · ${COMPANY.email}`
-          : 'SchoolPiBoard · board.school-pi.online · ЗАГЛУШКА: реквизиты продавца'}
+          ? `SchoolPiBoard · ${COMPANY.name} · ${COMPANY.email}`
+          : 'SchoolPiBoard · board.school-pi.online'}
       </p>
     </footer>
   );

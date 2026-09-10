@@ -26,6 +26,22 @@ public class User
     /// </summary>
     public bool EmailConfirmed { get; set; }
 
+    /// <summary>
+    /// Роль в сервисе.
+    ///
+    /// Их две: обычный человек и владелец сервиса. Роль не выдаётся из
+    /// интерфейса и не покупается — она берётся из списка адресов в
+    /// настройках службы. Так у неё нет пути «внутрь»: тот, кто взломал
+    /// чужую учётную запись, администратором от этого не станет.
+    /// </summary>
+    public string Role { get; set; } = RoleUser;
+
+    public const string RoleUser = "user";
+
+    public const string RoleAdmin = "admin";
+
+    public bool IsAdmin => Role == RoleAdmin;
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime? LastSeenAt { get; set; }

@@ -1986,3 +1986,94 @@ body.no-scroll {
     font-size: var(--fs-xs);
     font-variant-numeric: tabular-nums;
 }
+
+/* --- Панель владельца сервиса --------------------------------------------- */
+
+.admin__tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-4);
+}
+
+.admin__tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--sp-3);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.admin__tile-value {
+    font-family: var(--font-head);
+    font-size: var(--fs-h3);
+    font-weight: 700;
+}
+
+.admin__tile-title {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.admin__search {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-3);
+}
+
+.admin__search .input { flex: 1; }
+
+.admin__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-sm);
+}
+
+.admin__table th,
+.admin__table td {
+    padding: var(--sp-2);
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+}
+
+.admin__table th {
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted);
+}
+
+/* Имя и почта в одной ячейке столбиком: два столбца ради этого не стоят
+   ширины, а искать человека удобнее, видя оба сразу. */
+.admin__who {
+    display: block;
+    font-weight: 600;
+}
+
+/* Удалённая запись остаётся в списке: по ней ещё живут чужие доски. */
+.admin__row--gone { opacity: .55; }
+
+.admin__mark {
+    display: inline-block;
+    margin-left: var(--sp-1);
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.admin__pager {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-top: var(--sp-3);
+}

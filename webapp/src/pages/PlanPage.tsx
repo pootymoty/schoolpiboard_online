@@ -266,6 +266,11 @@ export function PlanPage(): ReactElement {
               <p className="text-muted">Без срока.</p>
             ) : null}
 
+            {/* Владельцу сервиса покупать нечего: пределов у него нет. */}
+            {mine.kind === 'admin' ? (
+              <p className="text-muted">Без ограничений и без срока.</p>
+            ) : null}
+
             {mine.upcoming.length > 0 ? (
               <div className="note note-info" style={{ marginTop: 'var(--sp-3)' }}>
                 <p style={{ margin: '0 0 var(--sp-2)' }}><strong>Дальше</strong></p>
@@ -341,6 +346,7 @@ export function PlanPage(): ReactElement {
             </section>
           ) : null}
 
+          {mine.kind === 'admin' ? null : (
           <section className="card">
             <h2 className="card-title">{mine.kind === 'free' ? 'Выбрать тариф' : 'Продлить или сменить'}</h2>
 
@@ -462,6 +468,7 @@ export function PlanPage(): ReactElement {
 
             <Link className="btn btn-quiet btn-sm" to="/pricing">Сравнить тарифы</Link>
           </section>
+          )}
 
           {orders.length > 0 ? (
             <section className="card">

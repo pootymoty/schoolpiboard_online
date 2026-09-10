@@ -50,6 +50,7 @@ public class AppDbContext : DbContext
             entity.Property(x => x.DisplayName).HasColumnName("display_name").IsRequired();
             entity.Property(x => x.ExternalId).HasColumnName("external_id");
             entity.Property(x => x.EmailConfirmed).HasColumnName("email_confirmed").HasDefaultValue(false);
+            entity.Property(x => x.Role).HasColumnName("role").IsRequired().HasDefaultValue(User.RoleUser);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.LastSeenAt).HasColumnName("last_seen_at");
             entity.Property(x => x.DeletedAt).HasColumnName("deleted_at");

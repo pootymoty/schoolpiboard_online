@@ -125,6 +125,27 @@ public sealed class AccountService
         return new AccountResult(AccountOutcome.Ok, record.User);
     }
 
+    /// <summary>
+    /// Приводит роль в соответствие со списком владельцев из настроек.
+    ///
+    /// Сверяется при каждом входе, а не однажды при создании: адрес могли
+    /// добавить в список позже, а могли и убрать — и тогда роль должна
+    /// уйти вместе с ним, без похода в базу руками.
+    /// </summary>
+    private async Task SyncRoleAsync(User user, CancellationToken cancellationToken)
+    {
+        var wanted = _options.AdminEmails.Contains(user.Email)
+            ? User.RoleAdmin
+            : User.RoleUser;
+
+        if (user.Role == wanted) return;
+
+        user.Role = wanted;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Роль учётной записи {UserId} теперь {Role}.", user.Id, wanted);
+    }
+
     public async Task<AccountResult> LoginAsync(string? email, string? password, CancellationToken cancellationToken)
     {
         var address = NormalizeEmail(email);
@@ -148,6 +169,8 @@ public sealed class AccountService
 
         user.LastSeenAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+
+        await SyncRoleAsync(user, cancellationToken);
 
         return new AccountResult(AccountOutcome.Ok, user);
     }

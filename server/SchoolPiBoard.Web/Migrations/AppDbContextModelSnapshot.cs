@@ -102,6 +102,13 @@ namespace SchoolPiBoard.Web.Migrations
                         .HasColumnType("text")
                         .HasColumnName("external_id");
 
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("user")
+                        .HasColumnName("role");
+
                     b.Property<DateTime?>("LastSeenAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_seen_at");

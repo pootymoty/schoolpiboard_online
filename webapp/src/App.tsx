@@ -19,6 +19,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { BoardPage } from './pages/BoardPage';
 import { JoinPage } from './pages/JoinPage';
 import { LegalPage } from './pages/LegalPage';
+import { AdminPage } from './pages/AdminPage';
 
 /**
  * Заголовок и описание вкладки при переходах.
@@ -54,6 +55,7 @@ export function App(): ReactElement {
           потому что на доску пускают гостя, у которого учётной записи нет
           и не будет. */}
       <Route path="/legal/:page" element={<LegalPage />} />
+      <Route path="/admin" element={<AdminPage />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/features" element={<FeaturesPage />} />

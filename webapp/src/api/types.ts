@@ -3,6 +3,8 @@ export interface User {
   id: number;
   email: string;
   displayName: string;
+  /** Владелец сервиса. Показывает пункт меню; доступ решает сервер. */
+  isAdmin: boolean;
 }
 
 export interface AuthResponse {
@@ -133,7 +135,7 @@ export interface Upcoming {
 
 export interface MyPlan {
   plan: Plan;
-  kind: 'free' | 'trial' | 'paid';
+  kind: 'free' | 'trial' | 'paid' | 'admin';
   until: string | null;
   autoRenew: boolean;
 

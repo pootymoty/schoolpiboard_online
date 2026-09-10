@@ -15,7 +15,12 @@ public sealed record ResetPasswordRequest(string? Token, string? Password, strin
 public sealed record UpdateProfileRequest(string? DisplayName);
 public sealed record DeleteAccountRequest(string? Password);
 
-public sealed record UserDto(long Id, string Email, string DisplayName);
+/// <summary>
+/// Учётная запись в том виде, в каком её видит браузер. <c>IsAdmin</c>
+/// нужен, чтобы показать пункт «Администрирование»; сам доступ он не
+/// открывает — роль проверяется на каждом запросе к панели.
+/// </summary>
+public sealed record UserDto(long Id, string Email, string DisplayName, bool IsAdmin);
 
 public static class AuthEndpoints
 {
@@ -148,7 +153,7 @@ public static class AuthEndpoints
         }).RequireAuthorization();
     }
 
-    public static UserDto ToDto(User user) => new(user.Id, user.Email, user.DisplayName);
+    public static UserDto ToDto(User user) => new(user.Id, user.Email, user.DisplayName, user.IsAdmin);
 
     public static async Task<User?> CurrentUser(ClaimsPrincipal principal, AppDbContext db, CancellationToken cancellationToken)
     {

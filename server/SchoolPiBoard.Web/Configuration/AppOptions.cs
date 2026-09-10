@@ -50,6 +50,16 @@ public sealed class AppOptions
     /// </summary>
     public required string FilesDir { get; init; }
 
+    /// <summary>
+    /// Адреса владельцев сервиса, в нижнем регистре.
+    ///
+    /// Роль администратора берётся отсюда, а не из базы: список лежит
+    /// рядом с паролями службы, и добраться до него можно только с
+    /// сервера. Через интерфейс роль не выдаётся вовсе — иначе взлом
+    /// одной учётной записи открывал бы весь сервис.
+    /// </summary>
+    public required string[] AdminEmails { get; init; }
+
     public required int TrialDays { get; init; }
     public required int GraceDays { get; init; }
 
@@ -104,6 +114,12 @@ public sealed class AppOptions
             FilesDir = configuration["FILES_DIR"]?.Trim() is { Length: > 0 } dir
                 ? dir.TrimEnd('/')
                 : "/var/lib/schoolpiboard/files",
+
+            AdminEmails = (configuration["ADMIN_EMAILS"] ?? string.Empty)
+                .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(x => x.ToLowerInvariant())
+                .Distinct()
+                .ToArray(),
 
             TrialDays = Number("TRIAL_DAYS", 7),
             GraceDays = Number("GRACE_DAYS", 60)

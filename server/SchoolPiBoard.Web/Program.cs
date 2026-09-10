@@ -126,6 +126,7 @@ app.MapBoardEndpoints();
 app.MapFileEndpoints();
 app.MapTemplateEndpoints();
 app.MapSummaryEndpoints();
+app.MapAdminEndpoints();
 app.MapBillingEndpoints();
 
 // Без RequireAuthorization: на доску пускают и гостя, у которого учётной

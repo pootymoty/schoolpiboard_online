@@ -5,7 +5,7 @@ import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server.mjs";
 import { createContext, useState, useCallback, useEffect, useMemo, useContext, useRef, useLayoutEffect } from "react";
-import { useLocation, Link, NavLink, useNavigate, useSearchParams, useParams, Routes, Route, Navigate } from "react-router-dom";
+import { useLocation, Link, NavLink, useNavigate, useSearchParams, useParams, Navigate, Routes, Route } from "react-router-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 const API_URL = "http://localhost:5000";
 const TOKEN_KEY = "schoolpiboard.token";
@@ -489,6 +489,7 @@ function Header() {
       user ? /* @__PURE__ */ jsxs(Fragment, { children: [
         /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }),
         /* @__PURE__ */ jsxs(Menu, { label: "Личный кабинет", trigger: "Личный кабинет", triggerClassName: "header__menu", children: [
+          user.isAdmin ? /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet menu__item", to: "/admin", children: "Администрирование" }) : null,
           /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet menu__item", to: "/plan", children: "Мой тариф" }),
           /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet menu__item", to: "/profile", children: "Настройки" }),
           /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: logout, children: "Выйти" })
@@ -524,6 +525,7 @@ function Header() {
           }
         ),
         /* @__PURE__ */ jsxs("ul", { className: "navbar-submenu", children: [
+          user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/admin", onClick: closeMobile, children: "Администрирование" }) }) : null,
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", onClick: closeMobile, children: "Мой тариф" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", onClick: closeMobile, children: "Настройки" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: () => {
@@ -547,12 +549,11 @@ function Footer() {
   return /* @__PURE__ */ jsxs("footer", { className: "app__footer", children: [
     /* @__PURE__ */ jsxs("div", { className: "row", children: [
       /* @__PURE__ */ jsx(Link, { to: "/legal/terms", children: "Соглашение" }),
-      /* @__PURE__ */ jsx(Link, { to: "/legal/privacy", children: "Персональные данные" }),
-      /* @__PURE__ */ jsx(Link, { to: "/legal/consent", children: "Согласие на обработку" }),
       /* @__PURE__ */ jsx(Link, { to: "/legal/offer", children: "Оферта" }),
+      /* @__PURE__ */ jsx(Link, { to: "/legal/privacy", children: "Персональные данные" }),
       /* @__PURE__ */ jsx(Link, { to: "/about", children: "Контакты" })
     ] }),
-    /* @__PURE__ */ jsx("p", { className: "small", style: { margin: 0 }, children: HAS_COMPANY_DETAILS ? `SchoolPiBoard · ${COMPANY.name}, ${COMPANY.status}, ИНН ${COMPANY.inn} · ${COMPANY.email}` : "SchoolPiBoard · board.school-pi.online · ЗАГЛУШКА: реквизиты продавца" })
+    /* @__PURE__ */ jsx("p", { className: "small", style: { margin: 0 }, children: HAS_COMPANY_DETAILS ? `SchoolPiBoard · ${COMPANY.name} · ${COMPANY.email}` : "SchoolPiBoard · board.school-pi.online" })
   ] });
 }
 function Page({ children, narrow }) {
@@ -1127,7 +1128,7 @@ function PlanPage() {
       setError(reason instanceof ApiError ? reason.message : "Не удалось изменить автопродление.");
     }
   };
-  const day = (value) => new Date(value).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+  const day2 = (value) => new Date(value).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
   const until = (mine == null ? void 0 : mine.until) ? new Date(mine.until).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : null;
   return /* @__PURE__ */ jsxs(Page, { narrow: true, children: [
     /* @__PURE__ */ jsx("div", { className: "page-header", children: /* @__PURE__ */ jsx("h1", { children: "Мой тариф" }) }),
@@ -1148,14 +1149,15 @@ function PlanPage() {
           "."
         ] }) : null,
         mine.kind === "free" ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Без срока." }) : null,
+        mine.kind === "admin" ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Без ограничений и без срока." }) : null,
         mine.upcoming.length > 0 ? /* @__PURE__ */ jsxs("div", { className: "note note-info", style: { marginTop: "var(--sp-3)" }, children: [
           /* @__PURE__ */ jsx("p", { style: { margin: "0 0 var(--sp-2)" }, children: /* @__PURE__ */ jsx("strong", { children: "Дальше" }) }),
           mine.upcoming.map((next) => /* @__PURE__ */ jsxs("p", { style: { margin: "0 0 4px" }, children: [
             next.planName,
             " — с ",
-            day(next.startsAt),
+            day2(next.startsAt),
             " до ",
-            day(next.endsAt)
+            day2(next.endsAt)
           ] }, next.startsAt)),
           mine.canStartUpcomingNow ? /* @__PURE__ */ jsx(
             "button",
@@ -1218,7 +1220,7 @@ function PlanPage() {
           /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Списание за сутки до конца срока. Письмо — за трое суток до него." })
         ] }) : /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Доступно при следующей оплате." })
       ] }) : null,
-      /* @__PURE__ */ jsxs("section", { className: "card", children: [
+      mine.kind === "admin" ? null : /* @__PURE__ */ jsxs("section", { className: "card", children: [
         /* @__PURE__ */ jsx("h2", { className: "card-title", children: mine.kind === "free" ? "Выбрать тариф" : "Продлить или сменить" }),
         plans.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем тарифы…" }) : /* @__PURE__ */ jsxs(Fragment, { children: [
           /* @__PURE__ */ jsx("p", { className: "params__label", children: "Тариф" }),
@@ -1277,7 +1279,7 @@ function PlanPage() {
           chosen && mine && mine.kind !== "free" && !upgrade ? /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
             "Начнётся",
             " ",
-            mine.upcoming.length > 0 ? day(mine.upcoming[mine.upcoming.length - 1].endsAt) : until ?? "после текущего срока"
+            mine.upcoming.length > 0 ? day2(mine.upcoming[mine.upcoming.length - 1].endsAt) : until ?? "после текущего срока"
           ] }) : null,
           /* @__PURE__ */ jsxs("div", { className: "check", style: { marginTop: "var(--sp-3)" }, children: [
             /* @__PURE__ */ jsx(
@@ -1336,7 +1338,7 @@ function PlanPage() {
             "Счёт № ",
             order.invoiceId,
             " от ",
-            day(order.createdAt),
+            day2(order.createdAt),
             " · ",
             order.status === "paid" ? "оплачен" : null,
             order.status === "pending" ? "ожидает оплаты" : null,
@@ -8259,7 +8261,7 @@ const TERMS = {
 };
 const PRIVACY = {
   title: "Политика в отношении обработки персональных данных",
-  lead: "Политика составлена в соответствии с требованиями Федерального закона от 27.07.2006 № 152-ФЗ «О персональных данных» и определяет порядок обработки персональных данных и меры по обеспечению их безопасности, предпринимаемые Оператором.",
+  lead: "Политика составлена в соответствии с требованиями Федерального закона от 27.07.2006 № 152-ФЗ «О персональных данных» и определяет порядок обработки персональных данных и меры по обеспечению их безопасности, предпринимаемые Оператором. Политика отвечает на вопрос, что Оператор делает с данными; то, на что даёт разрешение сам пользователь, изложено отдельным документом — «Согласие на обработку персональных данных».",
   sections: [
     {
       title: "1. Сведения об Операторе",
@@ -8355,7 +8357,7 @@ const PRIVACY = {
 };
 const CONSENT = {
   title: "Согласие на обработку персональных данных",
-  lead: "Согласие даётся при создании учётной записи и действует, пока учётная запись существует. Отозвать его можно в любой момент — как именно, сказано в разделе 6.",
+  lead: "Согласие даётся при создании учётной записи и действует, пока учётная запись существует. Отозвать его можно в любой момент — как именно, сказано в разделе 6. Порядок обработки и меры защиты изложены отдельным документом — «Политика в отношении обработки персональных данных».",
   sections: [
     {
       title: "1. Кому даётся согласие",
@@ -8456,6 +8458,191 @@ function LegalPage() {
     ] })
   ] }) });
 }
+function adminStats() {
+  return api("/admin/stats");
+}
+function adminUsers(query, page, size, signal) {
+  const search = new URLSearchParams({ query, page: String(page), size: String(size) });
+  return api(`/admin/users?${search.toString()}`, { signal });
+}
+function adminOrders(userId) {
+  return api(`/admin/users/${userId}/orders`);
+}
+const SIZE = 20;
+const TYPING_MS = 250;
+function day(value) {
+  return value ? new Date(value).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "2-digit" }) : "—";
+}
+function Tile({ title, value }) {
+  return /* @__PURE__ */ jsxs("div", { className: "admin__tile", children: [
+    /* @__PURE__ */ jsx("span", { className: "admin__tile-value", children: value }),
+    /* @__PURE__ */ jsx("span", { className: "admin__tile-title", children: title })
+  ] });
+}
+function AdminPage() {
+  const { user, loading: loading2 } = useAuth();
+  const [stats, setStats] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [open, setOpen] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const pending = useRef(null);
+  const load = useCallback((search, at) => {
+    var _a;
+    (_a = pending.current) == null ? void 0 : _a.abort();
+    const control = new AbortController();
+    pending.current = control;
+    setBusy(true);
+    adminUsers(search, at, SIZE, control.signal).then((answer) => {
+      setRows(answer.users);
+      setTotal(answer.total);
+      setError(null);
+    }).catch((reason) => {
+      if (control.signal.aborted) return;
+      setError(reason instanceof ApiError ? reason.message : "Не удалось прочитать список.");
+    }).finally(() => {
+      if (!control.signal.aborted) setBusy(false);
+    });
+  }, []);
+  useEffect(() => {
+    if (!(user == null ? void 0 : user.isAdmin)) return void 0;
+    const timer = window.setTimeout(() => load(query, page), TYPING_MS);
+    return () => window.clearTimeout(timer);
+  }, [query, page, load, user == null ? void 0 : user.isAdmin]);
+  useEffect(() => {
+    if (!(user == null ? void 0 : user.isAdmin)) return;
+    adminStats().then(setStats).catch(() => void 0);
+  }, [user == null ? void 0 : user.isAdmin]);
+  const show = (userId) => {
+    if (open === userId) {
+      setOpen(null);
+      return;
+    }
+    setOpen(userId);
+    setOrders([]);
+    adminOrders(userId).then(setOrders).catch(() => setOrders([]));
+  };
+  if (loading2) return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) });
+  if (!(user == null ? void 0 : user.isAdmin)) return /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true });
+  const pages = Math.max(1, Math.ceil(total / SIZE));
+  return /* @__PURE__ */ jsxs(Page, { children: [
+    /* @__PURE__ */ jsx("div", { className: "page-header", children: /* @__PURE__ */ jsx("h1", { children: "Администрирование" }) }),
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    stats ? /* @__PURE__ */ jsxs("div", { className: "admin__tiles", children: [
+      /* @__PURE__ */ jsx(Tile, { title: "Учётных записей", value: String(stats.users) }),
+      /* @__PURE__ */ jsx(Tile, { title: "Почта подтверждена", value: String(stats.confirmed) }),
+      /* @__PURE__ */ jsx(Tile, { title: "Платных подписок", value: String(stats.active) }),
+      /* @__PURE__ */ jsx(Tile, { title: "Пробных", value: String(stats.trials) }),
+      /* @__PURE__ */ jsx(Tile, { title: "Досок", value: String(stats.boards) }),
+      /* @__PURE__ */ jsx(Tile, { title: "Покупок за 30 дней", value: String(stats.paidMonth) }),
+      /* @__PURE__ */ jsx(Tile, { title: "Выручка за 30 дней", value: `${stats.revenueMonth} ₽` }),
+      /* @__PURE__ */ jsx(Tile, { title: "Выручка всего", value: `${stats.revenueTotal} ₽` }),
+      /* @__PURE__ */ jsx(Tile, { title: "Счетов ждёт оплаты", value: String(stats.pending) }),
+      /* @__PURE__ */ jsx(Tile, { title: "Счетов брошено", value: String(stats.abandoned) })
+    ] }) : null,
+    /* @__PURE__ */ jsxs("section", { className: "card", children: [
+      /* @__PURE__ */ jsxs("div", { className: "admin__search", children: [
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            className: "input",
+            type: "search",
+            value: query,
+            placeholder: "Имя или почта",
+            onChange: (event) => {
+              setQuery(event.target.value);
+              setPage(1);
+            }
+          }
+        ),
+        /* @__PURE__ */ jsx("span", { className: "text-muted small", children: busy ? "Ищем…" : `Найдено: ${total}` })
+      ] }),
+      /* @__PURE__ */ jsx("div", { className: "table-scroll", children: /* @__PURE__ */ jsxs("table", { className: "admin__table", children: [
+        /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { children: [
+          /* @__PURE__ */ jsx("th", { children: "Кто" }),
+          /* @__PURE__ */ jsx("th", { children: "Тариф" }),
+          /* @__PURE__ */ jsx("th", { children: "До" }),
+          /* @__PURE__ */ jsx("th", { children: "Досок" }),
+          /* @__PURE__ */ jsx("th", { children: "Покупок" }),
+          /* @__PURE__ */ jsx("th", { children: "Всего" }),
+          /* @__PURE__ */ jsx("th", {})
+        ] }) }),
+        /* @__PURE__ */ jsxs("tbody", { children: [
+          rows.map((one) => /* @__PURE__ */ jsxs("tr", { className: one.deletedAt ? "admin__row--gone" : void 0, children: [
+            /* @__PURE__ */ jsxs("td", { children: [
+              /* @__PURE__ */ jsxs("span", { className: "admin__who", children: [
+                one.displayName,
+                one.isAdmin ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "админ" }) : null,
+                one.deletedAt ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "удалён" }) : null,
+                !one.emailConfirmed && !one.deletedAt ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "почта не подтверждена" }) : null
+              ] }),
+              /* @__PURE__ */ jsx("span", { className: "text-muted small", children: one.email })
+            ] }),
+            /* @__PURE__ */ jsx("td", { children: one.planName }),
+            /* @__PURE__ */ jsxs("td", { children: [
+              day(one.until),
+              one.autoRenew ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "продление" }) : null
+            ] }),
+            /* @__PURE__ */ jsx("td", { children: one.boards }),
+            /* @__PURE__ */ jsx("td", { children: one.paid }),
+            /* @__PURE__ */ jsxs("td", { children: [
+              one.spent,
+              " ₽"
+            ] }),
+            /* @__PURE__ */ jsx("td", { children: /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => show(one.id), children: open === one.id ? "Скрыть" : "Покупки" }) })
+          ] }, one.id)),
+          open !== null ? /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsx("td", { colSpan: 7, children: orders.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: 0 }, children: "Покупок нет." }) : /* @__PURE__ */ jsx("div", { className: "stack", children: orders.map((order) => /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: 0 }, children: [
+            day(order.createdAt),
+            " · ",
+            order.planName,
+            ", ",
+            order.days,
+            " дн. — ",
+            order.amount,
+            " ₽",
+            " · ",
+            order.status === "paid" ? `оплачен ${day(order.paidAt)}` : "не оплачен",
+            order.autoRenew ? " · с продлением" : "",
+            " · счёт № ",
+            order.invoiceId
+          ] }, order.invoiceId)) }) }) }) : null,
+          rows.length === 0 && !busy ? /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsx("td", { colSpan: 7, children: /* @__PURE__ */ jsx("span", { className: "text-muted", children: "Никого не нашлось." }) }) }) : null
+        ] })
+      ] }) }),
+      pages > 1 ? /* @__PURE__ */ jsxs("div", { className: "admin__pager", children: [
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-quiet btn-sm",
+            type: "button",
+            disabled: page <= 1,
+            onClick: () => setPage((current) => current - 1),
+            children: "Назад"
+          }
+        ),
+        /* @__PURE__ */ jsxs("span", { className: "text-muted small", children: [
+          page,
+          " из ",
+          pages
+        ] }),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-quiet btn-sm",
+            type: "button",
+            disabled: page >= pages,
+            onClick: () => setPage((current) => current + 1),
+            children: "Вперёд"
+          }
+        )
+      ] }) : null
+    ] })
+  ] });
+}
 function useDocumentMeta() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -8473,6 +8660,7 @@ function App() {
   }
   return /* @__PURE__ */ jsxs(Routes, { children: [
     /* @__PURE__ */ jsx(Route, { path: "/legal/:page", element: /* @__PURE__ */ jsx(LegalPage, {}) }),
+    /* @__PURE__ */ jsx(Route, { path: "/admin", element: /* @__PURE__ */ jsx(AdminPage, {}) }),
     /* @__PURE__ */ jsx(Route, { path: "/about", element: /* @__PURE__ */ jsx(AboutPage, {}) }),
     /* @__PURE__ */ jsx(Route, { path: "/pricing", element: /* @__PURE__ */ jsx(PricingPage, {}) }),
     /* @__PURE__ */ jsx(Route, { path: "/features", element: /* @__PURE__ */ jsx(FeaturesPage, {}) }),

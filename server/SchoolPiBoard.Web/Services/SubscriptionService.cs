@@ -47,9 +47,35 @@ public sealed class SubscriptionService
     /// поверх оплаченной), берётся та, что кончается позже: человек
     /// заплатил за большее, и отдать ему меньшее было бы обманом.
     /// </summary>
+    /// <summary>
+    /// Пределы владельца сервиса.
+    ///
+    /// Тариф ему не продают и не выдают: он не покупатель, а тот, кто
+    /// отвечает за сервис, — и запись в таблице подписок означала бы, что
+    /// однажды у неё кончится срок. Проще назвать пределы прямо здесь.
+    /// </summary>
+    private static Plan AdminPlan() => new()
+    {
+        Id = 0,
+        Code = "admin",
+        Name = "Владелец сервиса",
+        Sort = 1000,
+        MaxBoards = int.MaxValue,
+        MaxParticipants = int.MaxValue,
+        MaxStorageBytes = long.MaxValue,
+        HasLibrary = true,
+    };
+
     public async Task<Access> AccessAsync(long userId, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
+
+        var admin = await _db.Users
+            .Where(x => x.Id == userId)
+            .Select(x => x.Role)
+            .FirstOrDefaultAsync(cancellationToken) == User.RoleAdmin;
+
+        if (admin) return new Access(AdminPlan(), null);
 
         var current = await CurrentAsync(userId, now, cancellationToken);
 
