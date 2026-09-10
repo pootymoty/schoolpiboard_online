@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import type { BoardHub } from './useBoardHub';
 import type { Background, ItemData, ItemType, Point } from './protocol';
@@ -272,26 +272,44 @@ export function BoardCanvas({
     };
   }, []);
 
-  /** Полная перерисовка. */
-  const redraw = useCallback(() => {
-    const element = canvas.current;
-    const context = element?.getContext('2d');
-    if (!element || !context) return;
+  /**
+   * Подложка: фон, разлиновка и всё уже нарисованное.
+   *
+   * Отдельным холстом, потому что во время штриха она не меняется —
+   * а перерисовывать под каждым движением пера доску с сотней объектов
+   * значит отставать от руки. Пока ведут линию, подложку только
+   * копируют, а заново собирают лишь когда на доске что-то изменилось.
+   */
+  const base = useRef<HTMLCanvasElement | null>(null);
+  const baseStale = useRef(true);
 
-    const ratio = window.devicePixelRatio || 1;
+  const paintBase = useCallback((width: number, height: number, ratio: number) => {
+    const sheet = base.current ?? (base.current = document.createElement('canvas'));
+
+    if (sheet.width !== width || sheet.height !== height) {
+      sheet.width = width;
+      sheet.height = height;
+      baseStale.current = true;
+    }
+
+    if (!baseStale.current) return sheet;
+
+    const context = sheet.getContext('2d');
+    if (!context) return sheet;
+
     const view = latest.current.viewport;
 
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.clearRect(0, 0, element.width, element.height);
+    context.clearRect(0, 0, sheet.width, sheet.height);
 
     // Фон и разлиновка — в экранных координатах, до преобразования мира.
-    const view0 = latest.current.background;
-    context.fillStyle = view0.background;
-    context.fillRect(0, 0, element.width / ratio, element.height / ratio);
+    const paper = latest.current.background;
+    context.fillStyle = paper.background;
+    context.fillRect(0, 0, sheet.width / ratio, sheet.height / ratio);
 
     drawGrid(
-      context, view0.gridStyle, view0.gridColor,
-      element.width / ratio, element.height / ratio,
+      context, paper.gridStyle, paper.gridColor,
+      sheet.width / ratio, sheet.height / ratio,
       view.x, view.y, view.scale,
     );
 
@@ -319,6 +337,67 @@ export function BoardCanvas({
 
       drawItem(context, item.type, shifted, item.imageRef);
     }
+
+    baseStale.current = false;
+    return sheet;
+  }, [hub.items]);
+
+  /**
+   * Курсор рисующего инструмента: кружок того цвета и того размера,
+   * каким ляжет след.
+   *
+   * Стрелка или перекрестье не говорят ни о толщине, ни о цвете, и
+   * подобрать перо под клетку можно было только пробным штрихом.
+   * Размер ограничен: курсор крупнее сотни точек браузеры не показывают
+   * вовсе, и вместо кружка человек получил бы стрелку.
+   */
+  const cursor = useMemo(() => {
+    if (tool === 'hand' || spaceHeld || !hub.canEdit || tool === 'select' || tool === 'text') {
+      return undefined;
+    }
+
+    const paint = tool === 'pen1' || tool === 'pen2' || tool === 'marker' ? settings[tool] : null;
+    const size = (paint ? paint.width : settings.eraser.size) * viewport.scale;
+
+    const side = Math.max(8, Math.min(96, Math.round(size)));
+    const half = side / 2;
+    const color = paint ? paint.color : '#8C8C99';
+    const fill = paint ? Math.min(0.55, (paint.opacity / 100) * 0.55) : 0.12;
+
+    const circle = `<circle cx="${half}" cy="${half}" r="${half - 2}"`;
+
+    // Белая обводка снаружи, цветная внутри: на тёмной доске одна
+    // цветная теряется, на светлой — одна белая.
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${side}" height="${side}">`
+      + `${circle} fill="${color}" fill-opacity="${fill}" stroke="#ffffff" stroke-opacity=".85" stroke-width="3"/>`
+      + `${circle} fill="none" stroke="${color}" stroke-opacity=".95" stroke-width="1.5"/>`
+      + '</svg>';
+
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(half)} ${Math.round(half)}, crosshair`;
+  }, [tool, spaceHeld, hub.canEdit, settings, viewport.scale]);
+
+  /** Полная перерисовка. */
+  const redraw = useCallback(() => {
+    const element = canvas.current;
+    const context = element?.getContext('2d');
+    if (!element || !context) return;
+
+    const ratio = window.devicePixelRatio || 1;
+    const view = latest.current.viewport;
+
+    const sheet = paintBase(element.width, element.height, ratio);
+
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, element.width, element.height);
+    context.drawImage(sheet, 0, 0);
+
+    context.setTransform(
+      ratio * view.scale, 0, 0, ratio * view.scale,
+      ratio * view.x, ratio * view.y,
+    );
+
+    const drag = moving.current;
+    const chosen = new Set(latest.current.selection);
 
     for (const stroke of hub.live.values()) drawItem(context, stroke.type, stroke.data);
 
@@ -363,9 +442,17 @@ export function BoardCanvas({
         context.restore();
       }
     }
-  }, [hub.items, hub.live]);
+  }, [hub.items, hub.live, paintBase]);
 
-  const schedule = useCallback(() => {
+  /**
+   * Просит перерисовку к следующему кадру.
+   *
+   * `fresh` означает «подложка изменилась»: подвинулся вид, пришёл чужой
+   * объект, тащат выделенное. Во время своего штриха она не меняется, и
+   * тогда кадр обходится копией готовой картинки.
+   */
+  const schedule = useCallback((fresh = true) => {
+    if (fresh) baseStale.current = true;
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(redraw);
   }, [redraw]);
@@ -423,6 +510,29 @@ export function BoardCanvas({
       // Нажим есть только у пера. У мыши браузер отдаёт 0.5 при нажатой
       // кнопке — принимать это за половинный нажим значило бы рисовать
       // мышью вдвое тоньше, чем просили.
+      p: event.pointerType === 'pen' ? event.pressure || 0.5 : 1,
+    };
+  };
+
+  /**
+   * Точка из промежуточного события указателя.
+   *
+   * У накопленных событий нет `currentTarget`, поэтому границы холста
+   * берём у самого холста, а не у события.
+   */
+  const coalescedPoint = (event: PointerEvent): Point => {
+    const element = canvas.current;
+    const bounds = element?.getBoundingClientRect();
+
+    const world = toWorld(
+      latest.current.viewport,
+      event.clientX - (bounds?.left ?? 0),
+      event.clientY - (bounds?.top ?? 0),
+    );
+
+    return {
+      x: world.x,
+      y: world.y,
       p: event.pointerType === 'pen' ? event.pressure || 0.5 : 1,
     };
   };
@@ -799,7 +909,8 @@ export function BoardCanvas({
 
     if (latest.current.tool === 'shapes' || latest.current.tool === 'table') {
       stroke.to = snapPoint(shiftAware(event, stroke.from, point), latest.current.settings.select.snap);
-      schedule();
+      // Подложка под фигурой не меняется — перерисовывать доску незачем.
+      schedule(false);
       return;
     }
 
@@ -814,7 +925,18 @@ export function BoardCanvas({
 
     if (event.shiftKey) stroke.straight = true;
 
-    stroke.points.push(point);
+    // Между кадрами браузер накапливает движения и отдаёт их пачкой.
+    // Без них в штрих попадает одна точка на кадр: на быстром росчерке
+    // линия получается ломаной и заметно отстаёт от пера.
+    const coalesced = typeof event.nativeEvent.getCoalescedEvents === 'function'
+      ? event.nativeEvent.getCoalescedEvents()
+      : [];
+
+    if (coalesced.length > 1) {
+      for (const step of coalesced) stroke.points.push(coalescedPoint(step));
+    } else {
+      stroke.points.push(point);
+    }
 
     if (now - lastBatch.current >= POINT_BATCH_MS) {
       lastBatch.current = now;
@@ -826,7 +948,9 @@ export function BoardCanvas({
       if (fresh.length > 0 && !stroke.straight) hub.appendPoints(stroke.tempId, fresh);
     }
 
-    schedule();
+    // Своё перо ведут поверх готовой подложки: кадр обходится копией
+    // картинки и одной линией, а не пересборкой всей доски.
+    schedule(false);
   };
 
   const finish = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -923,10 +1047,12 @@ export function BoardCanvas({
     const brush = drawnBy();
     const geometry = stroke.preview();
 
-    // Тычок без протяжки — это промах, а не объект: не закрепляем.
+    // Фигуру без протяжки не закрепляем — это промах, а не объект. А вот
+    // касание пером или маркером ставит точку: точка — такой же знак, как
+    // линия, ею отмечают вершину, обозначают ноль и ставят запятую.
     const meaningful = brush.type === 'shape' || brush.type === 'table'
       ? Math.hypot(stroke.to.x - stroke.from.x, stroke.to.y - stroke.from.y) > 2
-      : stroke.points.length > 1;
+      : stroke.points.length > 0;
 
     if (meaningful) {
       onCommit(brush.type, { ...brush.data, ...geometry }, stroke.tempId);
@@ -946,7 +1072,7 @@ export function BoardCanvas({
         ref={canvas}
         width={Math.max(1, Math.round(size.width * ratio))}
         height={Math.max(1, Math.round(size.height * ratio))}
-        style={{ width: size.width, height: size.height }}
+        style={{ width: size.width, height: size.height, cursor }}
         className={`canvas-host__surface canvas-host__surface--${panMode ? 'hand' : tool}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import type { BoardItem } from './protocol';
 import type { Bounds } from './geometry';
@@ -36,8 +36,14 @@ interface Props {
 /** Примерная ширина панели — по ней она прижимается к краям холста. */
 const WIDTH = 340;
 
-/** Примерная высота панели — по ней считается, влезает ли она над выделением. */
-const HEIGHT = 60;
+/**
+ * Высота панели до первого измерения.
+ *
+ * Дальше берётся настоящая: панель то в одну строку, то в три — с
+ * палитрой, размерностью таблицы и кнопками, — и по угаданной высоте она
+ * ложилась прямо на маленький объект, который человек только что выбрал.
+ */
+const HEIGHT = 150;
 
 /** Полоса слева, занятая вертикальной панелью инструментов. */
 const LEFT_GUTTER = 72;
@@ -102,12 +108,30 @@ export function SelectionPanel({
    */
   const cap = (text: string) => (docked ? <span className="btn-tool__cap">{text}</span> : null);
 
+  /**
+   * Настоящая высота панели.
+   *
+   * Меряем после отрисовки: состав панели меняется от того, что выбрано,
+   * и заранее её высоту не знает никто. По угаданной панель наезжала на
+   * невысокий объект — тот самый, который только что выбрали.
+   */
+  const panel = useRef<HTMLDivElement | null>(null);
+  const [height, setHeight] = useState(HEIGHT);
+
+  useLayoutEffect(() => {
+    const measured = panel.current?.offsetHeight;
+    if (measured && Math.abs(measured - height) > 1) setHeight(measured);
+  });
+
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
 
+  /** Зазор между панелью и объектом: впритык они читаются как одно целое. */
+  const GAP = 10;
+
   // Над выделением, а если места сверху нет — под ним: иначе панель
   // уезжает за верхний край холста и становится недоступной.
-  const above = corner.y - 8 - HEIGHT >= 8;
+  const above = corner.y - GAP - height >= 8;
 
   // Слева отступаем от вертикальной панели инструментов, снизу — от
   // кнопки участников: панель поверх них хоть и видна, но закрывает то,
@@ -117,16 +141,18 @@ export function SelectionPanel({
     Math.min(corner.x + width / 2, canvas.width - WIDTH / 2 - 8),
   );
 
+  // Снизу панель ставится ниже нижней границы объекта, а не «где-нибудь
+  // под ним»: иначе у невысокого выделения она перекрывала его целиком.
+  const below = corner.y + bounds.height * viewport.scale + GAP;
+
   const top = Math.max(
     8,
-    Math.min(
-      above ? corner.y - 8 - HEIGHT : corner.y + bounds.height * viewport.scale + 8,
-      canvas.height - BOTTOM_GUTTER - HEIGHT,
-    ),
+    Math.min(above ? corner.y - GAP - height : below, canvas.height - BOTTOM_GUTTER - height),
   );
 
   return (
     <div
+      ref={panel}
       className={docked ? 'selection-panel selection-panel--docked' : 'selection-panel'}
       style={docked ? undefined : { left, top, transform: 'translateX(-50%)' }}
       role="toolbar"

@@ -3212,24 +3212,30 @@ function BoardCanvas({
       window.removeEventListener("keyup", up);
     };
   }, []);
-  const redraw = useCallback(() => {
-    var _a;
-    const element = canvas.current;
-    const context = element == null ? void 0 : element.getContext("2d");
-    if (!element || !context) return;
-    const ratio2 = window.devicePixelRatio || 1;
+  const base = useRef(null);
+  const baseStale = useRef(true);
+  const paintBase = useCallback((width, height, ratio2) => {
+    const sheet = base.current ?? (base.current = document.createElement("canvas"));
+    if (sheet.width !== width || sheet.height !== height) {
+      sheet.width = width;
+      sheet.height = height;
+      baseStale.current = true;
+    }
+    if (!baseStale.current) return sheet;
+    const context = sheet.getContext("2d");
+    if (!context) return sheet;
     const view = latest.current.viewport;
     context.setTransform(ratio2, 0, 0, ratio2, 0, 0);
-    context.clearRect(0, 0, element.width, element.height);
-    const view0 = latest.current.background;
-    context.fillStyle = view0.background;
-    context.fillRect(0, 0, element.width / ratio2, element.height / ratio2);
+    context.clearRect(0, 0, sheet.width, sheet.height);
+    const paper = latest.current.background;
+    context.fillStyle = paper.background;
+    context.fillRect(0, 0, sheet.width / ratio2, sheet.height / ratio2);
     drawGrid(
       context,
-      view0.gridStyle,
-      view0.gridColor,
-      element.width / ratio2,
-      element.height / ratio2,
+      paper.gridStyle,
+      paper.gridColor,
+      sheet.width / ratio2,
+      sheet.height / ratio2,
       view.x,
       view.y,
       view.scale
@@ -3250,6 +3256,44 @@ function BoardCanvas({
       const shifted = (grip == null ? void 0 : grip.itemId) === item.id ? grip.data : (spin == null ? void 0 : spin.itemId) === item.id ? spin.data : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
       drawItem(context, item.type, shifted, item.imageRef);
     }
+    baseStale.current = false;
+    return sheet;
+  }, [hub.items]);
+  const cursor = useMemo(() => {
+    if (tool === "hand" || spaceHeld || !hub.canEdit || tool === "select" || tool === "text") {
+      return void 0;
+    }
+    const paint = tool === "pen1" || tool === "pen2" || tool === "marker" ? settings[tool] : null;
+    const size2 = (paint ? paint.width : settings.eraser.size) * viewport.scale;
+    const side = Math.max(8, Math.min(96, Math.round(size2)));
+    const half = side / 2;
+    const color = paint ? paint.color : "#8C8C99";
+    const fill = paint ? Math.min(0.55, paint.opacity / 100 * 0.55) : 0.12;
+    const circle = `<circle cx="${half}" cy="${half}" r="${half - 2}"`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${side}" height="${side}">${circle} fill="${color}" fill-opacity="${fill}" stroke="#ffffff" stroke-opacity=".85" stroke-width="3"/>${circle} fill="none" stroke="${color}" stroke-opacity=".95" stroke-width="1.5"/></svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(half)} ${Math.round(half)}, crosshair`;
+  }, [tool, spaceHeld, hub.canEdit, settings, viewport.scale]);
+  const redraw = useCallback(() => {
+    var _a;
+    const element = canvas.current;
+    const context = element == null ? void 0 : element.getContext("2d");
+    if (!element || !context) return;
+    const ratio2 = window.devicePixelRatio || 1;
+    const view = latest.current.viewport;
+    const sheet = paintBase(element.width, element.height, ratio2);
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, element.width, element.height);
+    context.drawImage(sheet, 0, 0);
+    context.setTransform(
+      ratio2 * view.scale,
+      0,
+      0,
+      ratio2 * view.scale,
+      ratio2 * view.x,
+      ratio2 * view.y
+    );
+    const drag = moving.current;
+    const chosen = new Set(latest.current.selection);
     for (const stroke of hub.live.values()) drawItem(context, stroke.type, stroke.data);
     if (drawing.current) {
       const brush = drawnBy();
@@ -3280,8 +3324,9 @@ function BoardCanvas({
         context.restore();
       }
     }
-  }, [hub.items, hub.live]);
-  const schedule = useCallback(() => {
+  }, [hub.items, hub.live, paintBase]);
+  const schedule = useCallback((fresh = true) => {
+    if (fresh) baseStale.current = true;
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(redraw);
   }, [redraw]);
@@ -3320,6 +3365,20 @@ function BoardCanvas({
       // Нажим есть только у пера. У мыши браузер отдаёт 0.5 при нажатой
       // кнопке — принимать это за половинный нажим значило бы рисовать
       // мышью вдвое тоньше, чем просили.
+      p: event.pointerType === "pen" ? event.pressure || 0.5 : 1
+    };
+  };
+  const coalescedPoint = (event) => {
+    const element = canvas.current;
+    const bounds = element == null ? void 0 : element.getBoundingClientRect();
+    const world = toWorld(
+      latest.current.viewport,
+      event.clientX - ((bounds == null ? void 0 : bounds.left) ?? 0),
+      event.clientY - ((bounds == null ? void 0 : bounds.top) ?? 0)
+    );
+    return {
+      x: world.x,
+      y: world.y,
       p: event.pointerType === "pen" ? event.pressure || 0.5 : 1
     };
   };
@@ -3575,7 +3634,7 @@ function BoardCanvas({
     if (!stroke || stroke.pointerId !== event.pointerId) return;
     if (latest.current.tool === "shapes" || latest.current.tool === "table") {
       stroke.to = snapPoint(shiftAware(event, stroke.from, point), latest.current.settings.select.snap);
-      schedule();
+      schedule(false);
       return;
     }
     const previous = stroke.points[stroke.points.length - 1];
@@ -3585,14 +3644,19 @@ function BoardCanvas({
       stroke.straight = true;
     }
     if (event.shiftKey) stroke.straight = true;
-    stroke.points.push(point);
+    const coalesced = typeof event.nativeEvent.getCoalescedEvents === "function" ? event.nativeEvent.getCoalescedEvents() : [];
+    if (coalesced.length > 1) {
+      for (const step of coalesced) stroke.points.push(coalescedPoint(step));
+    } else {
+      stroke.points.push(point);
+    }
     if (now - lastBatch.current >= POINT_BATCH_MS) {
       lastBatch.current = now;
       const fresh = stroke.points.slice(stroke.sent);
       stroke.sent = stroke.points.length;
       if (fresh.length > 0 && !stroke.straight) hub.appendPoints(stroke.tempId, fresh);
     }
-    schedule();
+    schedule(false);
   };
   const finish = (event) => {
     pointers.current.delete(event.pointerId);
@@ -3661,7 +3725,7 @@ function BoardCanvas({
     drawing.current = null;
     const brush = drawnBy();
     const geometry = stroke.preview();
-    const meaningful = brush.type === "shape" || brush.type === "table" ? Math.hypot(stroke.to.x - stroke.from.x, stroke.to.y - stroke.from.y) > 2 : stroke.points.length > 1;
+    const meaningful = brush.type === "shape" || brush.type === "table" ? Math.hypot(stroke.to.x - stroke.from.x, stroke.to.y - stroke.from.y) > 2 : stroke.points.length > 0;
     if (meaningful) {
       onCommit(brush.type, { ...brush.data, ...geometry }, stroke.tempId);
     } else if (brush.type === "stroke") {
@@ -3678,7 +3742,7 @@ function BoardCanvas({
         ref: canvas,
         width: Math.max(1, Math.round(size.width * ratio)),
         height: Math.max(1, Math.round(size.height * ratio)),
-        style: { width: size.width, height: size.height },
+        style: { width: size.width, height: size.height, cursor },
         className: `canvas-host__surface canvas-host__surface--${panMode ? "hand" : tool}`,
         onPointerDown,
         onPointerMove,
@@ -3687,13 +3751,13 @@ function BoardCanvas({
         onContextMenu: (event) => event.preventDefault()
       }
     ),
-    hub.cursors.filter((cursor) => cursor.id !== hub.me).map((cursor) => {
-      const screen = toScreen(viewport, cursor.x, cursor.y);
-      const tint = cursorColor(cursor.id);
+    hub.cursors.filter((cursor2) => cursor2.id !== hub.me).map((cursor2) => {
+      const screen = toScreen(viewport, cursor2.x, cursor2.y);
+      const tint = cursorColor(cursor2.id);
       return /* @__PURE__ */ jsxs("span", { className: "canvas-cursor", style: { left: screen.x, top: screen.y }, children: [
         /* @__PURE__ */ jsx("svg", { width: "18", height: "18", viewBox: "0 0 24 24", "aria-hidden": "true", children: /* @__PURE__ */ jsx("path", { d: "M5 3l14 8-6 1.5L10 19z", fill: tint, stroke: "#fff", strokeWidth: "1.5" }) }),
-        /* @__PURE__ */ jsx("span", { className: "canvas-cursor__name", style: { background: tint }, children: cursor.name })
-      ] }, cursor.id);
+        /* @__PURE__ */ jsx("span", { className: "canvas-cursor__name", style: { background: tint }, children: cursor2.name })
+      ] }, cursor2.id);
     })
   ] });
 }
@@ -4213,22 +4277,22 @@ const LINE_STYLES = [
   { kind: "dot", label: "Пунктир" }
 ];
 const PALETTE = [
-  "#2A211C",
-  "#7F8C8D",
-  "#B03A2E",
-  "#E67E22",
-  "#B7950B",
-  "#1E8449",
-  "#1F618D",
-  "#8E44AD",
+  "#1C1B1F",
+  "#6B7280",
+  "#C62828",
+  "#EF6C00",
+  "#2E7D32",
+  "#00838F",
+  "#1565C0",
+  "#6A1B9A",
   "#FFFFFF",
-  "#C0392B",
-  "#D35400",
-  "#F1C40F",
-  "#27AE60",
-  "#16A085",
-  "#2E86C1",
-  "#C2185B"
+  "#FF5252",
+  "#FFB300",
+  "#FFEB3B",
+  "#00E676",
+  "#00E5FF",
+  "#448AFF",
+  "#FF4FA3"
 ];
 const DEFAULT_SETTINGS = {
   pen1: { color: "#2A211C", width: 5, opacity: 100 },
@@ -4848,7 +4912,7 @@ function TextInput({
   );
 }
 const WIDTH = 340;
-const HEIGHT = 60;
+const HEIGHT = 150;
 const LEFT_GUTTER = 72;
 const BOTTOM_GUTTER = 60;
 const NARROW = 720;
@@ -4875,23 +4939,30 @@ function SelectionPanel({
   const cols = table ? clampCols(table.data.cols ?? DEFAULT_COLS) : 0;
   const docked = canvas.width > 0 && canvas.width < NARROW;
   const cap = (text2) => docked ? /* @__PURE__ */ jsx("span", { className: "btn-tool__cap", children: text2 }) : null;
+  const panel = useRef(null);
+  const [height, setHeight] = useState(HEIGHT);
+  useLayoutEffect(() => {
+    var _a;
+    const measured = (_a = panel.current) == null ? void 0 : _a.offsetHeight;
+    if (measured && Math.abs(measured - height) > 1) setHeight(measured);
+  });
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
-  const above = corner.y - 8 - HEIGHT >= 8;
+  const GAP = 10;
+  const above = corner.y - GAP - height >= 8;
   const left = Math.max(
     LEFT_GUTTER + WIDTH / 2,
     Math.min(corner.x + width / 2, canvas.width - WIDTH / 2 - 8)
   );
+  const below = corner.y + bounds.height * viewport.scale + GAP;
   const top = Math.max(
     8,
-    Math.min(
-      above ? corner.y - 8 - HEIGHT : corner.y + bounds.height * viewport.scale + 8,
-      canvas.height - BOTTOM_GUTTER - HEIGHT
-    )
+    Math.min(above ? corner.y - GAP - height : below, canvas.height - BOTTOM_GUTTER - height)
   );
   return /* @__PURE__ */ jsxs(
     "div",
     {
+      ref: panel,
       className: docked ? "selection-panel selection-panel--docked" : "selection-panel",
       style: docked ? void 0 : { left, top, transform: "translateX(-50%)" },
       role: "toolbar",
