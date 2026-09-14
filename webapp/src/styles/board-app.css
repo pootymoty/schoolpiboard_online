@@ -527,6 +527,57 @@ body.no-scroll {
 
 .app__footer a { color: var(--text-on-dark); }
 
+/* Кнопка среди ссылок подвала: тот же вид, но не ссылка — открывает
+   баннер согласия заново, а не переходит на другую страницу. */
+.footer__cookie-link {
+    min-height: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-on-dark);
+    font: inherit;
+    font-size: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.footer__cookie-link:hover { background: none; }
+
+/* --- Баннер согласия на куки ------------------------------------------------ */
+
+/* Полоса внизу экрана, а не окно поверх содержимого: сайт остаётся
+   рабочим, пока выбор не сделан, — согласие не блокирует ничего. */
+.cookie-banner {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-4);
+    background: var(--header-bg);
+    color: var(--text-on-dark);
+    box-shadow: var(--shadow-lg);
+}
+
+.cookie-banner__text {
+    flex: 1 1 420px;
+    margin: 0;
+    font-size: var(--fs-sm);
+}
+
+.cookie-banner__text a { color: var(--text-on-dark); }
+
+.cookie-banner__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+}
+
 /* Экран загрузки до того, как стало известно, вошёл человек или нет. */
 .app__splash {
     min-height: 100vh;
@@ -1935,7 +1986,6 @@ body.no-scroll {
 }
 
 .plan {
-    position: relative;
     display: flex;
     flex-direction: column;
     gap: var(--sp-2);
@@ -1945,23 +1995,13 @@ body.no-scroll {
     border-radius: var(--radius-lg);
 }
 
-/* Один тариф отмечен как обычный выбор — не жирной рамкой на всех
-   карточках сразу, а меткой на одной: выбор виден, а не навязан. */
-.plan--popular {
-    border-color: var(--accent);
-    box-shadow: var(--shadow);
-}
-
-.plan__badge {
-    position: absolute;
-    top: -12px;
-    left: var(--sp-4);
-    padding: 2px var(--sp-3);
-    border-radius: var(--radius-pill);
-    background: var(--accent);
-    color: var(--text-on-accent);
+/* Подпись под названием тарифа — факт, а не реклама: например, что
+   именно этот тариф открыт в пробном периоде. Обычная строка мелким
+   текстом, без плашки. */
+.plan__note {
+    margin: 0;
+    color: var(--text-muted);
     font-size: var(--fs-xs);
-    font-weight: 700;
 }
 
 .plan__name {
@@ -2022,24 +2062,6 @@ body.no-scroll {
     .hero { padding: var(--sp-6) var(--sp-4); }
 }
 
-/* Короткая надпись над заголовком — называет продукт и место в
-   экосистеме прежде, чем человек прочтёт первое предложение. */
-.eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--sp-1);
-    margin: 0 0 var(--sp-3);
-    padding: var(--sp-1) var(--sp-3);
-    border-radius: var(--radius-pill);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    color: var(--accent);
-    font-size: var(--fs-xs);
-    font-weight: 700;
-    letter-spacing: .02em;
-    text-transform: uppercase;
-}
-
 .hero__lead {
     margin: 0 auto var(--sp-5);
     max-width: 640px;
@@ -2050,30 +2072,8 @@ body.no-scroll {
 
 .hero__note { margin: var(--sp-4) 0 0; }
 
-/* Ряд коротких фактов вместо ещё одного абзаца: цифры читаются быстрее
-   уговоров и снимают самые частые сомнения за один взгляд. */
-.stat-row {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--sp-2);
-    margin: var(--sp-5) 0 0;
-    padding: 0;
-    list-style: none;
-}
-
-.stat-row li {
-    padding: var(--sp-2) var(--sp-4);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-pill);
-    font-size: var(--fs-sm);
-    font-weight: 600;
-    color: var(--text);
-}
-
-/* Сетка коротких карточек: значок, название, одна строка сути — вместо
-   абзаца. На главной убеждают факты, а не подробное описание. */
+/* Сетка коротких карточек: значок, название, одна-две строки сути —
+   каждая объясняет, что даёт и зачем, а не просто называет функцию. */
 .feature-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

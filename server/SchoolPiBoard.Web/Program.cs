@@ -129,6 +129,7 @@ app.MapTemplateEndpoints();
 app.MapSummaryEndpoints();
 app.MapAdminEndpoints();
 app.MapBillingEndpoints();
+app.MapCookieConsentEndpoints();
 
 // Без RequireAuthorization: на доску пускают и гостя, у которого учётной
 // записи нет. Кто он и что ему можно — выясняет сам хаб при входе.

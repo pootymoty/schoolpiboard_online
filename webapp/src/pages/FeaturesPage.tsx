@@ -72,11 +72,10 @@ export function FeaturesPage(): ReactElement {
   return (
     <Page>
       <section className="card">
-        <p className="eyebrow">Возможности</p>
-        <h1>Всё нужное для занятия — и ничего лишнего</h1>
+        <h1>Возможности</h1>
         <p className="reading">
           Доска сделана для урока, а не для совещаний: здесь пишут от руки,
-          разбирают задачи по учебнику и объясняют.
+          разбирают задачи по учебнику и объясняют, а не двигают стикеры.
         </p>
       </section>
 

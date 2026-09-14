@@ -50,10 +50,10 @@ export function PricingPage(): ReactElement {
   return (
     <Page>
       <section className="card" style={{ textAlign: 'center' }}>
-        <p className="eyebrow">Тарифы</p>
-        <h1>Платите только вы — ученики бесплатно всегда</h1>
+        <h1>Тарифы</h1>
         <p className="reading" style={{ margin: '0 auto var(--sp-4)' }}>
-          Они заходят по ссылке без регистрации и оплаты, сколько бы их ни было.
+          Платит только преподаватель. Ученикам регистрация не нужна: они заходят
+          по ссылке и ничего не платят.
         </p>
 
         <div className="row" style={{ justifyContent: 'center' }}>
@@ -77,9 +77,9 @@ export function PricingPage(): ReactElement {
           const price = plan[period.field];
 
           return (
-            <article className={plan.code === 'standard' ? 'plan plan--popular' : 'plan'} key={plan.code}>
-              {plan.code === 'standard' ? <span className="plan__badge">Обычный выбор</span> : null}
+            <article className="plan" key={plan.code}>
               <h2 className="plan__name">{plan.name}</h2>
+              {plan.code === 'standard' ? <p className="plan__note">Открыт в пробном периоде</p> : null}
 
               <p className="plan__price">
                 {price === 0 ? 'Бесплатно' : `${price} ₽`}

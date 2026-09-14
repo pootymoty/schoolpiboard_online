@@ -337,6 +337,17 @@ export function Footer(): ReactElement {
         <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="footer__site-link">
           {MAIN_SITE.label}<IconExternal size={13} />
         </a>
+        {/* Баннер согласия не привязан к подвалу напрямую — это разные
+            компоненты, и подвал живёт на каждой странице заново, а баннер
+            монтируется один раз на всё приложение. Событие связывает их,
+            не заставляя один знать о другом. */}
+        <button
+          type="button"
+          className="footer__cookie-link"
+          onClick={() => window.dispatchEvent(new Event('cookie-settings-reopen'))}
+        >
+          Настройки cookie
+        </button>
       </div>
 
       {/* В подвале — кто продавец и куда писать. Статус, ИНН и прочие
