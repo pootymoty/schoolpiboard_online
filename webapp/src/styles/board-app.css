@@ -129,6 +129,26 @@
 .desktop-menu a.header__cta { text-decoration: none; }
 .desktop-menu a.header__cta:hover { text-decoration: none; }
 
+/* Ссылка на «Школу Пи» ведёт с сайта — значок стрелки сразу об этом
+   предупреждает, отдельная рамка отличает пункт от разделов самого сайта. */
+.header__site-link {
+    gap: var(--sp-1);
+}
+
+.header__site-link svg { opacity: .75; }
+
+.footer__site-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.footer__site-link svg { opacity: .7; }
+
+/* Значок внешней ссылки внутри обычного текста: без него базовая
+   вертикальная привязка svg сажает стрелку ниже строки. */
+.reading a svg { vertical-align: -2px; margin-left: 2px; }
+
 .dropdown { position: relative; }
 
 /* Стрелка у «Личного кабинета»: без неё пункт неотличим от обычной
@@ -1915,6 +1935,7 @@ body.no-scroll {
 }
 
 .plan {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: var(--sp-2);
@@ -1922,6 +1943,25 @@ body.no-scroll {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
+}
+
+/* Один тариф отмечен как обычный выбор — не жирной рамкой на всех
+   карточках сразу, а меткой на одной: выбор виден, а не навязан. */
+.plan--popular {
+    border-color: var(--accent);
+    box-shadow: var(--shadow);
+}
+
+.plan__badge {
+    position: absolute;
+    top: -12px;
+    left: var(--sp-4);
+    padding: 2px var(--sp-3);
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-size: var(--fs-xs);
+    font-weight: 700;
 }
 
 .plan__name {
@@ -1970,17 +2010,121 @@ body.no-scroll {
 /* --- Главная: первый экран --------------------------------------------------- */
 
 /* Заголовок крупнее обычного и по центру: это единственное место, где
-   человек ещё не знает, куда попал. */
-.hero { text-align: center; }
+   человек ещё не знает, куда попал. Тёплый градиент вместо плоской
+   карточки — первый экран должен выглядеть как витрина, а не как форма. */
+.hero {
+    text-align: center;
+    background: linear-gradient(165deg, var(--accent-soft), var(--surface) 65%);
+    padding: var(--sp-8) var(--sp-5);
+}
+
+@media (max-width: 640px) {
+    .hero { padding: var(--sp-6) var(--sp-4); }
+}
+
+/* Короткая надпись над заголовком — называет продукт и место в
+   экосистеме прежде, чем человек прочтёт первое предложение. */
+.eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    margin: 0 0 var(--sp-3);
+    padding: var(--sp-1) var(--sp-3);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--accent);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+}
 
 .hero__lead {
     margin: 0 auto var(--sp-5);
+    max-width: 640px;
     font-size: var(--fs-lg);
 }
 
 .hero__actions { justify-content: center; }
 
 .hero__note { margin: var(--sp-4) 0 0; }
+
+/* Ряд коротких фактов вместо ещё одного абзаца: цифры читаются быстрее
+   уговоров и снимают самые частые сомнения за один взгляд. */
+.stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--sp-2);
+    margin: var(--sp-5) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.stat-row li {
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* Сетка коротких карточек: значок, название, одна строка сути — вместо
+   абзаца. На главной убеждают факты, а не подробное описание. */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--sp-4);
+}
+
+.feature-tile {
+    padding: var(--sp-5) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.feature-tile__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-bottom: var(--sp-3);
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.feature-tile h3 {
+    font-family: var(--font-head);
+    font-size: var(--fs-lg);
+    margin-bottom: var(--sp-1);
+}
+
+.feature-tile p {
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* Переход к «Школе Пи»: онлайн-доска не отдельный сайт, а часть той же
+   мастерской, и об этом стоит сказать прямо, а не спрятать в подвале. */
+.brand-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    flex-wrap: wrap;
+    background: var(--header-bg);
+    color: var(--text-on-dark);
+}
+
+.brand-strip p { color: var(--text-on-dark); opacity: .85; margin: 0; }
+.brand-strip h2 { color: var(--text-on-dark); }
 
 /* ---------- Правовые документы ---------- */
 

@@ -429,3 +429,14 @@ export const IconArrowUp = (props: Props): ReactElement => (
 export const IconArrowDown = (props: Props): ReactElement => (
   <Svg {...props}><g><path d="M12 4v15" /><path d="M6 13l6 6 6-6" /></g></Svg>
 );
+
+/** Ссылка на внешний ресурс — стрелка, выходящая из рамки. */
+export const IconExternal = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <path d="M15 3h6v6" />
+      <path d="M10 14L21 3" />
+    </g>
+  </Svg>
+);

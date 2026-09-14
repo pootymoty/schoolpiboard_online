@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { COMPANY, HAS_COMPANY_DETAILS } from '../content/company';
+import { COMPANY, HAS_COMPANY_DETAILS, MAIN_SITE } from '../content/company';
+import { IconExternal } from './Icons';
 
 
 type Theme = 'light' | 'dark';
@@ -186,6 +187,11 @@ export function Header(): ReactElement {
           <li><NavLink to="/features">Возможности</NavLink></li>
           <li><NavLink to="/pricing">Тарифы</NavLink></li>
           <li><NavLink to="/faq">Вопросы</NavLink></li>
+          <li>
+            <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="header__site-link">
+              {MAIN_SITE.label}<IconExternal size={14} />
+            </a>
+          </li>
 
           {user ? (
             <>
@@ -264,6 +270,11 @@ export function Header(): ReactElement {
               <li><Link to="/pricing" onClick={closeMobile}>Тарифы</Link></li>
               <li><Link to="/faq" onClick={closeMobile}>Вопросы</Link></li>
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
+              <li>
+                <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="header__site-link">
+                  {MAIN_SITE.label}<IconExternal size={14} />
+                </a>
+              </li>
               <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
               <li className={cabinetOpen ? 'navbar-dropdown navbar-dropdown--active' : 'navbar-dropdown'}>
                 <button
@@ -298,6 +309,11 @@ export function Header(): ReactElement {
               <li><Link to="/pricing" onClick={closeMobile}>Тарифы</Link></li>
               <li><Link to="/faq" onClick={closeMobile}>Вопросы</Link></li>
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
+              <li>
+                <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="header__site-link">
+                  {MAIN_SITE.label}<IconExternal size={14} />
+                </a>
+              </li>
               <li><Link to="/login" onClick={closeMobile}>Войти</Link></li>
               <li className="navbar-item--switch">
                 <ThemeSwitch theme={theme} toggle={toggle} />
@@ -318,6 +334,9 @@ export function Footer(): ReactElement {
         <Link to="/legal/offer">Оферта</Link>
         <Link to="/legal/privacy">Персональные данные</Link>
         <Link to="/about">Контакты</Link>
+        <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="footer__site-link">
+          {MAIN_SITE.label}<IconExternal size={13} />
+        </a>
       </div>
 
       {/* В подвале — кто продавец и куда писать. Статус, ИНН и прочие
