@@ -68,8 +68,8 @@ export function RegisterPage(): ReactElement {
       <form className="card" onSubmit={submit}>
         <h1>Регистрация</h1>
         <p className="text-muted">
-          Учётная запись нужна преподавателю — тому, кто создаёт доски.
-          Обучающемуся регистрироваться не нужно: он заходит по ссылке.
+          Учётная запись нужна тому, кто создаёт доски.
+          Участнику регистрироваться не нужно: он заходит по ссылке.
         </p>
 
         <label htmlFor="displayName">Как вас называть</label>

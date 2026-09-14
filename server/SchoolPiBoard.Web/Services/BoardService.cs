@@ -322,7 +322,7 @@ public sealed class BoardService
         await _waiting.RequestAsync(board.Id, new WaitingRequest(marker, name, UserId: null, DateTime.UtcNow));
 
         return new JoinAttempt(BoardOutcome.Waiting, board.Id, board.Title, RequestId: marker,
-            Message: "Ждём, пока преподаватель впустит вас на доску.");
+            Message: "Ждём, пока владелец доски впустит вас.");
     }
 
     /// <summary>
@@ -364,7 +364,7 @@ public sealed class BoardService
         await _waiting.RequestAsync(board.Id, new WaitingRequest(requestId, user.DisplayName, user.Id, DateTime.UtcNow));
 
         return new JoinAttempt(BoardOutcome.Waiting, board.Id, board.Title, RequestId: requestId,
-            Message: "Ждём, пока преподаватель впустит вас на доску.");
+            Message: "Ждём, пока владелец доски впустит вас.");
     }
 
     /// <summary>

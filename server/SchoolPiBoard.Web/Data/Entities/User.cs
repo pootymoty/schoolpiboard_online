@@ -1,6 +1,6 @@
 namespace SchoolPiBoard.Web.Data.Entities;
 
-/// <summary>Учётная запись преподавателя. Состав полей задан разделом 5.1.</summary>
+/// <summary>Учётная запись владельца досок. Состав полей задан разделом 5.1.</summary>
 public class User
 {
     public long Id { get; set; }

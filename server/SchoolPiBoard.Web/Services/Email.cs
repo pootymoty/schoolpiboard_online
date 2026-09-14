@@ -167,7 +167,7 @@ public static class EmailTemplates
     }
 
     /// <summary>
-    /// Конспект занятия.
+    /// Конспект.
     ///
     /// Листы идут вложениями, а не ссылками: письмо должно открываться и
     /// через полгода, когда доски уже нет, а ссылка на неё ведёт в пустоту.
@@ -181,19 +181,19 @@ public static class EmailTemplates
             _ => "листов",
         };
 
-        var name = string.IsNullOrWhiteSpace(boardTitle) ? "Занятие" : boardTitle;
+        var name = string.IsNullOrWhiteSpace(boardTitle) ? "Доска" : boardTitle;
 
         return (
-            $"Конспект занятия: {name} — SchoolPiBoard",
+            $"Конспект: {name} — SchoolPiBoard",
             $"""
              <p>Здравствуйте!</p>
-             <p>Во вложении конспект занятия «{name}» — {pages} {word}.</p>
+             <p>Во вложении конспект «{name}» — {pages} {word}.</p>
              <p>Листы приложены картинками и открываются любым просмотрщиком.</p>
              """,
             $"""
              Здравствуйте!
 
-             Во вложении конспект занятия «{name}» — {pages} {word}.
+             Во вложении конспект «{name}» — {pages} {word}.
 
              Листы приложены картинками и открываются любым просмотрщиком.
              """);

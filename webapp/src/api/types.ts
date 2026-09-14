@@ -1,4 +1,4 @@
-/** Учётная запись преподавателя. */
+/** Учётная запись владельца досок. */
 export interface User {
   id: number;
   email: string;
