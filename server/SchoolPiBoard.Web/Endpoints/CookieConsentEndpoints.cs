@@ -40,33 +40,48 @@ public static class CookieConsentEndpoints
             return Results.Ok(new { consent = Array.IndexOf(Values, value) >= 0 ? value : null });
         });
 
-        app.MapPost("/api/cookie-consent", async (HttpRequest http, AppOptions options) =>
+        app.MapPost("/api/cookie-consent", async (HttpRequest http, AppOptions options, ILoggerFactory loggers) =>
         {
-            var form = await http.ReadFormAsync();
-            var choice = form["choice"].ToString();
-
-            if (Array.IndexOf(Values, choice) < 0)
-                return Results.BadRequest(new { message = "Неизвестное значение согласия." });
-
-            http.HttpContext.Response.Cookies.Append(CookieName, choice, new CookieOptions
-            {
-                HttpOnly = true,
-                SameSite = SameSiteMode.Lax,
-                // На своём сервере адрес всегда https — секьюрность куки
-                // отключается только у локального http для разработки.
-                Secure = !options.PublicUrl.StartsWith("http://", StringComparison.Ordinal),
-                MaxAge = MaxAge,
-                Path = "/"
-            });
-
             // На свой путь — пожалуйста; на чужой домен или адрес с протоколом —
-            // нет, иначе форма стала бы открытой переадресацией.
-            var next = form["next"].ToString();
-            var target = !string.IsNullOrWhiteSpace(next) && next.StartsWith('/') && !next.StartsWith("//")
-                ? next
-                : "/";
+            // нет, иначе форма стала бы открытой переадресацией. Адрес всегда
+            // собирается абсолютным, от PublicUrl: относительный Location
+            // формально допустим (RFC 7231), но не все прокси и старые браузеры
+            // его понимают правильно, а от абсолютного зависеть незачем.
+            string BuildTarget(string? next)
+                => options.PublicUrl + (!string.IsNullOrWhiteSpace(next)
+                    && next.StartsWith('/') && !next.StartsWith("//") ? next : "/");
 
-            return Results.Redirect(target);
+            // Здесь не JSON, а обычная форма браузера: упасть с голой
+            // ошибкой 400/500 значило бы показать её вместо страницы,
+            // с которой пришли, — при любом сбое лучше вернуть человека
+            // туда же, чем оставить его смотреть на пустой ответ сервера.
+            try
+            {
+                var form = await http.ReadFormAsync();
+                var choice = form["choice"].ToString();
+                var target = BuildTarget(form["next"].ToString());
+
+                if (Array.IndexOf(Values, choice) < 0)
+                    return Results.Redirect(target);
+
+                http.HttpContext.Response.Cookies.Append(CookieName, choice, new CookieOptions
+                {
+                    HttpOnly = true,
+                    SameSite = SameSiteMode.Lax,
+                    // На своём сервере адрес всегда https — секьюрность куки
+                    // отключается только у локального http для разработки.
+                    Secure = !options.PublicUrl.StartsWith("http://", StringComparison.Ordinal),
+                    MaxAge = MaxAge,
+                    Path = "/"
+                });
+
+                return Results.Redirect(target);
+            }
+            catch (Exception exception)
+            {
+                loggers.CreateLogger("CookieConsent").LogError(exception, "Согласие на куки не сохранилось.");
+                return Results.Redirect(options.PublicUrl + "/");
+            }
         });
     }
 }

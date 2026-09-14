@@ -48,8 +48,7 @@ export function CookieBanner(): ReactElement | null {
   return (
     <div className="cookie-banner" role="region" aria-label="Согласие на куки">
       <p className="cookie-banner__text">
-        Сайт хранит одну куку — она запоминает выбор из этого баннера и
-        больше ничего. Подробнее — в{' '}
+        Сайт использует куки для корректной работы. Подробнее — в{' '}
         <Link to="/legal/privacy">политике обработки персональных данных</Link>.
       </p>
 
