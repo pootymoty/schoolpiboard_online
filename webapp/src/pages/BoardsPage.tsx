@@ -12,6 +12,7 @@ export function BoardsPage(): ReactElement {
   const navigate = useNavigate();
   const [boards, setBoards] = useState<Board[]>([]);
   const [title, setTitle] = useState('');
+  const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -75,6 +76,13 @@ export function BoardsPage(): ReactElement {
     }
   };
 
+  // Список приходит целиком, без страниц — фильтр по названию считается
+  // на месте, без похода на сервер: досок у одного человека десятки,
+  // не тысячи.
+  const filtered = query.trim()
+    ? boards.filter((board) => board.title.toLowerCase().includes(query.trim().toLowerCase()))
+    : boards;
+
   return (
     <Page>
       <div className="page-header">
@@ -94,15 +102,31 @@ export function BoardsPage(): ReactElement {
 
       {error ? <p className="note note-danger">{error}</p> : null}
 
+      {!loading && boards.length > 1 ? (
+        <input
+          className="input"
+          type="search"
+          value={query}
+          placeholder="Найти доску по названию"
+          onChange={(event) => setQuery(event.target.value)}
+          aria-label="Найти доску по названию"
+          style={{ marginBottom: 'var(--sp-4)' }}
+        />
+      ) : null}
+
       {loading ? (
         <p className="text-muted">Загружаем…</p>
       ) : boards.length === 0 ? (
         <p className="empty">
           Досок пока нет.
         </p>
+      ) : filtered.length === 0 ? (
+        <p className="empty">
+          Ничего не найдено по «{query.trim()}».
+        </p>
       ) : (
         <ul className="board-list">
-          {boards.map((board) => (
+          {filtered.map((board) => (
             <li className="board-item" key={board.id}>
               <span className="people__icon" title={roleTitle(board.role)}>
                 <RoleIcon role={board.role} />
