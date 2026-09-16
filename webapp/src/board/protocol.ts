@@ -11,7 +11,7 @@ export interface Point {
  * Тип объекта. Все фигуры — один тип с уточнением в `data.shape`: иначе
  * каждая новая фигура требовала бы менять и сервер, и базу.
  */
-export type ItemType = 'stroke' | 'shape' | 'text' | 'image' | 'table';
+export type ItemType = 'stroke' | 'shape' | 'text' | 'image' | 'table' | 'bookmark';
 
 export type ShapeKind =
   | 'line' | 'arrow' | 'rect' | 'ellipse'

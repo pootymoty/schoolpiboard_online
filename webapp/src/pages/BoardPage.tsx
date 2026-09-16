@@ -13,7 +13,7 @@ import { BoardCanvas } from '../board/BoardCanvas';
 import { FilesPanel } from '../board/FilesPanel';
 import { DrawToolbar, ViewToolbar } from '../board/BoardToolbar';
 import { ToolSettingsPanel } from '../board/ToolSettingsPanel';
-import { DEFAULT_SETTINGS, TOOLS_WITH_SETTINGS } from '../board/tools';
+import { BOOKMARK_COLOR, BOOKMARK_FONT_SIZE, DEFAULT_SETTINGS, TOOLS_WITH_SETTINGS } from '../board/tools';
 import type { Tool, ToolSettings } from '../board/tools';
 import type { ItemData, ItemType, Point } from '../board/protocol';
 import { erase } from '../board/erase';
@@ -28,6 +28,8 @@ import { measureText } from '../board/handles';
 import { SelectionPanel } from '../board/SelectionPanel';
 import { BackgroundPanel } from '../board/BackgroundPanel';
 import { PagesPanel } from '../board/PagesPanel';
+import { BookmarksPanel } from '../board/BookmarksPanel';
+import type { Bookmark } from '../api/bookmarks';
 import { LibraryPanel } from '../board/LibraryPanel';
 import { MAX_SHEETS, SummaryPanel } from '../board/SummaryPanel';
 import { useSummaryRequests } from '../board/useSummaryRequests';
@@ -100,6 +102,15 @@ export function BoardPage(): ReactElement {
 
   /** Куда поставить надпись. Пока задано — на холсте открыто поле ввода. */
   const [textAt, setTextAt] = useState<Point | null>(null);
+
+  /** Куда поставить закладку. Пока задано — на холсте открыто поле подписи. */
+  const [bookmarkAt, setBookmarkAt] = useState<Point | null>(null);
+
+  /** Открыта ли панель «Закладки». */
+  const [showBookmarks, setShowBookmarks] = useState(false);
+
+  /** Растёт при добавлении и удалении закладки — панель перечитывает список. */
+  const [bookmarksVersion, setBookmarksVersion] = useState(0);
 
   /**
    * Что правим прямо сейчас: ячейку таблицы или надпись внутри фигуры.
@@ -357,6 +368,58 @@ export function BoardPage(): ReactElement {
     if (!hub.canEdit && tool !== 'hand') setToolRaw('hand');
   }, [hub.canEdit, tool]);
 
+  /**
+   * Подвигает вид, чтобы поле ввода — надписи или закладки — уместилось
+   * на экране. Только на узком экране и только когда для поля не хватает
+   * места: на большом его хватает всегда, и прыжок вида там просто
+   * дёргал бы холст.
+   */
+  const keepFieldVisible = (world: Point) => {
+    setViewport((current) => {
+      if (canvasSize.width >= 720) return current;
+
+      const screen = toScreen(current, world.x, world.y);
+      const tight = screen.x > canvasSize.width - 160
+        || screen.y > canvasSize.height - 120
+        || screen.x < 8 || screen.y < 8;
+
+      return tight
+        ? centerOn(current, world.x, world.y, canvasSize.width, canvasSize.height)
+        : current;
+    });
+  };
+
+  /**
+   * Переход к закладке на другой странице ждёт здесь: страница открывается
+   * не мгновенно, а по ответу сервера, и до тех пор центровать вид не на
+   * чем — на экране ещё содержимое прежней страницы.
+   */
+  const pendingJump = useRef<{ pageId: number; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const target = pendingJump.current;
+    if (!target || hub.pageId !== target.pageId) return;
+
+    pendingJump.current = null;
+    setViewport((current) => centerOn(current, target.x, target.y, canvasSize.width, canvasSize.height));
+  }, [hub.pageId, canvasSize.width, canvasSize.height]);
+
+  const jumpToBookmark = (bookmark: Bookmark) => {
+    const x = bookmark.data.x1 ?? 0;
+    const y = bookmark.data.y1 ?? 0;
+
+    setShowBookmarks(false);
+
+    if (bookmark.pageId === hub.pageId) {
+      setViewport((current) => centerOn(current, x, y, canvasSize.width, canvasSize.height));
+      return;
+    }
+
+    setSelection([]);
+    pendingJump.current = { pageId: bookmark.pageId, x, y };
+    hub.openPage(bookmark.pageId);
+  };
+
   /** Закрепляет надпись. Размеры меряем здесь: по ним считаются габариты. */
   const commitText = (text: string) => {
     const where = textAt;
@@ -385,6 +448,45 @@ export function BoardPage(): ReactElement {
     const ref = `t${Date.now().toString(36)}`;
     pending.current.set(`${ref}-new`, { ref, snapshot: { ref, type: 'text', data } });
     hub.commitItem(`${ref}-new`, 'text', data);
+  };
+
+  /**
+   * Закрепляет закладку. Флажок растёт вверх и вправо от точки привязки
+   * (`x1`,`y1`) — так же, как считает габариты рендер в `render.ts`.
+   * Название — одна строка: перенос строки в поле игнорируем, а не
+   * переносим в рендер, которому вторая строка негде показать.
+   */
+  const commitBookmark = (raw: string) => {
+    const where = bookmarkAt;
+    setBookmarkAt(null);
+
+    const text = raw.split('\n')[0].trim();
+    if (!where || !text) return;
+
+    const fontSize = BOOKMARK_FONT_SIZE;
+    const data: ItemData = {
+      x1: where.x,
+      y1: where.y,
+      text,
+      fontSize,
+      color: BOOKMARK_COLOR,
+      width: 1,
+    };
+
+    const context = document.createElement('canvas').getContext('2d');
+    const padding = 6;
+    const height = fontSize * 1.25 + padding * 2;
+
+    if (context) {
+      context.font = fontOf(data);
+      data.x2 = where.x + Math.max(context.measureText(text).width + padding * 2, height);
+    }
+    data.y2 = where.y - height;
+
+    const ref = `b${Date.now().toString(36)}`;
+    pending.current.set(`${ref}-new`, { ref, snapshot: { ref, type: 'bookmark', data } });
+    hub.commitItem(`${ref}-new`, 'bookmark', data);
+    setBookmarksVersion((current) => current + 1);
   };
 
   /**
@@ -1137,6 +1239,7 @@ export function BoardPage(): ReactElement {
             canPaste={hasClip && hub.canEdit}
             onPaste={pasteClip}
             onPages={() => setShowPages((current) => !current)}
+            onBookmarks={() => setShowBookmarks((current) => !current)}
             pageLabel={
               hub.pages.length === 0
                 ? '—'
@@ -1207,23 +1310,12 @@ export function BoardPage(): ReactElement {
             onEraseEnd={() => erased.current.clear()}
             onDrawStart={() => setShowParams(false)}
             onTextAt={(world) => {
-              // Вид подвигаем только на узком экране и только когда для
-              // поля не хватает места. На большом экране места хватает
-              // всегда, и прыжок вида там просто дёргал бы холст.
-              setViewport((current) => {
-                if (canvasSize.width >= 720) return current;
-
-                const screen = toScreen(current, world.x, world.y);
-                const tight = screen.x > canvasSize.width - 160
-                  || screen.y > canvasSize.height - 120
-                  || screen.x < 8 || screen.y < 8;
-
-                return tight
-                  ? centerOn(current, world.x, world.y, canvasSize.width, canvasSize.height)
-                  : current;
-              });
-
+              keepFieldVisible(world);
               setTextAt(world);
+            }}
+            onBookmarkAt={(world) => {
+              keepFieldVisible(world);
+              setBookmarkAt(world);
             }}
           />
 
@@ -1272,6 +1364,15 @@ export function BoardPage(): ReactElement {
               onReorder={hub.reorderPages}
               onVisibility={hub.setPageVisibility}
               onClose={() => setShowPages(false)}
+            />
+          ) : null}
+
+          {showBookmarks ? (
+            <BookmarksPanel
+              boardId={id}
+              version={bookmarksVersion}
+              onOpen={jumpToBookmark}
+              onClose={() => setShowBookmarks(false)}
             />
           ) : null}
 
@@ -1357,6 +1458,17 @@ export function BoardPage(): ReactElement {
               settings={settings.text}
               onCommit={commitText}
               onCancel={() => setTextAt(null)}
+            />
+          ) : null}
+
+          {bookmarkAt ? (
+            <TextInput
+              at={bookmarkAt}
+              viewport={viewport}
+              bounds={canvasSize}
+              settings={{ color: BOOKMARK_COLOR, fontSize: BOOKMARK_FONT_SIZE }}
+              onCommit={commitBookmark}
+              onCancel={() => setBookmarkAt(null)}
             />
           ) : null}
 

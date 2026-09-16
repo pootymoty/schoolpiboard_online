@@ -440,3 +440,8 @@ export const IconExternal = (props: Props): ReactElement => (
     </g>
   </Svg>
 );
+
+/** Закладка на доске. Классическая лента с вырезом снизу. */
+export const IconBookmark = (props: Props): ReactElement => (
+  <Svg {...props}><path d="M6 3h12v18l-6-4.5L6 21z" /></Svg>
+);

@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
-  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail,
+  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -81,6 +81,7 @@ export function DrawToolbar({
       {pick('text', <IconText />, 'Текст')}
       {pick('shapes', <IconShapes />, 'Фигуры')}
       {pick('table', <IconTable />, 'Таблица')}
+      {pick('bookmark', <IconBookmark />, 'Закладка: подписанная метка в этом месте')}
     </div>
   );
 }
@@ -111,13 +112,14 @@ interface ViewProps {
   onPages: () => void;
   /** Какая страница открыта из скольких — прямо на кнопке. */
   pageLabel: string;
+  onBookmarks: () => void;
 }
 
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
 export function ViewToolbar({
   canManage, canEdit, canUpload, scale, onZoom, onResetZoom, onFit,
   onBackground, onFiles, onLibrary, onSummary, summaryCount, onTimer, onHelp, onExport, onClear,
-  canPaste, onPaste, onPages, pageLabel,
+  canPaste, onPaste, onPages, pageLabel, onBookmarks,
 }: ViewProps): ReactElement {
   return (
     <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
@@ -138,6 +140,12 @@ export function ViewToolbar({
       <button className="btn-tool btn-tool--wide" type="button" onClick={onPages} title="Страницы занятия" data-tip="Страницы занятия">
         <IconPages />
         <span className="btn-tool__label">{pageLabel}</span>
+      </button>
+
+      {/* Рядом со страницами: и то и другое — про то, куда попасть на
+          доске, а не про то, чем на ней рисуют. */}
+      <button className="btn-tool" type="button" onClick={onBookmarks} title="Закладки" data-tip="Закладки">
+        <IconBookmark />
       </button>
 
       <span className="toolbar__divider" aria-hidden="true" />

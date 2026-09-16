@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using SchoolPiBoard.Web.Configuration;
 using SchoolPiBoard.Web.Data;
 using SchoolPiBoard.Web.Data.Entities;
@@ -32,6 +34,13 @@ public sealed record MemberDto(long UserId, string DisplayName, string Email, st
 public sealed record GuestDto(string GuestId, string DisplayName, string Role);
 
 public sealed record WaitingDto(string RequestId, string DisplayName, bool IsGuest, DateTime RequestedAt);
+
+/// <summary>
+/// Закладка для панели-списка. <c>Data</c> передаётся как есть, тем же
+/// JSON, каким её видит холст, — сервер не знает про x1/y1/text, это
+/// геометрия объекта, а не его собственные поля.
+/// </summary>
+public sealed record BookmarkDto(long Id, long PageId, string PageTitle, JsonElement Data);
 
 /// <summary>Ответ на попытку войти по ссылке — общий для гостя и для входа под учётной записью.</summary>
 public sealed record JoinResultDto(
@@ -308,6 +317,41 @@ public static class BoardEndpoints
             });
         });
 
+        // ---------- Закладки ----------
+
+        // Список закладок доски целиком, а не одной открытой страницы:
+        // панель «Закладки» даёт перейти к месту на любой странице, не
+        // пролистывая их по одной. Страницы с ограниченной видимостью
+        // отфильтрованы тем же правилом, что и сам список страниц —
+        // закладка на чужую скрытую страницу иначе выдавала бы её название
+        // и содержимое тому, кому эта страница не открыта.
+        app.MapGet("/api/boards/{boardId:long}/bookmarks", async (
+            long boardId, HttpContext http, ClaimsPrincipal principal,
+            AppDbContext db, BoardService service, PageService pages, CancellationToken ct) =>
+        {
+            var user = await AuthEndpoints.CurrentUser(principal, db, ct);
+            var guestToken = http.Request.Headers[GuestHeader].ToString();
+
+            var actor = await service.ResolveActorAsync(boardId, user?.Id, guestToken, ct);
+            if (actor is null)
+                return Results.Json(new { message = "Нет доступа к этой доске." }, statusCode: 403);
+
+            var visible = await pages.VisibleAsync(
+                boardId, actor.CanManage, actor.UserId, actor.GuestId, ct);
+            var titleOf = visible.ToDictionary(page => page.Id, page => page.Title);
+
+            var items = await db.BoardItems
+                .Where(x => x.BoardId == boardId && x.Type == BoardItem.TypeBookmark)
+                .OrderBy(x => x.CreatedAt)
+                .ToListAsync(ct);
+
+            var result = items
+                .Where(x => titleOf.ContainsKey(x.PageId))
+                .Select(x => new BookmarkDto(x.Id, x.PageId, titleOf[x.PageId], ParsedData(x.Data)));
+
+            return Results.Ok(result);
+        });
+
         // Гость уходит сам. Без этого запись о нём висела бы у владельца в
         // списке присутствующих ещё до пятнадцати минут — до истечения
         // допуска, — хотя человек уже закрыл вкладку. Учётной записи у
@@ -339,6 +383,17 @@ public static class BoardEndpoints
             board.AutoAdmit,
             LinkUrl: manages ? $"{options.PublicUrl}/join/{board.LinkToken}" : null,
             board.UpdatedAt);
+    }
+
+    /// <summary>
+    /// Clone обязателен: RootElement живёт внутри JsonDocument, и после
+    /// его освобождения (выхода из <c>using</c>) ссылка на элемент стала
+    /// бы недействительной — тот же приём, что и в BoardHub.ToDto.
+    /// </summary>
+    private static JsonElement ParsedData(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
     }
 
     private static IResult FromAttempt(JoinAttempt attempt) => attempt.Outcome switch

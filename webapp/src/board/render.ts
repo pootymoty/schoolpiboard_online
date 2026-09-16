@@ -196,6 +196,51 @@ function drawText(context: CanvasRenderingContext2D, data: ItemData): void {
   });
 }
 
+/** Отступ подписи от края флажка и радиус скругления его углов. */
+const BOOKMARK_PADDING = 6;
+
+/** Точка привязки под флажком — видна, даже когда флажков рядом несколько. */
+const BOOKMARK_DOT_RADIUS = 4;
+
+/**
+ * Закладка: флажок с подписью, нижний левый угол — точно в точке
+ * привязки (`x1`, `y1`). Своя фигура, а не текст в рамке: текст растёт
+ * вверх и вправо от места, которое отмечает, а не занимает габариты,
+ * заданные при вставке, — у закладки их и нет, только точка.
+ */
+function drawBookmark(context: CanvasRenderingContext2D, data: ItemData): void {
+  const x1 = data.x1 ?? 0;
+  const y1 = data.y1 ?? 0;
+  const text = data.text ?? '';
+  const fontSize = data.fontSize ?? 15;
+  const lineHeight = fontSize * 1.25;
+  const height = lineHeight + BOOKMARK_PADDING * 2;
+
+  context.setLineDash([]);
+  context.font = fontOf(data);
+  const width = Math.max(context.measureText(text).width + BOOKMARK_PADDING * 2, height);
+  const top = y1 - height;
+  const radius = Math.min(6, height / 2);
+
+  context.beginPath();
+  context.moveTo(x1 + radius, top);
+  context.lineTo(x1 + width - radius, top);
+  context.arcTo(x1 + width, top, x1 + width, top + radius, radius);
+  context.lineTo(x1 + width, y1 - radius);
+  context.arcTo(x1 + width, y1, x1 + width - radius, y1, radius);
+  context.lineTo(x1, y1);
+  context.closePath();
+  context.fill();
+
+  context.beginPath();
+  context.arc(x1, y1, BOOKMARK_DOT_RADIUS, 0, Math.PI * 2);
+  context.fill();
+
+  context.fillStyle = '#FFFFFF';
+  context.textBaseline = 'middle';
+  context.fillText(text, x1 + BOOKMARK_PADDING, top + height / 2);
+}
+
 /**
  * Разлиновка холста.
  *
@@ -462,6 +507,7 @@ export function drawItem(
     drawLabel(context, data);
   }
   else if (type === 'image') drawImage(context, data, imageRef);
+  else if (type === 'bookmark') drawBookmark(context, data);
   else drawStroke(context, data);
 
   context.restore();

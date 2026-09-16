@@ -24,9 +24,17 @@ public class BoardItem
     /// <summary>Таблица: сетка и текст по ячейкам, один объект целиком.</summary>
     public const string TypeTable = "table";
 
+    /// <summary>
+    /// Закладка: подписанная метка в точке холста. Обычный объект с
+    /// именем и координатой — сервер её геометрию не разбирает, как и у
+    /// остальных типов; список для панели «Закладки» строится отдельным
+    /// запросом (раздел <c>/api/boards/{id}/bookmarks</c>).
+    /// </summary>
+    public const string TypeBookmark = "bookmark";
+
     /// <summary>Типы, которые сервер принимает. Всё прочее — отказ.</summary>
     public static readonly string[] KnownTypes =
-        { TypeStroke, TypeShape, TypeText, TypeImage, TypeTable };
+        { TypeStroke, TypeShape, TypeText, TypeImage, TypeTable, TypeBookmark };
 
     public long Id { get; set; }
 

@@ -34,6 +34,8 @@ interface Props {
   onDrawStart: () => void;
   /** Ткнули текстом: здесь появится поле ввода. */
   onTextAt: (world: Point) => void;
+  /** Ткнули закладкой: здесь появится поле для подписи. */
+  onBookmarkAt: (world: Point) => void;
   /** Ткнули в ячейку уже выбранной таблицы: там откроется поле ввода. */
   onCellAt: (itemId: number, world: Point) => void;
   /** Ластик прошёл по точке: что стереть и что оставить, решает страница. */
@@ -73,7 +75,7 @@ const POINTER_STYLE = { color: '#E74C3C', width: 6, opacity: 0.85 };
  */
 export function BoardCanvas({
   hub, tool, settings, viewport, background, selection,
-  onViewport, onSize, onSelection, onMoved, onCommit, onDrawStart, onTextAt, onCellAt,
+  onViewport, onSize, onSelection, onMoved, onCommit, onDrawStart, onTextAt, onBookmarkAt, onCellAt,
   onErase, onEraseEnd,
 }: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -149,8 +151,13 @@ export function BoardCanvas({
   /** Указатель, которым сейчас стирают. */
   const erasing = useRef<number | null>(null);
 
-  /** Тычок инструментом «текст»: решаем по отпусканию, а не по нажатию. */
-  const tapping = useRef<{ pointerId: number; at: Point; screen: { x: number; y: number } } | null>(null);
+  /**
+   * Тычок инструментом «текст» или «закладка»: решаем по отпусканию,
+   * а не по нажатию. `kind` — какое поле открыть, когда тычок засчитан.
+   */
+  const tapping = useRef<
+    { pointerId: number; at: Point; screen: { x: number; y: number }; kind: 'text' | 'bookmark' } | null
+  >(null);
 
   /** Поворот за ручку: с какого угла начали и каким он был у объекта. */
   const rotating = useRef<{
@@ -352,7 +359,8 @@ export function BoardCanvas({
    * вовсе, и вместо кружка человек получил бы стрелку.
    */
   const cursor = useMemo(() => {
-    if (tool === 'hand' || spaceHeld || !hub.canEdit || tool === 'select' || tool === 'text') {
+    if (tool === 'hand' || spaceHeld || !hub.canEdit || tool === 'select'
+      || tool === 'text' || tool === 'bookmark') {
       return undefined;
     }
 
@@ -720,12 +728,14 @@ export function BoardCanvas({
       return;
     }
 
-    // Надпись ставится по отпусканию, а не по нажатию: пока палец на
-    // экране, это может оказаться началом жеста двумя пальцами, и поле
-    // ввода успевало открыться до того, как жест распознан.
-    if (latest.current.tool === 'text') {
+    // Надпись и закладка ставятся по отпусканию, а не по нажатию: пока
+    // палец на экране, это может оказаться началом жеста двумя пальцами,
+    // и поле ввода успевало открыться до того, как жест распознан.
+    if (latest.current.tool === 'text' || latest.current.tool === 'bookmark') {
       event.currentTarget.setPointerCapture(event.pointerId);
-      tapping.current = { pointerId: event.pointerId, at: point, screen: screenPoint(event) };
+      tapping.current = {
+        pointerId: event.pointerId, at: point, screen: screenPoint(event), kind: latest.current.tool,
+      };
       return;
     }
 
@@ -993,7 +1003,8 @@ export function BoardCanvas({
       );
 
       if (!blockUntilRelease.current && pointers.current.size === 0 && moved < 12) {
-        onTextAt(tap.at);
+        if (tap.kind === 'bookmark') onBookmarkAt(tap.at);
+        else onTextAt(tap.at);
       }
       return;
     }

@@ -1,6 +1,7 @@
 import type { LineStyle, ShapeKind } from './protocol';
 
-export type Tool = 'select' | 'hand' | 'pen1' | 'pen2' | 'marker' | 'eraser' | 'shapes' | 'text' | 'table';
+export type Tool =
+  | 'select' | 'hand' | 'pen1' | 'pen2' | 'marker' | 'eraser' | 'shapes' | 'text' | 'table' | 'bookmark';
 
 /** Инструменты, которые оставляют след: у каждого своя панель параметров. */
 export const DRAWING_TOOLS: Tool[] = ['pen1', 'pen2', 'marker', 'eraser', 'shapes', 'text', 'table'];
@@ -58,6 +59,16 @@ export const PALETTE = [
   '#FFFFFF', '#FF5252', '#FFB300', '#FFEB3B',
   '#00E676', '#00E5FF', '#448AFF', '#FF4FA3',
 ];
+
+/**
+ * Цвет закладки. Один на все — у неё нет панели настроек: закладка не
+ * инструмент рисования, а метка, и выбирать ей цвет незачем — важно,
+ * чтобы флажок был виден на любом фоне и не путался с нарисованным.
+ */
+export const BOOKMARK_COLOR = '#FFB300';
+
+/** Размер подписи закладки. Свой, а не из настроек текста: флажок — метка, а не заметка. */
+export const BOOKMARK_FONT_SIZE = 15;
 
 export interface PenSettings {
   color: string;

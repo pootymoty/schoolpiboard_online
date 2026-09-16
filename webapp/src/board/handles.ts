@@ -47,7 +47,9 @@ export const HANDLE_SIZE = 9;
 const ROTATE_REACH = 28;
 
 export function handlesFor(item: BoardItem, box: Bounds): Handle[] {
-  if (item.type === 'stroke') return [];
+  // Закладка двигается целиком, но не растягивается и не крутится: у
+  // неё нет содержимого, у которого были бы разумные пропорции.
+  if (item.type === 'stroke' || item.type === 'bookmark') return [];
 
   if (item.data.shape === 'line' || item.data.shape === 'arrow') {
     return [
