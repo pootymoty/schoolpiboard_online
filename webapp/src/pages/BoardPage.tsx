@@ -46,6 +46,7 @@ import { useHistory } from '../board/useHistory';
 import type { ItemSnapshot } from '../board/useHistory';
 import { INITIAL_VIEWPORT, centerOn, fitToContent, toScreen, toWorld, zoomAt } from '../board/viewport';
 import type { Viewport } from '../board/viewport';
+import { reachGoal } from '../components/Analytics';
 
 /**
  * Страница доски.
@@ -72,6 +73,13 @@ export function BoardPage(): ReactElement {
   // пустом экране обещает, что ссылка появится сразу, а не через три клика.
   const [showLink, setShowLink] = useState(() => Boolean((location.state as { openLink?: boolean } | null)?.openLink));
   const [copied, setCopied] = useState(false);
+
+  // Захватываем один раз при монтировании: showLink дальше меняется и
+  // кнопкой «Ссылка», и это не должно превратить открытую только что
+  // доску в «сохранённую», если человек просто посмотрел ссылку ещё раз.
+  const isNewBoardRef = useRef(Boolean((location.state as { openLink?: boolean } | null)?.openLink));
+  const openGoalFired = useRef(false);
+  const participantGoalFired = useRef(false);
 
   useEffect(() => {
     // Флаг нужен только один раз, сразу после перехода: убираем его из
@@ -143,6 +151,17 @@ export function BoardPage(): ReactElement {
   const hub = useBoardHub(id);
   const queue = useWaitingQueue(id, hub.canManage);
   const summaries = useSummaryRequests(id, hub.canManage);
+
+  useEffect(() => {
+    // Не вход автора, а живое совместное занятие: кто-то другой всё ещё
+    // подключён рядом, не только записан участником доски.
+    if (participantGoalFired.current || !hub.me) return;
+
+    if (hub.participants.some((person) => person.connectionId !== hub.me)) {
+      participantGoalFired.current = true;
+      reachGoal('participant_joined');
+    }
+  }, [hub.participants, hub.me]);
 
   /**
    * Устойчивые ссылки на свои объекты.
@@ -1025,6 +1044,16 @@ export function BoardPage(): ReactElement {
     return () => window.clearInterval(timer);
   }, [id, load]);
 
+  useEffect(() => {
+    // Опрос перечитывает state каждые пять секунд — цель должна уйти
+    // один раз за визит, при самой первой успешной загрузке, а не при
+    // каждом обновлении.
+    if (!state || openGoalFired.current) return;
+    openGoalFired.current = true;
+
+    if (!isNewBoardRef.current) reachGoal('board_open_existing');
+  }, [state]);
+
   const toggleLock = async () => {
     if (!state) return;
     setBusy(true);
@@ -1078,6 +1107,9 @@ export function BoardPage(): ReactElement {
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
+      // Отдельного «отправить письмом» в продукте нет: приглашение — это
+      // и есть скопированная ссылка, дальше её пересылают сами, чем угодно.
+      reachGoal('invite_sent');
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       // Буфер может быть недоступен — ссылка видна, её можно выделить руками.
@@ -1255,7 +1287,8 @@ export function BoardPage(): ReactElement {
             onHelp={() => setShowHelp((current) => !current)}
             onExport={() => {
               void exportPng(hub.items, hub.background, board.title).then((saved) => {
-                if (!saved) setError('Доска пуста — сохранять нечего.');
+                if (saved) reachGoal('save_export');
+                else setError('Доска пуста — сохранять нечего.');
               });
             }}
             onZoom={zoomBy}

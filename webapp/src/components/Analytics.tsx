@@ -8,6 +8,16 @@ declare global {
   }
 }
 
+/**
+ * Отмечает цель Метрики — идентификаторы см. в списке ниже, у вызовов.
+ * Молчит, если счётчик ещё не подгрузился (например, самый первый клик
+ * на странице): без цели ym попросту нет, а бросать ради этого ошибку
+ * на живой странице незачем.
+ */
+export function reachGoal(goal: string): void {
+  window.ym?.(COUNTER_ID, 'reachGoal', goal);
+}
+
 /** Вставляет тег счётчика — форма из кабинета Метрики, без изменений по сути. */
 function loadCounter(): void {
   const w = window as unknown as Record<string, unknown>;

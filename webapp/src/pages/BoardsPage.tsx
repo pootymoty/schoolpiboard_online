@@ -7,6 +7,7 @@ import { Page } from '../components/Layout';
 import { Menu } from '../components/Menu';
 import { Modal } from '../components/Modal';
 import { IconEditor, IconOwner, IconViewer } from '../components/Icons';
+import { reachGoal } from '../components/Analytics';
 
 export function BoardsPage(): ReactElement {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ export function BoardsPage(): ReactElement {
 
     try {
       const board = await api<Board>('/boards', { method: 'POST', body: { title } });
+      reachGoal('board_create');
       // Сразу на доску, с открытой ссылкой: обещание с пустого экрана —
       // «ссылка появится сразу» — должно выполняться буквально, без
       // дополнительных кликов «открыть доску → найти иконку ссылки».

@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client';
 import type { RegisterResponse } from '../api/types';
 import { Page } from '../components/Layout';
 import { NoOrphans } from '../components/NoOrphans';
+import { reachGoal } from '../components/Analytics';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -41,6 +42,7 @@ export function RegisterPage(): ReactElement {
 
       // Пользоваться учётной записью нельзя до перехода по ссылке из письма,
       // поэтому на страницу входа не уводим — человек всё равно не войдёт.
+      reachGoal('signup');
       setDone(result.message);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось зарегистрироваться.');

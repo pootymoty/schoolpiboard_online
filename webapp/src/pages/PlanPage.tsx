@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client';
 import { Page } from '../components/Layout';
 import { humanSize } from '../api/files';
 import type { MyPlan, Order, Plan } from '../api/types';
+import { reachGoal } from '../components/Analytics';
 
 /** Периоды продажи. Тариф отвечает за пределы, период — только за срок. */
 const PERIODS = [
@@ -81,6 +82,8 @@ export function PlanPage(): ReactElement {
 
   useEffect(() => {
     if (pathname !== '/plan/paid' && pathname !== '/plan/failed') return;
+
+    if (pathname === '/plan/paid') reachGoal('purchase_success');
 
     setOutcome(pathname === '/plan/paid' ? 'paid' : 'failed');
     navigate('/plan', { replace: true });
@@ -170,6 +173,10 @@ export function PlanPage(): ReactElement {
    */
   const pay = async () => {
     if (!chosen) return;
+
+    // Клик — уже сигнал интереса к платному тарифу, независимо от того,
+    // дойдёт ли человек до самой оплаты у Робокассы.
+    reachGoal('upgrade_click');
 
     setBusy(true);
     setError(null);
