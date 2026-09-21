@@ -354,12 +354,12 @@ export function Footer(): ReactElement {
         </button>
       </div>
 
-      {/* В подвале — кто продавец и куда писать. Статус, ИНН и прочие
-          реквизиты живут в документах, куда ведут ссылки выше: в подвале
-          они превращают строку в выписку из реестра. */}
+      {/* В подвале — только куда писать. ФИО, статус, ИНН и прочие
+          реквизиты продавца живут в оферте, куда ведёт ссылка выше: в
+          подвале они были бы лишними — на каждой странице сайта. */}
       <p className="small" style={{ margin: 0 }}>
         {HAS_COMPANY_DETAILS
-          ? <>Доска <span className="pi-glyph">π</span> · {COMPANY.name} · <span className="no-wrap">{COMPANY.email}</span></>
+          ? <>Доска <span className="pi-glyph">π</span> · <span className="no-wrap">{COMPANY.email}</span></>
           : <>Доска <span className="pi-glyph">π</span> · <span className="no-wrap">board.school-pi.online</span></>}
       </p>
     </footer>
