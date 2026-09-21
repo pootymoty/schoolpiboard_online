@@ -411,7 +411,7 @@ public static class AdminEndpoints
                 var text = ExtractText(item);
                 if (string.IsNullOrWhiteSpace(text)) continue;
 
-                var reason = ModerationScanner.Scan(text, moderation.Keywords);
+                var reason = ModerationScanner.Scan(text, moderation);
                 if (reason is not null) hits.Add((item, text, reason));
             }
 
