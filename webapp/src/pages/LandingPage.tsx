@@ -57,7 +57,6 @@ export function LandingPage(): ReactElement {
     <Page>
       <NoOrphans>
       <section className="card hero">
-        <span className="hero__eyebrow">Онлайн-доска</span>
         <h1>Доска для совместной работы в браузере</h1>
         <p className="reading hero__lead">
           Пишете пером, вставляете документы и работаете с кем угодно в

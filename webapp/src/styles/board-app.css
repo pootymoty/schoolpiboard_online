@@ -2114,20 +2114,6 @@ body.no-scroll {
     .hero { padding: var(--sp-6) var(--sp-4); }
 }
 
-/* Метка над заголовком: до того, как человек дочитает заголовок, он уже
-   видит, куда попал. */
-.hero__eyebrow {
-    display: inline-block;
-    margin-bottom: var(--sp-4);
-    padding: 4px 14px;
-    border-radius: var(--radius-pill);
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-family: var(--font-head);
-    font-size: var(--fs-sm);
-    font-weight: 700;
-}
-
 .hero__lead {
     margin: 0 auto var(--sp-5);
     max-width: 640px;

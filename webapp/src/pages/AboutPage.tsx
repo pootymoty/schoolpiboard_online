@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Page } from '../components/Layout';
 import { COMPANY, HAS_COMPANY_DETAILS, MAIN_SITE } from '../content/company';
 import { IconExternal } from '../components/Icons';
-import { BoardMark } from '../components/PiMark';
 import { NoOrphans } from '../components/NoOrphans';
 
 /**
@@ -20,7 +19,7 @@ export function AboutPage(): ReactElement {
         <article className="card reading">
           <h1>О сервисе</h1>
           <p>
-            Доска <BoardMark /> — совместная работа в браузере: пишете пером,
+            Доска <span className="pi-glyph">π</span> — совместная работа в браузере: пишете пером,
             вставляете документы, а участник просто открывает ссылку и работает
             рядом, без установки и регистрации.
           </p>

@@ -359,8 +359,8 @@ export function Footer(): ReactElement {
           они превращают строку в выписку из реестра. */}
       <p className="small" style={{ margin: 0 }}>
         {HAS_COMPANY_DETAILS
-          ? <>Доска <BoardMark /> · {COMPANY.name} · <span className="no-wrap">{COMPANY.email}</span></>
-          : <>Доска <BoardMark /> · <span className="no-wrap">board.school-pi.online</span></>}
+          ? <>Доска <span className="pi-glyph">π</span> · {COMPANY.name} · <span className="no-wrap">{COMPANY.email}</span></>
+          : <>Доска <span className="pi-glyph">π</span> · <span className="no-wrap">board.school-pi.online</span></>}
       </p>
     </footer>
   );

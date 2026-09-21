@@ -507,9 +507,7 @@ export function PlanPage(): ReactElement {
             </section>
           ) : null}
         </>
-      ) : error ? null : (
-        <p className="text-muted">Загружаем…</p>
-      )}
+      ) : null}
     </Page>
   );
 }

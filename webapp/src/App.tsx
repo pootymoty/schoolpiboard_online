@@ -46,9 +46,7 @@ export function App(): ReactElement {
   const { user, loading } = useAuth();
   useDocumentMeta();
 
-  if (loading) {
-    return <div className="screen-center muted">Загружаем…</div>;
-  }
+  if (loading) return <></>;
 
   return (
     <>

@@ -17,7 +17,7 @@ export function ProfilePage(): ReactElement {
   const { user, refresh, logout } = useAuth();
   const navigate = useNavigate();
 
-  if (!user) return <Page narrow><p className="text-muted">Загружаем…</p></Page>;
+  if (!user) return <Page narrow>{null}</Page>;
 
   return (
     <Page narrow>

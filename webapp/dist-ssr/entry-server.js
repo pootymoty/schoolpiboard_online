@@ -650,14 +650,14 @@ function Footer() {
     ] }),
     /* @__PURE__ */ jsx("p", { className: "small", style: { margin: 0 }, children: HAS_COMPANY_DETAILS ? /* @__PURE__ */ jsxs(Fragment, { children: [
       "Доска ",
-      /* @__PURE__ */ jsx(BoardMark, {}),
+      /* @__PURE__ */ jsx("span", { className: "pi-glyph", children: "π" }),
       " · ",
       COMPANY.name,
       " · ",
       /* @__PURE__ */ jsx("span", { className: "no-wrap", children: COMPANY.email })
     ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
       "Доска ",
-      /* @__PURE__ */ jsx(BoardMark, {}),
+      /* @__PURE__ */ jsx("span", { className: "pi-glyph", children: "π" }),
       " · ",
       /* @__PURE__ */ jsx("span", { className: "no-wrap", children: "board.school-pi.online" })
     ] }) })
@@ -792,7 +792,6 @@ function LandingPage() {
   const { user } = useAuth();
   return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs(NoOrphans, { children: [
     /* @__PURE__ */ jsxs("section", { className: "card hero", children: [
-      /* @__PURE__ */ jsx("span", { className: "hero__eyebrow", children: "Онлайн-доска" }),
       /* @__PURE__ */ jsx("h1", { children: "Доска для совместной работы в браузере" }),
       /* @__PURE__ */ jsx("p", { className: "reading hero__lead", children: "Пишете пером, вставляете документы и работаете с кем угодно в реальном времени. Участнику достаточно открыть присланную ссылку — ни регистрации, ни установки." }),
       /* @__PURE__ */ jsx("div", { className: "row hero__actions", children: user ? /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-lg", to: "/boards", children: "Мои доски" }) : /* @__PURE__ */ jsxs(Fragment, { children: [
@@ -837,7 +836,7 @@ function AboutPage() {
       /* @__PURE__ */ jsx("h1", { children: "О сервисе" }),
       /* @__PURE__ */ jsxs("p", { children: [
         "Доска ",
-        /* @__PURE__ */ jsx(BoardMark, {}),
+        /* @__PURE__ */ jsx("span", { className: "pi-glyph", children: "π" }),
         " — совместная работа в браузере: пишете пером, вставляете документы, а участник просто открывает ссылку и работает рядом, без установки и регистрации."
       ] }),
       /* @__PURE__ */ jsx("p", { children: "Ладонь на планшете не оставляет следа — иначе пером не пишут. Платит только владелец доски, и только за себя." }),
@@ -1196,6 +1195,46 @@ function humanSize(bytes) {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
 }
+const COUNTER_ID = 112860720;
+function reachGoal(goal) {
+  var _a;
+  (_a = window.ym) == null ? void 0 : _a.call(window, COUNTER_ID, "reachGoal", goal);
+}
+function loadCounter() {
+  var _a;
+  const w = window;
+  w.ym = w.ym || function(...args) {
+    (w.ym.a = w.ym.a || []).push(args);
+  };
+  w.ym.l = Date.now();
+  const src = `https://mc.yandex.ru/metrika/tag.js?id=${COUNTER_ID}`;
+  for (let j = 0; j < document.scripts.length; j += 1) {
+    if (document.scripts[j].src === src) return;
+  }
+  const script = document.createElement("script");
+  const anchor = document.getElementsByTagName("script")[0];
+  script.async = true;
+  script.src = src;
+  (_a = anchor.parentNode) == null ? void 0 : _a.insertBefore(script, anchor);
+}
+function Analytics() {
+  useEffect(() => {
+    if (window.ym) return;
+    loadCounter();
+    const onBoard = /^\/(boards|join)\//.test(location.pathname);
+    window.ym(COUNTER_ID, "init", {
+      ssr: true,
+      webvisor: !onBoard,
+      clickmap: true,
+      ecommerce: "dataLayer",
+      referrer: document.referrer,
+      url: location.href,
+      accurateTrackBounce: true,
+      trackLinks: true
+    });
+  }, []);
+  return null;
+}
 const PERIODS = [
   { days: 30, title: "30 дней", field: "price30" },
   { days: 90, title: "90 дней", field: "price90" },
@@ -1230,6 +1269,7 @@ function PlanPage() {
   };
   useEffect(() => {
     if (pathname !== "/plan/paid" && pathname !== "/plan/failed") return;
+    if (pathname === "/plan/paid") reachGoal("purchase_success");
     setOutcome(pathname === "/plan/paid" ? "paid" : "failed");
     navigate("/plan", { replace: true });
   }, []);
@@ -1280,6 +1320,7 @@ function PlanPage() {
   );
   const pay = async () => {
     if (!chosen) return;
+    reachGoal("upgrade_click");
     setBusy(true);
     setError(null);
     try {
@@ -1542,7 +1583,7 @@ function PlanPage() {
           ] })
         ] }, order.invoiceId)) })
       ] }) : null
-    ] }) : error ? null : /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" })
+    ] }) : null
   ] });
 }
 function LoginPage() {
@@ -1666,6 +1707,7 @@ function RegisterPage() {
         method: "POST",
         body: { displayName, email, password, passwordConfirm }
       });
+      reachGoal("signup");
       setDone(result.message);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Не удалось зарегистрироваться.");
@@ -1997,6 +2039,7 @@ function BoardsPage() {
     setBusy(true);
     try {
       const board = await api("/boards", { method: "POST", body: { title } });
+      reachGoal("board_create");
       navigate(`/boards/${board.id}`, { state: { openLink: true } });
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Не удалось создать доску.");
@@ -2056,7 +2099,7 @@ function BoardsPage() {
         style: { marginBottom: "var(--sp-4)" }
       }
     ) : null,
-    loading2 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty", children: "Досок пока нет." }) : filtered.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "empty", children: [
+    loading2 ? null : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty", children: "Досок пока нет." }) : filtered.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "empty", children: [
       "Ничего не найдено по «",
       query.trim(),
       "»."
@@ -2121,7 +2164,7 @@ function roleTitle$1(role) {
 function ProfilePage() {
   const { user, refresh, logout } = useAuth();
   const navigate = useNavigate();
-  if (!user) return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) });
+  if (!user) return /* @__PURE__ */ jsx(Page, { narrow: true, children: null });
   return /* @__PURE__ */ jsxs(Page, { narrow: true, children: [
     /* @__PURE__ */ jsx("h1", { children: "Профиль" }),
     /* @__PURE__ */ jsx(NameCard, { user, onSaved: refresh }),
@@ -7235,7 +7278,7 @@ function useHistory(actions) {
   return { canUndo: depth.undo > 0, canRedo: depth.redo > 0, push, undo, redo, clear };
 }
 function BoardPage() {
-  var _a;
+  var _a, _b;
   const { boardId } = useParams();
   const navigate = useNavigate();
   const location2 = useLocation();
@@ -7249,6 +7292,9 @@ function BoardPage() {
     return Boolean((_a2 = location2.state) == null ? void 0 : _a2.openLink);
   });
   const [copied, setCopied] = useState(false);
+  const isNewBoardRef = useRef(Boolean((_a = location2.state) == null ? void 0 : _a.openLink));
+  const openGoalFired = useRef(false);
+  const participantGoalFired = useRef(false);
   useEffect(() => {
     var _a2;
     if ((_a2 = location2.state) == null ? void 0 : _a2.openLink) {
@@ -7289,6 +7335,13 @@ function BoardPage() {
   const hub = useBoardHub(id);
   const queue = useWaitingQueue(id, hub.canManage);
   const summaries = useSummaryRequests(id, hub.canManage);
+  useEffect(() => {
+    if (participantGoalFired.current || !hub.me) return;
+    if (hub.participants.some((person) => person.connectionId !== hub.me)) {
+      participantGoalFired.current = true;
+      reachGoal("participant_joined");
+    }
+  }, [hub.participants, hub.me]);
   const refToId = useRef(/* @__PURE__ */ new Map());
   const idToRef = useRef(/* @__PURE__ */ new Map());
   const pending = useRef(/* @__PURE__ */ new Map());
@@ -7799,7 +7852,7 @@ function BoardPage() {
   useEffect(() => {
     if (!hub.canEdit || (state == null ? void 0 : state.me.isGuest) !== false) return;
     const onPaste = (event) => {
-      var _a2, _b, _c;
+      var _a2, _b2, _c;
       const target = event.target;
       if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
       const items = (_a2 = event.clipboardData) == null ? void 0 : _a2.items;
@@ -7813,7 +7866,7 @@ function BoardPage() {
           return;
         }
       }
-      const text = (_c = (_b = event.clipboardData) == null ? void 0 : _b.getData("text/plain")) == null ? void 0 : _c.trim();
+      const text = (_c = (_b2 = event.clipboardData) == null ? void 0 : _b2.getData("text/plain")) == null ? void 0 : _c.trim();
       if (!text) return;
       event.preventDefault();
       pasteText(text);
@@ -7843,6 +7896,11 @@ function BoardPage() {
     const timer = window.setInterval(load, 5e3);
     return () => window.clearInterval(timer);
   }, [id, load]);
+  useEffect(() => {
+    if (!state || openGoalFired.current) return;
+    openGoalFired.current = true;
+    if (!isNewBoardRef.current) reachGoal("board_open_existing");
+  }, [state]);
   const toggleLock = async () => {
     if (!state) return;
     setBusy(true);
@@ -7888,6 +7946,7 @@ function BoardPage() {
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
+      reachGoal("invite_sent");
       window.setTimeout(() => setCopied(false), 2e3);
     } catch {
       setError("Скопировать не вышло. Выделите ссылку и скопируйте вручную.");
@@ -7910,7 +7969,7 @@ function BoardPage() {
     ] }) });
   }
   if (!state) {
-    return /* @__PURE__ */ jsx(BoardShell, { children: /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем доску…" }) });
+    return /* @__PURE__ */ jsx(BoardShell, { children: null });
   }
   const { board, me, members, guests } = state;
   const otherGuests = guests.filter((guest) => guest.guestId !== me.guestId);
@@ -8029,7 +8088,8 @@ function BoardPage() {
                 onHelp: () => setShowHelp((current) => !current),
                 onExport: () => {
                   void exportPng(hub.items, hub.background, board.title).then((saved) => {
-                    if (!saved) setError("Доска пуста — сохранять нечего.");
+                    if (saved) reachGoal("save_export");
+                    else setError("Доска пуста — сохранять нечего.");
                   });
                 },
                 onZoom: zoomBy,
@@ -8118,7 +8178,7 @@ function BoardPage() {
                 pages: hub.pages,
                 pageId: hub.pageId,
                 participants: hub.participants,
-                meKey: ((_a = hub.participants.find((one) => one.connectionId === hub.me)) == null ? void 0 : _a.key) ?? null,
+                meKey: ((_b = hub.participants.find((one) => one.connectionId === hub.me)) == null ? void 0 : _b.key) ?? null,
                 canManage: hub.canManage,
                 onOpen: (pageId) => {
                   setSelection([]);
@@ -8425,7 +8485,7 @@ function JoinPage() {
       "Вас зовут на доску «",
       boardTitle,
       "»."
-    ] }) : /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }),
+    ] }) : null,
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     loading2 || !boardTitle ? null : user ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsxs("p", { className: "text-muted", children: [
@@ -9162,7 +9222,7 @@ function AdminPage() {
       setRoleNote(reason instanceof ApiError ? reason.message : "Код не подошёл.");
     });
   };
-  if (loading2) return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) });
+  if (loading2) return /* @__PURE__ */ jsx(Page, { narrow: true, children: null });
   if (!(user == null ? void 0 : user.isAdmin)) return /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true });
   const pages = Math.max(1, Math.ceil(total / SIZE));
   const boardsPages = Math.max(1, Math.ceil(boardsTotal / SIZE));
@@ -9528,42 +9588,6 @@ function CookieBanner() {
     ] })
   ] });
 }
-const COUNTER_ID = 112860720;
-function loadCounter() {
-  var _a;
-  const w = window;
-  w.ym = w.ym || function(...args) {
-    (w.ym.a = w.ym.a || []).push(args);
-  };
-  w.ym.l = Date.now();
-  const src = `https://mc.yandex.ru/metrika/tag.js?id=${COUNTER_ID}`;
-  for (let j = 0; j < document.scripts.length; j += 1) {
-    if (document.scripts[j].src === src) return;
-  }
-  const script = document.createElement("script");
-  const anchor = document.getElementsByTagName("script")[0];
-  script.async = true;
-  script.src = src;
-  (_a = anchor.parentNode) == null ? void 0 : _a.insertBefore(script, anchor);
-}
-function Analytics() {
-  useEffect(() => {
-    if (window.ym) return;
-    loadCounter();
-    const onBoard = /^\/(boards|join)\//.test(location.pathname);
-    window.ym(COUNTER_ID, "init", {
-      ssr: true,
-      webvisor: !onBoard,
-      clickmap: true,
-      ecommerce: "dataLayer",
-      referrer: document.referrer,
-      url: location.href,
-      accurateTrackBounce: true,
-      trackLinks: true
-    });
-  }, []);
-  return null;
-}
 function useDocumentMeta() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -9576,9 +9600,7 @@ function useDocumentMeta() {
 function App() {
   const { user, loading: loading2 } = useAuth();
   useDocumentMeta();
-  if (loading2) {
-    return /* @__PURE__ */ jsx("div", { className: "screen-center muted", children: "Загружаем…" });
-  }
+  if (loading2) return /* @__PURE__ */ jsx(Fragment, {});
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsx(CookieBanner, {}),
     /* @__PURE__ */ jsx(Analytics, {}),

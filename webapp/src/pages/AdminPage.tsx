@@ -281,7 +281,7 @@ export function AdminPage(): ReactElement {
       });
   };
 
-  if (loading) return <Page narrow><p className="text-muted">Загружаем…</p></Page>;
+  if (loading) return <Page narrow>{null}</Page>;
 
   // Не «нет доступа», а «нет такой страницы»: панель посторонним не
   // показывают даже отказом.

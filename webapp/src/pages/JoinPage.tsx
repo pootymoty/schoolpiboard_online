@@ -174,11 +174,7 @@ export function JoinPage(): ReactElement {
       <div className="card">
         <h1>Приглашение на доску</h1>
 
-        {boardTitle ? (
-          <p>Вас зовут на доску «{boardTitle}».</p>
-        ) : (
-          <p className="text-muted">Загружаем…</p>
-        )}
+        {boardTitle ? <p>Вас зовут на доску «{boardTitle}».</p> : null}
 
         {error ? <p className="note note-danger">{error}</p> : null}
 

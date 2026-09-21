@@ -116,9 +116,7 @@ export function BoardsPage(): ReactElement {
         />
       ) : null}
 
-      {loading ? (
-        <p className="text-muted">Загружаем…</p>
-      ) : boards.length === 0 ? (
+      {loading ? null : boards.length === 0 ? (
         <p className="empty">
           Досок пока нет.
         </p>

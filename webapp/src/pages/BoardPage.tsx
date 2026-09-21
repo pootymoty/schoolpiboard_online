@@ -1143,11 +1143,7 @@ export function BoardPage(): ReactElement {
   }
 
   if (!state) {
-    return (
-      <BoardShell>
-        <p className="text-muted">Загружаем доску…</p>
-      </BoardShell>
-    );
+    return <BoardShell>{null}</BoardShell>;
   }
 
   const { board, me, members, guests } = state;
