@@ -174,7 +174,7 @@ export function Header(): ReactElement {
 
   return (
     <header className="header">
-      <Link className="header__brand" to={user ? '/boards' : '/'}>Доска <BoardMark /></Link>
+      <Link className="header__brand" to="/">Доска <BoardMark /></Link>
 
       <span className="header__spacer" />
 
@@ -197,6 +197,13 @@ export function Header(): ReactElement {
             <>
               <li><NavLink to="/boards">Мои доски</NavLink></li>
 
+              {/* Администрирование — не часть личного кабинета: это
+                  управление сервисом, а не настройки своей учётной записи,
+                  и прятать её в то же подменю значило бы смешивать разное. */}
+              {user.isAdmin ? (
+                <li><NavLink to="/admin">Администрирование</NavLink></li>
+              ) : null}
+
               {/* Подменю невидимо и приподнято, пока закрыто: появление
                   плавное, а не рывком. Стрелка крутится по тому же
                   признаку, что и открытость, — рассинхрона быть не может. */}
@@ -212,9 +219,6 @@ export function Header(): ReactElement {
                 </button>
 
                 <ul className={dropOpen ? 'dropdown-menu show' : 'dropdown-menu'}>
-                  {user.isAdmin ? (
-                    <li><Link to="/admin">Администрирование</Link></li>
-                  ) : null}
                   <li><Link to="/plan">Мой тариф</Link></li>
                   <li><Link to="/profile">Настройки</Link></li>
                   <li>
@@ -276,6 +280,9 @@ export function Header(): ReactElement {
                 </a>
               </li>
               <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
+              {user.isAdmin ? (
+                <li><Link to="/admin" onClick={closeMobile}>Администрирование</Link></li>
+              ) : null}
               <li className={cabinetOpen ? 'navbar-dropdown navbar-dropdown--active' : 'navbar-dropdown'}>
                 <button
                   className="navbar-dropdown__toggle"
@@ -287,9 +294,6 @@ export function Header(): ReactElement {
                   <span className="navbar-dropdown__arrow" aria-hidden="true" />
                 </button>
                 <ul className="navbar-submenu">
-                  {user.isAdmin ? (
-                    <li><Link to="/admin" onClick={closeMobile}>Администрирование</Link></li>
-                  ) : null}
                   <li><Link to="/plan" onClick={closeMobile}>Мой тариф</Link></li>
                   <li><Link to="/profile" onClick={closeMobile}>Настройки</Link></li>
                   <li>
