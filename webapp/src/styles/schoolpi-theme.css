@@ -299,13 +299,10 @@ img, svg, video { max-width: 100%; height: auto; }
    строчных букв — как и сама буковка «Пи» рядом с ними. */
 .pi-mark {
     display: inline-block;
-    height: 1.15em;
+    height: 1.8em;
     width: auto;
     max-width: none;
-    vertical-align: -0.28em;
-    /* У знака доски свой светлый фон изнутри картинки — на тёмной шапке
-       без скругления это читалось прямоугольной наклейкой. */
-    border-radius: 0.2em;
+    vertical-align: -0.5em;
 }
 
 /* Слово и знак — один элемент потока, а не два соседних флекс-пункта:
@@ -701,7 +698,7 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .header a { color: var(--text-on-dark); text-decoration: none; }
 .header a:hover { text-decoration: underline; }
-.header__brand { font-family: var(--font-head); font-weight: 800; font-size: var(--fs-h3); }
+.header__brand { font-family: var(--font-head); font-weight: 800; font-size: var(--fs-h1); }
 .header__spacer { flex: 1; }
 
 
