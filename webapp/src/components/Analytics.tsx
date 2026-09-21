@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { readCookieConsent } from '../api/cookieConsent';
 
 const COUNTER_ID = 112860720;
 
@@ -33,38 +32,36 @@ function loadCounter(): void {
 /**
  * Счётчик Яндекс.Метрики.
  *
- * Ставит свои куки и пишет их только при выборе «Принять» в баннере
- * согласия — при «Отклонить» или до ответа сервера скрипт вообще не
- * загружается. Баннер отправляет выбор обычной формой с перезагрузкой
- * страницы, поэтому проверять его повторно при каждом переходе внутри
- * приложения не нужно: здесь достаточно одной проверки при загрузке.
+ * Собираемая статистика обезличена, поэтому подключается всегда, тем же
+ * необходимым куком, что и cookie_consent, — без баннера согласия. Выбор
+ * в баннере на счётчик не влияет, он только решает, показывать ли сам
+ * баннер повторно.
+ *
+ * Вебвизор (запись сеанса вместе с содержимым страницы) выключен на
+ * доске и на странице входа по приглашению: там на экране настоящий
+ * рисунок с доски, а не публичный текст сайта, и его не должен видеть
+ * никто, кроме тех, кого туда впустил владелец доски. Решение проверяет
+ * только адрес при первой загрузке — если человек перешёл на доску
+ * внутри уже открытого приложения, не перезагружая страницу, счётчик
+ * остаётся в том состоянии, в котором был инициализирован.
  */
 export function Analytics(): null {
   useEffect(() => {
-    let alive = true;
+    if (window.ym) return;
 
-    readCookieConsent().then((consent) => {
-      if (!alive || consent !== 'all' || window.ym) return;
+    loadCounter();
+    const onBoard = /^\/(boards|join)\//.test(location.pathname);
 
-      loadCounter();
-      (window as unknown as Record<string, (...args: unknown[]) => void>).ym(COUNTER_ID, 'init', {
-        ssr: true,
-        webvisor: true,
-        clickmap: true,
-        ecommerce: 'dataLayer',
-        referrer: document.referrer,
-        url: location.href,
-        accurateTrackBounce: true,
-        trackLinks: true,
-      });
-    }).catch(() => {
-      // Сервер не ответил — счётчик просто не подключается, страница
-      // при этом работает как обычно.
+    (window as unknown as Record<string, (...args: unknown[]) => void>).ym(COUNTER_ID, 'init', {
+      ssr: true,
+      webvisor: !onBoard,
+      clickmap: true,
+      ecommerce: 'dataLayer',
+      referrer: document.referrer,
+      url: location.href,
+      accurateTrackBounce: true,
+      trackLinks: true,
     });
-
-    return () => {
-      alive = false;
-    };
   }, []);
 
   return null;
