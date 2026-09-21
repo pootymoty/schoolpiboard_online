@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ReactElement } from 'react';
 import { api, ApiError } from '../api/client';
+import { reportBoard } from '../api/reports';
 import type { ActiveGuest, BoardMember, BoardRole } from '../api/types';
 import type { WaitingQueue } from '../board/useWaitingQueue';
 import type { Cursor, Participant } from '../board/protocol';
@@ -46,6 +47,13 @@ export function PeoplePanel({
 }: Props): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+
+  // Пожаловаться может любой, кто на доске, — не только владелец: он
+  // видит происходящее, а владелец может быть не в курсе.
+  const [reporting, setReporting] = useState(false);
+  const [reportText, setReportText] = useState('');
+  const [reportSent, setReportSent] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
 
   const waiting = queue.waiting;
 
@@ -116,6 +124,23 @@ export function PeoplePanel({
       onChanged();
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось выгнать гостя.');
+    }
+  };
+
+  const submitReport = async () => {
+    const comment = reportText.trim();
+    if (!comment) return;
+
+    setReportBusy(true);
+    try {
+      await reportBoard(boardId, comment);
+      setReportSent(true);
+      setReporting(false);
+      setReportText('');
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось отправить жалобу.');
+    } finally {
+      setReportBusy(false);
     }
   };
 
@@ -321,6 +346,41 @@ export function PeoplePanel({
           </button>
         </div>
       ) : null}
+
+      <div className="people__report">
+        {reportSent ? (
+          <p className="text-muted small">Жалоба отправлена, спасибо.</p>
+        ) : reporting ? (
+          <div className="stack">
+            <label htmlFor="report-comment" className="small">Что не так с доской?</label>
+            <textarea
+              id="report-comment"
+              rows={3}
+              maxLength={2000}
+              autoFocus
+              value={reportText}
+              onChange={(event) => setReportText(event.target.value)}
+            />
+            <div className="row">
+              <button
+                className="btn-primary btn-sm"
+                type="button"
+                onClick={submitReport}
+                disabled={reportBusy || reportText.trim().length === 0}
+              >
+                Отправить
+              </button>
+              <button className="btn-quiet btn-sm" type="button" onClick={() => setReporting(false)}>
+                Отмена
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button className="btn-quiet btn-sm" type="button" onClick={() => setReporting(true)}>
+            Пожаловаться на доску
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -17,6 +17,7 @@ public sealed record AdmitRequest(string? RequestId, string? Role);
 public sealed record RequestIdRequest(string? RequestId);
 public sealed record GuestRoleRequest(string? GuestId, string? Role);
 public sealed record GuestJoinRequest(string? DisplayName, string? GuestId);
+public sealed record ReportRequest(string? Comment);
 
 public sealed record BoardDto(
     long Id,
@@ -350,6 +351,43 @@ public static class BoardEndpoints
                 .Select(x => new BookmarkDto(x.Id, x.PageId, titleOf[x.PageId], ParsedData(x.Data)));
 
             return Results.Ok(result);
+        });
+
+        // ---------- Жалобы ----------
+
+        // Пожаловаться может любой, у кого есть доступ к доске, — не
+        // только владелец: происходящее на доске видит участник, а
+        // владелец может быть не в курсе или сам быть тем, кто пишет.
+        app.MapPost("/api/boards/{boardId:long}/report", async (
+            long boardId, [FromBody] ReportRequest request, HttpContext http, ClaimsPrincipal principal,
+            AppDbContext db, BoardService service, ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            var user = await AuthEndpoints.CurrentUser(principal, db, ct);
+            var guestToken = http.Request.Headers[GuestHeader].ToString();
+
+            var actor = await service.ResolveActorAsync(boardId, user?.Id, guestToken, ct);
+            if (actor is null)
+                return Results.Json(new { message = "Нет доступа к этой доске." }, statusCode: 403);
+
+            var comment = (request.Comment ?? string.Empty).Trim();
+            if (comment.Length == 0)
+                return Results.BadRequest(new { message = "Напишите, что не так с доской." });
+            if (comment.Length > 2000)
+                return Results.BadRequest(new { message = "Слишком длинный текст — покороче, пожалуйста." });
+
+            db.Reports.Add(new Report
+            {
+                BoardId = boardId,
+                ReporterUserId = actor.UserId,
+                ReporterGuestName = actor.IsGuest ? actor.DisplayName : null,
+                Comment = comment,
+                CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+
+            loggers.CreateLogger("Report").LogWarning("Жалоба на доску {BoardId}.", boardId);
+
+            return Results.NoContent();
         });
 
         // Гость уходит сам. Без этого запись о нём висела бы у владельца в

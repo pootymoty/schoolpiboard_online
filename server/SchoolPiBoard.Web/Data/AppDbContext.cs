@@ -37,6 +37,8 @@ public class AppDbContext : DbContext
 
     public DbSet<ConsentEvent> ConsentEvents => Set<ConsentEvent>();
 
+    public DbSet<Report> Reports => Set<Report>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(entity =>
@@ -401,6 +403,30 @@ public class AppDbContext : DbContext
             entity.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<Report>(entity =>
+        {
+            entity.ToTable("reports");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.BoardId).HasColumnName("board_id");
+            entity.Property(x => x.ReporterUserId).HasColumnName("reporter_user_id");
+            entity.Property(x => x.ReporterGuestName).HasColumnName("reporter_guest_name");
+            entity.Property(x => x.Comment).HasColumnName("comment").IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.ResolvedAt).HasColumnName("resolved_at");
+
+            // Открытые жалобы читают списком по времени — составной индекс
+            // начинается с признака «не разобрана», как и сам запрос.
+            entity.HasIndex(x => new { x.ResolvedAt, x.CreatedAt });
+            entity.HasIndex(x => x.BoardId);
+
+            entity.HasOne(x => x.Board)
+                .WithMany()
+                .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

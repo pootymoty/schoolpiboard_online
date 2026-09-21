@@ -3,9 +3,10 @@ import { api } from './client';
 /**
  * Панель владельца сервиса.
  *
- * Только чтение: посмотреть, кто пришёл и что купил. Менять чужую
- * подписку отсюда нельзя — деньги и доступ живут в платёжной системе, и
- * правка руками означала бы, что они однажды разойдутся.
+ * Подписки и деньги здесь только читаются: правка чужой подписки руками
+ * означала бы, что она и платёжная система однажды расходятся. Модерация
+ * досок — другое дело: закрыть жалобу или удалить доску с запрещённым
+ * содержимым — не денежное действие, и панель делает это напрямую.
  */
 export interface AdminUser {
   id: number;
@@ -85,4 +86,73 @@ export function adminRoleConfirm(
     method: 'POST',
     body: { admin, code },
   });
+}
+
+export interface AdminReport {
+  id: number;
+  boardId: number;
+  boardTitle: string;
+  ownerEmail: string | null;
+  ownerName: string | null;
+  reporter: string;
+  comment: string;
+  createdAt: string;
+}
+
+export interface AdminBoard {
+  id: number;
+  title: string;
+  ownerEmail: string | null;
+  ownerName: string | null;
+  items: number;
+  createdAt: string;
+}
+
+export interface AdminBoardPage {
+  boards: AdminBoard[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export interface AdminBoardText {
+  itemId: number;
+  pageId: number;
+  pageTitle: string;
+  text: string;
+  updatedAt: string;
+}
+
+export interface AdminFlagged {
+  boardId: number;
+  boardTitle: string;
+  ownerEmail: string | null;
+  itemId: number;
+  text: string;
+  reason: string;
+}
+
+export function adminReports(): Promise<AdminReport[]> {
+  return api<AdminReport[]>('/admin/reports');
+}
+
+export function adminResolveReport(reportId: number): Promise<void> {
+  return api<void>(`/admin/reports/${reportId}/resolve`, { method: 'POST' });
+}
+
+export function adminBoards(query: string, page: number, size: number): Promise<AdminBoardPage> {
+  const search = new URLSearchParams({ query, page: String(page), size: String(size) });
+  return api<AdminBoardPage>(`/admin/boards?${search.toString()}`);
+}
+
+export function adminBoardText(boardId: number): Promise<AdminBoardText[]> {
+  return api<AdminBoardText[]>(`/admin/boards/${boardId}/text`);
+}
+
+export function adminFlaggedBoards(): Promise<AdminFlagged[]> {
+  return api<AdminFlagged[]>('/admin/boards/flagged');
+}
+
+export function adminDeleteBoard(boardId: number): Promise<void> {
+  return api<void>(`/admin/boards/${boardId}`, { method: 'DELETE' });
 }

@@ -3,9 +3,12 @@ import type { ReactElement } from 'react';
 import { Navigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import {
-  adminOrders, adminRoleConfirm, adminRoleRequest, adminStats, adminUsers,
+  adminBoardText, adminBoards, adminDeleteBoard, adminFlaggedBoards, adminOrders,
+  adminReports, adminResolveReport, adminRoleConfirm, adminRoleRequest, adminStats, adminUsers,
 } from '../api/admin';
-import type { AdminOrder, AdminStats, AdminUser } from '../api/admin';
+import type {
+  AdminBoard, AdminBoardText, AdminFlagged, AdminOrder, AdminReport, AdminStats, AdminUser,
+} from '../api/admin';
 import { useAuth } from '../auth/AuthContext';
 import { Page } from '../components/Layout';
 
@@ -30,6 +33,29 @@ function Tile({ title, value }: { title: string; value: string }): ReactElement 
     <div className="admin__tile">
       <span className="admin__tile-value">{value}</span>
       <span className="admin__tile-title">{title}</span>
+    </div>
+  );
+}
+
+/**
+ * Только надписи инструментом «текст», без остального содержимого доски —
+ * этого достаточно, чтобы понять, о чём на ней пишут, не открывая сам
+ * холст. Список пуст и пока текст ещё загружается, и когда на доске
+ * действительно нет ни одной надписи — отдельно эти случаи не различаем,
+ * разница не стоит лишнего состояния.
+ */
+function BoardTextView({ rows }: { rows: AdminBoardText[] }): ReactElement {
+  if (rows.length === 0) {
+    return <p className="text-muted small" style={{ margin: 0 }}>Надписей инструментом «текст» нет.</p>;
+  }
+
+  return (
+    <div className="stack">
+      {rows.map((row) => (
+        <p key={row.itemId} className="small" style={{ margin: 0 }}>
+          <span className="text-muted">{row.pageTitle}:</span> {row.text}
+        </p>
+      ))}
     </div>
   );
 }
@@ -64,6 +90,102 @@ export function AdminPage(): ReactElement {
   const [role, setRole] = useState<{ id: number; admin: boolean; sentTo: string } | null>(null);
   const [code, setCode] = useState('');
   const [roleNote, setRoleNote] = useState<string | null>(null);
+
+  // ---------- Жалобы ----------
+  const [reports, setReports] = useState<AdminReport[]>([]);
+  const [reportsError, setReportsError] = useState<string | null>(null);
+
+  const loadReports = useCallback(() => {
+    adminReports().then(setReports).catch((reason) => setReportsError(
+      reason instanceof ApiError ? reason.message : 'Не удалось загрузить жалобы.',
+    ));
+  }, []);
+
+  useEffect(() => {
+    if (!user?.isAdmin) return;
+    loadReports();
+  }, [user?.isAdmin, loadReports]);
+
+  const resolveReport = async (reportId: number) => {
+    try {
+      await adminResolveReport(reportId);
+      setReports((current) => current.filter((r) => r.id !== reportId));
+    } catch (reason) {
+      setReportsError(reason instanceof ApiError ? reason.message : 'Не удалось закрыть жалобу.');
+    }
+  };
+
+  // ---------- Доски: список, текст, проверка на запрещённые слова ----------
+  const [boards, setBoards] = useState<AdminBoard[]>([]);
+  const [boardsTotal, setBoardsTotal] = useState(0);
+  const [boardsPage, setBoardsPage] = useState(1);
+  const [boardsQuery, setBoardsQuery] = useState('');
+  const [boardsBusy, setBoardsBusy] = useState(false);
+  const [boardsError, setBoardsError] = useState<string | null>(null);
+
+  const loadBoards = useCallback((search: string, at: number) => {
+    setBoardsBusy(true);
+    adminBoards(search, at, SIZE)
+      .then((answer) => {
+        setBoards(answer.boards);
+        setBoardsTotal(answer.total);
+        setBoardsError(null);
+      })
+      .catch((reason) => setBoardsError(
+        reason instanceof ApiError ? reason.message : 'Не удалось загрузить доски.',
+      ))
+      .finally(() => setBoardsBusy(false));
+  }, []);
+
+  useEffect(() => {
+    if (!user?.isAdmin) return undefined;
+
+    const timer = window.setTimeout(() => loadBoards(boardsQuery, boardsPage), TYPING_MS);
+    return () => window.clearTimeout(timer);
+  }, [boardsQuery, boardsPage, loadBoards, user?.isAdmin]);
+
+  /** Текст, показанный под строкой доски — своя таблица открыта не более чем у одной. */
+  const [textFor, setTextFor] = useState<number | null>(null);
+  const [textRows, setTextRows] = useState<AdminBoardText[]>([]);
+
+  const showText = (boardId: number) => {
+    if (textFor === boardId) {
+      setTextFor(null);
+      return;
+    }
+
+    setTextFor(boardId);
+    setTextRows([]);
+    adminBoardText(boardId).then(setTextRows).catch(() => setTextRows([]));
+  };
+
+  const removeBoard = async (boardId: number, title: string) => {
+    if (!window.confirm(`Удалить доску «${title}»? Она пропадёт у всех участников.`)) return;
+
+    try {
+      await adminDeleteBoard(boardId);
+      setBoards((current) => current.filter((b) => b.id !== boardId));
+      setReports((current) => current.filter((r) => r.boardId !== boardId));
+    } catch (reason) {
+      setBoardsError(reason instanceof ApiError ? reason.message : 'Не удалось удалить доску.');
+    }
+  };
+
+  const [flagged, setFlagged] = useState<AdminFlagged[] | null>(null);
+  const [flaggedBusy, setFlaggedBusy] = useState(false);
+  const [flaggedError, setFlaggedError] = useState<string | null>(null);
+
+  const runFlaggedScan = () => {
+    setFlaggedBusy(true);
+    setFlaggedError(null);
+
+    adminFlaggedBoards()
+      .then(setFlagged)
+      .catch((reason) => setFlaggedError(
+        reason instanceof ApiError ? reason.message : 'Не удалось выполнить проверку.',
+      ))
+      .finally(() => setFlaggedBusy(false));
+  };
 
   const pending = useRef<AbortController | null>(null);
 
@@ -166,6 +288,7 @@ export function AdminPage(): ReactElement {
   if (!user?.isAdmin) return <Navigate to="/boards" replace />;
 
   const pages = Math.max(1, Math.ceil(total / SIZE));
+  const boardsPages = Math.max(1, Math.ceil(boardsTotal / SIZE));
 
   return (
     <Page>
@@ -189,6 +312,172 @@ export function AdminPage(): ReactElement {
           <Tile title="Счетов брошено" value={String(stats.abandoned)} />
         </div>
       ) : null}
+
+      <section className="card">
+        <h2 className="card-title">Жалобы{reports.length > 0 ? ` · ${reports.length}` : ''}</h2>
+
+        {reportsError ? <p className="note note-danger">{reportsError}</p> : null}
+
+        {reports.length === 0 ? (
+          <p className="text-muted small">Открытых жалоб нет.</p>
+        ) : (
+          <div className="stack">
+            {reports.map((r) => (
+              <div className="admin__report" key={r.id}>
+                <p className="small" style={{ margin: 0 }}>
+                  <strong>{r.boardTitle}</strong> (доска № {r.boardId})
+                  {r.ownerName ? ` · владелец: ${r.ownerName} (${r.ownerEmail})` : ''}
+                  {' · от '}{r.reporter}{' · '}{day(r.createdAt)}
+                </p>
+                <p className="small" style={{ margin: 'var(--sp-1) 0' }}>{r.comment}</p>
+                <div className="row">
+                  <button className="btn-quiet btn-sm" type="button" onClick={() => showText(r.boardId)}>
+                    {textFor === r.boardId ? 'Скрыть текст' : 'Текст на доске'}
+                  </button>
+                  <button className="btn-quiet btn-sm" type="button" onClick={() => resolveReport(r.id)}>
+                    Закрыть жалобу
+                  </button>
+                  <button
+                    className="btn-quiet menu__item--danger btn-sm"
+                    type="button"
+                    onClick={() => removeBoard(r.boardId, r.boardTitle)}
+                  >
+                    Удалить доску
+                  </button>
+                </div>
+
+                {textFor === r.boardId ? <BoardTextView rows={textRows} /> : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <div className="row row--between">
+          <h2 className="card-title" style={{ margin: 0 }}>Доски</h2>
+          <button className="btn-quiet btn-sm" type="button" onClick={runFlaggedScan} disabled={flaggedBusy}>
+            {flaggedBusy ? 'Проверяем…' : 'Проверить надписи на запрещённые слова'}
+          </button>
+        </div>
+
+        {flaggedError ? <p className="note note-danger">{flaggedError}</p> : null}
+
+        {flagged ? (
+          flagged.length === 0 ? (
+            <p className="text-muted small">Проверка ничего не нашла. Она видит только надписи инструментом «текст» — не рисунок от руки.</p>
+          ) : (
+            <div className="stack">
+              {flagged.map((f) => (
+                <div className="admin__report" key={f.itemId}>
+                  <p className="small" style={{ margin: 0 }}>
+                    <strong>{f.boardTitle}</strong> (доска № {f.boardId})
+                    {f.ownerEmail ? ` · владелец: ${f.ownerEmail}` : ''}
+                    {' · '}{f.reason}
+                  </p>
+                  <p className="small" style={{ margin: 'var(--sp-1) 0' }}>«{f.text}»</p>
+                </div>
+              ))}
+            </div>
+          )
+        ) : null}
+
+        <div className="admin__search" style={{ marginTop: 'var(--sp-4)' }}>
+          <input
+            className="input"
+            type="search"
+            value={boardsQuery}
+            placeholder="Название доски, имя или почта владельца"
+            onChange={(event) => {
+              setBoardsQuery(event.target.value);
+              setBoardsPage(1);
+            }}
+          />
+          <span className="text-muted small">
+            {boardsBusy ? 'Ищем…' : `Найдено: ${boardsTotal}`}
+          </span>
+        </div>
+
+        {boardsError ? <p className="note note-danger">{boardsError}</p> : null}
+
+        <div className="table-scroll">
+          <table className="admin__table">
+            <thead>
+              <tr>
+                <th>Доска</th>
+                <th>Владелец</th>
+                <th>Объектов</th>
+                <th>Создана</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {boards.map((b) => (
+                <Fragment key={b.id}>
+                  <tr>
+                    <td>{b.title}</td>
+                    <td>
+                      {b.ownerName}
+                      <br />
+                      <span className="text-muted small">{b.ownerEmail}</span>
+                    </td>
+                    <td>{b.items}</td>
+                    <td>{day(b.createdAt)}</td>
+                    <td>
+                      <div className="admin__actions">
+                        <button className="btn-quiet btn-sm" type="button" onClick={() => showText(b.id)}>
+                          {textFor === b.id ? 'Скрыть текст' : 'Текст'}
+                        </button>
+                        <button
+                          className="btn-quiet btn-sm"
+                          type="button"
+                          onClick={() => removeBoard(b.id, b.title)}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {textFor === b.id ? (
+                    <tr className="admin__open">
+                      <td colSpan={5}><BoardTextView rows={textRows} /></td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              ))}
+
+              {boards.length === 0 && !boardsBusy ? (
+                <tr><td colSpan={5}><span className="text-muted">Ничего не нашлось.</span></td></tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+
+        {boardsPages > 1 ? (
+          <div className="admin__pager">
+            <button
+              className="btn-quiet btn-sm"
+              type="button"
+              disabled={boardsPage <= 1}
+              onClick={() => setBoardsPage((current) => current - 1)}
+            >
+              Назад
+            </button>
+
+            <span className="text-muted small">{boardsPage} из {boardsPages}</span>
+
+            <button
+              className="btn-quiet btn-sm"
+              type="button"
+              disabled={boardsPage >= boardsPages}
+              onClick={() => setBoardsPage((current) => current + 1)}
+            >
+              Вперёд
+            </button>
+          </div>
+        ) : null}
+      </section>
 
       <section className="card">
         <div className="admin__search">

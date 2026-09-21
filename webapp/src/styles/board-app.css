@@ -420,6 +420,15 @@ body.no-scroll {
 
 .theme-switch svg { flex: none; opacity: .8; }
 
+/* Не для самого переключателя темы — тот подписи не выводит — а для
+   панели администратора: смена роли пользователя переиспользует тот же
+   слайдер и там подпись всё ещё есть. */
+.theme-switch__label {
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 .theme-switch input {
     position: absolute;
     opacity: 0;
@@ -770,6 +779,12 @@ body.no-scroll {
     justify-content: center;
     gap: var(--sp-3);
     margin-top: var(--sp-3);
+}
+
+.people__report {
+    margin-top: var(--sp-4);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--line);
 }
 
 /* --- Полный экран для страницы доски --------------------------------------- */
@@ -2575,6 +2590,13 @@ body.no-scroll {
 .admin__tile-title {
     font-size: var(--fs-xs);
     color: var(--text-muted);
+}
+
+.admin__report {
+    padding: var(--sp-3);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
 }
 
 .admin__search {

@@ -20,6 +20,10 @@ builder.Host.UseSystemd();
 var options = AppOptions.Load(builder.Configuration);
 builder.Services.AddSingleton(options);
 
+// В отличие от остальных настроек — необязательные: пустой список ничего
+// не ловит, и это рабочее состояние по умолчанию, а не повод не запускаться.
+builder.Services.AddSingleton(ModerationOptions.Load(builder.Configuration));
+
 builder.Services.AddDbContext<AppDbContext>(db => db.UseNpgsql(options.DatabaseUrl));
 
 builder.Services.AddSingleton<AuthTokenService>();

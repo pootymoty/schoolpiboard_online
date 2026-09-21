@@ -778,6 +778,49 @@ namespace SchoolPiBoard.Web.Migrations
                     b.ToTable("consent_events", (string)null);
                 });
 
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.Report", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BoardId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("board_id");
+
+                    b.Property<string>("Comment")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ReporterGuestName")
+                        .HasColumnType("text")
+                        .HasColumnName("reporter_guest_name");
+
+                    b.Property<long?>("ReporterUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reporter_user_id");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BoardId");
+
+                    b.HasIndex("ResolvedAt", "CreatedAt");
+
+                    b.ToTable("reports", (string)null);
+                });
+
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardItem", b =>
                 {
                     b.HasOne("SchoolPiBoard.Web.Data.Entities.Board", "Board")
@@ -899,6 +942,17 @@ namespace SchoolPiBoard.Web.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.Report", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.Board", "Board")
+                        .WithMany()
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Board");
                 });
 
 #pragma warning restore 612, 618
