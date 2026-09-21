@@ -7446,49 +7446,49 @@ function BoardPage() {
       const target = event.target;
       if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
       const control = event.ctrlKey || event.metaKey;
-      if (control && event.key.toLowerCase() === "z") {
+      if (control && event.code === "KeyZ") {
         event.preventDefault();
         if (event.shiftKey) history.redo();
         else history.undo();
         return;
       }
-      if (control && event.key.toLowerCase() === "y") {
+      if (control && event.code === "KeyY") {
         event.preventDefault();
         history.redo();
         return;
       }
-      if (control && event.key.toLowerCase() === "d") {
+      if (control && event.code === "KeyD") {
         event.preventDefault();
         duplicateSelection();
         return;
       }
-      if (control && event.key.toLowerCase() === "c") {
+      if (control && event.code === "KeyC") {
         event.preventDefault();
         copySelection();
         return;
       }
-      if (control && event.key.toLowerCase() === "x") {
+      if (control && event.code === "KeyX") {
         event.preventDefault();
         copySelection();
         removeSelection();
         return;
       }
-      if (control && event.key.toLowerCase() === "v") {
+      if (control && event.code === "KeyV") {
         event.preventDefault();
         pasteClip();
         return;
       }
-      if (control && event.key.toLowerCase() === "a") {
+      if (control && event.code === "KeyA") {
         event.preventDefault();
         setSelection(hub.items.map((item) => item.id));
         return;
       }
-      if (event.key === "Delete" || event.key === "Backspace") {
+      if (event.code === "Delete" || event.code === "Backspace") {
         event.preventDefault();
         removeSelection();
         return;
       }
-      if (event.key === "Escape") setSelection([]);
+      if (event.code === "Escape") setSelection([]);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -7998,6 +7998,19 @@ function BoardPage() {
           {
             className: "btn-tool btn-tool--wide",
             type: "button",
+            onClick: () => setShowLink(true),
+            title: "Ссылка на доску",
+            children: [
+              /* @__PURE__ */ jsx(IconLink, {}),
+              /* @__PURE__ */ jsx("span", { children: "Ссылка" })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxs(
+          "button",
+          {
+            className: "btn-tool btn-tool--wide",
+            type: "button",
             onClick: toggleLock,
             disabled: busy,
             "aria-pressed": board.locked,
@@ -8007,23 +8020,10 @@ function BoardPage() {
               /* @__PURE__ */ jsx("span", { children: board.locked ? "Закрыта" : "Открыта" })
             ]
           }
-        ),
-        /* @__PURE__ */ jsxs(
-          "button",
-          {
-            className: "btn-tool btn-tool--wide",
-            type: "button",
-            onClick: () => setShowLink(true),
-            title: "Ссылка на доску",
-            children: [
-              /* @__PURE__ */ jsx(IconLink, {}),
-              /* @__PURE__ */ jsx("span", { children: "Ссылка" })
-            ]
-          }
         )
       ] }) : null,
-      error ?? hub.error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error ?? hub.error }) : null,
       board.locked && board.canManage ? /* @__PURE__ */ jsx("p", { className: "note note-warning", children: "Доска закрыта для новых участников." }) : null,
+      error ?? hub.error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error ?? hub.error }) : null,
       /* @__PURE__ */ jsxs(
         "section",
         {

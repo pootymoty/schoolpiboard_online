@@ -324,57 +324,62 @@ export function BoardPage(): ReactElement {
 
       const control = event.ctrlKey || event.metaKey;
 
-      if (control && event.key.toLowerCase() === 'z') {
+      // По коду физической клавиши, а не по символу: «event.key» зависит
+      // от раскладки, и на русской, например, Ctrl+я вместо Ctrl+Z не
+      // совпал бы ни с одним условием ниже — сочетание просто не работало.
+      // «event.code» называет клавишу по месту на клавиатуре, раскладке
+      // не касается.
+      if (control && event.code === 'KeyZ') {
         event.preventDefault();
         if (event.shiftKey) history.redo(); else history.undo();
         return;
       }
 
-      if (control && event.key.toLowerCase() === 'y') {
+      if (control && event.code === 'KeyY') {
         event.preventDefault();
         history.redo();
         return;
       }
 
-      if (control && event.key.toLowerCase() === 'd') {
+      if (control && event.code === 'KeyD') {
         event.preventDefault();
         duplicateSelection();
         return;
       }
 
-      if (control && event.key.toLowerCase() === 'c') {
+      if (control && event.code === 'KeyC') {
         event.preventDefault();
         copySelection();
         return;
       }
 
-      if (control && event.key.toLowerCase() === 'x') {
+      if (control && event.code === 'KeyX') {
         event.preventDefault();
         copySelection();
         removeSelection();
         return;
       }
 
-      if (control && event.key.toLowerCase() === 'v') {
+      if (control && event.code === 'KeyV') {
         event.preventDefault();
         pasteClip();
         return;
       }
 
-      if (control && event.key.toLowerCase() === 'a') {
+      if (control && event.code === 'KeyA') {
         event.preventDefault();
         setSelection(hub.items.map((item) => item.id));
         return;
       }
 
-      if (event.key === 'Delete' || event.key === 'Backspace') {
+      if (event.code === 'Delete' || event.code === 'Backspace') {
         event.preventDefault();
         removeSelection();
         return;
       }
 
       // Esc возвращает к курсору и снимает выделение — как в десктопной версии.
-      if (event.key === 'Escape') setSelection([]);
+      if (event.code === 'Escape') setSelection([]);
     };
 
     window.addEventListener('keydown', onKey);
@@ -1163,6 +1168,16 @@ export function BoardPage(): ReactElement {
             <button
               className="btn-tool btn-tool--wide"
               type="button"
+              onClick={() => setShowLink(true)}
+              title="Ссылка на доску"
+            >
+              <IconLink />
+              <span>Ссылка</span>
+            </button>
+
+            <button
+              className="btn-tool btn-tool--wide"
+              type="button"
               onClick={toggleLock}
               disabled={busy}
               aria-pressed={board.locked}
@@ -1173,24 +1188,14 @@ export function BoardPage(): ReactElement {
               {board.locked ? <IconLockClosed /> : <IconLockOpen />}
               <span>{board.locked ? 'Закрыта' : 'Открыта'}</span>
             </button>
-
-            <button
-              className="btn-tool btn-tool--wide"
-              type="button"
-              onClick={() => setShowLink(true)}
-              title="Ссылка на доску"
-            >
-              <IconLink />
-              <span>Ссылка</span>
-            </button>
           </div>
         ) : null}
-
-        {error ?? hub.error ? <p className="note note-danger">{error ?? hub.error}</p> : null}
 
         {board.locked && board.canManage ? (
           <p className="note note-warning">Доска закрыта для новых участников.</p>
         ) : null}
+
+        {error ?? hub.error ? <p className="note note-danger">{error ?? hub.error}</p> : null}
 
         <section
           className="board-page__canvas"

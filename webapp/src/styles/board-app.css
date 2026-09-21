@@ -893,17 +893,32 @@ body.no-scroll {
     display: flex;
     align-items: center;
     justify-content: center;
+    box-sizing: border-box;
     width: 36px;
     height: 20px;
     min-height: 20px;
     padding: 0;
-    border: none;
+    /* Открытая кнопка съезжает ниже шапки и оказывается на фоне
+       страницы, а не на шапке — в тёмной теме он почти того же цвета,
+       что и сама кнопка (--header-bg), и без рамки она там просто
+       пропадала бы. */
+    border: 1px solid var(--line-strong);
     border-radius: 0 0 var(--radius) var(--radius);
     background: var(--header-bg);
     color: var(--text-on-dark);
     transform: translateX(-50%);
     transition: top .25s ease;
 }
+
+/* Без этого общие правила `button:hover`/`button:active` (выше по
+   каскаду специфичнее самого класса — у псевдокласса тот же вес, что
+   у класса) подменяли и фон кнопки на светлый, и — что серьёзнее —
+   транзитом смещение по центру: `transform` в них задан заново, без
+   translateX(-50%), и кнопка на время нажатия визуально прыгала
+   направо. Мышь при этом остаётся на месте, курсор — уже не над
+   кнопкой к моменту отпускания, и клик до React вообще не доходил. */
+.board-header-toggle:hover { background: var(--header-bg); }
+.board-header-toggle:active { transform: translateX(-50%) scale(.98); }
 
 .board-header-toggle svg {
     width: 16px;
