@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Page } from '../components/Layout';
+import { NoOrphans } from '../components/NoOrphans';
 
 interface Question {
   q: string;
@@ -67,6 +68,7 @@ export const QUESTIONS: Question[] = [
 export function FaqPage(): ReactElement {
   return (
     <Page>
+      <NoOrphans>
       <section className="card">
         <h1>Вопросы и ответы</h1>
       </section>
@@ -89,6 +91,7 @@ export function FaqPage(): ReactElement {
           <Link className="btn btn-outline" to="/about">Контакты</Link>
         </div>
       </section>
+      </NoOrphans>
     </Page>
   );
 }

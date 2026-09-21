@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { Page } from '../components/Layout';
 import { useAuth } from '../auth/AuthContext';
 import { MAIN_SITE } from '../content/company';
+import { SchoolPiLabel } from '../components/PiMark';
+import { NoOrphans } from '../components/NoOrphans';
 import {
-  IconEditor, IconExternal, IconGuest, IconImage, IconPeople, IconTimer, IconViewer,
+  IconExternal, IconGuest, IconImage, IconPeople, IconTimer, IconViewer,
 } from '../components/Icons';
 
 interface Tile {
@@ -17,12 +19,7 @@ const TILES: Tile[] = [
   {
     icon: <IconGuest size={26} />,
     title: 'Участнику не нужна регистрация',
-    text: 'Вы отправляете ссылку, он открывает её и называет имя — чтобы вы видели, чей курсор на доске. Ни аккаунта, ни установки. Платит только владелец доски.',
-  },
-  {
-    icon: <IconEditor size={26} />,
-    title: 'Перо, а не мышь',
-    text: 'Линия толще там, где сильнее нажали. Ладонь на планшете следа не оставляет — иначе пером не пишут.',
+    text: 'Он открывает присланную ссылку и называет имя — чтобы вы видели, чей курсор на доске. Ни аккаунта, ни установки. Платит только владелец доски.',
   },
   {
     icon: <IconImage size={26} />,
@@ -36,8 +33,8 @@ const TILES: Tile[] = [
   },
   {
     icon: <IconTimer size={26} />,
-    title: 'Мелочи, которые экономят время',
-    text: 'Таймер на самостоятельную работу, клетка и линейка на фоне доски, конспект — картинкой на почту участнику.',
+    title: 'Таймер, клетка, линейка',
+    text: 'Таймер на самостоятельную работу, разметка на фоне доски, конспект — картинкой на почту участнику.',
   },
   {
     icon: <IconViewer size={26} />,
@@ -59,13 +56,14 @@ export function LandingPage(): ReactElement {
 
   return (
     <Page>
+      <NoOrphans>
       <section className="card hero">
         <span className="hero__eyebrow">Онлайн-доска</span>
-        <h1>Доска, на которой рисуют, а не расставляют стикеры</h1>
+        <h1>Доска для совместной работы в браузере</h1>
         <p className="reading hero__lead">
-          Пишете пером, вставляете документы, работаете вместе — как на бумаге.
-          Участнику для этого ничего не ставить: он открывает присланную
-          ссылку и через пару секунд уже рядом с вами на доске.
+          Пишете пером, вставляете документы и работаете с кем угодно в
+          реальном времени. Участнику достаточно открыть присланную ссылку —
+          ни регистрации, ни установки.
         </p>
 
         <div className="row hero__actions">
@@ -80,8 +78,7 @@ export function LandingPage(): ReactElement {
         </div>
 
         <p className="text-muted small hero__note">
-          Бесплатный тариф без срока и без карты. Первые семь дней — «Стандартный»,
-          чтобы попробовать всё.
+          Бесплатный тариф без срока и без карты. Первые семь дней — тариф «Стандартный».
         </p>
       </section>
 
@@ -97,11 +94,11 @@ export function LandingPage(): ReactElement {
 
       <section className="card brand-strip">
         <div>
-          <h2 className="card-title">{MAIN_SITE.label}</h2>
+          <h2 className="card-title"><SchoolPiLabel /></h2>
           <p>Настольная версия доски для совместной работы за одним компьютером, без браузера и подписки.</p>
         </div>
         <a className="btn btn-primary" href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer">
-          Перейти на school-pi.online<IconExternal size={16} />
+          Перейти на <span className="no-wrap">school-pi.online</span><IconExternal size={16} />
         </a>
       </section>
 
@@ -122,6 +119,7 @@ export function LandingPage(): ReactElement {
           <Link className="btn btn-quiet" to="/faq">Частые вопросы</Link>
         </div>
       </section>
+      </NoOrphans>
     </Page>
   );
 }

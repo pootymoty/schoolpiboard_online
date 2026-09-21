@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Page } from '../components/Layout';
+import { NoOrphans } from '../components/NoOrphans';
 
 interface Block {
   title: string;
@@ -62,6 +63,7 @@ const BLOCKS: Block[] = [
 export function FeaturesPage(): ReactElement {
   return (
     <Page>
+      <NoOrphans>
       <section className="card">
         <h1>Возможности</h1>
         <p className="reading">
@@ -92,6 +94,7 @@ export function FeaturesPage(): ReactElement {
           <Link className="btn btn-outline btn-lg" to="/pricing">Тарифы</Link>
         </div>
       </section>
+      </NoOrphans>
     </Page>
   );
 }

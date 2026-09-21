@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { RegisterResponse } from '../api/types';
 import { Page } from '../components/Layout';
+import { NoOrphans } from '../components/NoOrphans';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -66,6 +67,7 @@ export function RegisterPage(): ReactElement {
   return (
     <Page>
       <div className="auth-split">
+        <NoOrphans>
         <div className="auth-split__pitch">
           <h2>Учётная запись — только вам</h2>
           <p>Регистрируется тот, кто создаёт доски. Участнику она не нужна вовсе.</p>
@@ -75,6 +77,7 @@ export function RegisterPage(): ReactElement {
             <li>Первые семь дней открыт «Стандартный» целиком, попробовать всё.</li>
           </ul>
         </div>
+        </NoOrphans>
 
         <form className="card auth-split__form" onSubmit={submit}>
           <h1>Регистрация</h1>

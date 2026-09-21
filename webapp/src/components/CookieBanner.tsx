@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ReactElement } from 'react';
+import type { FormEvent, ReactElement } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { COOKIE_CONSENT_URL, readCookieConsent } from '../api/cookieConsent';
 import type { CookieConsent } from '../api/cookieConsent';
@@ -7,11 +7,13 @@ import type { CookieConsent } from '../api/cookieConsent';
 /**
  * Баннер согласия на куки.
  *
- * Кнопки — обычная HTML-форма с обычной отправкой, не `fetch`: адрес
- * ниже отвечает редиректом на ту же страницу, поэтому выбор сохраняется,
- * даже если скрипт приложения не выполнился. React здесь только решает,
- * показывать баннер или нет, и делает это не через `document.cookie`
- * (кука HttpOnly, со страницы её не прочитать), а спрашивая сервер.
+ * Кнопки лежат в обычной HTML-форме с обычной отправкой — адрес ниже
+ * отвечает редиректом на ту же страницу, поэтому без JavaScript, или
+ * пока скрипт приложения не выполнился, выбор всё равно сохранится.
+ * Здесь эта отправка перехватывается и заменяется на `fetch` с тем же
+ * телом: кука проставляется тем же ответом сервера, а страница не
+ * перезагружается — иначе на телефоне на секунду мигает пустой экран.
+ * Если сеть подвела, форма отправляется как обычно, без перехвата.
  *
  * `undefined` — ответ ещё не пришёл, ничего не показываем: баннер не
  * должен мигать поверх страницы, пока идёт первый запрос.
@@ -20,6 +22,28 @@ export function CookieBanner(): ReactElement | null {
   const [consent, setConsent] = useState<CookieConsent | null | undefined>(undefined);
   const location = useLocation();
   const firstButton = useRef<HTMLButtonElement>(null);
+
+  const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const choice = (submitter?.value ?? 'rejected') as CookieConsent;
+
+    try {
+      const response = await fetch(COOKIE_CONSENT_URL, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ choice, next: location.pathname }),
+      });
+      if (!response.ok) throw new Error('cookie-consent request failed');
+      setConsent(choice);
+    } catch {
+      // Сеть подвела — доверяем обычной отправке формы, той же, что
+      // работает без JavaScript вовсе.
+      form.submit();
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -53,7 +77,7 @@ export function CookieBanner(): ReactElement | null {
         <Link to="/legal/privacy">политике обработки персональных данных</Link>.
       </p>
 
-      <form className="cookie-banner__actions" method="POST" action={COOKIE_CONSENT_URL}>
+      <form className="cookie-banner__actions" method="POST" action={COOKIE_CONSENT_URL} onSubmit={submit}>
         <input type="hidden" name="next" value={location.pathname} />
         <button ref={firstButton} className="btn btn-primary btn-sm" type="submit" name="choice" value="all">
           Принять

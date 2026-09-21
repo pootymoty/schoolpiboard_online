@@ -286,7 +286,24 @@ body {
 a { color: var(--accent); text-decoration: underline; }
 a:hover { color: var(--accent-hover); }
 
+/* Почта и домены переносятся по умолчанию на дефисе и точке — «school-
+   pi.online» ломалось на «school-» и «pi.online» на двух строках, хотя
+   это один нечитаемый пополам адрес. Ссылка целиком либо помещается в
+   строку, либо целиком уходит на следующую. */
+a[href^="mailto:"], .no-wrap { white-space: nowrap; }
+
 img, svg, video { max-width: 100%; height: auto; }
+
+/* Знак «Пи» — стоит в строке текста вместо буквы. Размер в em: рядом с
+   крупным заголовком он крупнее, чем в пункте меню, но всегда чуть выше
+   строчных букв — как и сама буковка «Пи» рядом с ними. */
+.pi-mark {
+    display: inline-block;
+    height: 1.15em;
+    width: auto;
+    max-width: none;
+    vertical-align: -0.28em;
+}
 
 hr {
     border: none;

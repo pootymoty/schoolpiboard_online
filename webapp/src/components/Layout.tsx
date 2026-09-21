@@ -4,6 +4,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { COMPANY, HAS_COMPANY_DETAILS, MAIN_SITE } from '../content/company';
 import { IconExternal } from './Icons';
+import { PiMark, SchoolPiLabel } from './PiMark';
 
 
 type Theme = 'light' | 'dark';
@@ -174,7 +175,7 @@ export function Header(): ReactElement {
 
   return (
     <header className="header">
-      <Link className="header__brand" to={user ? '/boards' : '/'}>SchoolPiBoard</Link>
+      <Link className="header__brand" to={user ? '/boards' : '/'}>Доска Школа <PiMark /></Link>
 
       <span className="header__spacer" />
 
@@ -189,7 +190,7 @@ export function Header(): ReactElement {
           <li><NavLink to="/faq">Вопросы</NavLink></li>
           <li>
             <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="header__site-link">
-              {MAIN_SITE.label}<IconExternal size={14} />
+              <SchoolPiLabel /><IconExternal size={14} />
             </a>
           </li>
 
@@ -272,7 +273,7 @@ export function Header(): ReactElement {
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
               <li>
                 <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="header__site-link">
-                  {MAIN_SITE.label}<IconExternal size={14} />
+                  <SchoolPiLabel /><IconExternal size={14} />
                 </a>
               </li>
               <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
@@ -311,7 +312,7 @@ export function Header(): ReactElement {
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
               <li>
                 <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="header__site-link">
-                  {MAIN_SITE.label}<IconExternal size={14} />
+                  <SchoolPiLabel /><IconExternal size={14} />
                 </a>
               </li>
               <li><Link to="/login" onClick={closeMobile}>Войти</Link></li>
@@ -335,7 +336,7 @@ export function Footer(): ReactElement {
         <Link to="/legal/privacy">Персональные данные</Link>
         <Link to="/about">Контакты</Link>
         <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="footer__site-link">
-          {MAIN_SITE.label}<IconExternal size={13} />
+          <SchoolPiLabel /><IconExternal size={13} />
         </a>
         {/* Баннер согласия не привязан к подвалу напрямую — это разные
             компоненты, и подвал живёт на каждой странице заново, а баннер
@@ -355,8 +356,8 @@ export function Footer(): ReactElement {
           они превращают строку в выписку из реестра. */}
       <p className="small" style={{ margin: 0 }}>
         {HAS_COMPANY_DETAILS
-          ? `SchoolPiBoard · ${COMPANY.name} · ${COMPANY.email}`
-          : 'SchoolPiBoard · board.school-pi.online'}
+          ? <>Доска Школа <PiMark /> · {COMPANY.name} · <span className="no-wrap">{COMPANY.email}</span></>
+          : <>Доска Школа <PiMark /> · <span className="no-wrap">board.school-pi.online</span></>}
       </p>
     </footer>
   );

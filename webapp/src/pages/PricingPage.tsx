@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Page } from '../components/Layout';
+import { NoOrphans } from '../components/NoOrphans';
 import { SHOWN_PLANS } from '../content/plans';
 import type { Plan } from '../api/types';
 import { IconCheck, IconClose } from '../components/Icons';
@@ -49,6 +50,7 @@ export function PricingPage(): ReactElement {
 
   return (
     <Page>
+      <NoOrphans>
       <section className="card" style={{ textAlign: 'center' }}>
         <h1>Тарифы</h1>
         <p className="reading" style={{ margin: '0 auto var(--sp-4)' }}>
@@ -123,6 +125,7 @@ export function PricingPage(): ReactElement {
           <li>Участники, которых вы позвали по ссылке, не платят ничего и никогда.</li>
         </ul>
       </section>
+      </NoOrphans>
     </Page>
   );
 }

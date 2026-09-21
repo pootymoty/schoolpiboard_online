@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Page } from '../components/Layout';
+import { NoOrphans } from '../components/NoOrphans';
 
 export function LoginPage(): ReactElement {
   const { login } = useAuth();
@@ -64,6 +65,7 @@ export function LoginPage(): ReactElement {
   return (
     <Page>
       <div className="auth-split">
+        <NoOrphans>
         <div className="auth-split__pitch">
           <h2>С возвращением</h2>
           <p>Все ваши доски и участники, которых вы впустили, остаются на месте.</p>
@@ -73,6 +75,7 @@ export function LoginPage(): ReactElement {
             <li>Забыли пароль — восстановите его по почте за минуту.</li>
           </ul>
         </div>
+        </NoOrphans>
 
         <form className="card auth-split__form" onSubmit={submit}>
           <h1>Вход</h1>

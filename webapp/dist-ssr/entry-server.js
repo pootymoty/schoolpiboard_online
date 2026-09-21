@@ -4,10 +4,10 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
 import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server.mjs";
-import { createContext, useState, useCallback, useEffect, useMemo, useContext, useRef, useLayoutEffect, Fragment as Fragment$1 } from "react";
+import { createContext, useState, useCallback, useEffect, useMemo, useContext, useRef, Children, isValidElement, cloneElement, useLayoutEffect, Fragment as Fragment$1 } from "react";
 import { useLocation, Link, NavLink, useNavigate, useSearchParams, useParams, Navigate, Routes, Route } from "react-router-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
-const API_URL = "http://localhost:5000";
+const API_URL = "/api";
 const TOKEN_KEY = "schoolpiboard.token";
 function readToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -199,8 +199,7 @@ const COMPANY = {
   refundDays: 10
 };
 const MAIN_SITE = {
-  url: "https://school-pi.online",
-  label: "Школа Пи"
+  url: "https://school-pi.online"
 };
 const HAS_COMPANY_DETAILS = !COMPANY.name.startsWith("ЗАГЛУШКА");
 function Svg$1({ size = 18, title, children }) {
@@ -396,6 +395,15 @@ const IconExternal = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children:
   /* @__PURE__ */ jsx("path", { d: "M10 14L21 3" })
 ] }) });
 const IconBookmark = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M6 3h12v18l-6-4.5L6 21z" }) });
+function PiMark() {
+  return /* @__PURE__ */ jsx("img", { src: "/pi-mark.png", alt: "Пи", className: "pi-mark" });
+}
+function SchoolPiLabel() {
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    "Школа ",
+    /* @__PURE__ */ jsx(PiMark, {})
+  ] });
+}
 function useTheme() {
   const [theme, setTheme] = useState(() => typeof document === "undefined" ? "light" : document.documentElement.getAttribute("data-theme") || "light");
   const toggle = () => {
@@ -499,14 +507,17 @@ function Header() {
     };
   }, [mobileOpen]);
   return /* @__PURE__ */ jsxs("header", { className: "header", children: [
-    /* @__PURE__ */ jsx(Link, { className: "header__brand", to: user ? "/boards" : "/", children: "SchoolPiBoard" }),
+    /* @__PURE__ */ jsxs(Link, { className: "header__brand", to: user ? "/boards" : "/", children: [
+      "Доска Школа ",
+      /* @__PURE__ */ jsx(PiMark, {})
+    ] }),
     /* @__PURE__ */ jsx("span", { className: "header__spacer" }),
     /* @__PURE__ */ jsx("nav", { "aria-label": "Разделы сайта", children: /* @__PURE__ */ jsxs("ul", { className: "desktop-menu", children: [
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/features", children: "Возможности" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/pricing", children: "Тарифы" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/faq", children: "Вопросы" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "header__site-link", children: [
-        MAIN_SITE.label,
+        /* @__PURE__ */ jsx(SchoolPiLabel, {}),
         /* @__PURE__ */ jsx(IconExternal, { size: 14 })
       ] }) }),
       user ? /* @__PURE__ */ jsxs(Fragment, { children: [
@@ -564,7 +575,7 @@ function Header() {
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "header__site-link", children: [
-            MAIN_SITE.label,
+            /* @__PURE__ */ jsx(SchoolPiLabel, {}),
             /* @__PURE__ */ jsx(IconExternal, { size: 14 })
           ] }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/boards", onClick: closeMobile, children: "Мои доски" }) }),
@@ -599,7 +610,7 @@ function Header() {
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "header__site-link", children: [
-            MAIN_SITE.label,
+            /* @__PURE__ */ jsx(SchoolPiLabel, {}),
             /* @__PURE__ */ jsx(IconExternal, { size: 14 })
           ] }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/login", onClick: closeMobile, children: "Войти" }) }),
@@ -617,7 +628,7 @@ function Footer() {
       /* @__PURE__ */ jsx(Link, { to: "/legal/privacy", children: "Персональные данные" }),
       /* @__PURE__ */ jsx(Link, { to: "/about", children: "Контакты" }),
       /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "footer__site-link", children: [
-        MAIN_SITE.label,
+        /* @__PURE__ */ jsx(SchoolPiLabel, {}),
         /* @__PURE__ */ jsx(IconExternal, { size: 13 })
       ] }),
       /* @__PURE__ */ jsx(
@@ -630,7 +641,19 @@ function Footer() {
         }
       )
     ] }),
-    /* @__PURE__ */ jsx("p", { className: "small", style: { margin: 0 }, children: HAS_COMPANY_DETAILS ? `SchoolPiBoard · ${COMPANY.name} · ${COMPANY.email}` : "SchoolPiBoard · board.school-pi.online" })
+    /* @__PURE__ */ jsx("p", { className: "small", style: { margin: 0 }, children: HAS_COMPANY_DETAILS ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      "Доска Школа ",
+      /* @__PURE__ */ jsx(PiMark, {}),
+      " · ",
+      COMPANY.name,
+      " · ",
+      /* @__PURE__ */ jsx("span", { className: "no-wrap", children: COMPANY.email })
+    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      "Доска Школа ",
+      /* @__PURE__ */ jsx(PiMark, {}),
+      " · ",
+      /* @__PURE__ */ jsx("span", { className: "no-wrap", children: "board.school-pi.online" })
+    ] }) })
   ] });
 }
 function Page({ children, narrow }) {
@@ -646,16 +669,84 @@ function BoardShell({ children }) {
     /* @__PURE__ */ jsx("main", { className: "app__main app__main--board", children })
   ] });
 }
+const SHORT_WORDS = /* @__PURE__ */ new Set([
+  "а",
+  "и",
+  "о",
+  "у",
+  "я",
+  "в",
+  "с",
+  "к",
+  "но",
+  "да",
+  "ли",
+  "бы",
+  "же",
+  "то",
+  "из",
+  "до",
+  "по",
+  "на",
+  "за",
+  "не",
+  "ни",
+  "об",
+  "от",
+  "ко",
+  "со",
+  "во",
+  "что",
+  "как",
+  "для",
+  "или",
+  "при",
+  "под",
+  "над",
+  "без",
+  "про",
+  "чем",
+  "все",
+  "вот",
+  "уже",
+  "ещё",
+  "так",
+  "если",
+  "чтобы",
+  "когда",
+  "либо",
+  "хотя",
+  "через",
+  "между",
+  "после",
+  "перед"
+]);
+function withNbsp(text) {
+  return text.replace(
+    /(^|[\s([«])([А-ЯЁа-яё]+)([\s ])/g,
+    (_match, before, word, space) => SHORT_WORDS.has(word.toLowerCase()) ? `${before}${word} ` : `${before}${word}${space}`
+  );
+}
+function processNode(node) {
+  if (typeof node === "string") return withNbsp(node);
+  if (Array.isArray(node)) {
+    return Children.map(node, processNode);
+  }
+  if (isValidElement(node)) {
+    const props = node.props;
+    if (props.dangerouslySetInnerHTML || props.children === void 0) return node;
+    return cloneElement(node, void 0, processNode(props.children));
+  }
+  return node;
+}
+function NoOrphans({ children }) {
+  return /* @__PURE__ */ jsx(Fragment, { children: processNode(children) });
+}
 const TILES = [
   {
     icon: /* @__PURE__ */ jsx(IconGuest, { size: 26 }),
     title: "Участнику не нужна регистрация",
-    text: "Вы отправляете ссылку, он открывает её и называет имя — чтобы вы видели, чей курсор на доске. Ни аккаунта, ни установки. Платит только владелец доски."
-  },
-  {
-    icon: /* @__PURE__ */ jsx(IconEditor, { size: 26 }),
-    title: "Перо, а не мышь",
-    text: "Линия толще там, где сильнее нажали. Ладонь на планшете следа не оставляет — иначе пером не пишут."
+    text: "Он открывает присланную ссылку и называет имя — чтобы вы видели, чей курсор на доске. Ни аккаунта, ни установки. Платит только владелец доски."
   },
   {
     icon: /* @__PURE__ */ jsx(IconImage, { size: 26 }),
@@ -669,8 +760,8 @@ const TILES = [
   },
   {
     icon: /* @__PURE__ */ jsx(IconTimer, { size: 26 }),
-    title: "Мелочи, которые экономят время",
-    text: "Таймер на самостоятельную работу, клетка и линейка на фоне доски, конспект — картинкой на почту участнику."
+    title: "Таймер, клетка, линейка",
+    text: "Таймер на самостоятельную работу, разметка на фоне доски, конспект — картинкой на почту участнику."
   },
   {
     icon: /* @__PURE__ */ jsx(IconViewer, { size: 26 }),
@@ -680,16 +771,16 @@ const TILES = [
 ];
 function LandingPage() {
   const { user } = useAuth();
-  return /* @__PURE__ */ jsxs(Page, { children: [
+  return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs(NoOrphans, { children: [
     /* @__PURE__ */ jsxs("section", { className: "card hero", children: [
       /* @__PURE__ */ jsx("span", { className: "hero__eyebrow", children: "Онлайн-доска" }),
-      /* @__PURE__ */ jsx("h1", { children: "Доска, на которой рисуют, а не расставляют стикеры" }),
-      /* @__PURE__ */ jsx("p", { className: "reading hero__lead", children: "Пишете пером, вставляете документы, работаете вместе — как на бумаге. Участнику для этого ничего не ставить: он открывает присланную ссылку и через пару секунд уже рядом с вами на доске." }),
+      /* @__PURE__ */ jsx("h1", { children: "Доска для совместной работы в браузере" }),
+      /* @__PURE__ */ jsx("p", { className: "reading hero__lead", children: "Пишете пером, вставляете документы и работаете с кем угодно в реальном времени. Участнику достаточно открыть присланную ссылку — ни регистрации, ни установки." }),
       /* @__PURE__ */ jsx("div", { className: "row hero__actions", children: user ? /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-lg", to: "/boards", children: "Мои доски" }) : /* @__PURE__ */ jsxs(Fragment, { children: [
         /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-lg", to: "/register", children: "Начать бесплатно" }),
         /* @__PURE__ */ jsx(Link, { className: "btn btn-outline btn-lg", to: "/pricing", children: "Тарифы" })
       ] }) }),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small hero__note", children: "Бесплатный тариф без срока и без карты. Первые семь дней — «Стандартный», чтобы попробовать всё." })
+      /* @__PURE__ */ jsx("p", { className: "text-muted small hero__note", children: "Бесплатный тариф без срока и без карты. Первые семь дней — тариф «Стандартный»." })
     ] }),
     /* @__PURE__ */ jsx("div", { className: "feature-grid", children: TILES.map((tile) => /* @__PURE__ */ jsxs("article", { className: "feature-tile", children: [
       /* @__PURE__ */ jsx("span", { className: "feature-tile__icon", children: tile.icon }),
@@ -698,11 +789,12 @@ function LandingPage() {
     ] }, tile.title)) }),
     /* @__PURE__ */ jsxs("section", { className: "card brand-strip", children: [
       /* @__PURE__ */ jsxs("div", { children: [
-        /* @__PURE__ */ jsx("h2", { className: "card-title", children: MAIN_SITE.label }),
+        /* @__PURE__ */ jsx("h2", { className: "card-title", children: /* @__PURE__ */ jsx(SchoolPiLabel, {}) }),
         /* @__PURE__ */ jsx("p", { children: "Настольная версия доски для совместной работы за одним компьютером, без браузера и подписки." })
       ] }),
       /* @__PURE__ */ jsxs("a", { className: "btn btn-primary", href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: [
-        "Перейти на school-pi.online",
+        "Перейти на ",
+        /* @__PURE__ */ jsx("span", { className: "no-wrap", children: "school-pi.online" }),
         /* @__PURE__ */ jsx(IconExternal, { size: 16 })
       ] })
     ] }),
@@ -718,19 +810,23 @@ function LandingPage() {
         /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet", to: "/faq", children: "Частые вопросы" })
       ] })
     ] })
-  ] });
+  ] }) });
 }
 function AboutPage() {
-  return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs("div", { className: "about-grid", children: [
+  return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsx(NoOrphans, { children: /* @__PURE__ */ jsxs("div", { className: "about-grid", children: [
     /* @__PURE__ */ jsxs("article", { className: "card reading", children: [
       /* @__PURE__ */ jsx("h1", { children: "О сервисе" }),
-      /* @__PURE__ */ jsx("p", { children: "SchoolPiBoard — замена бумаги и маркерной доски в совместной работе: пишите пером, вставляйте документы, объясняйте, а участник просто открывает ссылку и работает рядом." }),
-      /* @__PURE__ */ jsx("p", { children: "Поэтому участнику не нужна учётная запись, а ладонь на планшете не оставляет следа — иначе пером не пишут. Платит только владелец доски, и только за себя." }),
       /* @__PURE__ */ jsxs("p", { children: [
-        "Онлайн-доска продолжает настольную программу SchoolPiBoard из",
+        "Доска Школа ",
+        /* @__PURE__ */ jsx(PiMark, {}),
+        " — совместная работа в браузере: пишете пером, вставляете документы, а участник просто открывает ссылку и работает рядом, без установки и регистрации."
+      ] }),
+      /* @__PURE__ */ jsx("p", { children: "Ладонь на планшете не оставляет следа — иначе пером не пишут. Платит только владелец доски, и только за себя." }),
+      /* @__PURE__ */ jsxs("p", { children: [
+        "Продолжает настольную программу из",
         " ",
         /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: [
-          MAIN_SITE.label,
+          /* @__PURE__ */ jsx(SchoolPiLabel, {}),
           /* @__PURE__ */ jsx(IconExternal, { size: 14 })
         ] }),
         " ",
@@ -767,7 +863,7 @@ function AboutPage() {
         /* @__PURE__ */ jsx(Link, { to: "/legal/consent", children: "Согласие на обработку" })
       ] })
     ] })
-  ] }) });
+  ] }) }) });
 }
 const SHOWN_PLANS = [
   {
@@ -843,7 +939,7 @@ function PricingPage() {
       reason instanceof ApiError ? reason.message : "Не удалось загрузить тарифы."
     ));
   }, []);
-  return /* @__PURE__ */ jsxs(Page, { children: [
+  return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs(NoOrphans, { children: [
     /* @__PURE__ */ jsxs("section", { className: "card", style: { textAlign: "center" }, children: [
       /* @__PURE__ */ jsx("h1", { children: "Тарифы" }),
       /* @__PURE__ */ jsx("p", { className: "reading", style: { margin: "0 auto var(--sp-4)" }, children: "Платит только владелец доски. Участникам регистрация не нужна: они заходят по ссылке и ничего не платят." }),
@@ -907,7 +1003,7 @@ function PricingPage() {
         /* @__PURE__ */ jsx("li", { children: "Участники, которых вы позвали по ссылке, не платят ничего и никогда." })
       ] })
     ] })
-  ] });
+  ] }) });
 }
 const BLOCKS = [
   {
@@ -955,7 +1051,7 @@ const BLOCKS = [
   }
 ];
 function FeaturesPage() {
-  return /* @__PURE__ */ jsxs(Page, { children: [
+  return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs(NoOrphans, { children: [
     /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsx("h1", { children: "Возможности" }),
       /* @__PURE__ */ jsx("p", { className: "reading", children: "На доске рисуют от руки и работают с документами, а не расставляют карточки и стикеры." })
@@ -972,7 +1068,7 @@ function FeaturesPage() {
         /* @__PURE__ */ jsx(Link, { className: "btn btn-outline btn-lg", to: "/pricing", children: "Тарифы" })
       ] })
     ] })
-  ] });
+  ] }) });
 }
 const QUESTIONS = [
   {
@@ -1021,7 +1117,7 @@ const QUESTIONS = [
   }
 ];
 function FaqPage() {
-  return /* @__PURE__ */ jsxs(Page, { children: [
+  return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs(NoOrphans, { children: [
     /* @__PURE__ */ jsx("section", { className: "card", children: /* @__PURE__ */ jsx("h1", { children: "Вопросы и ответы" }) }),
     /* @__PURE__ */ jsx("div", { className: "accordion", children: QUESTIONS.map((item, index) => /* @__PURE__ */ jsxs("details", { className: "accordion-item", open: index === 0, children: [
       /* @__PURE__ */ jsx("summary", { children: item.q }),
@@ -1034,7 +1130,7 @@ function FaqPage() {
         /* @__PURE__ */ jsx(Link, { className: "btn btn-outline", to: "/about", children: "Контакты" })
       ] })
     ] })
-  ] });
+  ] }) });
 }
 async function send(path, form, guestToken) {
   const headers = {};
@@ -1478,7 +1574,7 @@ function LoginPage() {
     }
   };
   return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split", children: [
-    /* @__PURE__ */ jsxs("div", { className: "auth-split__pitch", children: [
+    /* @__PURE__ */ jsx(NoOrphans, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split__pitch", children: [
       /* @__PURE__ */ jsx("h2", { children: "С возвращением" }),
       /* @__PURE__ */ jsx("p", { children: "Все ваши доски и участники, которых вы впустили, остаются на месте." }),
       /* @__PURE__ */ jsxs("ul", { children: [
@@ -1486,7 +1582,7 @@ function LoginPage() {
         /* @__PURE__ */ jsx("li", { children: "Ссылки на доски не меняются между визитами." }),
         /* @__PURE__ */ jsx("li", { children: "Забыли пароль — восстановите его по почте за минуту." })
       ] })
-    ] }),
+    ] }) }),
     /* @__PURE__ */ jsxs("form", { className: "card auth-split__form", onSubmit: submit, children: [
       /* @__PURE__ */ jsx("h1", { children: "Вход" }),
       /* @__PURE__ */ jsx("label", { htmlFor: "email", children: "Почта" }),
@@ -1567,7 +1663,7 @@ function RegisterPage() {
     ] }) });
   }
   return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split", children: [
-    /* @__PURE__ */ jsxs("div", { className: "auth-split__pitch", children: [
+    /* @__PURE__ */ jsx(NoOrphans, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split__pitch", children: [
       /* @__PURE__ */ jsx("h2", { children: "Учётная запись — только вам" }),
       /* @__PURE__ */ jsx("p", { children: "Регистрируется тот, кто создаёт доски. Участнику она не нужна вовсе." }),
       /* @__PURE__ */ jsxs("ul", { children: [
@@ -1575,7 +1671,7 @@ function RegisterPage() {
         /* @__PURE__ */ jsx("li", { children: "Бесплатный тариф — без срока и без карты." }),
         /* @__PURE__ */ jsx("li", { children: "Первые семь дней открыт «Стандартный» целиком, попробовать всё." })
       ] })
-    ] }),
+    ] }) }),
     /* @__PURE__ */ jsxs("form", { className: "card auth-split__form", onSubmit: submit, children: [
       /* @__PURE__ */ jsx("h1", { children: "Регистрация" }),
       /* @__PURE__ */ jsx("p", { className: "text-muted small auth-split__note", children: "Учётная запись нужна тому, кто создаёт доски. Участнику регистрироваться не нужно: он заходит по ссылке." }),
@@ -9066,6 +9162,24 @@ function CookieBanner() {
   const [consent, setConsent] = useState(void 0);
   const location2 = useLocation();
   const firstButton = useRef(null);
+  const submit = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submitter = event.nativeEvent.submitter;
+    const choice = (submitter == null ? void 0 : submitter.value) ?? "rejected";
+    try {
+      const response = await fetch(COOKIE_CONSENT_URL, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ choice, next: location2.pathname })
+      });
+      if (!response.ok) throw new Error("cookie-consent request failed");
+      setConsent(choice);
+    } catch {
+      form.submit();
+    }
+  };
   useEffect(() => {
     let alive = true;
     readCookieConsent().then((value) => alive && setConsent(value)).catch(() => alive && setConsent(null));
@@ -9092,7 +9206,7 @@ function CookieBanner() {
       /* @__PURE__ */ jsx(Link, { to: "/legal/privacy", children: "политике обработки персональных данных" }),
       "."
     ] }),
-    /* @__PURE__ */ jsxs("form", { className: "cookie-banner__actions", method: "POST", action: COOKIE_CONSENT_URL, children: [
+    /* @__PURE__ */ jsxs("form", { className: "cookie-banner__actions", method: "POST", action: COOKIE_CONSENT_URL, onSubmit: submit, children: [
       /* @__PURE__ */ jsx("input", { type: "hidden", name: "next", value: location2.pathname }),
       /* @__PURE__ */ jsx("button", { ref: firstButton, className: "btn btn-primary btn-sm", type: "submit", name: "choice", value: "all", children: "Принять" }),
       /* @__PURE__ */ jsx("button", { className: "btn btn-quiet btn-sm", type: "submit", name: "choice", value: "rejected", children: "Отклонить" })
