@@ -303,7 +303,15 @@ img, svg, video { max-width: 100%; height: auto; }
     width: auto;
     max-width: none;
     vertical-align: -0.28em;
+    /* У знака доски свой светлый фон изнутри картинки — на тёмной шапке
+       без скругления это читалось прямоугольной наклейкой. */
+    border-radius: 0.2em;
 }
+
+/* Слово и знак — один элемент потока, а не два соседних флекс-пункта:
+   в строке с `justify-content: space-between` их иначе растащило бы
+   в разные стороны. */
+.pi-label { display: inline; white-space: nowrap; }
 
 hr {
     border: none;

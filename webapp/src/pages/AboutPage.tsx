@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Page } from '../components/Layout';
 import { COMPANY, HAS_COMPANY_DETAILS, MAIN_SITE } from '../content/company';
 import { IconExternal } from '../components/Icons';
-import { PiMark, SchoolPiLabel } from '../components/PiMark';
+import { BoardMark } from '../components/PiMark';
 import { NoOrphans } from '../components/NoOrphans';
 
 /**
@@ -20,7 +20,7 @@ export function AboutPage(): ReactElement {
         <article className="card reading">
           <h1>О сервисе</h1>
           <p>
-            Доска Школа <PiMark /> — совместная работа в браузере: пишете пером,
+            Доска <BoardMark /> — совместная работа в браузере: пишете пером,
             вставляете документы, а участник просто открывает ссылку и работает
             рядом, без установки и регистрации.
           </p>
@@ -31,7 +31,7 @@ export function AboutPage(): ReactElement {
           <p>
             Продолжает настольную программу из{' '}
             <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer">
-              <SchoolPiLabel /><IconExternal size={14} />
+              {MAIN_SITE.label}<IconExternal size={14} />
             </a>{' '}
             — то же самое для работы на расстоянии.
           </p>

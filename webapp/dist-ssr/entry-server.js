@@ -199,7 +199,8 @@ const COMPANY = {
   refundDays: 10
 };
 const MAIN_SITE = {
-  url: "https://school-pi.online"
+  url: "https://school-pi.online",
+  label: "Школа Пи"
 };
 const HAS_COMPANY_DETAILS = !COMPANY.name.startsWith("ЗАГЛУШКА");
 function Svg$1({ size = 18, title, children }) {
@@ -399,10 +400,13 @@ function PiMark() {
   return /* @__PURE__ */ jsx("img", { src: "/pi-mark.png", alt: "Пи", className: "pi-mark" });
 }
 function SchoolPiLabel() {
-  return /* @__PURE__ */ jsxs(Fragment, { children: [
+  return /* @__PURE__ */ jsxs("span", { className: "pi-label", children: [
     "Школа ",
     /* @__PURE__ */ jsx(PiMark, {})
   ] });
+}
+function BoardMark() {
+  return /* @__PURE__ */ jsx("img", { src: "/board-mark.png", alt: "Пи", className: "pi-mark" });
 }
 function useTheme() {
   const [theme, setTheme] = useState(() => typeof document === "undefined" ? "light" : document.documentElement.getAttribute("data-theme") || "light");
@@ -508,8 +512,8 @@ function Header() {
   }, [mobileOpen]);
   return /* @__PURE__ */ jsxs("header", { className: "header", children: [
     /* @__PURE__ */ jsxs(Link, { className: "header__brand", to: user ? "/boards" : "/", children: [
-      "Доска Школа ",
-      /* @__PURE__ */ jsx(PiMark, {})
+      "Доска ",
+      /* @__PURE__ */ jsx(BoardMark, {})
     ] }),
     /* @__PURE__ */ jsx("span", { className: "header__spacer" }),
     /* @__PURE__ */ jsx("nav", { "aria-label": "Разделы сайта", children: /* @__PURE__ */ jsxs("ul", { className: "desktop-menu", children: [
@@ -628,7 +632,7 @@ function Footer() {
       /* @__PURE__ */ jsx(Link, { to: "/legal/privacy", children: "Персональные данные" }),
       /* @__PURE__ */ jsx(Link, { to: "/about", children: "Контакты" }),
       /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "footer__site-link", children: [
-        /* @__PURE__ */ jsx(SchoolPiLabel, {}),
+        MAIN_SITE.label,
         /* @__PURE__ */ jsx(IconExternal, { size: 13 })
       ] }),
       /* @__PURE__ */ jsx(
@@ -642,15 +646,15 @@ function Footer() {
       )
     ] }),
     /* @__PURE__ */ jsx("p", { className: "small", style: { margin: 0 }, children: HAS_COMPANY_DETAILS ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      "Доска Школа ",
-      /* @__PURE__ */ jsx(PiMark, {}),
+      "Доска ",
+      /* @__PURE__ */ jsx(BoardMark, {}),
       " · ",
       COMPANY.name,
       " · ",
       /* @__PURE__ */ jsx("span", { className: "no-wrap", children: COMPANY.email })
     ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-      "Доска Школа ",
-      /* @__PURE__ */ jsx(PiMark, {}),
+      "Доска ",
+      /* @__PURE__ */ jsx(BoardMark, {}),
       " · ",
       /* @__PURE__ */ jsx("span", { className: "no-wrap", children: "board.school-pi.online" })
     ] }) })
@@ -789,7 +793,7 @@ function LandingPage() {
     ] }, tile.title)) }),
     /* @__PURE__ */ jsxs("section", { className: "card brand-strip", children: [
       /* @__PURE__ */ jsxs("div", { children: [
-        /* @__PURE__ */ jsx("h2", { className: "card-title", children: /* @__PURE__ */ jsx(SchoolPiLabel, {}) }),
+        /* @__PURE__ */ jsx("h2", { className: "card-title", children: MAIN_SITE.label }),
         /* @__PURE__ */ jsx("p", { children: "Настольная версия доски для совместной работы за одним компьютером, без браузера и подписки." })
       ] }),
       /* @__PURE__ */ jsxs("a", { className: "btn btn-primary", href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: [
@@ -817,8 +821,8 @@ function AboutPage() {
     /* @__PURE__ */ jsxs("article", { className: "card reading", children: [
       /* @__PURE__ */ jsx("h1", { children: "О сервисе" }),
       /* @__PURE__ */ jsxs("p", { children: [
-        "Доска Школа ",
-        /* @__PURE__ */ jsx(PiMark, {}),
+        "Доска ",
+        /* @__PURE__ */ jsx(BoardMark, {}),
         " — совместная работа в браузере: пишете пером, вставляете документы, а участник просто открывает ссылку и работает рядом, без установки и регистрации."
       ] }),
       /* @__PURE__ */ jsx("p", { children: "Ладонь на планшете не оставляет следа — иначе пером не пишут. Платит только владелец доски, и только за себя." }),
@@ -826,7 +830,7 @@ function AboutPage() {
         "Продолжает настольную программу из",
         " ",
         /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: [
-          /* @__PURE__ */ jsx(SchoolPiLabel, {}),
+          MAIN_SITE.label,
           /* @__PURE__ */ jsx(IconExternal, { size: 14 })
         ] }),
         " ",

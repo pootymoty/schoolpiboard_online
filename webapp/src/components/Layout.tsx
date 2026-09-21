@@ -4,7 +4,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { COMPANY, HAS_COMPANY_DETAILS, MAIN_SITE } from '../content/company';
 import { IconExternal } from './Icons';
-import { PiMark, SchoolPiLabel } from './PiMark';
+import { BoardMark, SchoolPiLabel } from './PiMark';
 
 
 type Theme = 'light' | 'dark';
@@ -175,7 +175,7 @@ export function Header(): ReactElement {
 
   return (
     <header className="header">
-      <Link className="header__brand" to={user ? '/boards' : '/'}>Доска Школа <PiMark /></Link>
+      <Link className="header__brand" to={user ? '/boards' : '/'}>Доска <BoardMark /></Link>
 
       <span className="header__spacer" />
 
@@ -336,7 +336,7 @@ export function Footer(): ReactElement {
         <Link to="/legal/privacy">Персональные данные</Link>
         <Link to="/about">Контакты</Link>
         <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="footer__site-link">
-          <SchoolPiLabel /><IconExternal size={13} />
+          {MAIN_SITE.label}<IconExternal size={13} />
         </a>
         {/* Баннер согласия не привязан к подвалу напрямую — это разные
             компоненты, и подвал живёт на каждой странице заново, а баннер
@@ -356,8 +356,8 @@ export function Footer(): ReactElement {
           они превращают строку в выписку из реестра. */}
       <p className="small" style={{ margin: 0 }}>
         {HAS_COMPANY_DETAILS
-          ? <>Доска Школа <PiMark /> · {COMPANY.name} · <span className="no-wrap">{COMPANY.email}</span></>
-          : <>Доска Школа <PiMark /> · <span className="no-wrap">board.school-pi.online</span></>}
+          ? <>Доска <BoardMark /> · {COMPANY.name} · <span className="no-wrap">{COMPANY.email}</span></>
+          : <>Доска <BoardMark /> · <span className="no-wrap">board.school-pi.online</span></>}
       </p>
     </footer>
   );
