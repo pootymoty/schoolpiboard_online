@@ -133,8 +133,8 @@ function useAuth() {
 const SITE_URL = "https://board.school-pi.online";
 const PUBLIC_PAGES = {
   "/": {
-    title: "Онлайн-доска для репетитора — SchoolPiBoard",
-    description: "Доска для занятий в браузере: пишите пером, разбирайте задачи, вставляйте страницы учебника. Ученик заходит по ссылке без регистрации. Бесплатный тариф без срока."
+    title: "Онлайн-доска для совместной работы — SchoolPiBoard",
+    description: "Доска для совместной работы в браузере: пишите пером, вставляйте страницы документов, работайте вместе в реальном времени. Участники заходят по ссылке без регистрации. Бесплатный тариф без срока."
   },
   "/features": {
     title: "Возможности доски — SchoolPiBoard",
@@ -142,11 +142,11 @@ const PUBLIC_PAGES = {
   },
   "/pricing": {
     title: "Тарифы и цены — SchoolPiBoard",
-    description: "Бесплатный тариф без срока и платные от 190 ₽ в месяц. Платит только преподаватель: ученики заходят по ссылке и не платят ничего."
+    description: "Бесплатный тариф без срока и платные от 190 ₽ в месяц. Платит только владелец доски: участники заходят по ссылке и не платят ничего."
   },
   "/faq": {
     title: "Вопросы и ответы — SchoolPiBoard",
-    description: "Нужна ли ученику регистрация, сколько стоит, что будет после окончания подписки, как вставить страницу учебника и сохранится ли доска после занятия."
+    description: "Нужна ли участнику регистрация, сколько стоит, что будет после окончания подписки, как вставить документ и сохранится ли доска после встречи."
   },
   "/about": {
     title: "О сервисе и контакты — SchoolPiBoard",
@@ -178,8 +178,8 @@ const PUBLIC_PAGES = {
   }
 };
 const DEFAULT_META = {
-  title: "SchoolPiBoard — доска для занятий",
-  description: "Онлайн-доска для занятий: рисуйте и объясняйте вместе, на одном холсте."
+  title: "SchoolPiBoard — доска для совместной работы",
+  description: "Онлайн-доска для совместной работы: рисуйте и работайте вместе, на одном холсте."
 };
 function metaFor(path) {
   return PUBLIC_PAGES[path] ?? DEFAULT_META;
@@ -198,232 +198,11 @@ const COMPANY = {
   /** Срок возврата денег по заявлению, в рабочих днях. */
   refundDays: 10
 };
+const MAIN_SITE = {
+  url: "https://school-pi.online",
+  label: "Школа Пи"
+};
 const HAS_COMPANY_DETAILS = !COMPANY.name.startsWith("ЗАГЛУШКА");
-function useTheme() {
-  const [theme, setTheme] = useState(() => typeof document === "undefined" ? "light" : document.documentElement.getAttribute("data-theme") || "light");
-  const toggle = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    try {
-      localStorage.setItem("theme", next);
-    } catch {
-    }
-    setTheme(next);
-  };
-  return { theme, toggle };
-}
-function ThemeSwitch({
-  theme,
-  toggle,
-  label = "Тёмная тема"
-}) {
-  return /* @__PURE__ */ jsxs("label", { className: "theme-switch", children: [
-    /* @__PURE__ */ jsx("span", { className: "theme-switch__label", children: label }),
-    /* @__PURE__ */ jsx(
-      "input",
-      {
-        type: "checkbox",
-        checked: theme === "dark",
-        onChange: toggle,
-        "aria-label": theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"
-      }
-    ),
-    /* @__PURE__ */ jsx("span", { className: "theme-switch__track", children: /* @__PURE__ */ jsx("span", { className: "theme-switch__thumb" }) })
-  ] });
-}
-function useScrollLock(locked) {
-  useEffect(() => {
-    if (!locked) return void 0;
-    const saved = window.scrollY || 0;
-    document.body.style.top = `-${saved}px`;
-    document.body.classList.add("no-scroll");
-    return () => {
-      const root = document.documentElement;
-      const smooth = root.style.scrollBehavior;
-      root.style.scrollBehavior = "auto";
-      document.body.classList.remove("no-scroll");
-      document.body.style.top = "";
-      window.scrollTo(0, saved);
-      root.style.scrollBehavior = smooth;
-    };
-  }, [locked]);
-}
-function Header() {
-  const { user, logout } = useAuth();
-  const { theme, toggle } = useTheme();
-  const location = useLocation();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [cabinetOpen, setCabinetOpen] = useState(false);
-  const [dropOpen, setDropOpen] = useState(false);
-  const drop = useRef(null);
-  const panel = useRef(null);
-  const burger = useRef(null);
-  useScrollLock(mobileOpen);
-  useEffect(() => {
-    setMobileOpen(false);
-    setCabinetOpen(false);
-    setDropOpen(false);
-  }, [location.pathname]);
-  const closeMobile = () => setMobileOpen(false);
-  useEffect(() => {
-    const outside = (event) => {
-      const target = event.target;
-      if (drop.current && !drop.current.contains(target)) setDropOpen(false);
-      if (panel.current && burger.current && !panel.current.contains(target) && !burger.current.contains(target)) {
-        setMobileOpen(false);
-      }
-    };
-    const escape = (event) => {
-      if (event.key !== "Escape") return;
-      setDropOpen(false);
-      setMobileOpen(false);
-    };
-    document.addEventListener("mousedown", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("mousedown", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, []);
-  useEffect(() => {
-    if (!mobileOpen) return void 0;
-    let from = 0;
-    const start = (event) => {
-      from = event.changedTouches[0].screenX;
-    };
-    const end = (event) => {
-      if (event.changedTouches[0].screenX > from + 50) setMobileOpen(false);
-    };
-    document.addEventListener("touchstart", start, { passive: true });
-    document.addEventListener("touchend", end, { passive: true });
-    return () => {
-      document.removeEventListener("touchstart", start);
-      document.removeEventListener("touchend", end);
-    };
-  }, [mobileOpen]);
-  return /* @__PURE__ */ jsxs("header", { className: "header", children: [
-    /* @__PURE__ */ jsx(Link, { className: "header__brand", to: user ? "/boards" : "/", children: "SchoolPiBoard" }),
-    /* @__PURE__ */ jsx("span", { className: "header__spacer" }),
-    /* @__PURE__ */ jsx("nav", { "aria-label": "Разделы сайта", children: /* @__PURE__ */ jsxs("ul", { className: "desktop-menu", children: [
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/features", children: "Возможности" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/pricing", children: "Тарифы" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/faq", children: "Вопросы" }) }),
-      user ? /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }) }),
-        /* @__PURE__ */ jsxs("li", { className: "dropdown", ref: drop, children: [
-          /* @__PURE__ */ jsxs(
-            "button",
-            {
-              className: dropOpen ? "dropdown-toggle active" : "dropdown-toggle",
-              type: "button",
-              "aria-expanded": dropOpen,
-              onClick: () => setDropOpen((current) => !current),
-              children: [
-                "Личный кабинет",
-                /* @__PURE__ */ jsx("span", { className: "dropdown-arrow", "aria-hidden": "true" })
-              ]
-            }
-          ),
-          /* @__PURE__ */ jsxs("ul", { className: dropOpen ? "dropdown-menu show" : "dropdown-menu", children: [
-            user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/admin", children: "Администрирование" }) }) : null,
-            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", children: "Мой тариф" }) }),
-            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", children: "Настройки" }) }),
-            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "dropdown-menu__danger", type: "button", onClick: logout, children: "Выйти" }) })
-          ] })
-        ] })
-      ] }) : /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-sm header__cta", to: "/login", children: "Войти" }) })
-    ] }) }),
-    /* @__PURE__ */ jsx("span", { className: "theme-switch--header", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) }),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        ref: burger,
-        className: mobileOpen ? "hamburger is-open" : "hamburger",
-        type: "button",
-        onClick: () => setMobileOpen((current) => !current),
-        "aria-expanded": mobileOpen,
-        "aria-controls": "navbar",
-        "aria-label": mobileOpen ? "Закрыть меню" : "Открыть меню",
-        children: /* @__PURE__ */ jsxs("span", { className: "hamburger-box", "aria-hidden": "true", children: [
-          /* @__PURE__ */ jsx("span", { className: "hamburger-bar" }),
-          /* @__PURE__ */ jsx("span", { className: "hamburger-bar" }),
-          /* @__PURE__ */ jsx("span", { className: "hamburger-bar" })
-        ] })
-      }
-    ),
-    /* @__PURE__ */ jsx(
-      "div",
-      {
-        id: "navbar",
-        ref: panel,
-        className: mobileOpen ? "navbar navbar--show" : "navbar",
-        children: /* @__PURE__ */ jsx("ul", { children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/boards", onClick: closeMobile, children: "Мои доски" }) }),
-          /* @__PURE__ */ jsxs("li", { className: cabinetOpen ? "navbar-dropdown navbar-dropdown--active" : "navbar-dropdown", children: [
-            /* @__PURE__ */ jsxs(
-              "button",
-              {
-                className: "navbar-dropdown__toggle",
-                type: "button",
-                "aria-expanded": cabinetOpen,
-                onClick: () => setCabinetOpen((current) => !current),
-                children: [
-                  "Личный кабинет",
-                  /* @__PURE__ */ jsx("span", { className: "navbar-dropdown__arrow", "aria-hidden": "true" })
-                ]
-              }
-            ),
-            /* @__PURE__ */ jsxs("ul", { className: "navbar-submenu", children: [
-              user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/admin", onClick: closeMobile, children: "Администрирование" }) }) : null,
-              /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", onClick: closeMobile, children: "Мой тариф" }) }),
-              /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", onClick: closeMobile, children: "Настройки" }) }),
-              /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: () => {
-                closeMobile();
-                logout();
-              }, children: "Выйти" }) })
-            ] })
-          ] }),
-          /* @__PURE__ */ jsx("li", { className: "navbar-item--switch", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
-        ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/login", onClick: closeMobile, children: "Войти" }) }),
-          /* @__PURE__ */ jsx("li", { className: "navbar-item--switch", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
-        ] }) })
-      }
-    )
-  ] });
-}
-function Footer() {
-  return /* @__PURE__ */ jsxs("footer", { className: "app__footer", children: [
-    /* @__PURE__ */ jsxs("div", { className: "row", children: [
-      /* @__PURE__ */ jsx(Link, { to: "/legal/terms", children: "Соглашение" }),
-      /* @__PURE__ */ jsx(Link, { to: "/legal/offer", children: "Оферта" }),
-      /* @__PURE__ */ jsx(Link, { to: "/legal/privacy", children: "Персональные данные" }),
-      /* @__PURE__ */ jsx(Link, { to: "/about", children: "Контакты" })
-    ] }),
-    /* @__PURE__ */ jsx("p", { className: "small", style: { margin: 0 }, children: HAS_COMPANY_DETAILS ? `SchoolPiBoard · ${COMPANY.name} · ${COMPANY.email}` : "SchoolPiBoard · board.school-pi.online" })
-  ] });
-}
-function Page({ children, narrow }) {
-  return /* @__PURE__ */ jsxs("div", { className: "app", children: [
-    /* @__PURE__ */ jsx(Header, {}),
-    /* @__PURE__ */ jsx("main", { className: narrow ? "app__main app__main--narrow" : "app__main", children }),
-    /* @__PURE__ */ jsx(Footer, {})
-  ] });
-}
-function BoardShell({ children }) {
-  return /* @__PURE__ */ jsxs("div", { className: "app app--board", children: [
-    /* @__PURE__ */ jsx(Header, {}),
-    /* @__PURE__ */ jsx("main", { className: "app__main app__main--board", children })
-  ] });
-}
 function Svg$1({ size = 18, title, children }) {
   return /* @__PURE__ */ jsxs(
     "svg",
@@ -611,69 +390,328 @@ const IconArrowDown = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children
   /* @__PURE__ */ jsx("path", { d: "M12 4v15" }),
   /* @__PURE__ */ jsx("path", { d: "M6 13l6 6 6-6" })
 ] }) });
+const IconExternal = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" }),
+  /* @__PURE__ */ jsx("path", { d: "M15 3h6v6" }),
+  /* @__PURE__ */ jsx("path", { d: "M10 14L21 3" })
+] }) });
+const IconBookmark = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M6 3h12v18l-6-4.5L6 21z" }) });
+function useTheme() {
+  const [theme, setTheme] = useState(() => typeof document === "undefined" ? "light" : document.documentElement.getAttribute("data-theme") || "light");
+  const toggle = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try {
+      localStorage.setItem("theme", next);
+    } catch {
+    }
+    setTheme(next);
+  };
+  return { theme, toggle };
+}
+function ThemeSwitch({
+  theme,
+  toggle,
+  label = "Тёмная тема"
+}) {
+  return /* @__PURE__ */ jsxs("label", { className: "theme-switch", children: [
+    /* @__PURE__ */ jsx("span", { className: "theme-switch__label", children: label }),
+    /* @__PURE__ */ jsx(
+      "input",
+      {
+        type: "checkbox",
+        checked: theme === "dark",
+        onChange: toggle,
+        "aria-label": theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"
+      }
+    ),
+    /* @__PURE__ */ jsx("span", { className: "theme-switch__track", children: /* @__PURE__ */ jsx("span", { className: "theme-switch__thumb" }) })
+  ] });
+}
+function useScrollLock(locked) {
+  useEffect(() => {
+    if (!locked) return void 0;
+    const saved = window.scrollY || 0;
+    document.body.style.top = `-${saved}px`;
+    document.body.classList.add("no-scroll");
+    return () => {
+      const root = document.documentElement;
+      const smooth = root.style.scrollBehavior;
+      root.style.scrollBehavior = "auto";
+      document.body.classList.remove("no-scroll");
+      document.body.style.top = "";
+      window.scrollTo(0, saved);
+      root.style.scrollBehavior = smooth;
+    };
+  }, [locked]);
+}
+function Header() {
+  const { user, logout } = useAuth();
+  const { theme, toggle } = useTheme();
+  const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [cabinetOpen, setCabinetOpen] = useState(false);
+  const [dropOpen, setDropOpen] = useState(false);
+  const drop = useRef(null);
+  const panel = useRef(null);
+  const burger = useRef(null);
+  useScrollLock(mobileOpen);
+  useEffect(() => {
+    setMobileOpen(false);
+    setCabinetOpen(false);
+    setDropOpen(false);
+  }, [location.pathname]);
+  const closeMobile = () => setMobileOpen(false);
+  useEffect(() => {
+    const outside = (event) => {
+      const target = event.target;
+      if (drop.current && !drop.current.contains(target)) setDropOpen(false);
+      if (panel.current && burger.current && !panel.current.contains(target) && !burger.current.contains(target)) {
+        setMobileOpen(false);
+      }
+    };
+    const escape = (event) => {
+      if (event.key !== "Escape") return;
+      setDropOpen(false);
+      setMobileOpen(false);
+    };
+    document.addEventListener("mousedown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, []);
+  useEffect(() => {
+    if (!mobileOpen) return void 0;
+    let from = 0;
+    const start = (event) => {
+      from = event.changedTouches[0].screenX;
+    };
+    const end = (event) => {
+      if (event.changedTouches[0].screenX > from + 50) setMobileOpen(false);
+    };
+    document.addEventListener("touchstart", start, { passive: true });
+    document.addEventListener("touchend", end, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", start);
+      document.removeEventListener("touchend", end);
+    };
+  }, [mobileOpen]);
+  return /* @__PURE__ */ jsxs("header", { className: "header", children: [
+    /* @__PURE__ */ jsx(Link, { className: "header__brand", to: user ? "/boards" : "/", children: "SchoolPiBoard" }),
+    /* @__PURE__ */ jsx("span", { className: "header__spacer" }),
+    /* @__PURE__ */ jsx("nav", { "aria-label": "Разделы сайта", children: /* @__PURE__ */ jsxs("ul", { className: "desktop-menu", children: [
+      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/features", children: "Возможности" }) }),
+      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/pricing", children: "Тарифы" }) }),
+      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/faq", children: "Вопросы" }) }),
+      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "header__site-link", children: [
+        MAIN_SITE.label,
+        /* @__PURE__ */ jsx(IconExternal, { size: 14 })
+      ] }) }),
+      user ? /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }) }),
+        /* @__PURE__ */ jsxs("li", { className: "dropdown", ref: drop, children: [
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: dropOpen ? "dropdown-toggle active" : "dropdown-toggle",
+              type: "button",
+              "aria-expanded": dropOpen,
+              onClick: () => setDropOpen((current) => !current),
+              children: [
+                "Личный кабинет",
+                /* @__PURE__ */ jsx("span", { className: "dropdown-arrow", "aria-hidden": "true" })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxs("ul", { className: dropOpen ? "dropdown-menu show" : "dropdown-menu", children: [
+            user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/admin", children: "Администрирование" }) }) : null,
+            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", children: "Мой тариф" }) }),
+            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", children: "Настройки" }) }),
+            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "dropdown-menu__danger", type: "button", onClick: logout, children: "Выйти" }) })
+          ] })
+        ] })
+      ] }) : /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-sm header__cta", to: "/login", children: "Войти" }) })
+    ] }) }),
+    /* @__PURE__ */ jsx("span", { className: "theme-switch--header", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) }),
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        ref: burger,
+        className: mobileOpen ? "hamburger is-open" : "hamburger",
+        type: "button",
+        onClick: () => setMobileOpen((current) => !current),
+        "aria-expanded": mobileOpen,
+        "aria-controls": "navbar",
+        "aria-label": mobileOpen ? "Закрыть меню" : "Открыть меню",
+        children: /* @__PURE__ */ jsxs("span", { className: "hamburger-box", "aria-hidden": "true", children: [
+          /* @__PURE__ */ jsx("span", { className: "hamburger-bar" }),
+          /* @__PURE__ */ jsx("span", { className: "hamburger-bar" }),
+          /* @__PURE__ */ jsx("span", { className: "hamburger-bar" })
+        ] })
+      }
+    ),
+    /* @__PURE__ */ jsx(
+      "div",
+      {
+        id: "navbar",
+        ref: panel,
+        className: mobileOpen ? "navbar navbar--show" : "navbar",
+        children: /* @__PURE__ */ jsx("ul", { children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "header__site-link", children: [
+            MAIN_SITE.label,
+            /* @__PURE__ */ jsx(IconExternal, { size: 14 })
+          ] }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/boards", onClick: closeMobile, children: "Мои доски" }) }),
+          /* @__PURE__ */ jsxs("li", { className: cabinetOpen ? "navbar-dropdown navbar-dropdown--active" : "navbar-dropdown", children: [
+            /* @__PURE__ */ jsxs(
+              "button",
+              {
+                className: "navbar-dropdown__toggle",
+                type: "button",
+                "aria-expanded": cabinetOpen,
+                onClick: () => setCabinetOpen((current) => !current),
+                children: [
+                  "Личный кабинет",
+                  /* @__PURE__ */ jsx("span", { className: "navbar-dropdown__arrow", "aria-hidden": "true" })
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsxs("ul", { className: "navbar-submenu", children: [
+              user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/admin", onClick: closeMobile, children: "Администрирование" }) }) : null,
+              /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", onClick: closeMobile, children: "Мой тариф" }) }),
+              /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", onClick: closeMobile, children: "Настройки" }) }),
+              /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: () => {
+                closeMobile();
+                logout();
+              }, children: "Выйти" }) })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsx("li", { className: "navbar-item--switch", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
+        ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "header__site-link", children: [
+            MAIN_SITE.label,
+            /* @__PURE__ */ jsx(IconExternal, { size: 14 })
+          ] }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/login", onClick: closeMobile, children: "Войти" }) }),
+          /* @__PURE__ */ jsx("li", { className: "navbar-item--switch", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
+        ] }) })
+      }
+    )
+  ] });
+}
+function Footer() {
+  return /* @__PURE__ */ jsxs("footer", { className: "app__footer", children: [
+    /* @__PURE__ */ jsxs("div", { className: "row", children: [
+      /* @__PURE__ */ jsx(Link, { to: "/legal/terms", children: "Соглашение" }),
+      /* @__PURE__ */ jsx(Link, { to: "/legal/offer", children: "Оферта" }),
+      /* @__PURE__ */ jsx(Link, { to: "/legal/privacy", children: "Персональные данные" }),
+      /* @__PURE__ */ jsx(Link, { to: "/about", children: "Контакты" }),
+      /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "footer__site-link", children: [
+        MAIN_SITE.label,
+        /* @__PURE__ */ jsx(IconExternal, { size: 13 })
+      ] }),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          type: "button",
+          className: "footer__cookie-link",
+          onClick: () => window.dispatchEvent(new Event("cookie-settings-reopen")),
+          children: "Настройки cookie"
+        }
+      )
+    ] }),
+    /* @__PURE__ */ jsx("p", { className: "small", style: { margin: 0 }, children: HAS_COMPANY_DETAILS ? `SchoolPiBoard · ${COMPANY.name} · ${COMPANY.email}` : "SchoolPiBoard · board.school-pi.online" })
+  ] });
+}
+function Page({ children, narrow }) {
+  return /* @__PURE__ */ jsxs("div", { className: "app", children: [
+    /* @__PURE__ */ jsx(Header, {}),
+    /* @__PURE__ */ jsx("main", { className: narrow ? "app__main app__main--narrow" : "app__main", children }),
+    /* @__PURE__ */ jsx(Footer, {})
+  ] });
+}
+function BoardShell({ children }) {
+  return /* @__PURE__ */ jsxs("div", { className: "app app--board", children: [
+    /* @__PURE__ */ jsx(Header, {}),
+    /* @__PURE__ */ jsx("main", { className: "app__main app__main--board", children })
+  ] });
+}
+const TILES = [
+  {
+    icon: /* @__PURE__ */ jsx(IconGuest, { size: 26 }),
+    title: "Участнику не нужна регистрация",
+    text: "Вы отправляете ссылку, он открывает её и называет имя — чтобы вы видели, чей курсор на доске. Ни аккаунта, ни установки. Платит только владелец доски."
+  },
+  {
+    icon: /* @__PURE__ */ jsx(IconEditor, { size: 26 }),
+    title: "Перо, а не мышь",
+    text: "Линия толще там, где сильнее нажали. Ладонь на планшете следа не оставляет — иначе пером не пишут."
+  },
+  {
+    icon: /* @__PURE__ */ jsx(IconImage, { size: 26 }),
+    title: "Документы — на доску",
+    text: "PDF загружается в библиотеку один раз. Дальше нужные страницы вставляются на любую доску без повторной загрузки файла."
+  },
+  {
+    icon: /* @__PURE__ */ jsx(IconPeople, { size: 26 }),
+    title: "Вы решаете, кто и что может",
+    text: "Пришедшего по ссылке видно в комнате ожидания. Вы впускаете нужного и даёте роль: рисовать или только смотреть."
+  },
+  {
+    icon: /* @__PURE__ */ jsx(IconTimer, { size: 26 }),
+    title: "Мелочи, которые экономят время",
+    text: "Таймер на самостоятельную работу, клетка и линейка на фоне доски, конспект — картинкой на почту участнику."
+  },
+  {
+    icon: /* @__PURE__ */ jsx(IconViewer, { size: 26 }),
+    title: "Работа не прерывается из-за связи",
+    text: "Связь пропала на минуту — доска догонит пропущенное, когда она вернётся. Одновременно на ней может быть до двадцати человек."
+  }
+];
 function LandingPage() {
   const { user } = useAuth();
   return /* @__PURE__ */ jsxs(Page, { children: [
     /* @__PURE__ */ jsxs("section", { className: "card hero", children: [
-      /* @__PURE__ */ jsx("h1", { children: "Онлайн-доска для репетитора" }),
-      /* @__PURE__ */ jsx("p", { className: "reading hero__lead", children: "Объясняйте на доске, как на бумаге: пишите пером, разбирайте задачи, вставляйте страницы учебника. Ученик заходит по ссылке — без регистрации, установки и лишних вопросов." }),
+      /* @__PURE__ */ jsx("span", { className: "hero__eyebrow", children: "Онлайн-доска" }),
+      /* @__PURE__ */ jsx("h1", { children: "Доска, на которой рисуют, а не расставляют стикеры" }),
+      /* @__PURE__ */ jsx("p", { className: "reading hero__lead", children: "Пишете пером, вставляете документы, работаете вместе — как на бумаге. Участнику для этого ничего не ставить: он открывает присланную ссылку и через пару секунд уже рядом с вами на доске." }),
       /* @__PURE__ */ jsx("div", { className: "row hero__actions", children: user ? /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-lg", to: "/boards", children: "Мои доски" }) : /* @__PURE__ */ jsxs(Fragment, { children: [
         /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-lg", to: "/register", children: "Начать бесплатно" }),
         /* @__PURE__ */ jsx(Link, { className: "btn btn-outline btn-lg", to: "/pricing", children: "Тарифы" })
       ] }) }),
       /* @__PURE__ */ jsx("p", { className: "text-muted small hero__note", children: "Бесплатный тариф без срока и без карты. Первые семь дней — «Стандартный», чтобы попробовать всё." })
     ] }),
-    /* @__PURE__ */ jsxs("div", { className: "stack", children: [
-      /* @__PURE__ */ jsxs("article", { className: "card", children: [
-        /* @__PURE__ */ jsxs("h2", { className: "card-title", children: [
-          /* @__PURE__ */ jsx(IconGuest, {}),
-          " Ученику не нужна регистрация"
-        ] }),
-        /* @__PURE__ */ jsx("p", { children: "Вы отправляете ссылку, ученик открывает её и называет имя — чтобы вы видели, чей курсор на доске. Ни учётной записи, ни установки, ни оплаты: платит только преподаватель, и только за себя." })
+    /* @__PURE__ */ jsx("div", { className: "feature-grid", children: TILES.map((tile) => /* @__PURE__ */ jsxs("article", { className: "feature-tile", children: [
+      /* @__PURE__ */ jsx("span", { className: "feature-tile__icon", children: tile.icon }),
+      /* @__PURE__ */ jsx("h3", { children: tile.title }),
+      /* @__PURE__ */ jsx("p", { children: tile.text })
+    ] }, tile.title)) }),
+    /* @__PURE__ */ jsxs("section", { className: "card brand-strip", children: [
+      /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsx("h2", { className: "card-title", children: MAIN_SITE.label }),
+        /* @__PURE__ */ jsx("p", { children: "Настольная версия доски для совместной работы за одним компьютером, без браузера и подписки." })
       ] }),
-      /* @__PURE__ */ jsxs("article", { className: "card", children: [
-        /* @__PURE__ */ jsxs("h2", { className: "card-title", children: [
-          /* @__PURE__ */ jsx(IconEditor, {}),
-          " Перо, а не мышь"
-        ] }),
-        /* @__PURE__ */ jsx("p", { children: "Доска рассчитана на планшет с пером: линия слушается нажима, ладонь на экране следа не оставляет, а пальцем двигается сам холст. Три пера с разными настройками, маркер и ластик, который стирает задетое, а не весь штрих целиком." })
-      ] }),
-      /* @__PURE__ */ jsxs("article", { className: "card", children: [
-        /* @__PURE__ */ jsxs("h2", { className: "card-title", children: [
-          /* @__PURE__ */ jsx(IconImage, {}),
-          " Учебник — прямо на доску"
-        ] }),
-        /* @__PURE__ */ jsx("p", { children: "Загрузите PDF, выберите нужные страницы и вставьте их на холст. Можно обрезать рамкой один пример и разобрать его крупно. Загруженное остаётся в вашей библиотеке: второй раз тот же учебник загружать не придётся." })
-      ] }),
-      /* @__PURE__ */ jsxs("article", { className: "card", children: [
-        /* @__PURE__ */ jsxs("h2", { className: "card-title", children: [
-          /* @__PURE__ */ jsx(IconPeople, {}),
-          " Вы решаете, кто и что может"
-        ] }),
-        /* @__PURE__ */ jsx("p", { children: "Пришедшего по ссылке видно в списке ожидающих: впустите нужного и задайте роль — работать на доске или только смотреть. Ссылку можно перевыпустить, если она ушла не туда, а доску — закрыть для новых." })
-      ] }),
-      /* @__PURE__ */ jsxs("article", { className: "card", children: [
-        /* @__PURE__ */ jsxs("h2", { className: "card-title", children: [
-          /* @__PURE__ */ jsx(IconTimer, {}),
-          " Мелочи, которые экономят занятие"
-        ] }),
-        /* @__PURE__ */ jsx("p", { children: "Таймер на самостоятельную работу, сохранение доски картинкой на память ученику, разлиновка в клетку и линейку, вставка из буфера обмена. Всё, что нарисовано, сохраняется само — доска не пропадёт, если закрыть вкладку." })
-      ] }),
-      /* @__PURE__ */ jsxs("article", { className: "card", children: [
-        /* @__PURE__ */ jsxs("h2", { className: "card-title", children: [
-          /* @__PURE__ */ jsx(IconViewer, {}),
-          " Занятие не рвётся"
-        ] }),
-        /* @__PURE__ */ jsx("p", { children: "Связь пропала на минуту — нарисованное не потеряется: доска догонит пропущенное, когда сеть вернётся. До двадцати человек одновременно, если ведёте не одного, а группу." })
+      /* @__PURE__ */ jsxs("a", { className: "btn btn-primary", href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: [
+        "Перейти на school-pi.online",
+        /* @__PURE__ */ jsx(IconExternal, { size: 16 })
       ] })
     ] }),
     /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Как начать" }),
-      /* @__PURE__ */ jsxs("ol", { className: "reading", children: [
-        /* @__PURE__ */ jsx("li", { children: "Зарегистрируйтесь и подтвердите почту — это одна минута." }),
-        /* @__PURE__ */ jsx("li", { children: "Создайте доску: ссылка на неё появится сразу." }),
-        /* @__PURE__ */ jsx("li", { children: "Отправьте ссылку ученику перед занятием." }),
-        /* @__PURE__ */ jsx("li", { children: "Впустите его и работайте вместе." })
+      /* @__PURE__ */ jsxs("ol", { className: "steps", children: [
+        /* @__PURE__ */ jsx("li", { children: "Зарегистрируйтесь и подтвердите почту — одна минута." }),
+        /* @__PURE__ */ jsx("li", { children: "Создайте доску: ссылка появится сразу." }),
+        /* @__PURE__ */ jsx("li", { children: "Отправьте её участнику и впустите его." })
       ] }),
       /* @__PURE__ */ jsxs("div", { className: "row", children: [
         user ? /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/boards", children: "Перейти к доскам" }) : /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/register", children: "Создать первую доску" }),
@@ -683,12 +721,21 @@ function LandingPage() {
   ] });
 }
 function AboutPage() {
-  return /* @__PURE__ */ jsxs(Page, { children: [
+  return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs("div", { className: "about-grid", children: [
     /* @__PURE__ */ jsxs("article", { className: "card reading", children: [
       /* @__PURE__ */ jsx("h1", { children: "О сервисе" }),
-      /* @__PURE__ */ jsx("p", { children: "SchoolPiBoard — онлайн-доска для занятий. Её делали не как ещё одну доску для совещаний, а как замену тетради и маркерной доски на уроке: чтобы преподаватель писал пером, разбирал задачи по учебнику и объяснял, а ученик просто открывал ссылку и работал рядом." }),
-      /* @__PURE__ */ jsx("p", { children: "Отсюда и решения, которые в других досках выглядят странно. Ученику не нужна учётная запись — регистрация в начале каждого занятия отнимает время у обоих. Платит только преподаватель, и только за себя. Ладонь, лежащая на планшете, не оставляет следа, потому что иначе пером не пишут." }),
-      /* @__PURE__ */ jsx("p", { children: "Сервис продолжает настольную программу SchoolPiBoard — ту же доску, но для занятий за одним компьютером. Онлайн-версия делает то же самое для занятий на расстоянии." })
+      /* @__PURE__ */ jsx("p", { children: "SchoolPiBoard — замена бумаги и маркерной доски в совместной работе: пишите пером, вставляйте документы, объясняйте, а участник просто открывает ссылку и работает рядом." }),
+      /* @__PURE__ */ jsx("p", { children: "Поэтому участнику не нужна учётная запись, а ладонь на планшете не оставляет следа — иначе пером не пишут. Платит только владелец доски, и только за себя." }),
+      /* @__PURE__ */ jsxs("p", { children: [
+        "Онлайн-доска продолжает настольную программу SchoolPiBoard из",
+        " ",
+        /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: [
+          MAIN_SITE.label,
+          /* @__PURE__ */ jsx(IconExternal, { size: 14 })
+        ] }),
+        " ",
+        "— то же самое для работы на расстоянии."
+      ] })
     ] }),
     /* @__PURE__ */ jsxs("article", { className: "card reading", children: [
       /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Контакты" }),
@@ -720,7 +767,7 @@ function AboutPage() {
         /* @__PURE__ */ jsx(Link, { to: "/legal/consent", children: "Согласие на обработку" })
       ] })
     ] })
-  ] });
+  ] }) });
 }
 const SHOWN_PLANS = [
   {
@@ -799,7 +846,7 @@ function PricingPage() {
   return /* @__PURE__ */ jsxs(Page, { children: [
     /* @__PURE__ */ jsxs("section", { className: "card", style: { textAlign: "center" }, children: [
       /* @__PURE__ */ jsx("h1", { children: "Тарифы" }),
-      /* @__PURE__ */ jsx("p", { className: "reading", style: { margin: "0 auto var(--sp-4)" }, children: "Платит только преподаватель. Ученикам регистрация не нужна: они заходят по ссылке и ничего не платят." }),
+      /* @__PURE__ */ jsx("p", { className: "reading", style: { margin: "0 auto var(--sp-4)" }, children: "Платит только владелец доски. Участникам регистрация не нужна: они заходят по ссылке и ничего не платят." }),
       /* @__PURE__ */ jsx("div", { className: "row", style: { justifyContent: "center" }, children: PERIODS$1.map((option) => /* @__PURE__ */ jsx(
         "button",
         {
@@ -816,6 +863,7 @@ function PricingPage() {
       const price = plan[period.field];
       return /* @__PURE__ */ jsxs("article", { className: "plan", children: [
         /* @__PURE__ */ jsx("h2", { className: "plan__name", children: plan.name }),
+        plan.code === "standard" ? /* @__PURE__ */ jsx("p", { className: "plan__note", children: "Открыт в пробном периоде" }) : null,
         /* @__PURE__ */ jsxs("p", { className: "plan__price", children: [
           price === 0 ? "Бесплатно" : `${price} ₽`,
           price === 0 ? null : /* @__PURE__ */ jsxs("span", { className: "plan__period", children: [
@@ -852,11 +900,11 @@ function PricingPage() {
     }) }),
     /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Что важно знать" }),
-      /* @__PURE__ */ jsxs("ul", { className: "reading", children: [
+      /* @__PURE__ */ jsxs("ul", { className: "fact-grid", children: [
         /* @__PURE__ */ jsx("li", { children: "Первые 7 дней после подтверждения почты — «Стандартный», без привязки карты." }),
         /* @__PURE__ */ jsx("li", { children: "Продление прибавляет дни к концу текущего срока." }),
         /* @__PURE__ */ jsx("li", { children: "После окончания срока доски и файлы остаются: аккаунт возвращается к бесплатным пределам." }),
-        /* @__PURE__ */ jsx("li", { children: "Ученики и коллеги, которых вы позвали по ссылке, не платят ничего и никогда." })
+        /* @__PURE__ */ jsx("li", { children: "Участники, которых вы позвали по ссылке, не платят ничего и никогда." })
       ] })
     ] })
   ] });
@@ -865,52 +913,43 @@ const BLOCKS = [
   {
     title: "Рисование",
     items: [
-      "Три пера с независимыми настройками цвета, толщины и прозрачности — например, чёрное для условия, красное для ошибок, маркер для выделения.",
-      "Нажим пера: линия толще там, где сильнее нажали.",
-      "Ластик стирает задетое место штриха, а не весь штрих целиком.",
-      "Фигуры: линия, стрелка, прямоугольник, эллипс, треугольник, трапеция, параллелограмм, ромб — со сплошным, пунктирным и штрихпунктирным контуром.",
-      "Надписи прямо на холсте, с выбором размера и цвета.",
-      "Отмена и повтор действия, дублирование, порядок слоёв."
+      "Три пера с чувствительностью к нажиму, маркер, точечный ластик.",
+      "Фигуры: линия, стрелка, прямоугольник, эллипс, треугольник и другие.",
+      "Надписи на холсте, слои, отмена и повтор действия."
     ]
   },
   {
-    title: "Материалы занятия",
+    title: "Материалы",
     items: [
-      "Загрузка PDF и картинок в личную библиотеку — файл хранится один раз и вставляется на любую доску.",
-      "Выбор нужных страниц PDF миниатюрами: можно вставить несколько разом.",
-      "Обрезка страницы рамкой — вынести на доску один пример, а не весь разворот.",
-      "Вставка из буфера обмена: скопированная картинка ложится картинкой, текст — надписью.",
-      "Перетаскивание файла прямо на холст.",
-      "Сохранение доски картинкой — отдать ученику конспект занятия."
+      "Библиотека: PDF и картинки загружаются один раз, вставляются на любую доску.",
+      "Выбор нужных страниц миниатюрами, обрезка примера рамкой.",
+      "Вставка из буфера обмена и перетаскивание файла на холст.",
+      "Конспект — картинкой на почту участнику."
     ]
   },
   {
     title: "Совместная работа",
     items: [
-      "Ученик входит по ссылке без регистрации: называет имя, чтобы вы видели, чей курсор.",
-      "Комната ожидания: пришедшего видно, вы решаете, впустить и с какой ролью.",
-      "Роли: редактор рисует, наблюдатель только смотрит — и не может изменить доску никаким способом.",
-      "Курсоры участников подписаны именами и подсвечены разными цветами.",
-      "Щелчок по имени в списке участников переносит холст к его курсору — быстро найти друг друга.",
-      "Ссылка обновляется сама раз в час; можно перевыпустить вручную или закрыть доску для новых."
+      "Участник заходит по ссылке без регистрации, называет имя.",
+      "Комната ожидания: впускаете нужного и назначаете роль.",
+      "Роли «рисует» и «только смотрит» — без обхода запрета.",
+      "Курсоры участников подписаны именами и цветом."
     ]
   },
   {
     title: "Холст",
     items: [
-      "Бесконечное полотно с масштабом от 2 % до 2000 %.",
-      "Фон и разлиновка: клетка, линейка, точки, ромб — или чистый лист.",
-      "Пан и зум двумя пальцами на планшете, колесом и пробелом на компьютере.",
+      "Бесконечное полотно, масштаб от 2 % до 2000 %.",
+      "Фон: клетка, линейка, точки, ромб или чистый лист.",
       "Таймер на самостоятельную работу.",
-      "Всё нарисованное сохраняется само; обрыв связи не теряет работу."
+      "Всё сохраняется само — обрыв связи ничего не стирает."
     ]
   },
   {
     title: "Устройства",
     items: [
-      "Работает в браузере: ничего не устанавливать ни вам, ни ученику.",
-      "Планшет с пером — основной сценарий: ладонь следа не оставляет.",
-      "Компьютер и телефон тоже работают; на телефоне панели складываются в прокручиваемые полосы.",
+      "Работает в браузере — ставить нечего ни вам, ни участнику.",
+      "Планшет с пером, компьютер, телефон — везде одинаково.",
       "Светлая и тёмная тема."
     ]
   }
@@ -919,9 +958,9 @@ function FeaturesPage() {
   return /* @__PURE__ */ jsxs(Page, { children: [
     /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsx("h1", { children: "Возможности" }),
-      /* @__PURE__ */ jsx("p", { className: "reading", children: "Доска сделана для занятий, а не для совещаний: здесь пишут от руки, разбирают задачи по учебнику и объясняют, а не двигают стикеры." })
+      /* @__PURE__ */ jsx("p", { className: "reading", children: "На доске рисуют от руки и работают с документами, а не расставляют карточки и стикеры." })
     ] }),
-    /* @__PURE__ */ jsx("div", { className: "stack", children: BLOCKS.map((block) => /* @__PURE__ */ jsxs("article", { className: "card", children: [
+    /* @__PURE__ */ jsx("div", { className: "feature-blocks", children: BLOCKS.map((block) => /* @__PURE__ */ jsxs("article", { className: "card feature-block", children: [
       /* @__PURE__ */ jsx("h2", { className: "card-title", children: block.title }),
       /* @__PURE__ */ jsx("ul", { className: "reading", children: block.items.map((item) => /* @__PURE__ */ jsx("li", { children: item }, item)) })
     ] }, block.title)) }),
@@ -937,40 +976,40 @@ function FeaturesPage() {
 }
 const QUESTIONS = [
   {
-    q: "Нужно ли ученику регистрироваться?",
-    a: "Нет. Вы отправляете ссылку, ученик открывает её и называет имя — это нужно только чтобы вы понимали, чей курсор на доске. Ни учётной записи, ни установки, ни оплаты с его стороны."
+    q: "Нужно ли участнику регистрироваться?",
+    a: "Нет. Вы отправляете ссылку, участник открывает её и называет имя — это нужно только чтобы вы понимали, чей курсор на доске. Ни учётной записи, ни установки, ни оплаты с его стороны."
   },
   {
-    q: "Сколько платят ученики?",
+    q: "Сколько платят участники?",
     a: "Нисколько. Подписку оплачивает только тот, кто создаёт доски. Сколько бы человек ни пришло по ссылке, они не платят никогда."
   },
   {
     q: "Что нужно установить?",
-    a: "Ничего. Доска работает в браузере на компьютере, планшете и телефоне. Планшет с пером — самый удобный вариант для преподавателя."
+    a: "Ничего. Доска работает в браузере на компьютере, планшете и телефоне. Планшет с пером — самый удобный вариант."
   },
   {
     q: "Что будет, когда закончится оплаченный срок?",
-    a: "Ничего не удаляется. Учётная запись возвращается к бесплатным пределам: доски и файлы остаются на месте, но новые доски не создаются и новые файлы не загружаются, пока занятого не станет меньше предела. Материалы занятий не пропадают из-за пропущенного платежа."
+    a: "Ничего не удаляется. Учётная запись возвращается к бесплатным пределам: доски и файлы остаются на месте, но новые доски не создаются и новые файлы не загружаются, пока занятого не станет меньше предела."
   },
   {
     q: "Можно ли пользоваться бесплатно?",
-    a: "Да, без срока. Бесплатный тариф даёт 30 досок, до двух человек на доске одновременно и 50 МБ под файлы. Этого хватает на занятия один на один. Библиотека документов и группы больше двух человек — на платных тарифах."
+    a: "Да, без срока. Бесплатный тариф даёт 30 досок, до двух человек на доске одновременно и 50 МБ под файлы. Этого хватает на работу один на один; библиотека документов и группы больше двух человек — на платных тарифах."
   },
   {
     q: "Что даёт пробный период?",
     a: "Первые семь дней после подтверждения почты открыт тариф «Стандартный» целиком — с библиотекой PDF и группами до пяти человек. Карту привязывать не нужно, и по окончании ничего не списывается: аккаунт просто переходит на бесплатный."
   },
   {
-    q: "Как вставить страницу учебника?",
-    a: "Загрузите PDF в библиотеку, выберите страницы миниатюрами и вставьте их на доску. Можно обрезать рамкой один пример. Файл хранится один раз и доступен на любой вашей доске."
+    q: "Как вставить документ на доску?",
+    a: "Загрузите PDF в библиотеку, выберите страницы миниатюрами и вставьте их на доску. Файл хранится один раз и доступен на любой вашей доске."
   },
   {
-    q: "Сохранится ли доска после занятия?",
-    a: "Да. Всё нарисованное сохраняется само и остаётся на доске. К следующему занятию можно вернуться к той же доске или сохранить её картинкой и отдать ученику."
+    q: "Сохранится ли доска после работы?",
+    a: "Да. Всё нарисованное сохраняется само и остаётся на доске. Можно вернуться к ней же позже или сохранить её картинкой и отдать участнику."
   },
   {
     q: "Что будет, если пропадёт интернет?",
-    a: "Нарисованное не потеряется. Когда связь вернётся, доска догонит пропущенное — и у вас, и у ученика."
+    a: "Нарисованное не потеряется. Когда связь вернётся, доска догонит пропущенное — и у вас, и у участника."
   },
   {
     q: "Можно ли отключить автопродление?",
@@ -984,9 +1023,9 @@ const QUESTIONS = [
 function FaqPage() {
   return /* @__PURE__ */ jsxs(Page, { children: [
     /* @__PURE__ */ jsx("section", { className: "card", children: /* @__PURE__ */ jsx("h1", { children: "Вопросы и ответы" }) }),
-    /* @__PURE__ */ jsx("div", { className: "stack", children: QUESTIONS.map((item) => /* @__PURE__ */ jsxs("article", { className: "card", children: [
-      /* @__PURE__ */ jsx("h2", { className: "card-title", children: item.q }),
-      /* @__PURE__ */ jsx("p", { className: "reading", children: item.a })
+    /* @__PURE__ */ jsx("div", { className: "accordion", children: QUESTIONS.map((item, index) => /* @__PURE__ */ jsxs("details", { className: "accordion-item", open: index === 0, children: [
+      /* @__PURE__ */ jsx("summary", { children: item.q }),
+      /* @__PURE__ */ jsx("p", { className: "accordion-item__body reading", children: item.a })
     ] }, item.q)) }),
     /* @__PURE__ */ jsxs("section", { className: "card", style: { textAlign: "center" }, children: [
       /* @__PURE__ */ jsx("p", { className: "reading", style: { margin: "0 auto var(--sp-4)" }, children: "Не нашли ответа? Напишите — разберёмся." }),
@@ -1438,40 +1477,51 @@ function LoginPage() {
       setBusy(false);
     }
   };
-  return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("form", { className: "card", onSubmit: submit, children: [
-    /* @__PURE__ */ jsx("h1", { children: "Вход" }),
-    /* @__PURE__ */ jsx("label", { htmlFor: "email", children: "Почта" }),
-    /* @__PURE__ */ jsx(
-      "input",
-      {
-        id: "email",
-        type: "email",
-        required: true,
-        autoComplete: "email",
-        value: email,
-        onChange: (event) => setEmail(event.target.value)
-      }
-    ),
-    /* @__PURE__ */ jsx("label", { htmlFor: "password", children: "Пароль" }),
-    /* @__PURE__ */ jsx(
-      "input",
-      {
-        id: "password",
-        type: "password",
-        required: true,
-        autoComplete: "current-password",
-        value: password,
-        onChange: (event) => setPassword(event.target.value)
-      }
-    ),
-    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    notice ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: notice }) : null,
-    needsConfirmation ? /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: resend, disabled: busy, children: "Выслать письмо ещё раз" }) : null,
-    /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Входим…" : "Войти" }),
-    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: /* @__PURE__ */ jsx(Link, { to: "/forgot-password", children: "Забыли пароль?" }) }),
-    /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
-      "Нет учётной записи? ",
-      /* @__PURE__ */ jsx(Link, { to: "/register", children: "Зарегистрироваться" })
+  return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split", children: [
+    /* @__PURE__ */ jsxs("div", { className: "auth-split__pitch", children: [
+      /* @__PURE__ */ jsx("h2", { children: "С возвращением" }),
+      /* @__PURE__ */ jsx("p", { children: "Все ваши доски и участники, которых вы впустили, остаются на месте." }),
+      /* @__PURE__ */ jsxs("ul", { children: [
+        /* @__PURE__ */ jsx("li", { children: "Доски не удаляются, пока вы их не удалите сами." }),
+        /* @__PURE__ */ jsx("li", { children: "Ссылки на доски не меняются между визитами." }),
+        /* @__PURE__ */ jsx("li", { children: "Забыли пароль — восстановите его по почте за минуту." })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs("form", { className: "card auth-split__form", onSubmit: submit, children: [
+      /* @__PURE__ */ jsx("h1", { children: "Вход" }),
+      /* @__PURE__ */ jsx("label", { htmlFor: "email", children: "Почта" }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          id: "email",
+          type: "email",
+          required: true,
+          autoComplete: "email",
+          value: email,
+          onChange: (event) => setEmail(event.target.value)
+        }
+      ),
+      /* @__PURE__ */ jsx("label", { htmlFor: "password", children: "Пароль" }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          id: "password",
+          type: "password",
+          required: true,
+          autoComplete: "current-password",
+          value: password,
+          onChange: (event) => setPassword(event.target.value)
+        }
+      ),
+      error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+      notice ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: notice }) : null,
+      needsConfirmation ? /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: resend, disabled: busy, children: "Выслать письмо ещё раз" }) : null,
+      /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Входим…" : "Войти" }),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: /* @__PURE__ */ jsx(Link, { to: "/forgot-password", children: "Забыли пароль?" }) }),
+      /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
+        "Нет учётной записи? ",
+        /* @__PURE__ */ jsx(Link, { to: "/register", children: "Зарегистрироваться" })
+      ] })
     ] })
   ] }) });
 }
@@ -1516,66 +1566,77 @@ function RegisterPage() {
       /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/login", children: "На страницу входа" })
     ] }) });
   }
-  return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("form", { className: "card", onSubmit: submit, children: [
-    /* @__PURE__ */ jsx("h1", { children: "Регистрация" }),
-    /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Учётная запись нужна преподавателю — тому, кто создаёт доски. Обучающемуся регистрироваться не нужно: он заходит по ссылке." }),
-    /* @__PURE__ */ jsx("label", { htmlFor: "displayName", children: "Как вас называть" }),
-    /* @__PURE__ */ jsx(
-      "input",
-      {
-        id: "displayName",
-        type: "text",
-        required: true,
-        maxLength: 100,
-        autoComplete: "name",
-        placeholder: "Имя, которое увидят на доске",
-        value: displayName,
-        onChange: (event) => setDisplayName(event.target.value)
-      }
-    ),
-    /* @__PURE__ */ jsx("label", { htmlFor: "email", children: "Почта" }),
-    /* @__PURE__ */ jsx(
-      "input",
-      {
-        id: "email",
-        type: "email",
-        required: true,
-        autoComplete: "email",
-        value: email,
-        onChange: (event) => setEmail(event.target.value)
-      }
-    ),
-    /* @__PURE__ */ jsx("label", { htmlFor: "password", children: "Пароль" }),
-    /* @__PURE__ */ jsx(
-      "input",
-      {
-        id: "password",
-        type: "password",
-        required: true,
-        minLength: MIN_PASSWORD_LENGTH$1,
-        autoComplete: "new-password",
-        value: password,
-        onChange: (event) => setPassword(event.target.value)
-      }
-    ),
-    /* @__PURE__ */ jsx("label", { htmlFor: "passwordConfirm", children: "Пароль ещё раз" }),
-    /* @__PURE__ */ jsx(
-      "input",
-      {
-        id: "passwordConfirm",
-        type: "password",
-        required: true,
-        minLength: MIN_PASSWORD_LENGTH$1,
-        autoComplete: "new-password",
-        value: passwordConfirm,
-        onChange: (event) => setPasswordConfirm(event.target.value)
-      }
-    ),
-    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Зарегистрироваться" }),
-    /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
-      "Уже есть учётная запись? ",
-      /* @__PURE__ */ jsx(Link, { to: "/login", children: "Войти" })
+  return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split", children: [
+    /* @__PURE__ */ jsxs("div", { className: "auth-split__pitch", children: [
+      /* @__PURE__ */ jsx("h2", { children: "Учётная запись — только вам" }),
+      /* @__PURE__ */ jsx("p", { children: "Регистрируется тот, кто создаёт доски. Участнику она не нужна вовсе." }),
+      /* @__PURE__ */ jsxs("ul", { children: [
+        /* @__PURE__ */ jsx("li", { children: "Участник заходит по ссылке и называет имя — без пароля и почты." }),
+        /* @__PURE__ */ jsx("li", { children: "Бесплатный тариф — без срока и без карты." }),
+        /* @__PURE__ */ jsx("li", { children: "Первые семь дней открыт «Стандартный» целиком, попробовать всё." })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs("form", { className: "card auth-split__form", onSubmit: submit, children: [
+      /* @__PURE__ */ jsx("h1", { children: "Регистрация" }),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small auth-split__note", children: "Учётная запись нужна тому, кто создаёт доски. Участнику регистрироваться не нужно: он заходит по ссылке." }),
+      /* @__PURE__ */ jsx("label", { htmlFor: "displayName", children: "Как вас называть" }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          id: "displayName",
+          type: "text",
+          required: true,
+          maxLength: 100,
+          autoComplete: "name",
+          placeholder: "Имя, которое увидят на доске",
+          value: displayName,
+          onChange: (event) => setDisplayName(event.target.value)
+        }
+      ),
+      /* @__PURE__ */ jsx("label", { htmlFor: "email", children: "Почта" }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          id: "email",
+          type: "email",
+          required: true,
+          autoComplete: "email",
+          value: email,
+          onChange: (event) => setEmail(event.target.value)
+        }
+      ),
+      /* @__PURE__ */ jsx("label", { htmlFor: "password", children: "Пароль" }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          id: "password",
+          type: "password",
+          required: true,
+          minLength: MIN_PASSWORD_LENGTH$1,
+          autoComplete: "new-password",
+          value: password,
+          onChange: (event) => setPassword(event.target.value)
+        }
+      ),
+      /* @__PURE__ */ jsx("label", { htmlFor: "passwordConfirm", children: "Пароль ещё раз" }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          id: "passwordConfirm",
+          type: "password",
+          required: true,
+          minLength: MIN_PASSWORD_LENGTH$1,
+          autoComplete: "new-password",
+          value: passwordConfirm,
+          onChange: (event) => setPasswordConfirm(event.target.value)
+        }
+      ),
+      error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+      /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Зарегистрироваться" }),
+      /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
+        "Уже есть учётная запись? ",
+        /* @__PURE__ */ jsx(Link, { to: "/login", children: "Войти" })
+      ] })
     ] })
   ] }) });
 }
@@ -1797,6 +1858,7 @@ function BoardsPage() {
   const navigate = useNavigate();
   const [boards, setBoards] = useState([]);
   const [title, setTitle] = useState("");
+  const [query, setQuery] = useState("");
   const [error, setError] = useState(null);
   const [loading2, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -1846,6 +1908,7 @@ function BoardsPage() {
       setError(reason instanceof ApiError ? reason.message : "Не удалось удалить доску.");
     }
   };
+  const filtered = query.trim() ? boards.filter((board) => board.title.toLowerCase().includes(query.trim().toLowerCase())) : boards;
   return /* @__PURE__ */ jsxs(Page, { children: [
     /* @__PURE__ */ jsx("div", { className: "page-header", children: /* @__PURE__ */ jsx("h1", { children: "Мои доски" }) }),
     /* @__PURE__ */ jsx("form", { className: "card", onSubmit: create, children: /* @__PURE__ */ jsxs("div", { className: "field", children: [
@@ -1866,7 +1929,23 @@ function BoardsPage() {
       ] })
     ] }) }),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    loading2 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty", children: "Досок пока нет." }) : /* @__PURE__ */ jsx("ul", { className: "board-list", children: boards.map((board) => /* @__PURE__ */ jsxs("li", { className: "board-item", children: [
+    !loading2 && boards.length > 1 ? /* @__PURE__ */ jsx(
+      "input",
+      {
+        className: "input",
+        type: "search",
+        value: query,
+        placeholder: "Найти доску по названию",
+        onChange: (event) => setQuery(event.target.value),
+        "aria-label": "Найти доску по названию",
+        style: { marginBottom: "var(--sp-4)" }
+      }
+    ) : null,
+    loading2 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty", children: "Досок пока нет." }) : filtered.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "empty", children: [
+      "Ничего не найдено по «",
+      query.trim(),
+      "»."
+    ] }) : /* @__PURE__ */ jsx("ul", { className: "board-list", children: filtered.map((board) => /* @__PURE__ */ jsxs("li", { className: "board-item", children: [
       /* @__PURE__ */ jsx("span", { className: "people__icon", title: roleTitle$1(board.role), children: /* @__PURE__ */ jsx(RoleIcon$1, { role: board.role }) }),
       /* @__PURE__ */ jsx(Link, { className: "board-item__title", to: `/boards/${board.id}`, children: board.title }),
       board.locked ? /* @__PURE__ */ jsx("span", { className: "badge badge-warning", children: "закрыта" }) : null,
@@ -2697,6 +2776,36 @@ function drawText(context, data) {
     context.fillText(line, data.x1 ?? 0, (data.y1 ?? 0) + index * lineHeight);
   });
 }
+const BOOKMARK_PADDING = 6;
+const BOOKMARK_DOT_RADIUS = 4;
+function drawBookmark(context, data) {
+  const x1 = data.x1 ?? 0;
+  const y1 = data.y1 ?? 0;
+  const text = data.text ?? "";
+  const fontSize = data.fontSize ?? 15;
+  const lineHeight = fontSize * 1.25;
+  const height = lineHeight + BOOKMARK_PADDING * 2;
+  context.setLineDash([]);
+  context.font = fontOf(data);
+  const width = Math.max(context.measureText(text).width + BOOKMARK_PADDING * 2, height);
+  const top = y1 - height;
+  const radius = Math.min(6, height / 2);
+  context.beginPath();
+  context.moveTo(x1 + radius, top);
+  context.lineTo(x1 + width - radius, top);
+  context.arcTo(x1 + width, top, x1 + width, top + radius, radius);
+  context.lineTo(x1 + width, y1 - radius);
+  context.arcTo(x1 + width, y1, x1 + width - radius, y1, radius);
+  context.lineTo(x1, y1);
+  context.closePath();
+  context.fill();
+  context.beginPath();
+  context.arc(x1, y1, BOOKMARK_DOT_RADIUS, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#FFFFFF";
+  context.textBaseline = "middle";
+  context.fillText(text, x1 + BOOKMARK_PADDING, top + height / 2);
+}
 function drawGrid(context, style, color, width, height, offsetX, offsetY, scale) {
   if (style === "none") return;
   let step = 32 * scale;
@@ -2869,6 +2978,7 @@ function drawItem(context, type, data, imageRef = null) {
     drawShape(context, data);
     drawLabel(context, data);
   } else if (type === "image") drawImage(context, data, imageRef);
+  else if (type === "bookmark") drawBookmark(context, data);
   else drawStroke(context, data);
   context.restore();
 }
@@ -2939,7 +3049,7 @@ function distanceToSegment(point, from, to) {
 function hits(item, point, radius) {
   const points = pointsOf(item.data);
   const reach = radius + item.data.width / 2;
-  if (item.type === "text" || item.type === "image" || item.type === "table" || item.data.shape === "ellipse" || item.data.shape === "arcUp" || item.data.shape === "arcDown") {
+  if (item.type === "text" || item.type === "image" || item.type === "table" || item.type === "bookmark" || item.data.shape === "ellipse" || item.data.shape === "arcUp" || item.data.shape === "arcDown") {
     if (item.data.angle) return inside(points, point);
     const box = boundsOf([item]);
     return Boolean(box) && point.x >= box.x - radius && point.x <= box.x + box.width + radius && point.y >= box.y - radius && point.y <= box.y + box.height + radius;
@@ -3006,7 +3116,7 @@ function measureText(text, fontSize) {
 const HANDLE_SIZE = 9;
 const ROTATE_REACH = 28;
 function handlesFor(item, box) {
-  if (item.type === "stroke") return [];
+  if (item.type === "stroke" || item.type === "bookmark") return [];
   if (item.data.shape === "line" || item.data.shape === "arrow") {
     return [
       { id: "p1", x: item.data.x1 ?? 0, y: item.data.y1 ?? 0, cursor: "move" },
@@ -3197,6 +3307,7 @@ function BoardCanvas({
   onCommit,
   onDrawStart,
   onTextAt,
+  onBookmarkAt,
   onCellAt,
   onErase,
   onEraseEnd
@@ -3341,7 +3452,7 @@ function BoardCanvas({
     return sheet;
   }, [hub.items]);
   const cursor = useMemo(() => {
-    if (tool === "hand" || spaceHeld || !hub.canEdit || tool === "select" || tool === "text") {
+    if (tool === "hand" || spaceHeld || !hub.canEdit || tool === "select" || tool === "text" || tool === "bookmark") {
       return void 0;
     }
     const paint = tool === "pen1" || tool === "pen2" || tool === "marker" ? settings[tool] : null;
@@ -3580,9 +3691,14 @@ function BoardCanvas({
       };
       return;
     }
-    if (latest.current.tool === "text") {
+    if (latest.current.tool === "text" || latest.current.tool === "bookmark") {
       event.currentTarget.setPointerCapture(event.pointerId);
-      tapping.current = { pointerId: event.pointerId, at: point, screen: screenPoint(event) };
+      tapping.current = {
+        pointerId: event.pointerId,
+        at: point,
+        screen: screenPoint(event),
+        kind: latest.current.tool
+      };
       return;
     }
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -3764,7 +3880,8 @@ function BoardCanvas({
         screenPoint(event).y - tap.screen.y
       );
       if (!blockUntilRelease.current && pointers.current.size === 0 && moved < 12) {
-        onTextAt(tap.at);
+        if (tap.kind === "bookmark") onBookmarkAt(tap.at);
+        else onTextAt(tap.at);
       }
       return;
     }
@@ -4375,6 +4492,8 @@ const PALETTE = [
   "#448AFF",
   "#FF4FA3"
 ];
+const BOOKMARK_COLOR = "#FFB300";
+const BOOKMARK_FONT_SIZE = 15;
 const DEFAULT_SETTINGS = {
   pen1: { color: "#2A211C", width: 5, opacity: 100 },
   pen2: { color: "#B03A2E", width: 5, opacity: 100 },
@@ -4459,7 +4578,8 @@ function DrawToolbar({
     pick("eraser", /* @__PURE__ */ jsx(IconEraser, {}), "Ластик"),
     pick("text", /* @__PURE__ */ jsx(IconText, {}), "Текст"),
     pick("shapes", /* @__PURE__ */ jsx(IconShapes, {}), "Фигуры"),
-    pick("table", /* @__PURE__ */ jsx(IconTable, {}), "Таблица")
+    pick("table", /* @__PURE__ */ jsx(IconTable, {}), "Таблица"),
+    pick("bookmark", /* @__PURE__ */ jsx(IconBookmark, {}), "Закладка: подписанная метка в этом месте")
   ] });
 }
 function ViewToolbar({
@@ -4482,7 +4602,8 @@ function ViewToolbar({
   canPaste,
   onPaste,
   onPages,
-  pageLabel
+  pageLabel,
+  onBookmarks
 }) {
   return /* @__PURE__ */ jsxs("div", { className: "toolbar toolbar--view", role: "toolbar", "aria-label": "Масштаб и вид", children: [
     /* @__PURE__ */ jsxs("div", { className: "zoom", children: [
@@ -4499,6 +4620,7 @@ function ViewToolbar({
       /* @__PURE__ */ jsx(IconPages, {}),
       /* @__PURE__ */ jsx("span", { className: "btn-tool__label", children: pageLabel })
     ] }),
+    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBookmarks, title: "Закладки", "data-tip": "Закладки", children: /* @__PURE__ */ jsx(IconBookmark, {}) }),
     /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onHelp, title: "Что умеет доска", "data-tip": "Что умеет доска", children: /* @__PURE__ */ jsx(IconHelp, {}) }),
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", "data-tip": "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
@@ -5013,7 +5135,7 @@ function SelectionPanel({
   onCopy
 }) {
   const [custom, setCustom] = useState("#2A211C");
-  const text = items.length === 1 && items[0].type === "text" ? items[0].data.text ?? "" : null;
+  const text = items.length === 1 && (items[0].type === "text" || items[0].type === "bookmark") ? items[0].data.text ?? "" : null;
   const locked = items.length > 0 && items.every((item) => item.data.locked);
   const table = items.length === 1 && items[0].type === "table" ? items[0] : null;
   const rows = table ? clampRows(table.data.rows ?? DEFAULT_ROWS) : 0;
@@ -5476,6 +5598,47 @@ function PagesPanel({
     }) }),
     canManage ? /* @__PURE__ */ jsx("button", { className: "btn btn-quiet btn-sm", type: "button", onClick: onAdd, children: "Добавить страницу" }) : null,
     pages.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Вам пока не открыта ни одна страница этой доски." }) : null
+  ] });
+}
+function listBookmarks(boardId) {
+  return api(`/boards/${boardId}/bookmarks`, { guestToken: readGuestToken(boardId) });
+}
+function BookmarksPanel({ boardId, version, onOpen, onClose }) {
+  const [list2, setList] = useState(null);
+  const [note, setNote] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    listBookmarks(boardId).then((rows) => alive && setList(rows)).catch((reason) => {
+      if (!alive) return;
+      setList([]);
+      setNote(reason instanceof ApiError ? reason.message : "Не удалось прочитать закладки.");
+    });
+    return () => {
+      alive = false;
+    };
+  }, [boardId, version]);
+  return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Закладки", children: [
+    /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
+      /* @__PURE__ */ jsx("span", { className: "params__title", children: "Закладки" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
+    ] }),
+    /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Инструмент «Закладка» на панели слева ставит подписанную метку в нужном месте. Список — по всей доске, не только по открытой странице." }),
+    note ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: note }) : null,
+    list2 === null ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Читаем…" }) : null,
+    list2 !== null && list2.length === 0 ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Пока пусто." }) : null,
+    /* @__PURE__ */ jsx("div", { className: "library__list", children: (list2 ?? []).map((bookmark) => /* @__PURE__ */ jsxs(
+      "button",
+      {
+        className: "btn-quiet library__pick",
+        type: "button",
+        onClick: () => onOpen(bookmark),
+        children: [
+          bookmark.data.text || "Без названия",
+          /* @__PURE__ */ jsx("span", { className: "library__count", children: bookmark.pageTitle })
+        ]
+      },
+      bookmark.id
+    )) })
   ] });
 }
 function segment(frame, a, b, hidden = false) {
@@ -6313,7 +6476,7 @@ function SummaryPanel({
         )
       ] }, request.id)) })
     ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Оставьте адрес — конспект отправит учитель. Адрес увидит только он." }),
+      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Оставьте адрес — конспект отправит владелец доски. Адрес увидит только он." }),
       /* @__PURE__ */ jsx(
         "input",
         {
@@ -6938,6 +7101,9 @@ function BoardPage() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [textAt, setTextAt] = useState(null);
+  const [bookmarkAt, setBookmarkAt] = useState(null);
+  const [showBookmarks, setShowBookmarks] = useState(false);
+  const [bookmarksVersion, setBookmarksVersion] = useState(0);
   const [cellEdit, setCellEdit] = useState(null);
   const setTool = (next) => {
     setShowParams(next === tool && TOOLS_WITH_SETTINGS.includes(next) ? !showParams : false);
@@ -7093,6 +7259,33 @@ function BoardPage() {
   useEffect(() => {
     if (!hub.canEdit && tool !== "hand") setToolRaw("hand");
   }, [hub.canEdit, tool]);
+  const keepFieldVisible = (world) => {
+    setViewport((current) => {
+      if (canvasSize.width >= 720) return current;
+      const screen = toScreen(current, world.x, world.y);
+      const tight = screen.x > canvasSize.width - 160 || screen.y > canvasSize.height - 120 || screen.x < 8 || screen.y < 8;
+      return tight ? centerOn(current, world.x, world.y, canvasSize.width, canvasSize.height) : current;
+    });
+  };
+  const pendingJump = useRef(null);
+  useEffect(() => {
+    const target = pendingJump.current;
+    if (!target || hub.pageId !== target.pageId) return;
+    pendingJump.current = null;
+    setViewport((current) => centerOn(current, target.x, target.y, canvasSize.width, canvasSize.height));
+  }, [hub.pageId, canvasSize.width, canvasSize.height]);
+  const jumpToBookmark = (bookmark) => {
+    const x = bookmark.data.x1 ?? 0;
+    const y = bookmark.data.y1 ?? 0;
+    setShowBookmarks(false);
+    if (bookmark.pageId === hub.pageId) {
+      setViewport((current) => centerOn(current, x, y, canvasSize.width, canvasSize.height));
+      return;
+    }
+    setSelection([]);
+    pendingJump.current = { pageId: bookmark.pageId, x, y };
+    hub.openPage(bookmark.pageId);
+  };
   const commitText = (text) => {
     const where = textAt;
     setTextAt(null);
@@ -7116,6 +7309,33 @@ function BoardPage() {
     const ref = `t${Date.now().toString(36)}`;
     pending.current.set(`${ref}-new`, { ref, snapshot: { ref, type: "text", data } });
     hub.commitItem(`${ref}-new`, "text", data);
+  };
+  const commitBookmark = (raw) => {
+    const where = bookmarkAt;
+    setBookmarkAt(null);
+    const text = raw.split("\n")[0].trim();
+    if (!where || !text) return;
+    const fontSize = BOOKMARK_FONT_SIZE;
+    const data = {
+      x1: where.x,
+      y1: where.y,
+      text,
+      fontSize,
+      color: BOOKMARK_COLOR,
+      width: 1
+    };
+    const context = document.createElement("canvas").getContext("2d");
+    const padding = 6;
+    const height = fontSize * 1.25 + padding * 2;
+    if (context) {
+      context.font = fontOf(data);
+      data.x2 = where.x + Math.max(context.measureText(text).width + padding * 2, height);
+    }
+    data.y2 = where.y - height;
+    const ref = `b${Date.now().toString(36)}`;
+    pending.current.set(`${ref}-new`, { ref, snapshot: { ref, type: "bookmark", data } });
+    hub.commitItem(`${ref}-new`, "bookmark", data);
+    setBookmarksVersion((current) => current + 1);
   };
   const editCell = (itemId, world) => {
     const item = hub.items.find((candidate) => candidate.id === itemId);
@@ -7629,6 +7849,7 @@ function BoardPage() {
                 canPaste: hasClip && hub.canEdit,
                 onPaste: pasteClip,
                 onPages: () => setShowPages((current) => !current),
+                onBookmarks: () => setShowBookmarks((current) => !current),
                 pageLabel: hub.pages.length === 0 ? "—" : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`,
                 onFiles: () => setShowFiles((current) => !current),
                 onLibrary: () => setShowLibrary((current) => !current),
@@ -7692,13 +7913,12 @@ function BoardPage() {
                 onEraseEnd: () => erased.current.clear(),
                 onDrawStart: () => setShowParams(false),
                 onTextAt: (world) => {
-                  setViewport((current) => {
-                    if (canvasSize.width >= 720) return current;
-                    const screen = toScreen(current, world.x, world.y);
-                    const tight = screen.x > canvasSize.width - 160 || screen.y > canvasSize.height - 120 || screen.x < 8 || screen.y < 8;
-                    return tight ? centerOn(current, world.x, world.y, canvasSize.width, canvasSize.height) : current;
-                  });
+                  keepFieldVisible(world);
                   setTextAt(world);
+                },
+                onBookmarkAt: (world) => {
+                  keepFieldVisible(world);
+                  setBookmarkAt(world);
                 }
               }
             ),
@@ -7742,6 +7962,15 @@ function BoardPage() {
                 onReorder: hub.reorderPages,
                 onVisibility: hub.setPageVisibility,
                 onClose: () => setShowPages(false)
+              }
+            ) : null,
+            showBookmarks ? /* @__PURE__ */ jsx(
+              BookmarksPanel,
+              {
+                boardId: id,
+                version: bookmarksVersion,
+                onOpen: jumpToBookmark,
+                onClose: () => setShowBookmarks(false)
               }
             ) : null,
             showSummary ? /* @__PURE__ */ jsx(
@@ -7820,6 +8049,17 @@ function BoardPage() {
                 settings: settings.text,
                 onCommit: commitText,
                 onCancel: () => setTextAt(null)
+              }
+            ) : null,
+            bookmarkAt ? /* @__PURE__ */ jsx(
+              TextInput,
+              {
+                at: bookmarkAt,
+                viewport,
+                bounds: canvasSize,
+                settings: { color: BOOKMARK_COLOR, fontSize: BOOKMARK_FONT_SIZE },
+                onCommit: commitBookmark,
+                onCancel: () => setBookmarkAt(null)
               }
             ) : null,
             hub.status !== "ready" ? /* @__PURE__ */ jsx("p", { className: "canvas-status", children: hub.status === "failed" ? "Связь с доской потеряна. Нарисованное сохранится, когда связь вернётся." : hub.status === "reconnecting" ? "Связь прервалась — восстанавливаем…" : "Подключаемся к доске…" }) : null,
@@ -7988,7 +8228,7 @@ function JoinPage() {
   }
   if ((result == null ? void 0 : result.status) === "waiting") {
     return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("div", { className: "card waiting", children: [
-      /* @__PURE__ */ jsx("h1", { children: "Ждём преподавателя" }),
+      /* @__PURE__ */ jsx("h1", { children: "Ждём владельца доски" }),
       /* @__PURE__ */ jsxs("p", { children: [
         "Вы попросились на доску «",
         result.boardTitle,
@@ -8254,7 +8494,7 @@ const TERMS = {
       title: "1. Кто предоставляет сервис",
       blocks: [
         p("SchoolPiBoard — онлайн-доска для совместной работы в браузере. Сервисом владеет и управляет Оператор, сведения о котором приведены в конце документа."),
-        p("Сервис не является образовательной организацией и не проводит занятий. Занятия проводят сами пользователи; доска — только рабочее пространство для них.")
+        p("Сервис не является организатором того, что происходит на доске, и не отвечает за содержание работы — её ведут сами пользователи; доска — только рабочее пространство для них.")
       ]
     },
     {
@@ -8362,7 +8602,8 @@ const PRIVACY = {
           "сведения об оплатах: номер счёта, тариф, срок, сумма, дата."
         ),
         p("У участника, пришедшего по ссылке без учётной записи, сервис не сохраняет ничего: указанное им имя живёт только на время работы на доске."),
-        p("Данные банковской карты сервису не передаются и им не хранятся: оплата проходит на стороне платёжной системы.")
+        p("Данные банковской карты сервису не передаются и им не хранятся: оплата проходит на стороне платёжной системы."),
+        p("Отдельно от этого браузер получает одну техническую куку — cookie_consent. Она хранит только сделанный в баннере согласия выбор, никого не идентифицирует и живёт 182 дня, после чего выбор спрашивается заново.")
       ]
     },
     {
@@ -8455,7 +8696,7 @@ const CONSENT = {
           "сведения о подписке: тариф, срок, суммы и даты платежей, номера счетов;",
           "сведения о согласии на автоматические списания: дата, время, текст согласия, IP-адрес, с которого оно дано, и дата его отзыва;",
           "технические сведения, необходимые для работы сервиса: IP-адрес, время обращений, сведения о браузере;",
-          "содержимое, размещённое Пользователем на досках, — в объёме, необходимом для его хранения и показа участникам занятия."
+          "содержимое, размещённое Пользователем на досках, — в объёме, необходимом для его хранения и показа участникам доски."
         ),
         p("Специальные категории персональных данных и биометрические персональные данные Оператором не обрабатываются.")
       ]
@@ -8467,7 +8708,7 @@ const CONSENT = {
           "создание и ведение учётной записи, вход в неё и восстановление доступа;",
           "предоставление доступа к сервису в пределах выбранного тарифа;",
           "оформление, оплата и продление подписки, в том числе автоматическое, а также подтверждение того, что согласие на автоматические списания было дано;",
-          "направление писем, связанных с работой сервиса и оплатой: подтверждение почты, уведомление о предстоящем списании, подтверждение оплаты, конспект занятия по просьбе участника;",
+          "направление писем, связанных с работой сервиса и оплатой: подтверждение почты, уведомление о предстоящем списании, подтверждение оплаты, конспект доски по просьбе участника;",
           "исполнение требований законодательства, в том числе о применении контрольно-кассовой техники и о бухгалтерском учёте."
         )
       ]
@@ -8815,6 +9056,47 @@ function AdminPage() {
     ] })
   ] });
 }
+const COOKIE_CONSENT_URL = `${API_URL}/cookie-consent`;
+function readCookieConsent() {
+  return api("/cookie-consent").then((data) => data.consent);
+}
+function CookieBanner() {
+  const [consent, setConsent] = useState(void 0);
+  const location = useLocation();
+  const firstButton = useRef(null);
+  useEffect(() => {
+    let alive = true;
+    readCookieConsent().then((value) => alive && setConsent(value)).catch(() => alive && setConsent(null));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  useEffect(() => {
+    const reopen = () => {
+      setConsent(null);
+      requestAnimationFrame(() => {
+        var _a;
+        return (_a = firstButton.current) == null ? void 0 : _a.focus();
+      });
+    };
+    window.addEventListener("cookie-settings-reopen", reopen);
+    return () => window.removeEventListener("cookie-settings-reopen", reopen);
+  }, []);
+  if (consent !== null) return null;
+  return /* @__PURE__ */ jsxs("div", { className: "cookie-banner", role: "region", "aria-label": "Согласие на куки", children: [
+    /* @__PURE__ */ jsxs("p", { className: "cookie-banner__text", children: [
+      "Сайт использует куки для корректной работы. Подробнее — в",
+      " ",
+      /* @__PURE__ */ jsx(Link, { to: "/legal/privacy", children: "политике обработки персональных данных" }),
+      "."
+    ] }),
+    /* @__PURE__ */ jsxs("form", { className: "cookie-banner__actions", method: "POST", action: COOKIE_CONSENT_URL, children: [
+      /* @__PURE__ */ jsx("input", { type: "hidden", name: "next", value: location.pathname }),
+      /* @__PURE__ */ jsx("button", { ref: firstButton, className: "btn btn-primary btn-sm", type: "submit", name: "choice", value: "all", children: "Принять" }),
+      /* @__PURE__ */ jsx("button", { className: "btn btn-quiet btn-sm", type: "submit", name: "choice", value: "rejected", children: "Отклонить" })
+    ] })
+  ] });
+}
 function useDocumentMeta() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -8830,33 +9112,36 @@ function App() {
   if (loading2) {
     return /* @__PURE__ */ jsx("div", { className: "screen-center muted", children: "Загружаем…" });
   }
-  return /* @__PURE__ */ jsxs(Routes, { children: [
-    /* @__PURE__ */ jsx(Route, { path: "/legal/:page", element: /* @__PURE__ */ jsx(LegalPage, {}) }),
-    /* @__PURE__ */ jsx(Route, { path: "/admin", element: /* @__PURE__ */ jsx(AdminPage, {}) }),
-    /* @__PURE__ */ jsx(Route, { path: "/about", element: /* @__PURE__ */ jsx(AboutPage, {}) }),
-    /* @__PURE__ */ jsx(Route, { path: "/pricing", element: /* @__PURE__ */ jsx(PricingPage, {}) }),
-    /* @__PURE__ */ jsx(Route, { path: "/features", element: /* @__PURE__ */ jsx(FeaturesPage, {}) }),
-    /* @__PURE__ */ jsx(Route, { path: "/faq", element: /* @__PURE__ */ jsx(FaqPage, {}) }),
-    /* @__PURE__ */ jsx(Route, { path: "/confirm", element: /* @__PURE__ */ jsx(ConfirmPage, {}) }),
-    /* @__PURE__ */ jsx(Route, { path: "/reset-password", element: /* @__PURE__ */ jsx(ResetPasswordPage, {}) }),
-    /* @__PURE__ */ jsx(Route, { path: "/join/:token", element: /* @__PURE__ */ jsx(JoinPage, {}) }),
-    /* @__PURE__ */ jsx(Route, { path: "/boards/:boardId", element: /* @__PURE__ */ jsx(BoardPage, {}) }),
-    user ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx(Route, { path: "/", element: /* @__PURE__ */ jsx(LandingPage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "/login", element: /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true }) }),
-      /* @__PURE__ */ jsx(Route, { path: "/register", element: /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true }) }),
-      /* @__PURE__ */ jsx(Route, { path: "/boards", element: /* @__PURE__ */ jsx(BoardsPage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "/profile", element: /* @__PURE__ */ jsx(ProfilePage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "/plan", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "/plan/paid", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "/plan/failed", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true }) })
-    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx(Route, { path: "/", element: /* @__PURE__ */ jsx(LandingPage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "/login", element: /* @__PURE__ */ jsx(LoginPage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "/register", element: /* @__PURE__ */ jsx(RegisterPage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "/forgot-password", element: /* @__PURE__ */ jsx(ForgotPasswordPage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(Navigate, { to: "/", replace: true }) })
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsx(CookieBanner, {}),
+    /* @__PURE__ */ jsxs(Routes, { children: [
+      /* @__PURE__ */ jsx(Route, { path: "/legal/:page", element: /* @__PURE__ */ jsx(LegalPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/admin", element: /* @__PURE__ */ jsx(AdminPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/about", element: /* @__PURE__ */ jsx(AboutPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/pricing", element: /* @__PURE__ */ jsx(PricingPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/features", element: /* @__PURE__ */ jsx(FeaturesPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/faq", element: /* @__PURE__ */ jsx(FaqPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/confirm", element: /* @__PURE__ */ jsx(ConfirmPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/reset-password", element: /* @__PURE__ */ jsx(ResetPasswordPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/join/:token", element: /* @__PURE__ */ jsx(JoinPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/boards/:boardId", element: /* @__PURE__ */ jsx(BoardPage, {}) }),
+      user ? /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx(Route, { path: "/", element: /* @__PURE__ */ jsx(LandingPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "/login", element: /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true }) }),
+        /* @__PURE__ */ jsx(Route, { path: "/register", element: /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true }) }),
+        /* @__PURE__ */ jsx(Route, { path: "/boards", element: /* @__PURE__ */ jsx(BoardsPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "/profile", element: /* @__PURE__ */ jsx(ProfilePage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "/plan", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "/plan/paid", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "/plan/failed", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true }) })
+      ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx(Route, { path: "/", element: /* @__PURE__ */ jsx(LandingPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "/login", element: /* @__PURE__ */ jsx(LoginPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "/register", element: /* @__PURE__ */ jsx(RegisterPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "/forgot-password", element: /* @__PURE__ */ jsx(ForgotPasswordPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(Navigate, { to: "/", replace: true }) })
+      ] })
     ] })
   ] });
 }
