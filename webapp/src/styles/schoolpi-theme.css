@@ -695,6 +695,13 @@ tbody tr:last-child td { border-bottom: none; }
     padding: 0 var(--sp-5);
     background: var(--header-bg);
     color: var(--text-on-dark);
+    /* Остаётся на экране при прокрутке — на длинной странице (FAQ,
+       Возможности) не нужно долистывать назад, чтобы дойти до навигации
+       или до кнопки входа. На доске шапку по-своему прячет и показывает
+       .board-header, эта позиция ей не мешает: там нечему скроллиться. */
+    position: sticky;
+    top: 0;
+    z-index: 20;
 }
 .header a { color: var(--text-on-dark); text-decoration: none; }
 .header a:hover { text-decoration: underline; }

@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { COMPANY, HAS_COMPANY_DETAILS, MAIN_SITE } from '../content/company';
-import { IconExternal } from './Icons';
+import { IconChevronDown, IconExternal, IconMoon, IconSun } from './Icons';
 import { BoardMark, SchoolPiLabel } from './PiMark';
 
 
@@ -43,16 +43,14 @@ function useTheme(): { theme: Theme; toggle: () => void } {
 /**
  * Слайдер темы.
  *
- * С подписью, а не голым ползунком: переключатель без слова читается как
- * настройка чего угодно — от звука до уведомлений, — и понять, что это
- * тема, можно было только нажав.
+ * Солнце и луна по бокам вместо подписи: значения переключателя видно
+ * без чтения, и он остаётся тем же самым виджетом везде — в шапке, в
+ * бургер-меню, где угодно ещё, — а не то подписью, то без неё.
  */
-function ThemeSwitch({
-  theme, toggle, label = 'Тёмная тема',
-}: { theme: Theme; toggle: () => void; label?: string }): ReactElement {
+function ThemeSwitch({ theme, toggle }: { theme: Theme; toggle: () => void }): ReactElement {
   return (
     <label className="theme-switch">
-      <span className="theme-switch__label">{label}</span>
+      <IconSun size={16} />
       <input
         type="checkbox"
         checked={theme === 'dark'}
@@ -60,6 +58,7 @@ function ThemeSwitch({
         aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
       />
       <span className="theme-switch__track"><span className="theme-switch__thumb" /></span>
+      <IconMoon size={16} />
     </label>
   );
 }
@@ -377,11 +376,31 @@ export function Page({ children, narrow }: { children: ReactNode; narrow?: boole
 /**
  * Страница доски: без подвала, во весь экран и без прокрутки страницы —
  * холст сам управляет своим пространством.
+ *
+ * Шапка здесь не стоит постоянно — на счету каждый пиксель высоты
+ * холста, — а выезжает поверх него по кнопке и прячется обратно. Сам
+ * холст размера не меняет ни при выезде, ни при уборке: шапка ложится
+ * над ним, а не сдвигает его.
  */
 export function BoardShell({ children }: { children: ReactNode }): ReactElement {
+  const [headerOpen, setHeaderOpen] = useState(false);
+
   return (
     <div className="app app--board">
-      <Header />
+      <div className={headerOpen ? 'board-header board-header--open' : 'board-header'}>
+        <Header />
+      </div>
+
+      <button
+        type="button"
+        className={headerOpen ? 'board-header-toggle board-header-toggle--open' : 'board-header-toggle'}
+        onClick={() => setHeaderOpen((current) => !current)}
+        aria-expanded={headerOpen}
+        aria-label={headerOpen ? 'Скрыть шапку сайта' : 'Показать шапку сайта'}
+      >
+        <IconChevronDown />
+      </button>
+
       <main className="app__main app__main--board">{children}</main>
     </div>
   );
