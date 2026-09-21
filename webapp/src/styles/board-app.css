@@ -616,6 +616,32 @@ body.no-scroll {
 
 /* --- Список досок --------------------------------------------------------- */
 
+/* Разовое действие, а не форма посреди списка — не растягиваем
+   карточкой во всю ширину полосы, а ставим по центру, компактно. */
+.board-create {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-2);
+    margin: 0 auto var(--sp-5);
+    text-align: center;
+}
+
+.board-create__row {
+    display: flex;
+    gap: var(--sp-2);
+}
+
+/* Без общего отступа под полем и высотой в 44px — как у кнопки рядом,
+   у той она задана явно ради сенсорной цели, а поле без этой правки
+   ниже неё на несколько пикселей. */
+.board-create__row input {
+    margin: 0;
+    width: 260px;
+    min-height: 44px;
+    box-sizing: border-box;
+}
+
 .board-list {
     list-style: none;
     margin: 0;
@@ -628,6 +654,7 @@ body.no-scroll {
 .board-item {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--sp-3);
     padding: var(--sp-3) var(--sp-4);
     background: var(--surface);
@@ -647,6 +674,31 @@ body.no-scroll {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Кто сейчас на доске и когда её последний раз редактировали — оба
+   значения обновляются опросом списка, тем же способом, каким сама
+   доска держит свежим список участников. */
+.board-item__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+    white-space: nowrap;
+}
+
+.board-item__active {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 9px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.board-item__active svg { flex: none; }
 
 .board-item__title:hover { color: var(--accent); }
 

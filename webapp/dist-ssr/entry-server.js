@@ -2031,6 +2031,8 @@ function BoardsPage() {
   }, []);
   useEffect(() => {
     void load();
+    const timer = window.setInterval(load, 5e3);
+    return () => window.clearInterval(timer);
   }, [load]);
   const create = async (event) => {
     event.preventDefault();
@@ -2067,9 +2069,9 @@ function BoardsPage() {
   const filtered = query.trim() ? boards.filter((board) => board.title.toLowerCase().includes(query.trim().toLowerCase())) : boards;
   return /* @__PURE__ */ jsxs(Page, { children: [
     /* @__PURE__ */ jsx("div", { className: "page-header", children: /* @__PURE__ */ jsx("h1", { children: "Мои доски" }) }),
-    /* @__PURE__ */ jsx("form", { className: "card", onSubmit: create, children: /* @__PURE__ */ jsxs("div", { className: "field", children: [
+    /* @__PURE__ */ jsxs("form", { className: "board-create", onSubmit: create, children: [
       /* @__PURE__ */ jsx("label", { htmlFor: "title", children: "Новая доска" }),
-      /* @__PURE__ */ jsxs("div", { className: "link-box", children: [
+      /* @__PURE__ */ jsxs("div", { className: "board-create__row", children: [
         /* @__PURE__ */ jsx(
           "input",
           {
@@ -2083,7 +2085,7 @@ function BoardsPage() {
         ),
         /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: "Создать" })
       ] })
-    ] }) }),
+    ] }),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     !loading2 && boards.length > 1 ? /* @__PURE__ */ jsx(
       "input",
@@ -2105,6 +2107,13 @@ function BoardsPage() {
       /* @__PURE__ */ jsx("span", { className: "people__icon", title: roleTitle$1(board.role), children: /* @__PURE__ */ jsx(RoleIcon$1, { role: board.role }) }),
       /* @__PURE__ */ jsx(Link, { className: "board-item__title", to: `/boards/${board.id}`, children: board.title }),
       board.locked ? /* @__PURE__ */ jsx("span", { className: "badge badge-warning", children: "закрыта" }) : null,
+      /* @__PURE__ */ jsxs("span", { className: "board-item__meta", children: [
+        board.activeCount > 0 ? /* @__PURE__ */ jsxs("span", { className: "board-item__active", title: `Сейчас на доске: ${board.activeCount}`, children: [
+          /* @__PURE__ */ jsx(IconPeople, { size: 14 }),
+          board.activeCount
+        ] }) : null,
+        /* @__PURE__ */ jsx("span", { title: "Последнее изменение", children: formatLastEdited(board.updatedAt) })
+      ] }),
       board.canManage ? /* @__PURE__ */ jsxs(Menu, { label: "Действия с доской", children: [
         /* @__PURE__ */ jsx(
           "button",
@@ -2158,6 +2167,15 @@ function roleTitle$1(role) {
   if (role === "owner") return "Ваша доска";
   if (role === "editor") return "Вы можете работать на доске";
   return "Вы можете только смотреть";
+}
+function formatLastEdited(value) {
+  return new Date(value).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 function ProfilePage() {
   const { user, refresh, logout } = useAuth();

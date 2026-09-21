@@ -6,7 +6,7 @@ import type { Board } from '../api/types';
 import { Page } from '../components/Layout';
 import { Menu } from '../components/Menu';
 import { Modal } from '../components/Modal';
-import { IconEditor, IconOwner, IconViewer } from '../components/Icons';
+import { IconEditor, IconOwner, IconPeople, IconViewer } from '../components/Icons';
 import { reachGoal } from '../components/Analytics';
 
 export function BoardsPage(): ReactElement {
@@ -33,8 +33,14 @@ export function BoardsPage(): ReactElement {
     }
   }, []);
 
+  // Кто сейчас на доске — то же самое живое присутствие, что видно на
+  // самой доске, а не отдельная метка. Опрос, а не подписка на хаб: с
+  // десятком досок в списке держать столько же соединений ради счётчика
+  // было бы дороже, чем раз в пять секунд перечитать список целиком.
   useEffect(() => {
     void load();
+    const timer = window.setInterval(load, 5000);
+    return () => window.clearInterval(timer);
   }, [load]);
 
   const create = async (event: FormEvent) => {
@@ -91,14 +97,12 @@ export function BoardsPage(): ReactElement {
         <h1>Мои доски</h1>
       </div>
 
-      <form className="card" onSubmit={create}>
-        <div className="field">
-          <label htmlFor="title">Новая доска</label>
-          <div className="link-box">
-            <input id="title" type="text" required maxLength={200}
-                   value={title} onChange={(event) => setTitle(event.target.value)} />
-            <button className="btn-primary" type="submit" disabled={busy}>Создать</button>
-          </div>
+      <form className="board-create" onSubmit={create}>
+        <label htmlFor="title">Новая доска</label>
+        <div className="board-create__row">
+          <input id="title" type="text" required maxLength={200}
+                 value={title} onChange={(event) => setTitle(event.target.value)} />
+          <button className="btn-primary" type="submit" disabled={busy}>Создать</button>
         </div>
       </form>
 
@@ -135,6 +139,17 @@ export function BoardsPage(): ReactElement {
               <Link className="board-item__title" to={`/boards/${board.id}`}>{board.title}</Link>
 
               {board.locked ? <span className="badge badge-warning">закрыта</span> : null}
+
+              <span className="board-item__meta">
+                {board.activeCount > 0 ? (
+                  <span className="board-item__active" title={`Сейчас на доске: ${board.activeCount}`}>
+                    <IconPeople size={14} />
+                    {board.activeCount}
+                  </span>
+                ) : null}
+
+                <span title="Последнее изменение">{formatLastEdited(board.updatedAt)}</span>
+              </span>
 
               {board.canManage ? (
                 <Menu label="Действия с доской">
@@ -185,4 +200,10 @@ function roleTitle(role: Board['role']): string {
   if (role === 'owner') return 'Ваша доска';
   if (role === 'editor') return 'Вы можете работать на доске';
   return 'Вы можете только смотреть';
+}
+
+function formatLastEdited(value: string): string {
+  return new Date(value).toLocaleDateString('ru-RU', {
+    day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
 }

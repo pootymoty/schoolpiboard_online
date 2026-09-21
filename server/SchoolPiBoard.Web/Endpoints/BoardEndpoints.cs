@@ -28,7 +28,9 @@ public sealed record BoardDto(
     bool Locked,
     bool AutoAdmit,
     string? LinkUrl,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    // Сколько человек на доске прямо сейчас — 0 везде, кроме списка досок.
+    int ActiveCount);
 
 public sealed record MemberDto(long UserId, string DisplayName, string Email, string Role, DateTime JoinedAt);
 
@@ -68,13 +70,37 @@ public static class BoardEndpoints
 
         // ---------- Доски ----------
 
-        boards.MapGet("/", async (ClaimsPrincipal principal, AppDbContext db, BoardService service, AppOptions options, CancellationToken ct) =>
+        boards.MapGet("/", async (
+            ClaimsPrincipal principal, AppDbContext db, BoardService service, AppOptions options,
+            BoardPresence presence, CancellationToken ct) =>
         {
             var user = await AuthEndpoints.CurrentUser(principal, db, ct);
             if (user is null) return Results.Unauthorized();
 
             var rows = await service.ListAsync(user.Id, ct);
-            return Results.Ok(rows.Select(row => ToDto(row.Board, row.Member.Role, options)));
+            var boardIds = rows.Select(row => row.Board.Id).ToList();
+
+            // «Последнее редактирование» — по факту рисования, а не по
+            // метаданным: Board.UpdatedAt трогают только переименование,
+            // замок и перевыпуск ссылки, а обычный штрих на холсте — это
+            // запись в board_items, о которой сама доска не знает.
+            var lastEditRows = await db.BoardItems
+                .Where(x => boardIds.Contains(x.BoardId))
+                .GroupBy(x => x.BoardId)
+                .Select(g => new { BoardId = g.Key, Last = g.Max(x => x.UpdatedAt) })
+                .ToListAsync(ct);
+            var lastEdits = lastEditRows.ToDictionary(x => x.BoardId, x => x.Last);
+
+            return Results.Ok(rows.Select(row =>
+            {
+                var lastEdited = lastEdits.TryGetValue(row.Board.Id, out var itemsLast) && itemsLast > row.Board.UpdatedAt
+                    ? itemsLast
+                    : row.Board.UpdatedAt;
+
+                return ToDto(
+                    row.Board, row.Member.Role, options,
+                    activeCount: presence.CountOnBoard(row.Board.Id), lastEdited: lastEdited);
+            }));
         });
 
         boards.MapPost("/", async (
@@ -407,7 +433,9 @@ public static class BoardEndpoints
     /// Ссылка показывается только тому, кто может ею распорядиться:
     /// наблюдателю она ни к чему, а раздавать доступ он не должен.
     /// </summary>
-    private static BoardDto ToDto(Board board, string role, AppOptions options, bool? canManage = null)
+    private static BoardDto ToDto(
+        Board board, string role, AppOptions options, bool? canManage = null,
+        int activeCount = 0, DateTime? lastEdited = null)
     {
         var manages = canManage ?? role == BoardMember.RoleOwner;
 
@@ -420,7 +448,8 @@ public static class BoardEndpoints
             board.Locked,
             board.AutoAdmit,
             LinkUrl: manages ? $"{options.PublicUrl}/join/{board.LinkToken}" : null,
-            board.UpdatedAt);
+            lastEdited ?? board.UpdatedAt,
+            activeCount);
     }
 
     /// <summary>
