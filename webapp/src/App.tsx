@@ -21,6 +21,7 @@ import { JoinPage } from './pages/JoinPage';
 import { LegalPage } from './pages/LegalPage';
 import { AdminPage } from './pages/AdminPage';
 import { CookieBanner } from './components/CookieBanner';
+import { Analytics } from './components/Analytics';
 
 /**
  * Заголовок и описание вкладки при переходах.
@@ -54,6 +55,7 @@ export function App(): ReactElement {
       {/* Один на всё приложение, а не на каждую страницу: баннер не должен
           пересоздаваться и мигать заново при переходе между разделами. */}
       <CookieBanner />
+      <Analytics />
 
       <Routes>
         {/* Открыты всем, независимо от входа. Страницы из писем — потому что по

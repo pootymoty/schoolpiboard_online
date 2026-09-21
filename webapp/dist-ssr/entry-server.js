@@ -448,7 +448,7 @@ function useScrollLock(locked) {
 function Header() {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
-  const location = useLocation();
+  const location2 = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cabinetOpen, setCabinetOpen] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
@@ -460,7 +460,7 @@ function Header() {
     setMobileOpen(false);
     setCabinetOpen(false);
     setDropOpen(false);
-  }, [location.pathname]);
+  }, [location2.pathname]);
   const closeMobile = () => setMobileOpen(false);
   useEffect(() => {
     const outside = (event) => {
@@ -7070,7 +7070,7 @@ function BoardPage() {
   var _a;
   const { boardId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
+  const location2 = useLocation();
   const id = Number(boardId);
   const [state, setState] = useState(null);
   const [error, setError] = useState(null);
@@ -7078,13 +7078,13 @@ function BoardPage() {
   const [showPeople, setShowPeople] = useState(false);
   const [showLink, setShowLink] = useState(() => {
     var _a2;
-    return Boolean((_a2 = location.state) == null ? void 0 : _a2.openLink);
+    return Boolean((_a2 = location2.state) == null ? void 0 : _a2.openLink);
   });
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     var _a2;
-    if ((_a2 = location.state) == null ? void 0 : _a2.openLink) {
-      navigate(location.pathname, { replace: true, state: null });
+    if ((_a2 = location2.state) == null ? void 0 : _a2.openLink) {
+      navigate(location2.pathname, { replace: true, state: null });
     }
   }, []);
   const [tool, setToolRaw] = useState("pen1");
@@ -8603,7 +8603,8 @@ const PRIVACY = {
         ),
         p("У участника, пришедшего по ссылке без учётной записи, сервис не сохраняет ничего: указанное им имя живёт только на время работы на доске."),
         p("Данные банковской карты сервису не передаются и им не хранятся: оплата проходит на стороне платёжной системы."),
-        p("Отдельно от этого браузер получает одну техническую куку — cookie_consent. Она хранит только сделанный в баннере согласия выбор, никого не идентифицирует и живёт 182 дня, после чего выбор спрашивается заново.")
+        p("Отдельно от этого браузер получает одну техническую куку — cookie_consent. Она хранит только сделанный в баннере согласия выбор, никого не идентифицирует и живёт 182 дня, после чего выбор спрашивается заново."),
+        p("Если в баннере выбрано «Принять», дополнительно подключается счётчик Яндекс.Метрики — он сохраняет несколько своих кук и обезличенно фиксирует посещаемость и переходы по сайту. При выборе «Отклонить» счётчик не загружается вовсе.")
       ]
     },
     {
@@ -8652,7 +8653,8 @@ const PRIVACY = {
           caption: "Кому и что передаётся",
           rows: [
             ["Робокасса", "адрес электронной почты и сумма платежа — для приёма оплаты и направления чека. Данные банковской карты вводятся на стороне платёжной системы и Оператору не передаются. Обработка — в Российской Федерации"],
-            ["Яндекс Почта", "адрес получателя и текст письма — для отправки подтверждения почты, восстановления пароля и уведомлений об оплате. Обработка — в Российской Федерации"]
+            ["Яндекс Почта", "адрес получателя и текст письма — для отправки подтверждения почты, восстановления пароля и уведомлений об оплате. Обработка — в Российской Федерации"],
+            ["Яндекс.Метрика", "обезличенные сведения о посещениях: страницы, переходы, действия на странице — для статистики посещаемости. Подключается только при согласии на куки. Обработка — в Российской Федерации"]
           ]
         },
         p("Иным лицам персональные данные не передаются, за исключением случаев, прямо предусмотренных законом.")
@@ -9062,7 +9064,7 @@ function readCookieConsent() {
 }
 function CookieBanner() {
   const [consent, setConsent] = useState(void 0);
-  const location = useLocation();
+  const location2 = useLocation();
   const firstButton = useRef(null);
   useEffect(() => {
     let alive = true;
@@ -9091,11 +9093,53 @@ function CookieBanner() {
       "."
     ] }),
     /* @__PURE__ */ jsxs("form", { className: "cookie-banner__actions", method: "POST", action: COOKIE_CONSENT_URL, children: [
-      /* @__PURE__ */ jsx("input", { type: "hidden", name: "next", value: location.pathname }),
+      /* @__PURE__ */ jsx("input", { type: "hidden", name: "next", value: location2.pathname }),
       /* @__PURE__ */ jsx("button", { ref: firstButton, className: "btn btn-primary btn-sm", type: "submit", name: "choice", value: "all", children: "Принять" }),
       /* @__PURE__ */ jsx("button", { className: "btn btn-quiet btn-sm", type: "submit", name: "choice", value: "rejected", children: "Отклонить" })
     ] })
   ] });
+}
+const COUNTER_ID = 112860720;
+function loadCounter() {
+  var _a;
+  const w = window;
+  w.ym = w.ym || function(...args) {
+    (w.ym.a = w.ym.a || []).push(args);
+  };
+  w.ym.l = Date.now();
+  const src = `https://mc.yandex.ru/metrika/tag.js?id=${COUNTER_ID}`;
+  for (let j = 0; j < document.scripts.length; j += 1) {
+    if (document.scripts[j].src === src) return;
+  }
+  const script = document.createElement("script");
+  const anchor = document.getElementsByTagName("script")[0];
+  script.async = true;
+  script.src = src;
+  (_a = anchor.parentNode) == null ? void 0 : _a.insertBefore(script, anchor);
+}
+function Analytics() {
+  useEffect(() => {
+    let alive = true;
+    readCookieConsent().then((consent) => {
+      if (!alive || consent !== "all" || window.ym) return;
+      loadCounter();
+      window.ym(COUNTER_ID, "init", {
+        ssr: true,
+        webvisor: true,
+        clickmap: true,
+        ecommerce: "dataLayer",
+        referrer: document.referrer,
+        url: location.href,
+        accurateTrackBounce: true,
+        trackLinks: true
+      });
+    }).catch(() => {
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return null;
 }
 function useDocumentMeta() {
   const { pathname } = useLocation();
@@ -9114,6 +9158,7 @@ function App() {
   }
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsx(CookieBanner, {}),
+    /* @__PURE__ */ jsx(Analytics, {}),
     /* @__PURE__ */ jsxs(Routes, { children: [
       /* @__PURE__ */ jsx(Route, { path: "/legal/:page", element: /* @__PURE__ */ jsx(LegalPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/admin", element: /* @__PURE__ */ jsx(AdminPage, {}) }),
