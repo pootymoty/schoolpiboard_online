@@ -220,7 +220,10 @@
 
 @media (min-width: 900px) {
     .desktop-menu { display: flex; }
-    .hamburger { display: none; }
+    /* Специфичнее, чем сам `.hamburger { display: inline-flex }` ниже —
+       иначе на широком экране это правило проигрывало бы тому просто по
+       порядку в файле, и кнопка бургера торчала бы рядом с готовым меню. */
+    .header .hamburger { display: none; }
     .theme-switch--header { display: inline-flex; }
 }
 
@@ -417,6 +420,13 @@ body.no-scroll {
     gap: var(--sp-2);
     cursor: pointer;
 }
+
+/* Общее правило `label { color: var(--text) }` иначе перекрывает цвет
+   шапки: значок берёт цвет от самого `<label>`, а не по наследству от
+   тёмного фона шапки, и в светлой теме («--text» тёмный) становился
+   не виден на тёмной шапке. Шапка тёмная в обеих темах — значок должен
+   быть светлым всегда, а не только в тёмной теме. */
+.theme-switch--header .theme-switch { color: var(--text-on-dark); }
 
 .theme-switch svg { flex: none; opacity: .8; }
 

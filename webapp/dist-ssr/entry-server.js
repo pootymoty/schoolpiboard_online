@@ -652,8 +652,6 @@ function Footer() {
       "Доска ",
       /* @__PURE__ */ jsx("span", { className: "pi-glyph", children: "π" }),
       " · ",
-      COMPANY.name,
-      " · ",
       /* @__PURE__ */ jsx("span", { className: "no-wrap", children: COMPANY.email })
     ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
       "Доска ",
