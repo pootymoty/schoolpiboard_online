@@ -113,7 +113,7 @@ export function PricingPage(): ReactElement {
 
       <section className="card">
         <h2 className="card-title">Что важно знать</h2>
-        <ul className="reading">
+        <ul className="fact-grid">
           <li>Первые 7 дней после подтверждения почты — «Стандартный», без привязки карты.</li>
           <li>Продление прибавляет дни к концу текущего срока.</li>
           <li>

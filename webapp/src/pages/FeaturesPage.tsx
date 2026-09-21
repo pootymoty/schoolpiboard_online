@@ -1,12 +1,8 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Page } from '../components/Layout';
-import {
-  IconEditor, IconGrid, IconImage, IconPeople, IconViewer,
-} from '../components/Icons';
 
 interface Block {
-  icon: ReactElement;
   title: string;
   items: string[];
 }
@@ -19,7 +15,6 @@ interface Block {
  */
 const BLOCKS: Block[] = [
   {
-    icon: <IconEditor />,
     title: 'Рисование',
     items: [
       'Три пера с чувствительностью к нажиму, маркер, точечный ластик.',
@@ -28,7 +23,6 @@ const BLOCKS: Block[] = [
     ],
   },
   {
-    icon: <IconImage />,
     title: 'Материалы',
     items: [
       'Библиотека: PDF и картинки загружаются один раз, вставляются на любую доску.',
@@ -38,7 +32,6 @@ const BLOCKS: Block[] = [
     ],
   },
   {
-    icon: <IconPeople />,
     title: 'Совместная работа',
     items: [
       'Участник заходит по ссылке без регистрации, называет имя.',
@@ -48,7 +41,6 @@ const BLOCKS: Block[] = [
     ],
   },
   {
-    icon: <IconGrid />,
     title: 'Холст',
     items: [
       'Бесконечное полотно, масштаб от 2 % до 2000 %.',
@@ -58,7 +50,6 @@ const BLOCKS: Block[] = [
     ],
   },
   {
-    icon: <IconViewer />,
     title: 'Устройства',
     items: [
       'Работает в браузере — ставить нечего ни вам, ни участнику.',
@@ -79,12 +70,10 @@ export function FeaturesPage(): ReactElement {
         </p>
       </section>
 
-      <div className="stack">
+      <div className="feature-blocks">
         {BLOCKS.map((block) => (
-          <article className="card" key={block.title}>
-            <h2 className="card-title row" style={{ gap: 'var(--sp-2)' }}>
-              {block.icon} {block.title}
-            </h2>
+          <article className="card feature-block" key={block.title}>
+            <h2 className="card-title">{block.title}</h2>
             <ul className="reading">
               {block.items.map((item) => <li key={item}>{item}</li>)}
             </ul>

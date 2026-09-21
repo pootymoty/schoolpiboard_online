@@ -64,41 +64,53 @@ export function RegisterPage(): ReactElement {
   }
 
   return (
-    <Page narrow>
-      <form className="card" onSubmit={submit}>
-        <h1>Регистрация</h1>
-        <p className="text-muted">
-          Учётная запись нужна тому, кто создаёт доски.
-          Участнику регистрироваться не нужно: он заходит по ссылке.
-        </p>
+    <Page>
+      <div className="auth-split">
+        <div className="auth-split__pitch">
+          <h2>Учётная запись — только вам</h2>
+          <p>Регистрируется тот, кто создаёт доски. Участнику она не нужна вовсе.</p>
+          <ul>
+            <li>Участник заходит по ссылке и называет имя — без пароля и почты.</li>
+            <li>Бесплатный тариф — без срока и без карты.</li>
+            <li>Первые семь дней открыт «Стандартный» целиком, попробовать всё.</li>
+          </ul>
+        </div>
 
-        <label htmlFor="displayName">Как вас называть</label>
-        <input id="displayName" type="text" required maxLength={100} autoComplete="name"
-               placeholder="Имя, которое увидят на доске"
-               value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+        <form className="card auth-split__form" onSubmit={submit}>
+          <h1>Регистрация</h1>
+          <p className="text-muted small auth-split__note">
+            Учётная запись нужна тому, кто создаёт доски. Участнику
+            регистрироваться не нужно: он заходит по ссылке.
+          </p>
 
-        <label htmlFor="email">Почта</label>
-        <input id="email" type="email" required autoComplete="email"
-               value={email} onChange={(event) => setEmail(event.target.value)} />
+          <label htmlFor="displayName">Как вас называть</label>
+          <input id="displayName" type="text" required maxLength={100} autoComplete="name"
+                 placeholder="Имя, которое увидят на доске"
+                 value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
 
-        <label htmlFor="password">Пароль</label>
-        <input id="password" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password"
-               value={password} onChange={(event) => setPassword(event.target.value)} />
+          <label htmlFor="email">Почта</label>
+          <input id="email" type="email" required autoComplete="email"
+                 value={email} onChange={(event) => setEmail(event.target.value)} />
 
-        <label htmlFor="passwordConfirm">Пароль ещё раз</label>
-        <input id="passwordConfirm" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password"
-               value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} />
+          <label htmlFor="password">Пароль</label>
+          <input id="password" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password"
+                 value={password} onChange={(event) => setPassword(event.target.value)} />
 
-        {error ? <p className="note note-danger">{error}</p> : null}
+          <label htmlFor="passwordConfirm">Пароль ещё раз</label>
+          <input id="passwordConfirm" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password"
+                 value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} />
 
-        <button className="btn-primary" type="submit" disabled={busy}>
-          {busy ? 'Отправляем…' : 'Зарегистрироваться'}
-        </button>
+          {error ? <p className="note note-danger">{error}</p> : null}
 
-        <p className="text-muted small">
-          Уже есть учётная запись? <Link to="/login">Войти</Link>
-        </p>
-      </form>
+          <button className="btn-primary" type="submit" disabled={busy}>
+            {busy ? 'Отправляем…' : 'Зарегистрироваться'}
+          </button>
+
+          <p className="text-muted small">
+            Уже есть учётная запись? <Link to="/login">Войти</Link>
+          </p>
+        </form>
+      </div>
     </Page>
   );
 }

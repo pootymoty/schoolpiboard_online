@@ -71,12 +71,12 @@ export function FaqPage(): ReactElement {
         <h1>Вопросы и ответы</h1>
       </section>
 
-      <div className="stack">
-        {QUESTIONS.map((item) => (
-          <article className="card" key={item.q}>
-            <h2 className="card-title">{item.q}</h2>
-            <p className="reading">{item.a}</p>
-          </article>
+      <div className="accordion">
+        {QUESTIONS.map((item, index) => (
+          <details className="accordion-item" key={item.q} open={index === 0}>
+            <summary>{item.q}</summary>
+            <p className="accordion-item__body reading">{item.a}</p>
+          </details>
         ))}
       </div>
 

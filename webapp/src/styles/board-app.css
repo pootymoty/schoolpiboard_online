@@ -2055,11 +2055,25 @@ body.no-scroll {
 .hero {
     text-align: center;
     background: linear-gradient(165deg, var(--accent-soft), var(--surface) 65%);
-    padding: var(--sp-8) var(--sp-5);
+    padding: var(--sp-8) var(--sp-6);
 }
 
 @media (max-width: 640px) {
     .hero { padding: var(--sp-6) var(--sp-4); }
+}
+
+/* Метка над заголовком: до того, как человек дочитает заголовок, он уже
+   видит, куда попал. */
+.hero__eyebrow {
+    display: inline-block;
+    margin-bottom: var(--sp-4);
+    padding: 4px 14px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: var(--font-head);
+    font-size: var(--fs-sm);
+    font-weight: 700;
 }
 
 .hero__lead {
@@ -2073,31 +2087,45 @@ body.no-scroll {
 .hero__note { margin: var(--sp-4) 0 0; }
 
 /* Сетка коротких карточек: значок, название, одна-две строки сути —
-   каждая объясняет, что даёт и зачем, а не просто называет функцию. */
+   каждая объясняет, что даёт и зачем, а не просто называет функцию.
+   Три колонки фиксированно, а не «сколько влезет»: шесть карточек
+   auto-fit раскладывал в 4 и 2 внахлёст, и вторая строка не совпадала
+   с первой ни по одной границе. */
 .feature-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: var(--sp-4);
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-5);
 }
 
+@media (max-width: 900px) {
+    .feature-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 560px) {
+    .feature-grid { grid-template-columns: 1fr; }
+}
+
+/* Без рамки: тень одна держит карточку над фоном, а рамка вокруг неё
+   только дублирует ту же границу и утяжеляет ряд из шести штук подряд. */
 .feature-tile {
     padding: var(--sp-5) var(--sp-4);
     background: var(--surface);
-    border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
 }
 
+/* Значок — сплошной кружок, а не бледный квадрат: он и держит взгляд в
+   верхней части карточки, рядом с крупным заголовком. */
 .feature-tile__icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
-    margin-bottom: var(--sp-3);
-    border-radius: var(--radius);
-    background: var(--accent-soft);
-    color: var(--accent);
+    width: 56px;
+    height: 56px;
+    margin-bottom: var(--sp-4);
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    color: var(--text-on-accent);
 }
 
 .feature-tile h3 {
@@ -2119,12 +2147,202 @@ body.no-scroll {
     justify-content: space-between;
     gap: var(--sp-4);
     flex-wrap: wrap;
+    padding: var(--sp-6) var(--sp-5);
     background: var(--header-bg);
     color: var(--text-on-dark);
 }
 
 .brand-strip p { color: var(--text-on-dark); opacity: .85; margin: 0; }
 .brand-strip h2 { color: var(--text-on-dark); }
+
+/* Пронумерованные шаги вместо простого списка: цифра в кружке — тот же
+   приём, что значок у карточки функции, и на первом экране взгляд уже
+   знает, что кружок означает «пункт», а не просто узор. */
+.steps {
+    counter-reset: step;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-4);
+    list-style: none;
+    margin: var(--sp-4) 0;
+    padding: 0;
+}
+
+@media (max-width: 640px) {
+    .steps { grid-template-columns: 1fr; }
+}
+
+.steps li {
+    counter-increment: step;
+    padding: var(--sp-4) var(--sp-3) var(--sp-3);
+    background: var(--surface-2);
+    border-radius: var(--radius);
+}
+
+.steps li::before {
+    content: counter(step);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin-bottom: var(--sp-2);
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-family: var(--font-head);
+    font-weight: 700;
+}
+
+/* --- Возможности: карточки по две в ряд, без значков в заголовке ------ */
+
+/* Пять блоков в ряд по одному читались как бесконечная лента одинаковых
+   карточек. Сеткой они складываются в два неполных ряда — уже видно, что
+   их пять, а не «сколько-то». */
+.feature-blocks {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--sp-4);
+    align-items: start;
+}
+
+/* Полоса слева вместо значка у заголовка: тот же порядковый акцент, но
+   без мелкого рисунка, который на 20 пикселях не читался как что-то
+   конкретное. */
+.feature-block {
+    border-left: 3px solid var(--accent);
+}
+
+/* --- Вопрос-ответ: раскрывающийся список -------------------------------- */
+
+/* `<details>` вместо своей раскладки на JS: раскрытие, доступность с
+   клавиатуры и работа без скриптов — уже встроены в браузер. */
+.accordion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.accordion-item {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.accordion-item summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-4);
+    cursor: pointer;
+    font-family: var(--font-head);
+    font-weight: 700;
+    list-style: none;
+}
+
+.accordion-item summary::-webkit-details-marker { display: none; }
+
+/* Галочка из двух границ, а не значок: разворот вопроса — не то место,
+   где нужна ещё одна SVG-иконка поверх уже жирного текста вопроса. */
+.accordion-item summary::after {
+    content: '';
+    flex: none;
+    width: 9px;
+    height: 9px;
+    margin-top: -4px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    transform: rotate(45deg);
+    transition: transform var(--transition);
+}
+
+.accordion-item[open] summary::after {
+    margin-top: 2px;
+    transform: rotate(-135deg);
+}
+
+.accordion-item__body {
+    margin: 0;
+    padding: 0 var(--sp-4) var(--sp-4);
+    color: var(--text-muted);
+}
+
+/* --- Вход и регистрация: форма рядом с пояснением, а не одна в пустоте - */
+
+/* На широком экране узкая форма по центру оставляла пустыми оба края.
+   Слева — короткое объяснение, зачем нужна учётная запись, справа —
+   сама форма: одно уравновешивает другое. */
+.auth-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-6);
+    align-items: center;
+    max-width: 920px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.auth-split__pitch {
+    padding: var(--sp-6) var(--sp-5);
+    border-radius: var(--radius-lg);
+    background: var(--header-bg);
+    color: var(--text-on-dark);
+}
+
+.auth-split__pitch h2 { color: var(--text-on-dark); }
+
+.auth-split__pitch p { color: var(--text-on-dark); opacity: .85; }
+
+.auth-split__pitch ul {
+    margin: var(--sp-4) 0 0;
+    padding-left: var(--sp-4);
+    color: var(--text-on-dark);
+    opacity: .9;
+}
+
+.auth-split__pitch li { margin-bottom: var(--sp-2); }
+
+/* Дублирует то, что на широком экране уже сказано в левой панели —
+   там, где эта панель прячется, единственное место сказать то же самое. */
+.auth-split__note { display: none; }
+
+@media (max-width: 760px) {
+    .auth-split { grid-template-columns: 1fr; max-width: var(--field-max); }
+    .auth-split__pitch { display: none; }
+    .auth-split__note { display: block; }
+}
+
+/* --- О сервисе: текст и контакты рядом, а не друг под другом ----------- */
+
+.about-grid {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: var(--sp-5);
+    align-items: start;
+}
+
+@media (max-width: 760px) {
+    .about-grid { grid-template-columns: 1fr; }
+}
+
+/* --- Тарифы: короткие факты плиткой, а не списком ----------------------- */
+
+.fact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--sp-3);
+    list-style: none;
+    margin: var(--sp-4) 0 0;
+    padding: 0;
+}
+
+.fact-grid li {
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-2);
+    border-radius: var(--radius);
+}
 
 /* ---------- Правовые документы ---------- */
 

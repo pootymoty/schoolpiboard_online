@@ -62,38 +62,50 @@ export function LoginPage(): ReactElement {
   };
 
   return (
-    <Page narrow>
-      <form className="card" onSubmit={submit}>
-        <h1>Вход</h1>
+    <Page>
+      <div className="auth-split">
+        <div className="auth-split__pitch">
+          <h2>С возвращением</h2>
+          <p>Все ваши доски и участники, которых вы впустили, остаются на месте.</p>
+          <ul>
+            <li>Доски не удаляются, пока вы их не удалите сами.</li>
+            <li>Ссылки на доски не меняются между визитами.</li>
+            <li>Забыли пароль — восстановите его по почте за минуту.</li>
+          </ul>
+        </div>
 
-        <label htmlFor="email">Почта</label>
-        <input id="email" type="email" required autoComplete="email"
-               value={email} onChange={(event) => setEmail(event.target.value)} />
+        <form className="card auth-split__form" onSubmit={submit}>
+          <h1>Вход</h1>
 
-        <label htmlFor="password">Пароль</label>
-        <input id="password" type="password" required autoComplete="current-password"
-               value={password} onChange={(event) => setPassword(event.target.value)} />
+          <label htmlFor="email">Почта</label>
+          <input id="email" type="email" required autoComplete="email"
+                 value={email} onChange={(event) => setEmail(event.target.value)} />
 
-        {error ? <p className="note note-danger">{error}</p> : null}
-        {notice ? <p className="text-muted">{notice}</p> : null}
+          <label htmlFor="password">Пароль</label>
+          <input id="password" type="password" required autoComplete="current-password"
+                 value={password} onChange={(event) => setPassword(event.target.value)} />
 
-        {needsConfirmation ? (
-          <button className="btn-quiet" type="button" onClick={resend} disabled={busy}>
-            Выслать письмо ещё раз
+          {error ? <p className="note note-danger">{error}</p> : null}
+          {notice ? <p className="text-muted">{notice}</p> : null}
+
+          {needsConfirmation ? (
+            <button className="btn-quiet" type="button" onClick={resend} disabled={busy}>
+              Выслать письмо ещё раз
+            </button>
+          ) : null}
+
+          <button className="btn-primary" type="submit" disabled={busy}>
+            {busy ? 'Входим…' : 'Войти'}
           </button>
-        ) : null}
 
-        <button className="btn-primary" type="submit" disabled={busy}>
-          {busy ? 'Входим…' : 'Войти'}
-        </button>
-
-        <p className="text-muted small">
-          <Link to="/forgot-password">Забыли пароль?</Link>
-        </p>
-        <p className="text-muted small">
-          Нет учётной записи? <Link to="/register">Зарегистрироваться</Link>
-        </p>
-      </form>
+          <p className="text-muted small">
+            <Link to="/forgot-password">Забыли пароль?</Link>
+          </p>
+          <p className="text-muted small">
+            Нет учётной записи? <Link to="/register">Зарегистрироваться</Link>
+          </p>
+        </form>
+      </div>
     </Page>
   );
 }
