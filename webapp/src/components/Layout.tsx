@@ -339,7 +339,7 @@ export function Footer(): ReactElement {
         <Link to="/legal/privacy">Персональные данные</Link>
         <Link to="/about">Контакты</Link>
         <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="footer__site-link">
-          {MAIN_SITE.label}<IconExternal size={13} />
+          Школа <span className="pi-glyph">π</span><IconExternal size={13} />
         </a>
         {/* Баннер согласия не привязан к подвалу напрямую — это разные
             компоненты, и подвал живёт на каждой странице заново, а баннер

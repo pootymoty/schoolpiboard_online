@@ -40,7 +40,7 @@ public sealed class SmtpEmailSender : IEmailSender
         IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken)
     {
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress("SchoolPiBoard", _options.From));
+        message.From.Add(new MailboxAddress("Доска Пи", _options.From));
         message.To.Add(MailboxAddress.Parse(to));
         message.Subject = subject;
 
@@ -82,17 +82,17 @@ public static class EmailTemplates
 {
     public static (string Subject, string Html, string Text) ConfirmEmail(string link, int hours)
         => (
-            "Подтверждение почты — SchoolPiBoard",
+            "Подтверждение почты — Доска Пи",
             $"""
              <p>Здравствуйте!</p>
-             <p>Чтобы завершить регистрацию на доске SchoolPiBoard, перейдите по ссылке:</p>
+             <p>Чтобы завершить регистрацию на доске «Доска Пи», перейдите по ссылке:</p>
              <p><a href="{link}">Подтвердить почту</a></p>
              <p>Ссылка действует {hours} ч. Если вы не регистрировались, письмо можно не читать.</p>
              """,
             $"""
              Здравствуйте!
 
-             Чтобы завершить регистрацию на доске SchoolPiBoard, откройте ссылку:
+             Чтобы завершить регистрацию на доске «Доска Пи», откройте ссылку:
              {link}
 
              Ссылка действует {hours} ч. Если вы не регистрировались, письмо можно не читать.
@@ -100,7 +100,7 @@ public static class EmailTemplates
 
     public static (string Subject, string Html, string Text) ResetPassword(string link, int hours)
         => (
-            "Восстановление пароля — SchoolPiBoard",
+            "Восстановление пароля — Доска Пи",
             $"""
              <p>Здравствуйте!</p>
              <p>Вы запросили смену пароля. Задать новый можно по ссылке:</p>
@@ -145,7 +145,7 @@ public static class EmailTemplates
             : "Автопродление выключено — ничего больше не спишется.";
 
         return (
-            $"Подписка оформлена: {planName} — SchoolPiBoard",
+            $"Подписка оформлена: {planName} — Доска Пи",
             $"""
              <p>Здравствуйте!</p>
              <p>Оплата получена. Тариф «{planName}», {days} дн., {amount} ₽.</p>
@@ -184,7 +184,7 @@ public static class EmailTemplates
         var name = string.IsNullOrWhiteSpace(boardTitle) ? "Доска" : boardTitle;
 
         return (
-            $"Конспект: {name} — SchoolPiBoard",
+            $"Конспект: {name} — Доска Пи",
             $"""
              <p>Здравствуйте!</p>
              <p>Во вложении конспект «{name}» — {pages} {word}.</p>
@@ -212,7 +212,7 @@ public static class EmailTemplates
         var when = Day(chargeAt);
 
         return (
-            $"Подписка продлится {when}: {planName} — SchoolPiBoard",
+            $"Подписка продлится {when}: {planName} — Доска Пи",
             $"""
              <p>Здравствуйте!</p>
              <p>{when} мы спишем {amount} ₽ с карты, которой вы платили, и продлим тариф
@@ -244,7 +244,7 @@ public static class EmailTemplates
         var what = makeAdmin ? "выдать права администратора" : "снять права администратора";
 
         return (
-            $"Код подтверждения: {code} — SchoolPiBoard",
+            $"Код подтверждения: {code} — Доска Пи",
             $"""
              <p>Код подтверждения: <b>{code}</b></p>
              <p>Им подтверждается действие «{what}» для учётной записи {target}.</p>

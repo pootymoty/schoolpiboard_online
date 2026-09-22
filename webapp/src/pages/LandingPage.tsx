@@ -92,7 +92,7 @@ export function LandingPage(): ReactElement {
 
       <section className="card brand-strip">
         <div>
-          <h2 className="card-title">{MAIN_SITE.label}</h2>
+          <h2 className="card-title">Школа <span className="pi-glyph">π</span></h2>
           <p>Настольная версия доски для совместной работы за одним компьютером, без браузера и подписки.</p>
         </div>
         <a className="btn btn-primary" href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer">

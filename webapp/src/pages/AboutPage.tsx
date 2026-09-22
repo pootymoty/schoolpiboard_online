@@ -30,7 +30,7 @@ export function AboutPage(): ReactElement {
           <p>
             Продолжает настольную программу из{' '}
             <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer">
-              {MAIN_SITE.label}<IconExternal size={14} />
+              Школа <span className="pi-glyph">π</span><IconExternal size={14} />
             </a>{' '}
             — то же самое для работы на расстоянии.
           </p>
