@@ -2070,7 +2070,7 @@ function BoardsPage() {
   return /* @__PURE__ */ jsxs(Page, { children: [
     /* @__PURE__ */ jsx("div", { className: "page-header", children: /* @__PURE__ */ jsx("h1", { children: "Мои доски" }) }),
     /* @__PURE__ */ jsxs("form", { className: "board-create", onSubmit: create, children: [
-      /* @__PURE__ */ jsx("label", { htmlFor: "title", children: "Новая доска" }),
+      /* @__PURE__ */ jsx("label", { htmlFor: "title", children: "Создание новой доски" }),
       /* @__PURE__ */ jsxs("div", { className: "board-create__row", children: [
         /* @__PURE__ */ jsx(
           "input",
@@ -2079,6 +2079,7 @@ function BoardsPage() {
             type: "text",
             required: true,
             maxLength: 200,
+            placeholder: "Имя доски",
             value: title,
             onChange: (event) => setTitle(event.target.value)
           }

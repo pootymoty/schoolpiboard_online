@@ -98,9 +98,9 @@ export function BoardsPage(): ReactElement {
       </div>
 
       <form className="board-create" onSubmit={create}>
-        <label htmlFor="title">Новая доска</label>
+        <label htmlFor="title">Создание новой доски</label>
         <div className="board-create__row">
-          <input id="title" type="text" required maxLength={200}
+          <input id="title" type="text" required maxLength={200} placeholder="Имя доски"
                  value={title} onChange={(event) => setTitle(event.target.value)} />
           <button className="btn-primary" type="submit" disabled={busy}>Создать</button>
         </div>
