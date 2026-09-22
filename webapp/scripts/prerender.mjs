@@ -39,7 +39,7 @@ for (const [path, meta] of Object.entries(PUBLIC_PAGES)) {
     `<meta property="og:url" content="${canonical}" />`,
     `<meta property="og:title" content="${attribute(meta.title)}" />`,
     `<meta property="og:description" content="${attribute(meta.description)}" />`,
-    `<meta property="og:site_name" content="Доска Пи" />`,
+    `<meta property="og:site_name" content="Доска π" />`,
     `<meta property="og:locale" content="ru_RU" />`,
   ].join('\n    ');
 
