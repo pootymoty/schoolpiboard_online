@@ -13,12 +13,22 @@ import { DEFAULT_BACKGROUND } from './protocol';
 
 export type HubStatus = 'connecting' | 'ready' | 'reconnecting' | 'failed';
 
+/** Почему доступ к доске пропал именно сейчас, а не выяснился при входе. */
+export interface RemovedInfo {
+  reason: 'kicked' | 'banned';
+}
+
 export interface BoardHub {
   status: HubStatus;
   error: string | null;
   role: BoardRole | null;
   canEdit: boolean;
   canManage: boolean;
+  /**
+   * Владелец выгнал или забанил прямо во время присутствия на доске —
+   * не дожидаясь, пока это выяснится само при следующем подключении.
+   */
+  removed: RemovedInfo | null;
   items: BoardItem[];
   /** Чужие штрихи, которые рисуются прямо сейчас. */
   live: Map<string, LiveStroke>;
@@ -90,6 +100,7 @@ export function useBoardHub(boardId: number): BoardHub {
   const [role, setRole] = useState<BoardRole | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [removed, setRemoved] = useState<RemovedInfo | null>(null);
   const [items, setItems] = useState<BoardItem[]>([]);
   const [live, setLive] = useState<Map<string, LiveStroke>>(new Map());
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -341,6 +352,19 @@ export function useBoardHub(boardId: number): BoardHub {
 
     hub.on('Error', (_code: string, message: string) => setError(message));
 
+    // Права поменял владелец, пока мы уже на доске, — сразу, без ожидания
+    // обрыва связи и переподключения.
+    hub.on('RoleChanged', (payload: { role: BoardRole; canEdit: boolean; canManage: boolean }) => {
+      setRole(payload.role);
+      setCanEdit(payload.canEdit);
+      setCanManage(payload.canManage);
+    });
+
+    // Выгнали или забанили прямо сейчас — дальше рисовать нечем: сервер
+    // всё равно откажет на следующей же правке. Соединение можно не
+    // закрывать самим: страница покажет отдельный экран и без него.
+    hub.on('Removed', (payload: RemovedInfo) => setRemoved(payload));
+
     hub.onreconnecting(() => setStatus('reconnecting'));
 
     hub.onreconnected(async () => {
@@ -391,7 +415,7 @@ export function useBoardHub(boardId: number): BoardHub {
   const page = () => current.current ?? 0;
 
   return {
-    status, error, role, canEdit, canManage, items, live, participants, cursors, me, commits, background,
+    status, error, role, canEdit, canManage, removed, items, live, participants, cursors, me, commits, background,
     pages, pageId,
     sendCursor: useCallback((x: number, y: number) => call('Cursor', x, y), [call]),
     beginItem: useCallback((id, type, data) => call('BeginItem', id, page(), type, data), [call]),

@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using SchoolPiBoard.Web.Data;
 using SchoolPiBoard.Web.Data.Entities;
+using SchoolPiBoard.Web.Hubs;
 
 namespace SchoolPiBoard.Web.Services;
 
@@ -58,6 +60,8 @@ public sealed class BoardService
     private readonly GuestTokenService _guestTokens;
     private readonly WaitingRoom _waiting;
     private readonly SubscriptionService _subscriptions;
+    private readonly BoardPresence _presence;
+    private readonly IHubContext<BoardHub> _hub;
     private readonly ILogger<BoardService> _logger;
 
     public BoardService(
@@ -65,13 +69,31 @@ public sealed class BoardService
         GuestTokenService guestTokens,
         WaitingRoom waiting,
         SubscriptionService subscriptions,
+        BoardPresence presence,
+        IHubContext<BoardHub> hub,
         ILogger<BoardService> logger)
     {
         _db = db;
         _guestTokens = guestTokens;
         _waiting = waiting;
         _subscriptions = subscriptions;
+        _presence = presence;
+        _hub = hub;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Живым подключениям человека на доске — что права поменялись прямо
+    /// сейчас, без ожидания переподключения. Подключений может быть
+    /// несколько (два окна, телефон и компьютер), поэтому сообщение уходит
+    /// каждому, а не одному.
+    /// </summary>
+    private Task NotifyMemberAsync(long boardId, long memberUserId, string eventName, object payload)
+    {
+        var connections = _presence.ConnectionsOf(boardId, memberUserId, guestId: null);
+        return connections.Count == 0
+            ? Task.CompletedTask
+            : _hub.Clients.Clients(connections).SendAsync(eventName, payload);
     }
 
     // ---------- Доски ----------
@@ -487,6 +509,16 @@ public sealed class BoardService
         member.Role = role;
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Живым подключениям — сразу, без ожидания переподключения:
+        // владелец жмёт «Сделать наблюдателем» и хочет, чтобы кисть у
+        // человека погасла тут же, а не через случайный обрыв связи.
+        await NotifyMemberAsync(boardId, memberUserId, "RoleChanged", new
+        {
+            role,
+            canEdit = role is BoardMember.RoleOwner or BoardMember.RoleEditor,
+            canManage = role == BoardMember.RoleOwner
+        });
+
         return BoardResult<bool>.Ok(true);
     }
 
@@ -504,6 +536,10 @@ public sealed class BoardService
 
         _db.BoardMembers.Remove(member);
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Кто уже на доске — тому сразу и уходить, а не рисовать до
+        // следующего обрыва связи в неведении, что его выгнали.
+        await NotifyMemberAsync(boardId, memberUserId, "Removed", new { reason = "kicked" });
 
         return BoardResult<bool>.Ok(true);
     }
@@ -523,6 +559,8 @@ public sealed class BoardService
 
         member.BannedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+
+        await NotifyMemberAsync(boardId, memberUserId, "Removed", new { reason = "banned" });
 
         return BoardResult<bool>.Ok(true);
     }

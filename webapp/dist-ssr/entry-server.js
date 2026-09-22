@@ -6951,6 +6951,7 @@ function useBoardHub(boardId) {
   const [role, setRole] = useState(null);
   const [canEdit, setCanEdit] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [removed, setRemoved] = useState(null);
   const [items, setItems] = useState([]);
   const [live, setLive] = useState(/* @__PURE__ */ new Map());
   const [participants, setParticipants] = useState([]);
@@ -7136,6 +7137,12 @@ function useBoardHub(boardId) {
       setLive(/* @__PURE__ */ new Map());
     });
     hub.on("Error", (_code, message) => setError(message));
+    hub.on("RoleChanged", (payload) => {
+      setRole(payload.role);
+      setCanEdit(payload.canEdit);
+      setCanManage(payload.canManage);
+    });
+    hub.on("Removed", (payload) => setRemoved(payload));
     hub.onreconnecting(() => setStatus("reconnecting"));
     hub.onreconnected(async () => {
       await join();
@@ -7171,6 +7178,7 @@ function useBoardHub(boardId) {
     role,
     canEdit,
     canManage,
+    removed,
     items,
     live,
     participants,
@@ -7991,6 +7999,13 @@ function BoardPage() {
   }
   if (!state) {
     return /* @__PURE__ */ jsx(BoardShell, { children: null });
+  }
+  if (hub.removed) {
+    return /* @__PURE__ */ jsx(BoardShell, { children: /* @__PURE__ */ jsxs("div", { className: "card", children: [
+      /* @__PURE__ */ jsx("h1", { children: "Доска" }),
+      /* @__PURE__ */ jsx("p", { className: "note note-danger", children: hub.removed.reason === "banned" ? "Владелец доски забанил вас. Доступ по ссылке закрыт до его решения." : "Владелец доски выгнал вас. По ссылке можно попроситься снова." }),
+      /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/boards", children: "Мои доски" })
+    ] }) });
   }
   const { board, me, members, guests } = state;
   const otherGuests = guests.filter((guest) => guest.guestId !== me.guestId);

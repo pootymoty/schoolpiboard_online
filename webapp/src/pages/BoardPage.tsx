@@ -1151,6 +1151,25 @@ export function BoardPage(): ReactElement {
     return <BoardShell>{null}</BoardShell>;
   }
 
+  // Владелец выгнал или забанил, пока мы уже были на доске: сервер
+  // сообщил об этом прямо в открытое соединение — рисовать больше нечем,
+  // и держать холст на экране только сбивало бы с толку.
+  if (hub.removed) {
+    return (
+      <BoardShell>
+        <div className="card">
+          <h1>Доска</h1>
+          <p className="note note-danger">
+            {hub.removed.reason === 'banned'
+              ? 'Владелец доски забанил вас. Доступ по ссылке закрыт до его решения.'
+              : 'Владелец доски выгнал вас. По ссылке можно попроситься снова.'}
+          </p>
+          <Link className="btn btn-primary" to="/boards">Мои доски</Link>
+        </div>
+      </BoardShell>
+    );
+  }
+
   const { board, me, members, guests } = state;
   // Свой собственный гостевой вход отдельной строкой ниже — из общего
   // списка его убираем, иначе человек видел бы себя дважды.
