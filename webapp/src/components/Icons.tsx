@@ -450,9 +450,24 @@ export const IconBookmark = (props: Props): ReactElement => (
   <Svg {...props}><path d="M6 3h12v18l-6-4.5L6 21z" /></Svg>
 );
 
-/** Запись занятия. Закрашенный круг — тот же знак, что и на пульте записи. */
+/** Запись занятия идёт — закрашенный круг, тот же знак, что на пульте записи. */
 export const IconRecord = (props: Props): ReactElement => (
   <Svg {...props}><circle cx="12" cy="12" r="7" fill="currentColor" stroke="none" /></Svg>
+);
+
+/** Запись не идёт: можно начать (или это же — «воспроизвести»). */
+export const IconPlay = (props: Props): ReactElement => (
+  <Svg {...props}><path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none" /></Svg>
+);
+
+/** Запись на паузе. */
+export const IconPause = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g fill="currentColor" stroke="none">
+      <rect x="6" y="4" width="4" height="16" />
+      <rect x="14" y="4" width="4" height="16" />
+    </g>
+  </Svg>
 );
 
 /** «Все ко мне». Прицел — переносит остальных в одну точку. */

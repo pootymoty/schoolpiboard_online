@@ -110,6 +110,8 @@ export interface BoardHub {
   pauseRecording: () => void;
   resumeRecording: () => void;
   stopRecording: () => void;
+  /** Свой вид — в активную запись, если она идёт. Больше никуда не уходит. */
+  reportViewport: (pageId: number, x: number, y: number, scale: number) => void;
 }
 
 /**
@@ -527,5 +529,9 @@ export function useBoardHub(boardId: number): BoardHub {
     pauseRecording: useCallback(() => call('PauseRecording'), [call]),
     resumeRecording: useCallback(() => call('ResumeRecording'), [call]),
     stopRecording: useCallback(() => call('StopRecording'), [call]),
+    reportViewport: useCallback(
+      (id: number, x: number, y: number, scale: number) => call('ReportViewport', id, x, y, scale),
+      [call],
+    ),
   };
 }

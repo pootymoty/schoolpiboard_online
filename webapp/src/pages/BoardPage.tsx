@@ -33,6 +33,7 @@ import type { Bookmark } from '../api/bookmarks';
 import { LibraryPanel } from '../board/LibraryPanel';
 import { MAX_SHEETS, SummaryPanel } from '../board/SummaryPanel';
 import { RecordingsPanel } from '../board/RecordingsPanel';
+import { RecordingPlayer } from '../board/RecordingPlayer';
 import { useSummaryRequests } from '../board/useSummaryRequests';
 import type { Template } from '../board/library';
 import type { TemplateItem } from '../api/templates';
@@ -104,6 +105,8 @@ export function BoardPage(): ReactElement {
   const [showLibrary, setShowLibrary] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [showRecordings, setShowRecordings] = useState(false);
+  /** Номер записи, которую сейчас смотрят, — вместо холста, а не в мелком окне. */
+  const [watching, setWatching] = useState<number | null>(null);
 
   /** Есть ли что вставлять. Кнопка вставки без содержимого только мешает. */
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
@@ -465,6 +468,25 @@ export function BoardPage(): ReactElement {
     const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
     hub.bringEveryone(hub.pageId, center.x, center.y, viewport.scale);
   }, [hub.pageId, hub.bringEveryone, viewport, canvasSize.width, canvasSize.height]);
+
+  /**
+   * Свой вид — в запись, пока она идёт. Это и есть запись экрана: не
+   * видео, а тот же вид, что видел сам ведущий, в каждый момент занятия.
+   * Не чаще раза в треть секунды — вид меняется по каждому движению
+   * панорамирования, а такая частота для перемотки более чем достаточна.
+   */
+  const lastViewportReport = useRef(0);
+
+  useEffect(() => {
+    if (!hub.canManage || hub.recording?.status !== 'recording' || hub.pageId === null) return;
+
+    const now = Date.now();
+    if (now - lastViewportReport.current < 300) return;
+    lastViewportReport.current = now;
+
+    const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
+    hub.reportViewport(hub.pageId, center.x, center.y, viewport.scale);
+  }, [viewport, hub.canManage, hub.recording?.status, hub.pageId, hub.reportViewport, canvasSize.width, canvasSize.height]);
 
   const jumpToBookmark = (bookmark: Bookmark) => {
     const x = bookmark.data.x1 ?? 0;
@@ -1269,6 +1291,10 @@ export function BoardPage(): ReactElement {
             void insertFile(file, file.name);
           }}
         >
+          {watching !== null ? (
+            <RecordingPlayer boardId={id} recordingId={watching} onClose={() => setWatching(null)} />
+          ) : (
+            <>
           {/* Название — в верхнем левом углу холста. Править может только
               владелец, щёлкнув по надписи. */}
           <div className="board-title">
@@ -1333,7 +1359,7 @@ export function BoardPage(): ReactElement {
             onBringEveryone={bringEveryoneToMe}
             canRecordings={!me.isGuest}
             onRecordings={() => setShowRecordings((current) => !current)}
-            recordingActive={hub.recording !== null}
+            recordingStatus={hub.recording?.status ?? null}
             pageLabel={
               hub.pages.length === 0
                 ? '—'
@@ -1492,6 +1518,7 @@ export function BoardPage(): ReactElement {
               onPause={hub.pauseRecording}
               onResume={hub.resumeRecording}
               onStop={hub.stopRecording}
+              onWatch={setWatching}
               onClose={() => setShowRecordings(false)}
             />
           ) : null}
@@ -1635,6 +1662,8 @@ export function BoardPage(): ReactElement {
               ) : null}
             </button>
           </div>
+            </>
+          )}
         </section>
 
         {me.isGuest ? (

@@ -2,7 +2,8 @@ import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
-  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark, IconTarget, IconRecord,
+  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark, IconTarget,
+  IconRecord, IconPlay, IconPause,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -118,8 +119,8 @@ interface ViewProps {
   /** Гостю записи не показываем: у него нет учётной записи для доступа к ним. */
   canRecordings: boolean;
   onRecordings: () => void;
-  /** Идёт ли сейчас запись — точкой на кнопке, как непрочитанные просьбы о конспекте. */
-  recordingActive: boolean;
+  /** Значок кнопки сам меняется по состоянию — playстоп, пауза, идёт запись. */
+  recordingStatus: 'recording' | 'paused' | null;
 }
 
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
@@ -127,7 +128,7 @@ export function ViewToolbar({
   canManage, canEdit, canUpload, scale, onZoom, onResetZoom, onFit,
   onBackground, onFiles, onLibrary, onSummary, summaryCount, onTimer, onHelp, onExport, onClear,
   canPaste, onPaste, onPages, pageLabel, onBookmarks, onBringEveryone,
-  canRecordings, onRecordings, recordingActive,
+  canRecordings, onRecordings, recordingStatus,
 }: ViewProps): ReactElement {
   return (
     <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
@@ -206,8 +207,9 @@ export function ViewToolbar({
           className="btn-tool" type="button" onClick={onRecordings}
           title="Записи занятия" data-tip="Записи занятия"
         >
-          <IconRecord />
-          {recordingActive ? <span className="badge-dot" aria-label="Идёт запись" /> : null}
+          {recordingStatus === 'recording' ? <IconRecord />
+            : recordingStatus === 'paused' ? <IconPause />
+            : <IconPlay />}
         </button>
       ) : null}
 

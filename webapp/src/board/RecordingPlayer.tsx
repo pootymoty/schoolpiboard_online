@@ -7,8 +7,9 @@ import { applyRecordedStep, EMPTY_PLAYBACK } from './replay';
 import type { PlaybackState } from './replay';
 import { pointsOf } from './geometry';
 import { drawGrid, drawItem } from './render';
-import { fitToContent } from './viewport';
+import { centerOn, fitToContent } from './viewport';
 import type { BoardItem } from './protocol';
+import { IconPause, IconPlay } from '../components/Icons';
 
 interface Props {
   boardId: number;
@@ -27,9 +28,10 @@ function formatTime(ms: number): string {
 /**
  * Воспроизведение записи занятия.
  *
- * Вид не двигают руками — холст сам подгоняет масштаб под то, что на
- * нём есть в текущий момент перемотки: это просмотр хода решения, а не
- * рабочая доска, лишний пан и зум здесь только мешал бы.
+ * Вид не двигают руками: холст показывает ровно то, что видел сам
+ * ведущий в этот момент занятия, — страницу, положение и масштаб,
+ * записанные вместе со штрихами. Это и есть смысл записи: не рисунок
+ * сам по себе, а вид на него глазами того, кто вёл занятие.
  */
 export function RecordingPlayer({ boardId, recordingId, onClose }: Props): ReactElement {
   const [recording, setRecording] = useState<RecordingInfo | null>(null);
@@ -141,8 +143,14 @@ export function RecordingPlayer({ boardId, recordingId, onClose }: Props): React
     }));
 
     const all = [...content.items, ...liveItems];
-    const points = all.flatMap((item) => pointsOf(item.data));
-    const viewport = fitToContent(points, width, height) ?? { x: width / 2, y: height / 2, scale: 1 };
+
+    // Вид ведущего, а не подгонка под содержимое: запись — это то, что
+    // он видел сам, с его масштабом, а не автоматически прижатый кадр.
+    // Подгонка — только запасной случай, для записи без этого шага.
+    const recorded = content.viewport;
+    const viewport = recorded
+      ? centerOn({ x: 0, y: 0, scale: recorded.scale }, recorded.x, recorded.y, width, height, recorded.scale)
+      : fitToContent(all.flatMap((item) => pointsOf(item.data)), width, height) ?? { x: width / 2, y: height / 2, scale: 1 };
 
     drawGrid(
       context, content.background.gridStyle, content.background.gridColor, width, height,
@@ -157,8 +165,8 @@ export function RecordingPlayer({ boardId, recordingId, onClose }: Props): React
   }, [content]);
 
   return (
-    <div className="params params--right params--tall" role="dialog" aria-label="Воспроизведение записи">
-      <div className="params__head">
+    <div className="player" role="dialog" aria-label="Воспроизведение записи">
+      <div className="player__head">
         <span className="params__title">{recording?.title || 'Запись занятия'}</span>
         <button className="btn-quiet btn-sm" type="button" onClick={onClose}>Готово</button>
       </div>
@@ -169,7 +177,17 @@ export function RecordingPlayer({ boardId, recordingId, onClose }: Props): React
         <canvas ref={canvasRef} />
       </div>
 
-      <div className="params__row player__scrub">
+      <div className="player__controls">
+        <button
+          className="btn-tool"
+          type="button"
+          disabled={!recording || duration === 0}
+          onClick={() => setPlaying((current) => !current)}
+          aria-label={playing ? 'Пауза' : 'Воспроизвести'}
+        >
+          {playing ? <IconPause /> : <IconPlay />}
+        </button>
+
         <span className="text-muted small">{formatTime(offsetMs)}</span>
         <input
           className="player__range"
@@ -181,15 +199,6 @@ export function RecordingPlayer({ boardId, recordingId, onClose }: Props): React
         />
         <span className="text-muted small">{formatTime(duration)}</span>
       </div>
-
-      <button
-        className="btn-primary btn-block"
-        type="button"
-        disabled={!recording || duration === 0}
-        onClick={() => setPlaying((current) => !current)}
-      >
-        {playing ? 'Пауза' : 'Воспроизвести'}
-      </button>
     </div>
   );
 }

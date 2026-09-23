@@ -4,7 +4,6 @@ import { deleteRecording, listRecordings } from '../api/recordings';
 import type { RecordingInfo } from '../api/recordings';
 import { ApiError } from '../api/client';
 import type { RecordingStatus } from './protocol';
-import { RecordingPlayer } from './RecordingPlayer';
 
 interface Props {
   boardId: number;
@@ -15,6 +14,8 @@ interface Props {
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
+  /** Открыть просмотр — вместо холста, этим распоряжается страница доски. */
+  onWatch: (recordingId: number) => void;
   onClose: () => void;
 }
 
@@ -37,12 +38,11 @@ function formatDate(iso: string): string {
  * записывают, а не выяснять это по слухам.
  */
 export function RecordingsPanel({
-  boardId, canManage, live, onStart, onPause, onResume, onStop, onClose,
+  boardId, canManage, live, onStart, onPause, onResume, onStop, onWatch, onClose,
 }: Props): ReactElement {
   const [rows, setRows] = useState<RecordingInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState('');
-  const [watching, setWatching] = useState<number | null>(null);
 
   const load = () => {
     listRecordings(boardId)
@@ -62,12 +62,6 @@ export function RecordingsPanel({
       .then(() => setRows((current) => (current ?? []).filter((x) => x.id !== recording.id)))
       .catch((reason) => setError(reason instanceof ApiError ? reason.message : 'Не удалось удалить.'));
   };
-
-  if (watching !== null) {
-    return (
-      <RecordingPlayer boardId={boardId} recordingId={watching} onClose={() => setWatching(null)} />
-    );
-  }
 
   return (
     <div className="params params--right params--tall" role="dialog" aria-label="Записи занятий">
@@ -132,7 +126,7 @@ export function RecordingsPanel({
               <button
                 className="btn-quiet library__pick"
                 type="button"
-                onClick={() => setWatching(row.id)}
+                onClick={() => onWatch(row.id)}
                 title="Смотреть"
               >
                 {row.title || formatDate(row.startedAt)}

@@ -28,6 +28,12 @@ public enum RecordingOutcome
 /// </summary>
 public sealed class BoardRecordingService
 {
+    // SignalR отдаёт живым подключениям те же payload в camelCase — это
+    // умеет сам протокол хаба. JsonSerializer.Serialize по умолчанию
+    // пишет как в C# (PascalCase), и без этой настройки шаг записи не
+    // совпадал бы по именам полей с тем, что читает фронтенд.
+    private static readonly JsonSerializerOptions PayloadOptions = new(JsonSerializerDefaults.Web);
+
     private readonly AppDbContext _db;
     private readonly SubscriptionService _subscriptions;
 
@@ -138,7 +144,7 @@ public sealed class BoardRecordingService
             RecordingId = recording.Id,
             OffsetMs = offsetMs,
             Name = name,
-            Payload = JsonSerializer.Serialize(payload),
+            Payload = JsonSerializer.Serialize(payload, PayloadOptions),
         });
 
         await _db.SaveChangesAsync(cancellationToken);

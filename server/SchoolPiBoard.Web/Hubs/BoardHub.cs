@@ -374,6 +374,24 @@ public sealed class BoardHub : Hub
             .SendAsync("BroughtToMe", new { pageId, x, y, scale });
     }
 
+    /// <summary>
+    /// Вид ведущего — для записи занятия, а не для остальных участников.
+    ///
+    /// Запись — это буквально то, что видел владелец: страница, точка в
+    /// её центре экрана и масштаб, тем же способом, каким «Все ко мне»
+    /// передаёт вид. Никому не рассылается — только в активную запись,
+    /// если она идёт (молча, если нет). Владелец шлёт это сам, пока
+    /// ведёт занятие: свой вид, кроме него, никто не знает.
+    /// </summary>
+    public async Task ReportViewport(long pageId, double x, double y, double scale)
+    {
+        var presence = await RequireOwnerAsync();
+        if (presence is null) return;
+
+        await _recordings.AppendStepAsync(
+            presence.BoardId, "ViewportChanged", new { pageId, x, y, scale }, Context.ConnectionAborted);
+    }
+
     // ---------- Правка ----------
 
     public async Task LockItem(long itemId)

@@ -402,6 +402,11 @@ const IconExternal = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children:
 ] }) });
 const IconBookmark = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M6 3h12v18l-6-4.5L6 21z" }) });
 const IconRecord = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "7", fill: "currentColor", stroke: "none" }) });
+const IconPlay = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M7 4l13 8-13 8z", fill: "currentColor", stroke: "none" }) });
+const IconPause = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { fill: "currentColor", stroke: "none", children: [
+  /* @__PURE__ */ jsx("rect", { x: "6", y: "4", width: "4", height: "16" }),
+  /* @__PURE__ */ jsx("rect", { x: "14", y: "4", width: "4", height: "16" })
+] }) });
 const IconTarget = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "8" }),
   /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "2" }),
@@ -4849,7 +4854,7 @@ function ViewToolbar({
   onBringEveryone,
   canRecordings,
   onRecordings,
-  recordingActive
+  recordingStatus
 }) {
   return /* @__PURE__ */ jsxs("div", { className: "toolbar toolbar--view", role: "toolbar", "aria-label": "Масштаб и вид", children: [
     /* @__PURE__ */ jsxs("div", { className: "zoom", children: [
@@ -4884,7 +4889,7 @@ function ViewToolbar({
       }
     ) : null,
     canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
-    canRecordings ? /* @__PURE__ */ jsxs(
+    canRecordings ? /* @__PURE__ */ jsx(
       "button",
       {
         className: "btn-tool",
@@ -4892,10 +4897,7 @@ function ViewToolbar({
         onClick: onRecordings,
         title: "Записи занятия",
         "data-tip": "Записи занятия",
-        children: [
-          /* @__PURE__ */ jsx(IconRecord, {}),
-          recordingActive ? /* @__PURE__ */ jsx("span", { className: "badge-dot", "aria-label": "Идёт запись" }) : null
-        ]
+        children: recordingStatus === "recording" ? /* @__PURE__ */ jsx(IconRecord, {}) : recordingStatus === "paused" ? /* @__PURE__ */ jsx(IconPause, {}) : /* @__PURE__ */ jsx(IconPlay, {})
       }
     ) : null,
     /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", "data-tip": "Конспект занятия по почте", children: [
@@ -6936,6 +6938,103 @@ function getRecording(boardId, recordingId) {
 function deleteRecording(boardId, recordingId) {
   return api(`/boards/${boardId}/recordings/${recordingId}`, { method: "DELETE" });
 }
+function formatDuration(ms) {
+  const total = Math.round(ms / 1e3);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+function formatDate(iso) {
+  return new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+}
+function RecordingsPanel({
+  boardId,
+  canManage,
+  live,
+  onStart,
+  onPause,
+  onResume,
+  onStop,
+  onWatch,
+  onClose
+}) {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  const [title, setTitle] = useState("");
+  const load = () => {
+    listRecordings(boardId).then(setRows).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось прочитать записи."));
+  };
+  useEffect(load, [boardId, live == null ? void 0 : live.status]);
+  const drop = (recording) => {
+    if (!window.confirm(`Удалить запись «${recording.title || formatDate(recording.startedAt)}»?`)) return;
+    deleteRecording(boardId, recording.id).then(() => setRows((current) => (current ?? []).filter((x) => x.id !== recording.id))).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось удалить."));
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Записи занятий", children: [
+    /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
+      /* @__PURE__ */ jsx("span", { className: "params__title", children: "Записи занятия" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
+    ] }),
+    canManage ? live ? /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
+      /* @__PURE__ */ jsx("p", { className: "library__hint", children: live.status === "recording" ? "Идёт запись." : "Запись на паузе." }),
+      /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
+        live.status === "recording" ? /* @__PURE__ */ jsx("button", { className: "btn btn-sm", type: "button", onClick: onPause, children: "Пауза" }) : /* @__PURE__ */ jsx("button", { className: "btn btn-sm", type: "button", onClick: onResume, children: "Продолжить" }),
+        /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onStop, children: "Стоп" })
+      ] })
+    ] }) : /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          className: "input",
+          type: "text",
+          value: title,
+          maxLength: 80,
+          placeholder: "Название занятия (не обязательно)",
+          onChange: (event) => setTitle(event.target.value)
+        }
+      ),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn btn-sm btn-block",
+          type: "button",
+          onClick: () => {
+            onStart(title.trim() || void 0);
+            setTitle("");
+          },
+          children: "Начать запись"
+        }
+      )
+    ] }) : live ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: live.status === "recording" ? "Владелец сейчас записывает занятие." : "Запись занятия на паузе." }) : null,
+    /* @__PURE__ */ jsx("p", { className: "params__label", children: "Сохранённые записи" }),
+    error ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: error }) : null,
+    rows === null ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Читаем…" }) : rows.filter((x) => x.status === "stopped").length === 0 ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Пока ни одной." }) : /* @__PURE__ */ jsx("div", { className: "library__list", children: rows.filter((x) => x.status === "stopped").map((row) => /* @__PURE__ */ jsxs("div", { className: "library__mine", children: [
+      /* @__PURE__ */ jsxs(
+        "button",
+        {
+          className: "btn-quiet library__pick",
+          type: "button",
+          onClick: () => onWatch(row.id),
+          title: "Смотреть",
+          children: [
+            row.title || formatDate(row.startedAt),
+            /* @__PURE__ */ jsx("span", { className: "library__count", children: formatDuration(row.durationMs) })
+          ]
+        }
+      ),
+      canManage ? /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet btn-sm",
+          type: "button",
+          onClick: () => drop(row),
+          "aria-label": `Удалить запись ${row.title || formatDate(row.startedAt)}`,
+          title: "Удалить запись",
+          children: "✕"
+        }
+      ) : null
+    ] }, row.id)) })
+  ] });
+}
 const DEFAULT_BACKGROUND = {
   background: "#FFFDF8",
   gridStyle: "none",
@@ -6944,11 +7043,15 @@ const DEFAULT_BACKGROUND = {
 const EMPTY_PLAYBACK = {
   items: [],
   live: /* @__PURE__ */ new Map(),
-  background: DEFAULT_BACKGROUND
+  background: DEFAULT_BACKGROUND,
+  viewport: null
 };
 function applyRecordedStep(state, name, payload) {
   switch (name) {
+    case "ViewportChanged":
+      return { ...state, viewport: payload };
     case "ItemBegan": {
+      if (state.viewport && payload.pageId !== state.viewport.pageId) return state;
       const live = new Map(state.live);
       live.set(payload.tempId, payload);
       return { ...state, live };
@@ -6971,6 +7074,7 @@ function applyRecordedStep(state, name, payload) {
     case "ItemCommitted": {
       const live = new Map(state.live);
       live.delete(payload.tempId);
+      if (state.viewport && payload.pageId !== state.viewport.pageId) return { ...state, live };
       const items = [...state.items.filter((x) => x.id !== payload.item.id), payload.item];
       return { ...state, items, live };
     }
@@ -6991,6 +7095,7 @@ function applyRecordedStep(state, name, payload) {
     case "ItemsDeleted":
       return { ...state, items: state.items.filter((x) => !payload.itemIds.includes(x.id)) };
     case "BoardCleared":
+      if (state.viewport && payload.pageId !== state.viewport.pageId) return state;
       return { ...state, items: [], live: /* @__PURE__ */ new Map() };
     default:
       return state;
@@ -7080,8 +7185,8 @@ function RecordingPlayer({ boardId, recordingId, onClose }) {
       lockedBy: null
     }));
     const all = [...content.items, ...liveItems];
-    const points = all.flatMap((item) => pointsOf(item.data));
-    const viewport = fitToContent(points, width, height) ?? { x: width / 2, y: height / 2, scale: 1 };
+    const recorded = content.viewport;
+    const viewport = recorded ? centerOn({ scale: recorded.scale }, recorded.x, recorded.y, width, height, recorded.scale) : fitToContent(all.flatMap((item) => pointsOf(item.data)), width, height) ?? { x: width / 2, y: height / 2, scale: 1 };
     drawGrid(
       context,
       content.background.gridStyle,
@@ -7098,14 +7203,25 @@ function RecordingPlayer({ boardId, recordingId, onClose }) {
     for (const item of all) drawItem(context, item.type, item.data, item.imageRef);
     context.restore();
   }, [content]);
-  return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Воспроизведение записи", children: [
-    /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
+  return /* @__PURE__ */ jsxs("div", { className: "player", role: "dialog", "aria-label": "Воспроизведение записи", children: [
+    /* @__PURE__ */ jsxs("div", { className: "player__head", children: [
       /* @__PURE__ */ jsx("span", { className: "params__title", children: (recording == null ? void 0 : recording.title) || "Запись занятия" }),
       /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
     ] }),
     error ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: error }) : null,
     /* @__PURE__ */ jsx("div", { className: "player__canvas", ref: boxRef, children: /* @__PURE__ */ jsx("canvas", { ref: canvasRef }) }),
-    /* @__PURE__ */ jsxs("div", { className: "params__row player__scrub", children: [
+    /* @__PURE__ */ jsxs("div", { className: "player__controls", children: [
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-tool",
+          type: "button",
+          disabled: !recording || duration === 0,
+          onClick: () => setPlaying((current) => !current),
+          "aria-label": playing ? "Пауза" : "Воспроизвести",
+          children: playing ? /* @__PURE__ */ jsx(IconPause, {}) : /* @__PURE__ */ jsx(IconPlay, {})
+        }
+      ),
       /* @__PURE__ */ jsx("span", { className: "text-muted small", children: formatTime(offsetMs) }),
       /* @__PURE__ */ jsx(
         "input",
@@ -7122,117 +7238,7 @@ function RecordingPlayer({ boardId, recordingId, onClose }) {
         }
       ),
       /* @__PURE__ */ jsx("span", { className: "text-muted small", children: formatTime(duration) })
-    ] }),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "btn-primary btn-block",
-        type: "button",
-        disabled: !recording || duration === 0,
-        onClick: () => setPlaying((current) => !current),
-        children: playing ? "Пауза" : "Воспроизвести"
-      }
-    )
-  ] });
-}
-function formatDuration(ms) {
-  const total = Math.round(ms / 1e3);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-function formatDate(iso) {
-  return new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
-}
-function RecordingsPanel({
-  boardId,
-  canManage,
-  live,
-  onStart,
-  onPause,
-  onResume,
-  onStop,
-  onClose
-}) {
-  const [rows, setRows] = useState(null);
-  const [error, setError] = useState(null);
-  const [title, setTitle] = useState("");
-  const [watching, setWatching] = useState(null);
-  const load = () => {
-    listRecordings(boardId).then(setRows).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось прочитать записи."));
-  };
-  useEffect(load, [boardId, live == null ? void 0 : live.status]);
-  const drop = (recording) => {
-    if (!window.confirm(`Удалить запись «${recording.title || formatDate(recording.startedAt)}»?`)) return;
-    deleteRecording(boardId, recording.id).then(() => setRows((current) => (current ?? []).filter((x) => x.id !== recording.id))).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось удалить."));
-  };
-  if (watching !== null) {
-    return /* @__PURE__ */ jsx(RecordingPlayer, { boardId, recordingId: watching, onClose: () => setWatching(null) });
-  }
-  return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Записи занятий", children: [
-    /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
-      /* @__PURE__ */ jsx("span", { className: "params__title", children: "Записи занятия" }),
-      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
-    ] }),
-    canManage ? live ? /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
-      /* @__PURE__ */ jsx("p", { className: "library__hint", children: live.status === "recording" ? "Идёт запись." : "Запись на паузе." }),
-      /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
-        live.status === "recording" ? /* @__PURE__ */ jsx("button", { className: "btn btn-sm", type: "button", onClick: onPause, children: "Пауза" }) : /* @__PURE__ */ jsx("button", { className: "btn btn-sm", type: "button", onClick: onResume, children: "Продолжить" }),
-        /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onStop, children: "Стоп" })
-      ] })
-    ] }) : /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
-      /* @__PURE__ */ jsx(
-        "input",
-        {
-          className: "input",
-          type: "text",
-          value: title,
-          maxLength: 80,
-          placeholder: "Название занятия (не обязательно)",
-          onChange: (event) => setTitle(event.target.value)
-        }
-      ),
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn btn-sm btn-block",
-          type: "button",
-          onClick: () => {
-            onStart(title.trim() || void 0);
-            setTitle("");
-          },
-          children: "Начать запись"
-        }
-      )
-    ] }) : live ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: live.status === "recording" ? "Владелец сейчас записывает занятие." : "Запись занятия на паузе." }) : null,
-    /* @__PURE__ */ jsx("p", { className: "params__label", children: "Сохранённые записи" }),
-    error ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: error }) : null,
-    rows === null ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Читаем…" }) : rows.filter((x) => x.status === "stopped").length === 0 ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Пока ни одной." }) : /* @__PURE__ */ jsx("div", { className: "library__list", children: rows.filter((x) => x.status === "stopped").map((row) => /* @__PURE__ */ jsxs("div", { className: "library__mine", children: [
-      /* @__PURE__ */ jsxs(
-        "button",
-        {
-          className: "btn-quiet library__pick",
-          type: "button",
-          onClick: () => setWatching(row.id),
-          title: "Смотреть",
-          children: [
-            row.title || formatDate(row.startedAt),
-            /* @__PURE__ */ jsx("span", { className: "library__count", children: formatDuration(row.durationMs) })
-          ]
-        }
-      ),
-      canManage ? /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-quiet btn-sm",
-          type: "button",
-          onClick: () => drop(row),
-          "aria-label": `Удалить запись ${row.title || formatDate(row.startedAt)}`,
-          title: "Удалить запись",
-          children: "✕"
-        }
-      ) : null
-    ] }, row.id)) })
+    ] })
   ] });
 }
 const POLL_MS$2 = 2e4;
@@ -7751,7 +7757,11 @@ function useBoardHub(boardId) {
     startRecording: useCallback((title) => call("StartRecording", title ?? null), [call]),
     pauseRecording: useCallback(() => call("PauseRecording"), [call]),
     resumeRecording: useCallback(() => call("ResumeRecording"), [call]),
-    stopRecording: useCallback(() => call("StopRecording"), [call])
+    stopRecording: useCallback(() => call("StopRecording"), [call]),
+    reportViewport: useCallback(
+      (id, x, y, scale) => call("ReportViewport", id, x, y, scale),
+      [call]
+    )
   };
 }
 const POLL_MS$1 = 4e3;
@@ -7826,7 +7836,7 @@ function useHistory(actions) {
   return { canUndo: depth.undo > 0, canRedo: depth.redo > 0, push, undo, redo, clear };
 }
 function BoardPage() {
-  var _a, _b;
+  var _a, _b, _c, _d;
   const { boardId } = useParams();
   const navigate = useNavigate();
   const location2 = useLocation();
@@ -7861,6 +7871,7 @@ function BoardPage() {
   const [showLibrary, setShowLibrary] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [showRecordings, setShowRecordings] = useState(false);
+  const [watching, setWatching] = useState(null);
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -8061,6 +8072,16 @@ function BoardPage() {
     const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
     hub.bringEveryone(hub.pageId, center.x, center.y, viewport.scale);
   }, [hub.pageId, hub.bringEveryone, viewport, canvasSize.width, canvasSize.height]);
+  const lastViewportReport = useRef(0);
+  useEffect(() => {
+    var _a2;
+    if (!hub.canManage || ((_a2 = hub.recording) == null ? void 0 : _a2.status) !== "recording" || hub.pageId === null) return;
+    const now = Date.now();
+    if (now - lastViewportReport.current < 300) return;
+    lastViewportReport.current = now;
+    const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
+    hub.reportViewport(hub.pageId, center.x, center.y, viewport.scale);
+  }, [viewport, hub.canManage, (_b = hub.recording) == null ? void 0 : _b.status, hub.pageId, hub.reportViewport, canvasSize.width, canvasSize.height]);
   const jumpToBookmark = (bookmark) => {
     const x = bookmark.data.x1 ?? 0;
     const y = bookmark.data.y1 ?? 0;
@@ -8418,7 +8439,7 @@ function BoardPage() {
   useEffect(() => {
     if (!hub.canEdit || (state == null ? void 0 : state.me.isGuest) !== false) return;
     const onPaste = (event) => {
-      var _a2, _b2, _c;
+      var _a2, _b2, _c2;
       const target = event.target;
       if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
       const items = (_a2 = event.clipboardData) == null ? void 0 : _a2.items;
@@ -8432,7 +8453,7 @@ function BoardPage() {
           return;
         }
       }
-      const text = (_c = (_b2 = event.clipboardData) == null ? void 0 : _b2.getData("text/plain")) == null ? void 0 : _c.trim();
+      const text = (_c2 = (_b2 = event.clipboardData) == null ? void 0 : _b2.getData("text/plain")) == null ? void 0 : _c2.trim();
       if (!text) return;
       event.preventDefault();
       pasteText(text);
@@ -8581,7 +8602,7 @@ function BoardPage() {
       ] }) : null,
       board.locked && board.canManage ? /* @__PURE__ */ jsx("p", { className: "note note-warning", children: "Доска закрыта для новых участников." }) : null,
       error ?? hub.error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error ?? hub.error }) : null,
-      /* @__PURE__ */ jsxs(
+      /* @__PURE__ */ jsx(
         "section",
         {
           className: "board-page__canvas",
@@ -8596,7 +8617,7 @@ function BoardPage() {
             event.preventDefault();
             void insertFile(file, file.name);
           },
-          children: [
+          children: watching !== null ? /* @__PURE__ */ jsx(RecordingPlayer, { boardId: id, recordingId: watching, onClose: () => setWatching(null) }) : /* @__PURE__ */ jsxs(Fragment, { children: [
             /* @__PURE__ */ jsx("div", { className: "board-title", children: editingTitle ? /* @__PURE__ */ jsxs(Fragment, { children: [
               /* @__PURE__ */ jsx(
                 "input",
@@ -8653,7 +8674,7 @@ function BoardPage() {
                 onBringEveryone: bringEveryoneToMe,
                 canRecordings: !me.isGuest,
                 onRecordings: () => setShowRecordings((current) => !current),
-                recordingActive: hub.recording !== null,
+                recordingStatus: ((_c = hub.recording) == null ? void 0 : _c.status) ?? null,
                 pageLabel: hub.pages.length === 0 ? "—" : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`,
                 onFiles: () => setShowFiles((current) => !current),
                 onLibrary: () => setShowLibrary((current) => !current),
@@ -8755,7 +8776,7 @@ function BoardPage() {
                 pages: hub.pages,
                 pageId: hub.pageId,
                 participants: hub.participants,
-                meKey: ((_b = hub.participants.find((one) => one.connectionId === hub.me)) == null ? void 0 : _b.key) ?? null,
+                meKey: ((_d = hub.participants.find((one) => one.connectionId === hub.me)) == null ? void 0 : _d.key) ?? null,
                 canManage: hub.canManage,
                 onOpen: (pageId) => {
                   setSelection([]);
@@ -8800,6 +8821,7 @@ function BoardPage() {
                 onPause: hub.pauseRecording,
                 onResume: hub.resumeRecording,
                 onStop: hub.stopRecording,
+                onWatch: setWatching,
                 onClose: () => setShowRecordings(false)
               }
             ) : null,
@@ -8924,7 +8946,7 @@ function BoardPage() {
                 }
               )
             ] })
-          ]
+          ] })
         }
       ),
       me.isGuest ? /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
