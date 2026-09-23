@@ -3923,6 +3923,7 @@ const CURSOR_INTERVAL_MS = 50;
 const POINT_BATCH_MS = 50;
 const ERASE_RADIUS = 8;
 const STRAIGHTEN_HOLD_MS = 600;
+const STRAIGHTEN_MAX_BOW_PX = 6;
 const POINTER_FADE_MS = 1200;
 const POINTER_STYLE = { color: "#FF2222", width: 6, opacity: 0.9 };
 const AUTO_PAN_MARGIN = 56;
@@ -4546,7 +4547,12 @@ function BoardCanvas({
     if (Math.hypot(point.x - previous.x, point.y - previous.y) * latest.current.viewport.scale > 4) {
       stroke.movedAt = now;
     } else if (now - stroke.movedAt > STRAIGHTEN_HOLD_MS) {
-      stroke.straight = true;
+      const scale = latest.current.viewport.scale;
+      const bow = stroke.points.reduce(
+        (max, p2) => Math.max(max, distanceToSegment(p2, stroke.points[0], point) * scale),
+        0
+      );
+      if (bow <= STRAIGHTEN_MAX_BOW_PX) stroke.straight = true;
     }
     if (event.shiftKey) stroke.straight = true;
     const coalesced = typeof event.nativeEvent.getCoalescedEvents === "function" ? event.nativeEvent.getCoalescedEvents() : [];
@@ -5464,15 +5470,26 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
       },
       value
     )),
-    /* @__PURE__ */ jsx("label", { className: "swatch swatch--custom", title: "Свой цвет", children: /* @__PURE__ */ jsx(
-      "input",
+    /* @__PURE__ */ jsxs(
+      "label",
       {
-        type: "color",
-        value: current,
-        onChange: (event) => apply(event.target.value),
-        "aria-label": "Свой цвет"
+        className: "swatch swatch--custom",
+        title: "Свой цвет",
+        style: PALETTE.includes(current) ? void 0 : { background: current },
+        children: [
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              type: "color",
+              value: current,
+              onChange: (event) => apply(event.target.value),
+              "aria-label": "Свой цвет"
+            }
+          ),
+          PALETTE.includes(current) ? null : /* @__PURE__ */ jsx("span", { className: "swatch__check", children: /* @__PURE__ */ jsx(IconCheck, { size: 14 }) })
+        ]
       }
-    ) })
+    )
   ] });
   return /* @__PURE__ */ jsxs("div", { className: "params params--tool", role: "dialog", "aria-label": "Параметры инструмента", children: [
     /* @__PURE__ */ jsxs("div", { className: "params__head", children: [

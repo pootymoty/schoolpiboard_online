@@ -3,7 +3,7 @@ import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import type { BoardHub } from './useBoardHub';
 import type { Background, ItemData, ItemType, Point } from './protocol';
 import { cursorColor } from './cursorColors';
-import { boundsOf, rectFrom, topmostAt, translate, within } from './geometry';
+import { boundsOf, distanceToSegment, rectFrom, topmostAt, translate, within } from './geometry';
 import { centerOf } from './rotate';
 import { snapPoint, snapValue } from './snap';
 import type { Bounds } from './geometry';
@@ -55,6 +55,14 @@ const ERASE_RADIUS = 8;
 
 /** Сколько держать руку на месте, чтобы штрих выпрямился. */
 const STRAIGHTEN_HOLD_MS = 600;
+
+/**
+ * Насколько нарисованное уже должно быть похоже на прямую, чтобы задержка
+ * руки его выпрямила, в экранных пикселях. Задержка на вершине настоящей
+ * кривой (например, наверху дуги) не должна срезать её в прямую линию —
+ * только пауза на линии, которая и без того почти прямая.
+ */
+const STRAIGHTEN_MAX_BOW_PX = 6;
 
 /** Сколько живёт след указки после того, как руку убрали. */
 const POINTER_FADE_MS = 1200;
@@ -1088,7 +1096,16 @@ export function BoardCanvas({
     if (Math.hypot(point.x - previous.x, point.y - previous.y) * latest.current.viewport.scale > 4) {
       stroke.movedAt = now;
     } else if (now - stroke.movedAt > STRAIGHTEN_HOLD_MS) {
-      stroke.straight = true;
+      // Задержка руки — только сигнал «может, хотели прямую». Настоящую
+      // кривую (задержались на вершине дуги, а не на прямом участке) так
+      // не срезать: сверяем, что уже нарисованное само по себе почти не
+      // отклоняется от прямой между началом штриха и текущей точкой.
+      const scale = latest.current.viewport.scale;
+      const bow = stroke.points.reduce(
+        (max, p) => Math.max(max, distanceToSegment(p, stroke.points[0], point) * scale),
+        0,
+      );
+      if (bow <= STRAIGHTEN_MAX_BOW_PX) stroke.straight = true;
     }
 
     if (event.shiftKey) stroke.straight = true;

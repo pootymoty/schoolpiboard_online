@@ -55,14 +55,23 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
 
       {/* Произвольный цвет: палитра закрывает обычные случаи, но
           «тот самый зелёный из учебника» в ней не окажется никогда.
-          Берём готовое окно браузера — своё было бы хуже и тяжелее. */}
-      <label className="swatch swatch--custom" title="Свой цвет">
+          Берём готовое окно браузера — своё было бы хуже и тяжелее.
+          Пока текущий цвет — не из палитры (например, значение по
+          умолчанию), кружок показывает именно его, а не радужную
+          заглушку — иначе непонятно, какой цвет выбран, до первого
+          клика по палитре. */}
+      <label
+        className="swatch swatch--custom"
+        title="Свой цвет"
+        style={PALETTE.includes(current) ? undefined : { background: current }}
+      >
         <input
           type="color"
           value={current}
           onChange={(event) => apply(event.target.value)}
           aria-label="Свой цвет"
         />
+        {PALETTE.includes(current) ? null : <span className="swatch__check"><IconCheck size={14} /></span>}
       </label>
     </div>
   );
