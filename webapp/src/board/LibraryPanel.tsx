@@ -15,7 +15,7 @@ const TABS: { kind: Tab; title: string }[] = [
   ...TEMPLATE_GROUPS.map((group) => ({ kind: group.kind as Tab, title: group.title })),
   { kind: 'symbols', title: 'Знаки' },
   { kind: 'formulas', title: 'Формулы' },
-  { kind: 'mine', title: 'Мои' },
+  { kind: 'mine', title: 'Мои шаблоны' },
 ];
 
 interface Props {

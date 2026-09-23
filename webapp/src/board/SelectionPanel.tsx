@@ -8,9 +8,11 @@ import { toScreen } from './viewport';
 import type { Viewport } from './viewport';
 import { Menu } from '../components/Menu';
 import {
-  IconCheck, IconCopy, IconCopyText, IconDuplicate, IconLockClosed, IconLockOpen,
+  IconCheck, IconCopy, IconCopyText, IconDuplicate, IconLibrary, IconLockClosed, IconLockOpen,
   IconToBack, IconToFront, IconTrash,
 } from '../components/Icons';
+import { saveTemplate } from '../api/templates';
+import { ApiError } from '../api/client';
 
 interface Props {
   items: BoardItem[];
@@ -31,6 +33,8 @@ interface Props {
   onLock: (locked: boolean) => void;
   /** Положить выделенное в буфер доски. */
   onCopy: () => void;
+  /** Гостю заготовки недоступны: хранить их было бы не за кем. */
+  canKeep: boolean;
 }
 
 /** Примерная ширина панели — по ней она прижимается к краям холста. */
@@ -75,7 +79,7 @@ const NARROW = 720;
  */
 export function SelectionPanel({
   items, bounds, viewport, canvas, onColor, onDuplicate, onDelete, onReorder, onCopyText, onDone,
-  onTable, onLock, onCopy,
+  onTable, onLock, onCopy, canKeep,
 }: Props): ReactElement {
   /**
    * Свой цвет. Держим его отдельно, а красим по закрытию окна выбора:
@@ -89,6 +93,30 @@ export function SelectionPanel({
   const text = items.length === 1 && (items[0].type === 'text' || items[0].type === 'bookmark')
     ? items[0].data.text ?? ''
     : null;
+
+  // Картинки в заготовку не идут: файл принадлежит своей доске, а не
+  // человеку, — тот же список, что уходит в панель «Заготовки».
+  const keepable = items.filter((item) => item.type !== 'image');
+
+  const [naming, setNaming] = useState(false);
+  const [templateTitle, setTemplateTitle] = useState('');
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const [templateNote, setTemplateNote] = useState<string | null>(null);
+
+  const saveAsTemplate = () => {
+    if (templateBusy) return;
+
+    setTemplateBusy(true);
+    setTemplateNote(null);
+
+    saveTemplate(templateTitle.trim(), keepable.map((item) => ({ type: item.type, data: item.data })))
+      .then(() => {
+        setNaming(false);
+        setTemplateTitle('');
+      })
+      .catch((reason) => setTemplateNote(reason instanceof ApiError ? reason.message : 'Не удалось сохранить.'))
+      .finally(() => setTemplateBusy(false));
+  };
 
   // Строки и столбцы правятся у выбранной таблицы, а не при построении:
   // сколько их нужно, обычно выясняется уже по ходу заполнения.
@@ -300,6 +328,16 @@ export function SelectionPanel({
             </button>
           ) : null}
 
+          {canKeep && keepable.length > 0 ? (
+            <button
+              className="btn-tool" type="button" onClick={() => setNaming(true)}
+              title="Сохранить как заготовку"
+            >
+              <IconLibrary />
+              {cap('Заготовка')}
+            </button>
+          ) : null}
+
           <span className="toolbar__divider" aria-hidden="true" />
 
           <button className="btn-tool" type="button" onClick={onDone} title="Готово — снять выделение">
@@ -325,11 +363,48 @@ export function SelectionPanel({
               Скопировать текст
             </button>
           ) : null}
+          {canKeep && keepable.length > 0 ? (
+            <button className="btn-quiet menu__item" type="button" onClick={() => setNaming(true)}>
+              Сохранить как заготовку
+            </button>
+          ) : null}
           <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={onDelete}>
             Удалить
           </button>
         </Menu>
       )}
+
+      {naming ? (
+        <div className="selection-panel__keep">
+          <input
+            className="input"
+            type="text"
+            autoFocus
+            value={templateTitle}
+            maxLength={80}
+            placeholder="Название заготовки"
+            onChange={(event) => setTemplateTitle(event.target.value)}
+          />
+          <div className="params__row">
+            <button
+              className="btn btn-sm"
+              type="button"
+              disabled={templateBusy || templateTitle.trim().length === 0}
+              onClick={saveAsTemplate}
+            >
+              Сохранить
+            </button>
+            <button
+              className="btn-quiet btn-sm"
+              type="button"
+              onClick={() => { setNaming(false); setTemplateNote(null); }}
+            >
+              Отмена
+            </button>
+          </div>
+          {templateNote ? <p className="library__hint library__note">{templateNote}</p> : null}
+        </div>
+      ) : null}
 
       {items.length > 1 ? <span className="selection-panel__count">{items.length}</span> : null}
     </div>

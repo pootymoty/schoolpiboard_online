@@ -1680,6 +1680,17 @@ body.no-scroll {
     color: var(--text-muted);
 }
 
+/* Имя заготовки — во всю ширину плывущей панели, вместо ряда значков. */
+.selection-panel__keep {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    width: 100%;
+    padding: var(--sp-1) 0 0;
+}
+
+.selection-panel__keep .input { width: 100%; }
+
 /* --- Справка ------------------------------------------------------------------ */
 
 .help {

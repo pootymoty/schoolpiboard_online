@@ -5374,6 +5374,26 @@ function TextInput({
     }
   );
 }
+function listTemplates() {
+  return api("/templates");
+}
+function saveTemplate(title, items) {
+  return api("/templates", {
+    method: "POST",
+    body: { title, body: JSON.stringify(items) }
+  });
+}
+function deleteTemplate(templateId) {
+  return api(`/templates/${templateId}`, { method: "DELETE" });
+}
+function itemsOf(template) {
+  try {
+    const parsed = JSON.parse(template.body);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 const WIDTH = 340;
 const HEIGHT = 150;
 const LEFT_GUTTER = 72;
@@ -5392,10 +5412,25 @@ function SelectionPanel({
   onDone,
   onTable,
   onLock,
-  onCopy
+  onCopy,
+  canKeep
 }) {
   const [custom, setCustom] = useState("#2A211C");
   const text = items.length === 1 && (items[0].type === "text" || items[0].type === "bookmark") ? items[0].data.text ?? "" : null;
+  const keepable = items.filter((item) => item.type !== "image");
+  const [naming, setNaming] = useState(false);
+  const [templateTitle, setTemplateTitle] = useState("");
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const [templateNote, setTemplateNote] = useState(null);
+  const saveAsTemplate = () => {
+    if (templateBusy) return;
+    setTemplateBusy(true);
+    setTemplateNote(null);
+    saveTemplate(templateTitle.trim(), keepable.map((item) => ({ type: item.type, data: item.data }))).then(() => {
+      setNaming(false);
+      setTemplateTitle("");
+    }).catch((reason) => setTemplateNote(reason instanceof ApiError ? reason.message : "Не удалось сохранить.")).finally(() => setTemplateBusy(false));
+  };
   const locked = items.length > 0 && items.every((item) => item.data.locked);
   const table = items.length === 1 && items[0].type === "table" ? items[0] : null;
   const rows = table ? clampRows(table.data.rows ?? DEFAULT_ROWS) : 0;
@@ -5564,6 +5599,19 @@ function SelectionPanel({
               /* @__PURE__ */ jsx(IconCopyText, {}),
               cap("Текст")
             ] }) : null,
+            canKeep && keepable.length > 0 ? /* @__PURE__ */ jsxs(
+              "button",
+              {
+                className: "btn-tool",
+                type: "button",
+                onClick: () => setNaming(true),
+                title: "Сохранить как заготовку",
+                children: [
+                  /* @__PURE__ */ jsx(IconLibrary, {}),
+                  cap("Заготовка")
+                ]
+              }
+            ) : null,
             /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
             /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDone, title: "Готово — снять выделение", children: [
               /* @__PURE__ */ jsx(IconCheck, {}),
@@ -5578,9 +5626,49 @@ function SelectionPanel({
             /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item", type: "button", onClick: () => onReorder(false), children: "На задний план" }),
             /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item", type: "button", onClick: onDuplicate, children: "Дублировать" }),
             text ? /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item", type: "button", onClick: () => onCopyText(text), children: "Скопировать текст" }) : null,
+            canKeep && keepable.length > 0 ? /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item", type: "button", onClick: () => setNaming(true), children: "Сохранить как заготовку" }) : null,
             /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: onDelete, children: "Удалить" })
           ] })
         ),
+        naming ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__keep", children: [
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              className: "input",
+              type: "text",
+              autoFocus: true,
+              value: templateTitle,
+              maxLength: 80,
+              placeholder: "Название заготовки",
+              onChange: (event) => setTemplateTitle(event.target.value)
+            }
+          ),
+          /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn btn-sm",
+                type: "button",
+                disabled: templateBusy || templateTitle.trim().length === 0,
+                onClick: saveAsTemplate,
+                children: "Сохранить"
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-quiet btn-sm",
+                type: "button",
+                onClick: () => {
+                  setNaming(false);
+                  setTemplateNote(null);
+                },
+                children: "Отмена"
+              }
+            )
+          ] }),
+          templateNote ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: templateNote }) : null
+        ] }) : null,
         items.length > 1 ? /* @__PURE__ */ jsx("span", { className: "selection-panel__count", children: items.length }) : null
       ]
     }
@@ -6351,31 +6439,11 @@ const FORMULAS = [
     ]
   }
 ];
-function listTemplates() {
-  return api("/templates");
-}
-function saveTemplate(title, items) {
-  return api("/templates", {
-    method: "POST",
-    body: { title, body: JSON.stringify(items) }
-  });
-}
-function deleteTemplate(templateId) {
-  return api(`/templates/${templateId}`, { method: "DELETE" });
-}
-function itemsOf(template) {
-  try {
-    const parsed = JSON.parse(template.body);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
 const TABS = [
   ...TEMPLATE_GROUPS.map((group) => ({ kind: group.kind, title: group.title })),
   { kind: "symbols", title: "Знаки" },
   { kind: "formulas", title: "Формулы" },
-  { kind: "mine", title: "Мои" }
+  { kind: "mine", title: "Мои шаблоны" }
 ];
 function LibraryPanel({
   onInsert,
@@ -8421,7 +8489,8 @@ function BoardPage() {
                 onTable: (rows, cols) => {
                   const item = selectedItems[0];
                   if (item) hub.updateItem(item.id, resized$1(item.data, rows, cols));
-                }
+                },
+                canKeep: (state == null ? void 0 : state.me.isGuest) === false
               }
             ) : null,
             cellEdit ? /* @__PURE__ */ jsx(

@@ -1518,6 +1518,7 @@ export function BoardPage(): ReactElement {
                 const item = selectedItems[0];
                 if (item) hub.updateItem(item.id, resizedTable(item.data, rows, cols));
               }}
+              canKeep={state?.me.isGuest === false}
             />
           ) : null}
 
