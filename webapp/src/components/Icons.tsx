@@ -450,6 +450,11 @@ export const IconBookmark = (props: Props): ReactElement => (
   <Svg {...props}><path d="M6 3h12v18l-6-4.5L6 21z" /></Svg>
 );
 
+/** Запись занятия. Закрашенный круг — тот же знак, что и на пульте записи. */
+export const IconRecord = (props: Props): ReactElement => (
+  <Svg {...props}><circle cx="12" cy="12" r="7" fill="currentColor" stroke="none" /></Svg>
+);
+
 /** «Все ко мне». Прицел — переносит остальных в одну точку. */
 export const IconTarget = (props: Props): ReactElement => (
   <Svg {...props}>

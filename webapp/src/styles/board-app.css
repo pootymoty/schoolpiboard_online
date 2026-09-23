@@ -2769,3 +2769,31 @@ body.no-scroll {
     letter-spacing: .35em;
     text-align: center;
 }
+
+/* --- Воспроизведение записи ---------------------------------------------------- */
+
+/* Своя высота, а не по содержимому: холст должен занимать всё, что
+   осталось панели, а не подстраиваться под то, что на нём нарисовано. */
+.player__canvas {
+    width: 100%;
+    height: 260px;
+    margin: var(--sp-2) 0;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--surface-2);
+}
+
+.player__canvas canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.player__scrub {
+    gap: var(--sp-2);
+}
+
+.player__range {
+    flex: 1;
+    min-width: 0;
+}

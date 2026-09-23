@@ -7,7 +7,7 @@ import { readGuestToken } from '../api/guest';
 import type { BoardRole } from '../api/types';
 import type {
   BoardItem, BoardPageInfo, Cursor, ItemData, ItemType, JoinedPayload, LiveStroke, PageVisibility,
-  Participant, ResumedPayload, SyncedPayload, Background,
+  Participant, RecordingStatus, ResumedPayload, SyncedPayload, Background,
 } from './protocol';
 import { DEFAULT_BACKGROUND } from './protocol';
 
@@ -44,6 +44,8 @@ export interface BoardHub {
   removed: RemovedInfo | null;
   /** Ведущий перенёс сюда всех остальных. Раз получено — обрабатывается и забывается. */
   broughtToMe: BroughtToMe | null;
+  /** Идёт ли сейчас запись занятия — знать нужно любому, не только владельцу. */
+  recording: RecordingStatus | null;
   items: BoardItem[];
   /** Чужие штрихи, которые рисуются прямо сейчас. */
   live: Map<string, LiveStroke>;
@@ -102,6 +104,12 @@ export interface BoardHub {
 
   /** Переносит всех остальных на страницу и вид, переданные здесь. */
   bringEveryone: (pageId: number, x: number, y: number, scale: number) => void;
+
+  /** Запись занятия — доступно только владельцу, сервер сам это проверит. */
+  startRecording: (title?: string) => void;
+  pauseRecording: () => void;
+  resumeRecording: () => void;
+  stopRecording: () => void;
 }
 
 /**
@@ -120,6 +128,7 @@ export function useBoardHub(boardId: number): BoardHub {
   const [canManage, setCanManage] = useState(false);
   const [removed, setRemoved] = useState<RemovedInfo | null>(null);
   const [broughtToMe, setBroughtToMe] = useState<BroughtToMe | null>(null);
+  const [recording, setRecording] = useState<RecordingStatus | null>(null);
   const [items, setItems] = useState<BoardItem[]>([]);
   const [live, setLive] = useState<Map<string, LiveStroke>>(new Map());
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -302,6 +311,7 @@ export function useBoardHub(boardId: number): BoardHub {
       setParticipants(payload.participants);
       setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
       setLive(new Map());
+      setRecording(payload.recording ?? null);
       setMe(hub.connectionId);
       setStatus('ready');
       setError(null);
@@ -312,6 +322,7 @@ export function useBoardHub(boardId: number): BoardHub {
       setCanEdit(payload.canEdit);
       setCanManage(payload.canManage);
       setParticipants(payload.participants);
+      setRecording(payload.recording ?? null);
       setMe(hub.connectionId);
 
       for (const event of payload.events) apply(event.name, event.payload);
@@ -367,6 +378,7 @@ export function useBoardHub(boardId: number): BoardHub {
       setParticipants(payload.participants);
       setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
       setLive(new Map());
+      setRecording(payload.recording ?? null);
     });
 
     hub.on('Error', (_code: string, message: string) => setError(message));
@@ -388,6 +400,16 @@ export function useBoardHub(boardId: number): BoardHub {
     hub.on('BroughtToMe', (payload: { pageId: number; x: number; y: number; scale: number }) => (
       setBroughtToMe({ ...payload, at: Date.now() })
     ));
+
+    // Запись занятия — знать нужно любому на доске, не только тому, кто её ведёт.
+    hub.on('RecordingStarted', (payload: { id: number; title: string | null; startedAt: string }) => (
+      setRecording({ id: payload.id, title: payload.title, status: 'recording' })
+    ));
+    hub.on('RecordingPaused', () => setRecording((current) => (current ? { ...current, status: 'paused' } : current)));
+    hub.on('RecordingResumed', () => (
+      setRecording((current) => (current ? { ...current, status: 'recording' } : current))
+    ));
+    hub.on('RecordingStopped', () => setRecording(null));
 
     hub.onreconnecting(() => setStatus('reconnecting'));
 
@@ -439,7 +461,7 @@ export function useBoardHub(boardId: number): BoardHub {
   const page = () => current.current ?? 0;
 
   return {
-    status, error, role, canEdit, canManage, removed, broughtToMe,
+    status, error, role, canEdit, canManage, removed, broughtToMe, recording,
     items, live, participants, cursors, me, commits, background,
     pages, pageId,
     sendCursor: useCallback((x: number, y: number) => call('Cursor', x, y), [call]),
@@ -500,5 +522,10 @@ export function useBoardHub(boardId: number): BoardHub {
       (id: number, x: number, y: number, scale: number) => call('BringEveryone', id, x, y, scale),
       [call],
     ),
+
+    startRecording: useCallback((title?: string) => call('StartRecording', title ?? null), [call]),
+    pauseRecording: useCallback(() => call('PauseRecording'), [call]),
+    resumeRecording: useCallback(() => call('ResumeRecording'), [call]),
+    stopRecording: useCallback(() => call('StopRecording'), [call]),
   };
 }

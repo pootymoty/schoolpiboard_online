@@ -401,6 +401,7 @@ const IconExternal = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children:
   /* @__PURE__ */ jsx("path", { d: "M10 14L21 3" })
 ] }) });
 const IconBookmark = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M6 3h12v18l-6-4.5L6 21z" }) });
+const IconRecord = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "7", fill: "currentColor", stroke: "none" }) });
 const IconTarget = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "8" }),
   /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "2" }),
@@ -4845,7 +4846,10 @@ function ViewToolbar({
   onPages,
   pageLabel,
   onBookmarks,
-  onBringEveryone
+  onBringEveryone,
+  canRecordings,
+  onRecordings,
+  recordingActive
 }) {
   return /* @__PURE__ */ jsxs("div", { className: "toolbar toolbar--view", role: "toolbar", "aria-label": "Масштаб и вид", children: [
     /* @__PURE__ */ jsxs("div", { className: "zoom", children: [
@@ -4880,6 +4884,20 @@ function ViewToolbar({
       }
     ) : null,
     canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
+    canRecordings ? /* @__PURE__ */ jsxs(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: onRecordings,
+        title: "Записи занятия",
+        "data-tip": "Записи занятия",
+        children: [
+          /* @__PURE__ */ jsx(IconRecord, {}),
+          recordingActive ? /* @__PURE__ */ jsx("span", { className: "badge-dot", "aria-label": "Идёт запись" }) : null
+        ]
+      }
+    ) : null,
     /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", "data-tip": "Конспект занятия по почте", children: [
       /* @__PURE__ */ jsx(IconMail, {}),
       summaryCount > 0 ? /* @__PURE__ */ jsx("span", { className: "badge-dot", children: summaryCount }) : null
@@ -6909,6 +6927,314 @@ function SummaryPanel({
     done && !busy && !note ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: canManage ? "Письмо ушло." : "Просьба передана учителю." }) : null
   ] });
 }
+function listRecordings(boardId) {
+  return api(`/boards/${boardId}/recordings`);
+}
+function getRecording(boardId, recordingId) {
+  return api(`/boards/${boardId}/recordings/${recordingId}`);
+}
+function deleteRecording(boardId, recordingId) {
+  return api(`/boards/${boardId}/recordings/${recordingId}`, { method: "DELETE" });
+}
+const DEFAULT_BACKGROUND = {
+  background: "#FFFDF8",
+  gridStyle: "none",
+  gridColor: "#D9CFC0"
+};
+const EMPTY_PLAYBACK = {
+  items: [],
+  live: /* @__PURE__ */ new Map(),
+  background: DEFAULT_BACKGROUND
+};
+function applyRecordedStep(state, name, payload) {
+  switch (name) {
+    case "ItemBegan": {
+      const live = new Map(state.live);
+      live.set(payload.tempId, payload);
+      return { ...state, live };
+    }
+    case "ItemPoints": {
+      const stroke = state.live.get(payload.tempId);
+      if (!stroke) return state;
+      const live = new Map(state.live);
+      live.set(payload.tempId, {
+        ...stroke,
+        data: { ...stroke.data, points: [...stroke.data.points ?? [], ...payload.points] }
+      });
+      return { ...state, live };
+    }
+    case "ItemCancelled": {
+      const live = new Map(state.live);
+      live.delete(payload.tempId);
+      return { ...state, live };
+    }
+    case "ItemCommitted": {
+      const live = new Map(state.live);
+      live.delete(payload.tempId);
+      const items = [...state.items.filter((x) => x.id !== payload.item.id), payload.item];
+      return { ...state, items, live };
+    }
+    case "ItemsMoved":
+      return {
+        ...state,
+        items: state.items.map((item) => payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item)
+      };
+    case "ItemsReordered": {
+      const fresh = new Map(payload.items.map((item) => [item.id, item]));
+      const items = state.items.map((item) => fresh.get(item.id) ?? item).sort((a, b) => a.z - b.z || a.id - b.id);
+      return { ...state, items };
+    }
+    case "BackgroundChanged":
+      return { ...state, background: payload };
+    case "ItemUpdated":
+      return { ...state, items: state.items.map((x) => x.id === payload.item.id ? payload.item : x) };
+    case "ItemsDeleted":
+      return { ...state, items: state.items.filter((x) => !payload.itemIds.includes(x.id)) };
+    case "BoardCleared":
+      return { ...state, items: [], live: /* @__PURE__ */ new Map() };
+    default:
+      return state;
+  }
+}
+function formatTime(ms) {
+  const total = Math.max(0, Math.round(ms / 1e3));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+function RecordingPlayer({ boardId, recordingId, onClose }) {
+  var _a;
+  const [recording, setRecording] = useState(null);
+  const [steps, setSteps] = useState([]);
+  const [error, setError] = useState(null);
+  const [offsetMs, setOffsetMs] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    getRecording(boardId, recordingId).then((answer) => {
+      if (!alive) return;
+      setRecording(answer.recording);
+      setSteps(answer.steps);
+    }).catch((reason) => {
+      if (!alive) return;
+      setError(reason instanceof ApiError ? reason.message : "Не удалось открыть запись.");
+    });
+    return () => {
+      alive = false;
+    };
+  }, [boardId, recordingId]);
+  const duration = (recording == null ? void 0 : recording.durationMs) ?? 0;
+  const startedFrom = useRef(null);
+  useEffect(() => {
+    if (!playing) return;
+    startedFrom.current = { realAt: performance.now(), offsetAt: offsetMs };
+    let frame = 0;
+    const tick = () => {
+      const base = startedFrom.current;
+      if (!base) return;
+      const next = base.offsetAt + (performance.now() - base.realAt);
+      if (next >= duration) {
+        setOffsetMs(duration);
+        setPlaying(false);
+        return;
+      }
+      setOffsetMs(next);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, duration]);
+  const cache2 = useRef({ index: 0, state: EMPTY_PLAYBACK });
+  if ((((_a = steps[cache2.current.index - 1]) == null ? void 0 : _a.offsetMs) ?? -1) > offsetMs) {
+    cache2.current = { index: 0, state: EMPTY_PLAYBACK };
+  }
+  while (cache2.current.index < steps.length && steps[cache2.current.index].offsetMs <= offsetMs) {
+    const step = steps[cache2.current.index];
+    cache2.current = {
+      index: cache2.current.index + 1,
+      state: applyRecordedStep(cache2.current.state, step.name, step.payload)
+    };
+  }
+  const content = cache2.current.state;
+  const canvasRef = useRef(null);
+  const boxRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const box = boxRef.current;
+    if (!canvas || !box) return;
+    const width = box.clientWidth;
+    const height = box.clientHeight;
+    if (width === 0 || height === 0) return;
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.fillStyle = content.background.background;
+    context.fillRect(0, 0, width, height);
+    const liveItems = Array.from(content.live.values()).map((stroke) => ({
+      id: -1,
+      type: stroke.type,
+      z: 0,
+      data: stroke.data,
+      imageRef: null,
+      lockedBy: null
+    }));
+    const all = [...content.items, ...liveItems];
+    const points = all.flatMap((item) => pointsOf(item.data));
+    const viewport = fitToContent(points, width, height) ?? { x: width / 2, y: height / 2, scale: 1 };
+    drawGrid(
+      context,
+      content.background.gridStyle,
+      content.background.gridColor,
+      width,
+      height,
+      viewport.x,
+      viewport.y,
+      viewport.scale
+    );
+    context.save();
+    context.translate(viewport.x, viewport.y);
+    context.scale(viewport.scale, viewport.scale);
+    for (const item of all) drawItem(context, item.type, item.data, item.imageRef);
+    context.restore();
+  }, [content]);
+  return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Воспроизведение записи", children: [
+    /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
+      /* @__PURE__ */ jsx("span", { className: "params__title", children: (recording == null ? void 0 : recording.title) || "Запись занятия" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
+    ] }),
+    error ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: error }) : null,
+    /* @__PURE__ */ jsx("div", { className: "player__canvas", ref: boxRef, children: /* @__PURE__ */ jsx("canvas", { ref: canvasRef }) }),
+    /* @__PURE__ */ jsxs("div", { className: "params__row player__scrub", children: [
+      /* @__PURE__ */ jsx("span", { className: "text-muted small", children: formatTime(offsetMs) }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          className: "player__range",
+          type: "range",
+          min: 0,
+          max: Math.max(1, duration),
+          value: Math.min(offsetMs, duration),
+          onChange: (event) => {
+            setPlaying(false);
+            setOffsetMs(Number(event.target.value));
+          }
+        }
+      ),
+      /* @__PURE__ */ jsx("span", { className: "text-muted small", children: formatTime(duration) })
+    ] }),
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-primary btn-block",
+        type: "button",
+        disabled: !recording || duration === 0,
+        onClick: () => setPlaying((current) => !current),
+        children: playing ? "Пауза" : "Воспроизвести"
+      }
+    )
+  ] });
+}
+function formatDuration(ms) {
+  const total = Math.round(ms / 1e3);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+function formatDate(iso) {
+  return new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+}
+function RecordingsPanel({
+  boardId,
+  canManage,
+  live,
+  onStart,
+  onPause,
+  onResume,
+  onStop,
+  onClose
+}) {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  const [title, setTitle] = useState("");
+  const [watching, setWatching] = useState(null);
+  const load = () => {
+    listRecordings(boardId).then(setRows).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось прочитать записи."));
+  };
+  useEffect(load, [boardId, live == null ? void 0 : live.status]);
+  const drop = (recording) => {
+    if (!window.confirm(`Удалить запись «${recording.title || formatDate(recording.startedAt)}»?`)) return;
+    deleteRecording(boardId, recording.id).then(() => setRows((current) => (current ?? []).filter((x) => x.id !== recording.id))).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось удалить."));
+  };
+  if (watching !== null) {
+    return /* @__PURE__ */ jsx(RecordingPlayer, { boardId, recordingId: watching, onClose: () => setWatching(null) });
+  }
+  return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Записи занятий", children: [
+    /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
+      /* @__PURE__ */ jsx("span", { className: "params__title", children: "Записи занятия" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
+    ] }),
+    canManage ? live ? /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
+      /* @__PURE__ */ jsx("p", { className: "library__hint", children: live.status === "recording" ? "Идёт запись." : "Запись на паузе." }),
+      /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
+        live.status === "recording" ? /* @__PURE__ */ jsx("button", { className: "btn btn-sm", type: "button", onClick: onPause, children: "Пауза" }) : /* @__PURE__ */ jsx("button", { className: "btn btn-sm", type: "button", onClick: onResume, children: "Продолжить" }),
+        /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onStop, children: "Стоп" })
+      ] })
+    ] }) : /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          className: "input",
+          type: "text",
+          value: title,
+          maxLength: 80,
+          placeholder: "Название занятия (не обязательно)",
+          onChange: (event) => setTitle(event.target.value)
+        }
+      ),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn btn-sm btn-block",
+          type: "button",
+          onClick: () => {
+            onStart(title.trim() || void 0);
+            setTitle("");
+          },
+          children: "Начать запись"
+        }
+      )
+    ] }) : live ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: live.status === "recording" ? "Владелец сейчас записывает занятие." : "Запись занятия на паузе." }) : null,
+    /* @__PURE__ */ jsx("p", { className: "params__label", children: "Сохранённые записи" }),
+    error ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: error }) : null,
+    rows === null ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Читаем…" }) : rows.filter((x) => x.status === "stopped").length === 0 ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Пока ни одной." }) : /* @__PURE__ */ jsx("div", { className: "library__list", children: rows.filter((x) => x.status === "stopped").map((row) => /* @__PURE__ */ jsxs("div", { className: "library__mine", children: [
+      /* @__PURE__ */ jsxs(
+        "button",
+        {
+          className: "btn-quiet library__pick",
+          type: "button",
+          onClick: () => setWatching(row.id),
+          title: "Смотреть",
+          children: [
+            row.title || formatDate(row.startedAt),
+            /* @__PURE__ */ jsx("span", { className: "library__count", children: formatDuration(row.durationMs) })
+          ]
+        }
+      ),
+      canManage ? /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet btn-sm",
+          type: "button",
+          onClick: () => drop(row),
+          "aria-label": `Удалить запись ${row.title || formatDate(row.startedAt)}`,
+          title: "Удалить запись",
+          children: "✕"
+        }
+      ) : null
+    ] }, row.id)) })
+  ] });
+}
 const POLL_MS$2 = 2e4;
 function useSummaryRequests(boardId, canManage) {
   const [requests, setRequests] = useState([]);
@@ -7118,11 +7444,6 @@ async function exportPng(items, background, title) {
   link.click();
   return true;
 }
-const DEFAULT_BACKGROUND = {
-  background: "#FFFDF8",
-  gridStyle: "none",
-  gridColor: "#D9CFC0"
-};
 function useBoardHub(boardId) {
   const [status, setStatus] = useState("connecting");
   const [error, setError] = useState(null);
@@ -7131,6 +7452,7 @@ function useBoardHub(boardId) {
   const [canManage, setCanManage] = useState(false);
   const [removed, setRemoved] = useState(null);
   const [broughtToMe, setBroughtToMe] = useState(null);
+  const [recording, setRecording] = useState(null);
   const [items, setItems] = useState([]);
   const [live, setLive] = useState(/* @__PURE__ */ new Map());
   const [participants, setParticipants] = useState([]);
@@ -7267,6 +7589,7 @@ function useBoardHub(boardId) {
       setParticipants(payload.participants);
       setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
       setLive(/* @__PURE__ */ new Map());
+      setRecording(payload.recording ?? null);
       setMe(hub.connectionId);
       setStatus("ready");
       setError(null);
@@ -7276,6 +7599,7 @@ function useBoardHub(boardId) {
       setCanEdit(payload.canEdit);
       setCanManage(payload.canManage);
       setParticipants(payload.participants);
+      setRecording(payload.recording ?? null);
       setMe(hub.connectionId);
       for (const event of payload.events) apply(event.name, event.payload);
       seq.current = payload.seq;
@@ -7314,6 +7638,7 @@ function useBoardHub(boardId) {
       setParticipants(payload.participants);
       setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
       setLive(/* @__PURE__ */ new Map());
+      setRecording(payload.recording ?? null);
     });
     hub.on("Error", (_code, message) => setError(message));
     hub.on("RoleChanged", (payload) => {
@@ -7323,6 +7648,10 @@ function useBoardHub(boardId) {
     });
     hub.on("Removed", (payload) => setRemoved(payload));
     hub.on("BroughtToMe", (payload) => setBroughtToMe({ ...payload, at: Date.now() }));
+    hub.on("RecordingStarted", (payload) => setRecording({ id: payload.id, title: payload.title, status: "recording" }));
+    hub.on("RecordingPaused", () => setRecording((current2) => current2 ? { ...current2, status: "paused" } : current2));
+    hub.on("RecordingResumed", () => setRecording((current2) => current2 ? { ...current2, status: "recording" } : current2));
+    hub.on("RecordingStopped", () => setRecording(null));
     hub.onreconnecting(() => setStatus("reconnecting"));
     hub.onreconnected(async () => {
       await join();
@@ -7360,6 +7689,7 @@ function useBoardHub(boardId) {
     canManage,
     removed,
     broughtToMe,
+    recording,
     items,
     live,
     participants,
@@ -7417,7 +7747,11 @@ function useBoardHub(boardId) {
     bringEveryone: useCallback(
       (id, x, y, scale) => call("BringEveryone", id, x, y, scale),
       [call]
-    )
+    ),
+    startRecording: useCallback((title) => call("StartRecording", title ?? null), [call]),
+    pauseRecording: useCallback(() => call("PauseRecording"), [call]),
+    resumeRecording: useCallback(() => call("ResumeRecording"), [call]),
+    stopRecording: useCallback(() => call("StopRecording"), [call])
   };
 }
 const POLL_MS$1 = 4e3;
@@ -7526,6 +7860,7 @@ function BoardPage() {
   const [showPages, setShowPages] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [showRecordings, setShowRecordings] = useState(false);
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -8316,6 +8651,9 @@ function BoardPage() {
                 onPages: () => setShowPages((current) => !current),
                 onBookmarks: () => setShowBookmarks((current) => !current),
                 onBringEveryone: bringEveryoneToMe,
+                canRecordings: !me.isGuest,
+                onRecordings: () => setShowRecordings((current) => !current),
+                recordingActive: hub.recording !== null,
                 pageLabel: hub.pages.length === 0 ? "—" : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`,
                 onFiles: () => setShowFiles((current) => !current),
                 onLibrary: () => setShowLibrary((current) => !current),
@@ -8450,6 +8788,19 @@ function BoardPage() {
                 onResolved: summaries.forget,
                 collect: collectSummary,
                 onClose: () => setShowSummary(false)
+              }
+            ) : null,
+            showRecordings ? /* @__PURE__ */ jsx(
+              RecordingsPanel,
+              {
+                boardId: id,
+                canManage: hub.canManage,
+                live: hub.recording,
+                onStart: hub.startRecording,
+                onPause: hub.pauseRecording,
+                onResume: hub.resumeRecording,
+                onStop: hub.stopRecording,
+                onClose: () => setShowRecordings(false)
               }
             ) : null,
             showBackground && hub.canManage ? /* @__PURE__ */ jsx(

@@ -157,6 +157,13 @@ export interface BoardPageInfo {
 
 export type PageVisibility = 'all' | 'selected' | 'owner';
 
+/** Идёт ли сейчас запись занятия. Пусто — не идёт. */
+export interface RecordingStatus {
+  id: number;
+  title: string | null;
+  status: 'recording' | 'paused';
+}
+
 export interface JoinedPayload {
   role: BoardRole;
   canEdit: boolean;
@@ -168,6 +175,7 @@ export interface JoinedPayload {
   items: BoardItem[];
   participants: Participant[];
   background: Background;
+  recording: RecordingStatus | null;
 }
 
 /** Возвращение после обрыва: доска уже нарисована, нужно только пропущенное. */
@@ -178,6 +186,7 @@ export interface ResumedPayload {
   seq: number;
   participants: Participant[];
   events: { seq: number; name: string; payload: unknown }[];
+  recording: RecordingStatus | null;
 }
 
 /** Ответ на запрос состояния: заменяет местное представление целиком. */
@@ -187,6 +196,7 @@ export interface SyncedPayload {
   items: BoardItem[];
   participants: Participant[];
   background: Background;
+  recording: RecordingStatus | null;
 }
 
 /** Чужой штрих, пока он ещё рисуется: в базе его нет, он живёт в памяти. */

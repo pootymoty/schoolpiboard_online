@@ -32,6 +32,7 @@ import { BookmarksPanel } from '../board/BookmarksPanel';
 import type { Bookmark } from '../api/bookmarks';
 import { LibraryPanel } from '../board/LibraryPanel';
 import { MAX_SHEETS, SummaryPanel } from '../board/SummaryPanel';
+import { RecordingsPanel } from '../board/RecordingsPanel';
 import { useSummaryRequests } from '../board/useSummaryRequests';
 import type { Template } from '../board/library';
 import type { TemplateItem } from '../api/templates';
@@ -102,6 +103,7 @@ export function BoardPage(): ReactElement {
   const [showPages, setShowPages] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [showRecordings, setShowRecordings] = useState(false);
 
   /** Есть ли что вставлять. Кнопка вставки без содержимого только мешает. */
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
@@ -1329,6 +1331,9 @@ export function BoardPage(): ReactElement {
             onPages={() => setShowPages((current) => !current)}
             onBookmarks={() => setShowBookmarks((current) => !current)}
             onBringEveryone={bringEveryoneToMe}
+            canRecordings={!me.isGuest}
+            onRecordings={() => setShowRecordings((current) => !current)}
+            recordingActive={hub.recording !== null}
             pageLabel={
               hub.pages.length === 0
                 ? '—'
@@ -1475,6 +1480,19 @@ export function BoardPage(): ReactElement {
               onResolved={summaries.forget}
               collect={collectSummary}
               onClose={() => setShowSummary(false)}
+            />
+          ) : null}
+
+          {showRecordings ? (
+            <RecordingsPanel
+              boardId={id}
+              canManage={hub.canManage}
+              live={hub.recording}
+              onStart={hub.startRecording}
+              onPause={hub.pauseRecording}
+              onResume={hub.resumeRecording}
+              onStop={hub.stopRecording}
+              onClose={() => setShowRecordings(false)}
             />
           ) : null}
 

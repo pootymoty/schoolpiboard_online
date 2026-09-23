@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
-  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark, IconTarget,
+  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark, IconTarget, IconRecord,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -115,6 +115,11 @@ interface ViewProps {
   onBookmarks: () => void;
   /** Переносит остальных участников на вид нажавшего. Владелец и редакторы. */
   onBringEveryone: () => void;
+  /** Гостю записи не показываем: у него нет учётной записи для доступа к ним. */
+  canRecordings: boolean;
+  onRecordings: () => void;
+  /** Идёт ли сейчас запись — точкой на кнопке, как непрочитанные просьбы о конспекте. */
+  recordingActive: boolean;
 }
 
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
@@ -122,6 +127,7 @@ export function ViewToolbar({
   canManage, canEdit, canUpload, scale, onZoom, onResetZoom, onFit,
   onBackground, onFiles, onLibrary, onSummary, summaryCount, onTimer, onHelp, onExport, onClear,
   canPaste, onPaste, onPages, pageLabel, onBookmarks, onBringEveryone,
+  canRecordings, onRecordings, recordingActive,
 }: ViewProps): ReactElement {
   return (
     <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
@@ -190,6 +196,18 @@ export function ViewToolbar({
       {canPaste ? (
         <button className="btn-tool" type="button" onClick={onPaste} title="Вставить из буфера доски (Ctrl+V)" data-tip="Вставить из буфера доски (Ctrl+V)">
           <IconPaste />
+        </button>
+      ) : null}
+
+      {/* Записи рядом с конспектом: и то и другое — след занятия, который
+          можно открыть потом, а не то, что делают на самом холсте. */}
+      {canRecordings ? (
+        <button
+          className="btn-tool" type="button" onClick={onRecordings}
+          title="Записи занятия" data-tip="Записи занятия"
+        >
+          <IconRecord />
+          {recordingActive ? <span className="badge-dot" aria-label="Идёт запись" /> : null}
         </button>
       ) : null}
 
