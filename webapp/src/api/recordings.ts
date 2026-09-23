@@ -28,6 +28,22 @@ export function listRecordings(boardId: number): Promise<RecordingInfo[]> {
   return api<RecordingInfo[]>(`/boards/${boardId}/recordings`);
 }
 
+/** Та же запись, но с именем доски — для «Мои записи», где доски смешаны. */
+export interface RecordingLibraryEntry {
+  id: number;
+  boardId: number;
+  boardTitle: string;
+  title: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number;
+}
+
+/** Все готовые записи по всем доскам, куда есть доступ. */
+export function listMyRecordings(): Promise<RecordingLibraryEntry[]> {
+  return api<RecordingLibraryEntry[]>('/recordings');
+}
+
 export function getRecording(
   boardId: number, recordingId: number,
 ): Promise<{ recording: RecordingInfo; steps: RecordingStep[] }> {

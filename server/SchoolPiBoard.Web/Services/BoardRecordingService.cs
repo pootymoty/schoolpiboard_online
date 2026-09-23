@@ -156,6 +156,16 @@ public sealed class BoardRecordingService
             .OrderByDescending(x => x.StartedAt)
             .ToListAsync(cancellationToken);
 
+    /// <summary>
+    /// Готовые записи сразу по нескольким досками — для «Мои записи»:
+    /// там смотрят по всем доскам сразу, а не по одной.
+    /// </summary>
+    public Task<List<BoardRecording>> ListStoppedAsync(IReadOnlyCollection<long> boardIds, CancellationToken cancellationToken)
+        => _db.BoardRecordings
+            .Where(x => boardIds.Contains(x.BoardId) && x.Status == BoardRecording.StatusStopped)
+            .OrderByDescending(x => x.StartedAt)
+            .ToListAsync(cancellationToken);
+
     public Task<BoardRecording?> FindAsync(long boardId, long recordingId, CancellationToken cancellationToken)
         => _db.BoardRecordings
             .FirstOrDefaultAsync(x => x.Id == recordingId && x.BoardId == boardId, cancellationToken);

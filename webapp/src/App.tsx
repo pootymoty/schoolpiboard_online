@@ -15,6 +15,7 @@ import { ConfirmPage } from './pages/ConfirmPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { BoardsPage } from './pages/BoardsPage';
+import { RecordingsLibraryPage } from './pages/RecordingsLibraryPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { BoardPage } from './pages/BoardPage';
 import { JoinPage } from './pages/JoinPage';
@@ -80,6 +81,7 @@ export function App(): ReactElement {
             <Route path="/login" element={<Navigate to="/boards" replace />} />
             <Route path="/register" element={<Navigate to="/boards" replace />} />
             <Route path="/boards" element={<BoardsPage />} />
+            <Route path="/recordings" element={<RecordingsLibraryPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/plan" element={<PlanPage />} />
             {/* Куда Робокасса возвращает человека после оплаты. Отдельными

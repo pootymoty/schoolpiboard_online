@@ -196,6 +196,7 @@ export function Header(): ReactElement {
           {user ? (
             <>
               <li><NavLink to="/boards">Мои доски</NavLink></li>
+              <li><NavLink to="/recordings">Мои записи</NavLink></li>
 
               {/* Администрирование — не часть личного кабинета: это
                   управление сервисом, а не настройки своей учётной записи,
@@ -280,6 +281,7 @@ export function Header(): ReactElement {
                 </a>
               </li>
               <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
+              <li><Link to="/recordings" onClick={closeMobile}>Мои записи</Link></li>
               {user.isAdmin ? (
                 <li><Link to="/admin" onClick={closeMobile}>Администрирование</Link></li>
               ) : null}

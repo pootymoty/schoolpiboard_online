@@ -9,10 +9,15 @@ namespace SchoolPiBoard.Web.Endpoints;
 public sealed record RecordingDto(
     long Id, string? Title, string Status, DateTime StartedAt, DateTime? EndedAt, long DurationMs);
 
+/// <summary>Строка «Моих записей» — та же запись, но с указанием доски: там смотрят по всем сразу.</summary>
+public sealed record RecordingLibraryDto(
+    long Id, long BoardId, string BoardTitle, string? Title, DateTime StartedAt, DateTime? EndedAt, long DurationMs);
+
 public sealed record RecordingStepDto(long Id, long OffsetMs, string Name, JsonElement Payload);
 
 /// <summary>
-/// Записи занятий: список и содержимое.
+/// Записи занятий: список — по одной доске и по всем сразу («Мои
+/// записи») — и содержимое.
 ///
 /// Доступны только зарегистрированным участникам доски — гостю, даже
 /// если он был на занятии в момент записи, доступа нет: у него нет
@@ -24,6 +29,26 @@ public static class RecordingEndpoints
 {
     public static void MapRecordingEndpoints(this WebApplication app)
     {
+        // «Мои записи» — по всем доскам, где человек участник, а не по
+        // одной. Гость сюда не попадает: у него нет ни одной такой доски
+        // без учётной записи.
+        app.MapGet("/api/recordings", async (
+            ClaimsPrincipal principal, AppDbContext db, BoardService boards, BoardRecordingService recordings,
+            CancellationToken ct) =>
+        {
+            var user = await AuthEndpoints.CurrentUser(principal, db, ct);
+            if (user is null) return Results.Unauthorized();
+
+            var memberships = await boards.ListAsync(user.Id, ct);
+            var titles = memberships.ToDictionary(x => x.Board.Id, x => x.Board.Title);
+
+            var rows = await recordings.ListStoppedAsync(titles.Keys, ct);
+
+            return Results.Ok(rows.Select(row => new RecordingLibraryDto(
+                row.Id, row.BoardId, titles.GetValueOrDefault(row.BoardId, "Доска"),
+                row.Title, row.StartedAt, row.EndedAt, row.DurationMs)));
+        }).RequireAuthorization();
+
         app.MapGet("/api/boards/{boardId:long}/recordings", async (
             long boardId, ClaimsPrincipal principal,
             AppDbContext db, BoardService boards, BoardRecordingService recordings, CancellationToken ct) =>

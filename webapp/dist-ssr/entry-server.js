@@ -539,6 +539,7 @@ function Header() {
       ] }) }),
       user ? /* @__PURE__ */ jsxs(Fragment, { children: [
         /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }) }),
+        /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/recordings", children: "Мои записи" }) }),
         user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/admin", children: "Администрирование" }) }) : null,
         /* @__PURE__ */ jsxs("li", { className: "dropdown", ref: drop, children: [
           /* @__PURE__ */ jsxs(
@@ -596,6 +597,7 @@ function Header() {
             /* @__PURE__ */ jsx(IconExternal, { size: 14 })
           ] }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/boards", onClick: closeMobile, children: "Мои доски" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/recordings", onClick: closeMobile, children: "Мои записи" }) }),
           user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/admin", onClick: closeMobile, children: "Администрирование" }) }) : null,
           /* @__PURE__ */ jsxs("li", { className: cabinetOpen ? "navbar-dropdown navbar-dropdown--active" : "navbar-dropdown", children: [
             /* @__PURE__ */ jsxs(
@@ -2197,525 +2199,17 @@ function formatLastEdited(value) {
     minute: "2-digit"
   });
 }
-function ProfilePage() {
-  const { user, refresh, logout } = useAuth();
-  const navigate = useNavigate();
-  if (!user) return /* @__PURE__ */ jsx(Page, { narrow: true, children: null });
-  return /* @__PURE__ */ jsxs(Page, { narrow: true, children: [
-    /* @__PURE__ */ jsx("h1", { children: "Профиль" }),
-    /* @__PURE__ */ jsx(NameCard, { user, onSaved: refresh }),
-    /* @__PURE__ */ jsx(PasswordCard, { email: user.email }),
-    /* @__PURE__ */ jsx(DangerCard, { onDeleted: () => {
-      logout();
-      navigate("/", { replace: true });
-    } })
-  ] });
+function listRecordings(boardId) {
+  return api(`/boards/${boardId}/recordings`);
 }
-function NameCard({ user, onSaved }) {
-  const [name, setName] = useState(user.displayName);
-  const [error, setError] = useState(null);
-  const [saved, setSaved] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const submit = async (event) => {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await api("/auth/me", { method: "PATCH", body: { displayName: name } });
-      await onSaved();
-      setSaved(true);
-      window.setTimeout(() => setSaved(false), 2e3);
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось сохранить.");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return /* @__PURE__ */ jsxs("form", { className: "card", onSubmit: submit, children: [
-    /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Имя" }),
-    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Так вас видят на досках." }),
-    /* @__PURE__ */ jsxs("div", { className: "field", children: [
-      /* @__PURE__ */ jsx("label", { htmlFor: "displayName", children: "Имя" }),
-      /* @__PURE__ */ jsx(
-        "input",
-        {
-          id: "displayName",
-          type: "text",
-          required: true,
-          maxLength: 100,
-          value: name,
-          onChange: (event) => setName(event.target.value)
-        }
-      )
-    ] }),
-    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy || name.trim() === user.displayName, children: busy ? "Сохраняем…" : saved ? "Сохранено" : "Сохранить" })
-  ] });
+function listMyRecordings() {
+  return api("/recordings");
 }
-function PasswordCard({ email }) {
-  const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const request = async () => {
-    setBusy(true);
-    try {
-      await api("/auth/forgot-password", { method: "POST", body: { email } });
-    } finally {
-      setBusy(false);
-      setSent(true);
-    }
-  };
-  return /* @__PURE__ */ jsxs("div", { className: "card", children: [
-    /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Пароль" }),
-    /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
-      "Пришлём на ",
-      email,
-      " ссылку для смены."
-    ] }),
-    sent ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: "Письмо отправлено — проверьте почту." }) : /* @__PURE__ */ jsx("button", { className: "btn-outline", type: "button", onClick: request, disabled: busy, children: busy ? "Отправляем…" : "Сменить пароль" })
-  ] });
+function getRecording(boardId, recordingId) {
+  return api(`/boards/${boardId}/recordings/${recordingId}`);
 }
-function DangerCard({ onDeleted }) {
-  const [open, setOpen] = useState(false);
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const submit = async (event) => {
-    event.preventDefault();
-    if (!window.confirm("Удалить аккаунт? Войти в него станет нельзя.")) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api("/auth/me", { method: "DELETE", body: { password } });
-      onDeleted();
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось удалить аккаунт.");
-      setBusy(false);
-    }
-  };
-  return /* @__PURE__ */ jsxs("div", { className: "card", children: [
-    /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Удаление аккаунта" }),
-    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Войти станет нельзя. Почта освободится сразу, доски проработают у участников ещё полгода." }),
-    open ? /* @__PURE__ */ jsxs("form", { onSubmit: submit, children: [
-      /* @__PURE__ */ jsxs("div", { className: "field", children: [
-        /* @__PURE__ */ jsx("label", { htmlFor: "deletePassword", children: "Подтвердите паролем" }),
-        /* @__PURE__ */ jsx(
-          "input",
-          {
-            id: "deletePassword",
-            type: "password",
-            required: true,
-            autoComplete: "current-password",
-            value: password,
-            onChange: (event) => setPassword(event.target.value)
-          }
-        )
-      ] }),
-      error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-      /* @__PURE__ */ jsxs("div", { className: "row", children: [
-        /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "submit", disabled: busy, children: busy ? "Удаляем…" : "Удалить аккаунт насовсем" }),
-        /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: () => setOpen(false), disabled: busy, children: "Отмена" })
-      ] })
-    ] }) : /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "button", onClick: () => setOpen(true), children: "Удалить аккаунт" })
-  ] });
-}
-const TOKEN_PREFIX = "schoolpiboard.guest.";
-const MARKER_KEY = "schoolpiboard.guestMarker";
-function readGuestToken(boardId) {
-  try {
-    return localStorage.getItem(TOKEN_PREFIX + boardId);
-  } catch {
-    return null;
-  }
-}
-function writeGuestToken(boardId, token) {
-  try {
-    if (token) {
-      localStorage.setItem(TOKEN_PREFIX + boardId, token);
-    } else {
-      localStorage.removeItem(TOKEN_PREFIX + boardId);
-    }
-  } catch {
-  }
-}
-function readGuestMarker() {
-  try {
-    return localStorage.getItem(MARKER_KEY);
-  } catch {
-    return null;
-  }
-}
-function writeGuestMarker(marker) {
-  try {
-    localStorage.setItem(MARKER_KEY, marker);
-  } catch {
-  }
-}
-function CanvasPanel({ open, title, onClose, children }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-  return /* @__PURE__ */ jsxs(
-    "aside",
-    {
-      className: open ? "canvas-panel canvas-panel--open" : "canvas-panel",
-      role: "dialog",
-      "aria-label": title,
-      "aria-hidden": !open,
-      children: [
-        /* @__PURE__ */ jsxs("div", { className: "canvas-panel__head", children: [
-          /* @__PURE__ */ jsx("h2", { className: "canvas-panel__title", children: title }),
-          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClose, "aria-label": "Закрыть", children: /* @__PURE__ */ jsx(IconClose, {}) })
-        ] }),
-        /* @__PURE__ */ jsx("div", { className: "canvas-panel__body", children })
-      ]
-    }
-  );
-}
-function reportBoard(boardId, comment) {
-  return api(`/boards/${boardId}/report`, {
-    method: "POST",
-    body: { comment },
-    guestToken: readGuestToken(boardId)
-  });
-}
-const PAGE_SIZE = 5;
-function PeoplePanel({
-  boardId,
-  canManage,
-  members,
-  guests,
-  guestName,
-  queue,
-  present,
-  cursors,
-  onGoTo,
-  meConnectionId,
-  onChanged
-}) {
-  const [error, setError] = useState(null);
-  const [page, setPage] = useState(0);
-  const [reporting, setReporting] = useState(false);
-  const [reportText, setReportText] = useState("");
-  const [reportSent, setReportSent] = useState(false);
-  const [reportBusy, setReportBusy] = useState(false);
-  const waiting = queue.waiting;
-  const admit = async (requestId, role) => {
-    try {
-      await api(`/boards/${boardId}/waiting/admit`, { method: "POST", body: { requestId, role } });
-      queue.forget(requestId);
-      onChanged();
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось впустить.");
-    }
-  };
-  const reject = async (requestId) => {
-    try {
-      await api(`/boards/${boardId}/waiting/reject`, { method: "POST", body: { requestId } });
-      queue.forget(requestId);
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось отклонить.");
-    }
-  };
-  const changeRole = async (userId, role) => {
-    try {
-      await api(`/boards/${boardId}/members/${userId}`, { method: "PATCH", body: { role } });
-      onChanged();
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось изменить роль.");
-    }
-  };
-  const kickMember = async (userId, name) => {
-    if (!window.confirm(`Выгнать ${name}? По ссылке он сможет попроситься снова.`)) return;
-    try {
-      await api(`/boards/${boardId}/members/${userId}`, { method: "DELETE" });
-      onChanged();
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось выгнать участника.");
-    }
-  };
-  const banMember = async (userId, name) => {
-    if (!window.confirm(`Забанить ${name}? Он больше не войдёт на доску, даже по ссылке.`)) return;
-    try {
-      await api(`/boards/${boardId}/members/${userId}/ban`, { method: "POST" });
-      onChanged();
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось забанить участника.");
-    }
-  };
-  const changeGuestRole = async (guestId, role) => {
-    try {
-      await api(`/boards/${boardId}/guests/role`, { method: "POST", body: { guestId, role } });
-      onChanged();
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось изменить роль.");
-    }
-  };
-  const removeGuest = async (guestId, name) => {
-    if (!window.confirm(`Выгнать ${name} с доски?`)) return;
-    try {
-      await api(`/boards/${boardId}/guests/remove`, { method: "POST", body: { requestId: guestId } });
-      onChanged();
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось выгнать гостя.");
-    }
-  };
-  const submitReport = async () => {
-    const comment = reportText.trim();
-    if (!comment) return;
-    setReportBusy(true);
-    try {
-      await reportBoard(boardId, comment);
-      setReportSent(true);
-      setReporting(false);
-      setReportText("");
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось отправить жалобу.");
-    } finally {
-      setReportBusy(false);
-    }
-  };
-  const memberRows = members.map((member) => /* @__PURE__ */ jsxs("li", { className: "people__item", children: [
-    /* @__PURE__ */ jsx("span", { className: "people__icon", title: roleTitle(member.role), children: /* @__PURE__ */ jsx(RoleIcon, { role: member.role }) }),
-    /* @__PURE__ */ jsx("span", { className: "people__name", children: member.displayName }),
-    canManage && member.role !== "owner" ? /* @__PURE__ */ jsxs(Menu, { label: `Действия: ${member.displayName}`, children: [
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-quiet menu__item",
-          type: "button",
-          onClick: () => changeRole(member.userId, member.role === "editor" ? "viewer" : "editor"),
-          children: member.role === "editor" ? "Сделать наблюдателем" : "Сделать редактором"
-        }
-      ),
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-quiet menu__item",
-          type: "button",
-          onClick: () => kickMember(member.userId, member.displayName),
-          children: "Выгнать"
-        }
-      ),
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-quiet menu__item menu__item--danger",
-          type: "button",
-          onClick: () => banMember(member.userId, member.displayName),
-          children: "Забанить"
-        }
-      )
-    ] }) : null
-  ] }, `m-${member.userId}`));
-  const guestRows = guests.map((guest) => /* @__PURE__ */ jsxs("li", { className: "people__item", children: [
-    /* @__PURE__ */ jsx("span", { className: "people__icon", title: "Гость: зашёл по ссылке, без учётной записи", children: /* @__PURE__ */ jsx(IconGuest, {}) }),
-    /* @__PURE__ */ jsx("span", { className: "people__name", children: guest.displayName }),
-    /* @__PURE__ */ jsx("span", { className: "people__icon", title: roleTitle(guest.role), children: /* @__PURE__ */ jsx(RoleIcon, { role: guest.role }) }),
-    canManage ? /* @__PURE__ */ jsxs(Menu, { label: `Действия: ${guest.displayName}`, children: [
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-quiet menu__item",
-          type: "button",
-          onClick: () => changeGuestRole(guest.guestId, guest.role === "editor" ? "viewer" : "editor"),
-          children: guest.role === "editor" ? "Сделать наблюдателем" : "Сделать редактором"
-        }
-      ),
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-quiet menu__item menu__item--danger",
-          type: "button",
-          onClick: () => removeGuest(guest.guestId, guest.displayName),
-          children: "Выгнать"
-        }
-      )
-    ] }) : null
-  ] }, `g-${guest.guestId}`));
-  const selfRow = guestName ? /* @__PURE__ */ jsxs("li", { className: "people__item", children: [
-    /* @__PURE__ */ jsx("span", { className: "people__icon", title: "Вы зашли по ссылке, без учётной записи", children: /* @__PURE__ */ jsx(IconGuest, {}) }),
-    /* @__PURE__ */ jsxs("span", { className: "people__name", children: [
-      guestName,
-      " — это вы"
-    ] })
-  ] }, "self") : null;
-  const others = present.filter((person) => person.connectionId !== meConnectionId);
-  const cursorOf = (connectionId) => cursors.find((cursor) => cursor.id === connectionId);
-  const allRows = [...memberRows, ...guestRows, ...selfRow ? [selfRow] : []];
-  const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages - 1);
-  const pageRows = allRows.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
-  return /* @__PURE__ */ jsxs("div", { children: [
-    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    others.length > 0 ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("p", { className: "people__group", children: "Сейчас на доске" }),
-      /* @__PURE__ */ jsx("ul", { className: "people", children: others.map((person) => {
-        const at = cursorOf(person.connectionId);
-        return /* @__PURE__ */ jsxs("li", { className: "people__item", children: [
-          /* @__PURE__ */ jsx("span", { className: "people__icon", title: roleTitle(person.role), children: person.isGuest ? /* @__PURE__ */ jsx(IconGuest, {}) : /* @__PURE__ */ jsx(RoleIcon, { role: person.role }) }),
-          /* @__PURE__ */ jsx(
-            "button",
-            {
-              className: "people__goto",
-              type: "button",
-              disabled: !at,
-              onClick: () => onGoTo(person.connectionId),
-              title: at ? "Показать, где он сейчас" : "Пока не видно: он ещё не двигал указателем",
-              children: person.displayName
-            }
-          )
-        ] }, person.connectionId);
-      }) })
-    ] }) : null,
-    canManage && waiting.length > 0 ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("p", { className: "people__group", children: "Просятся на доску" }),
-      /* @__PURE__ */ jsx("ul", { className: "people", children: waiting.map((request) => /* @__PURE__ */ jsxs("li", { className: "people__item people__item--waiting", children: [
-        /* @__PURE__ */ jsxs("div", { className: "people__row", children: [
-          /* @__PURE__ */ jsx("span", { className: "people__icon", children: request.isGuest ? /* @__PURE__ */ jsx(IconGuest, {}) : /* @__PURE__ */ jsx(IconViewer, {}) }),
-          /* @__PURE__ */ jsx("span", { className: "people__name", children: request.displayName })
-        ] }),
-        /* @__PURE__ */ jsxs("div", { className: "people__row people__row--actions", children: [
-          /* @__PURE__ */ jsxs(
-            "button",
-            {
-              className: "btn-primary btn-sm",
-              type: "button",
-              onClick: () => admit(request.requestId, "editor"),
-              children: [
-                /* @__PURE__ */ jsx(IconCheck, { size: 16 }),
-                " Редактор"
-              ]
-            }
-          ),
-          /* @__PURE__ */ jsx(
-            "button",
-            {
-              className: "btn-quiet btn-sm",
-              type: "button",
-              onClick: () => admit(request.requestId, "viewer"),
-              children: "Наблюдатель"
-            }
-          ),
-          /* @__PURE__ */ jsx(
-            "button",
-            {
-              className: "btn-tool",
-              type: "button",
-              onClick: () => reject(request.requestId),
-              "aria-label": `Отклонить: ${request.displayName}`,
-              title: "Отклонить",
-              children: /* @__PURE__ */ jsx(IconClose, { size: 16 })
-            }
-          )
-        ] })
-      ] }, request.requestId)) })
-    ] }) : null,
-    /* @__PURE__ */ jsxs("p", { className: "people__group", children: [
-      "На доске · ",
-      allRows.length
-    ] }),
-    /* @__PURE__ */ jsx("ul", { className: "people", children: pageRows }),
-    totalPages > 1 ? /* @__PURE__ */ jsxs("div", { className: "people__pager", children: [
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-tool",
-          type: "button",
-          onClick: () => setPage((p2) => Math.max(0, p2 - 1)),
-          disabled: currentPage === 0,
-          "aria-label": "Предыдущая страница",
-          children: /* @__PURE__ */ jsx(IconChevronLeft, { size: 16 })
-        }
-      ),
-      /* @__PURE__ */ jsxs("span", { className: "text-muted small", children: [
-        currentPage + 1,
-        " / ",
-        totalPages
-      ] }),
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-tool",
-          type: "button",
-          onClick: () => setPage((p2) => Math.min(totalPages - 1, p2 + 1)),
-          disabled: currentPage === totalPages - 1,
-          "aria-label": "Следующая страница",
-          children: /* @__PURE__ */ jsx(IconChevronRight, { size: 16 })
-        }
-      )
-    ] }) : null,
-    /* @__PURE__ */ jsx("div", { className: "people__report", children: reportSent ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Жалоба отправлена, спасибо." }) : reporting ? /* @__PURE__ */ jsxs("div", { className: "stack", children: [
-      /* @__PURE__ */ jsx("label", { htmlFor: "report-comment", className: "small", children: "Что не так с доской?" }),
-      /* @__PURE__ */ jsx(
-        "textarea",
-        {
-          id: "report-comment",
-          rows: 3,
-          maxLength: 2e3,
-          autoFocus: true,
-          value: reportText,
-          onChange: (event) => setReportText(event.target.value)
-        }
-      ),
-      /* @__PURE__ */ jsxs("div", { className: "row", children: [
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "btn-primary btn-sm",
-            type: "button",
-            onClick: submitReport,
-            disabled: reportBusy || reportText.trim().length === 0,
-            children: "Отправить"
-          }
-        ),
-        /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => setReporting(false), children: "Отмена" })
-      ] })
-    ] }) : /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => setReporting(true), children: "Пожаловаться на доску" }) })
-  ] });
-}
-function RoleIcon({ role }) {
-  if (role === "owner") return /* @__PURE__ */ jsx(IconOwner, {});
-  if (role === "editor") return /* @__PURE__ */ jsx(IconEditor, {});
-  return /* @__PURE__ */ jsx(IconViewer, {});
-}
-function roleTitle(role) {
-  if (role === "owner") return "Владелец доски";
-  if (role === "editor") return "Может рисовать";
-  return "Только смотрит";
-}
-const CURSOR_COLORS = [
-  "#C0392B",
-  "#E67E22",
-  "#D68910",
-  "#B7950B",
-  "#7D8C1F",
-  "#4E9A2F",
-  "#1E8449",
-  "#149174",
-  "#12877F",
-  "#1595A6",
-  "#1F78A8",
-  "#2471A3",
-  "#2E5FA3",
-  "#4A4FA8",
-  "#6C4AA8",
-  "#8E44AD",
-  "#A63A8F",
-  "#B03A6E",
-  "#B03A4E",
-  "#8C5B3F"
-];
-function cursorColor(connectionId) {
-  let hash = 0;
-  for (let index = 0; index < connectionId.length; index += 1) {
-    hash = hash * 31 + connectionId.charCodeAt(index) | 0;
-  }
-  return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length];
+function deleteRecording(boardId, recordingId) {
+  return api(`/boards/${boardId}/recordings/${recordingId}`, { method: "DELETE" });
 }
 const cache = /* @__PURE__ */ new Map();
 const listeners = /* @__PURE__ */ new Set();
@@ -3341,6 +2835,838 @@ function rectFrom(a, b) {
     height: Math.abs(a.y - b.y)
   };
 }
+const DEFAULT_BACKGROUND = {
+  background: "#FFFDF8",
+  gridStyle: "none",
+  gridColor: "#D9CFC0"
+};
+const EMPTY_PLAYBACK = {
+  items: [],
+  live: /* @__PURE__ */ new Map(),
+  background: DEFAULT_BACKGROUND,
+  viewport: null
+};
+function applyRecordedStep(state, name, payload) {
+  switch (name) {
+    case "ViewportChanged":
+      return { ...state, viewport: payload };
+    case "ItemBegan": {
+      if (state.viewport && payload.pageId !== state.viewport.pageId) return state;
+      const live = new Map(state.live);
+      live.set(payload.tempId, payload);
+      return { ...state, live };
+    }
+    case "ItemPoints": {
+      const stroke = state.live.get(payload.tempId);
+      if (!stroke) return state;
+      const live = new Map(state.live);
+      live.set(payload.tempId, {
+        ...stroke,
+        data: { ...stroke.data, points: [...stroke.data.points ?? [], ...payload.points] }
+      });
+      return { ...state, live };
+    }
+    case "ItemCancelled": {
+      const live = new Map(state.live);
+      live.delete(payload.tempId);
+      return { ...state, live };
+    }
+    case "ItemCommitted": {
+      const live = new Map(state.live);
+      live.delete(payload.tempId);
+      if (state.viewport && payload.pageId !== state.viewport.pageId) return { ...state, live };
+      const items = [...state.items.filter((x) => x.id !== payload.item.id), payload.item];
+      return { ...state, items, live };
+    }
+    case "ItemsMoved":
+      return {
+        ...state,
+        items: state.items.map((item) => payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item)
+      };
+    case "ItemsReordered": {
+      const fresh = new Map(payload.items.map((item) => [item.id, item]));
+      const items = state.items.map((item) => fresh.get(item.id) ?? item).sort((a, b) => a.z - b.z || a.id - b.id);
+      return { ...state, items };
+    }
+    case "BackgroundChanged":
+      return { ...state, background: payload };
+    case "ItemUpdated":
+      return { ...state, items: state.items.map((x) => x.id === payload.item.id ? payload.item : x) };
+    case "ItemsDeleted":
+      return { ...state, items: state.items.filter((x) => !payload.itemIds.includes(x.id)) };
+    case "BoardCleared":
+      if (state.viewport && payload.pageId !== state.viewport.pageId) return state;
+      return { ...state, items: [], live: /* @__PURE__ */ new Map() };
+    default:
+      return state;
+  }
+}
+const MIN_SCALE = 0.02;
+const MAX_SCALE = 20;
+const INITIAL_VIEWPORT = { x: 0, y: 0, scale: 1 };
+function toWorld(viewport, screenX, screenY) {
+  return {
+    x: (screenX - viewport.x) / viewport.scale,
+    y: (screenY - viewport.y) / viewport.scale
+  };
+}
+function toScreen(viewport, worldX, worldY) {
+  return {
+    x: worldX * viewport.scale + viewport.x,
+    y: worldY * viewport.scale + viewport.y
+  };
+}
+function clampScale(scale) {
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+}
+function zoomAt(viewport, screenX, screenY, factor) {
+  const scale = clampScale(viewport.scale * factor);
+  const world = toWorld(viewport, screenX, screenY);
+  return {
+    scale,
+    x: screenX - world.x * scale,
+    y: screenY - world.y * scale
+  };
+}
+function centerOn(viewport, worldX, worldY, width, height, scale = viewport.scale) {
+  return {
+    scale,
+    x: width / 2 - worldX * scale,
+    y: height / 2 - worldY * scale
+  };
+}
+function fitToContent(points, width, height, padding = 48) {
+  if (points.length === 0 || width <= 0 || height <= 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  }
+  const contentWidth = Math.max(1, maxX - minX);
+  const contentHeight = Math.max(1, maxY - minY);
+  const scale = clampScale(Math.min(
+    (width - padding * 2) / contentWidth,
+    (height - padding * 2) / contentHeight
+  ));
+  return {
+    scale,
+    x: width / 2 - (minX + maxX) / 2 * scale,
+    y: height / 2 - (minY + maxY) / 2 * scale
+  };
+}
+function formatTime(ms) {
+  const total = Math.max(0, Math.round(ms / 1e3));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+function RecordingPlayer({ boardId, recordingId, onClose }) {
+  var _a;
+  const [recording, setRecording] = useState(null);
+  const [steps, setSteps] = useState([]);
+  const [error, setError] = useState(null);
+  const [offsetMs, setOffsetMs] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    getRecording(boardId, recordingId).then((answer) => {
+      if (!alive) return;
+      setRecording(answer.recording);
+      setSteps(answer.steps);
+    }).catch((reason) => {
+      if (!alive) return;
+      setError(reason instanceof ApiError ? reason.message : "Не удалось открыть запись.");
+    });
+    return () => {
+      alive = false;
+    };
+  }, [boardId, recordingId]);
+  const duration = (recording == null ? void 0 : recording.durationMs) ?? 0;
+  const startedFrom = useRef(null);
+  useEffect(() => {
+    if (!playing) return;
+    startedFrom.current = { realAt: performance.now(), offsetAt: offsetMs };
+    let frame = 0;
+    const tick = () => {
+      const base = startedFrom.current;
+      if (!base) return;
+      const next = base.offsetAt + (performance.now() - base.realAt);
+      if (next >= duration) {
+        setOffsetMs(duration);
+        setPlaying(false);
+        return;
+      }
+      setOffsetMs(next);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, duration]);
+  const cache2 = useRef({ index: 0, state: EMPTY_PLAYBACK });
+  if ((((_a = steps[cache2.current.index - 1]) == null ? void 0 : _a.offsetMs) ?? -1) > offsetMs) {
+    cache2.current = { index: 0, state: EMPTY_PLAYBACK };
+  }
+  while (cache2.current.index < steps.length && steps[cache2.current.index].offsetMs <= offsetMs) {
+    const step = steps[cache2.current.index];
+    cache2.current = {
+      index: cache2.current.index + 1,
+      state: applyRecordedStep(cache2.current.state, step.name, step.payload)
+    };
+  }
+  const content = cache2.current.state;
+  const canvasRef = useRef(null);
+  const boxRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const box = boxRef.current;
+    if (!canvas || !box) return;
+    const width = box.clientWidth;
+    const height = box.clientHeight;
+    if (width === 0 || height === 0) return;
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.fillStyle = content.background.background;
+    context.fillRect(0, 0, width, height);
+    const liveItems = Array.from(content.live.values()).map((stroke) => ({
+      id: -1,
+      type: stroke.type,
+      z: 0,
+      data: stroke.data,
+      imageRef: null,
+      lockedBy: null
+    }));
+    const all = [...content.items, ...liveItems];
+    const recorded = content.viewport;
+    const viewport = recorded ? centerOn({ scale: recorded.scale }, recorded.x, recorded.y, width, height, recorded.scale) : fitToContent(all.flatMap((item) => pointsOf(item.data)), width, height) ?? { x: width / 2, y: height / 2, scale: 1 };
+    drawGrid(
+      context,
+      content.background.gridStyle,
+      content.background.gridColor,
+      width,
+      height,
+      viewport.x,
+      viewport.y,
+      viewport.scale
+    );
+    context.save();
+    context.translate(viewport.x, viewport.y);
+    context.scale(viewport.scale, viewport.scale);
+    for (const item of all) drawItem(context, item.type, item.data, item.imageRef);
+    context.restore();
+  }, [content]);
+  return /* @__PURE__ */ jsxs("div", { className: "player", role: "dialog", "aria-label": "Воспроизведение записи", children: [
+    /* @__PURE__ */ jsxs("div", { className: "player__head", children: [
+      /* @__PURE__ */ jsx("span", { className: "params__title", children: (recording == null ? void 0 : recording.title) || "Запись занятия" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
+    ] }),
+    error ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: error }) : null,
+    /* @__PURE__ */ jsx("div", { className: "player__canvas", ref: boxRef, children: /* @__PURE__ */ jsx("canvas", { ref: canvasRef }) }),
+    /* @__PURE__ */ jsxs("div", { className: "player__controls", children: [
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-tool",
+          type: "button",
+          disabled: !recording || duration === 0,
+          onClick: () => setPlaying((current) => !current),
+          "aria-label": playing ? "Пауза" : "Воспроизвести",
+          children: playing ? /* @__PURE__ */ jsx(IconPause, {}) : /* @__PURE__ */ jsx(IconPlay, {})
+        }
+      ),
+      /* @__PURE__ */ jsx("span", { className: "text-muted small", children: formatTime(offsetMs) }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          className: "player__range",
+          type: "range",
+          min: 0,
+          max: Math.max(1, duration),
+          value: Math.min(offsetMs, duration),
+          onChange: (event) => {
+            setPlaying(false);
+            setOffsetMs(Number(event.target.value));
+          }
+        }
+      ),
+      /* @__PURE__ */ jsx("span", { className: "text-muted small", children: formatTime(duration) })
+    ] })
+  ] });
+}
+function formatDuration$1(ms) {
+  const total = Math.round(ms / 1e3);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+function formatDate$1(iso) {
+  return new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+}
+function RecordingsLibraryPage() {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  const [watching, setWatching] = useState(null);
+  useEffect(() => {
+    listMyRecordings().then(setRows).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось прочитать записи."));
+  }, []);
+  if (watching) {
+    return /* @__PURE__ */ jsx(BoardShell, { children: /* @__PURE__ */ jsx("div", { className: "board-page", children: /* @__PURE__ */ jsx("section", { className: "board-page__canvas", children: /* @__PURE__ */ jsx(
+      RecordingPlayer,
+      {
+        boardId: watching.boardId,
+        recordingId: watching.recordingId,
+        onClose: () => setWatching(null)
+      }
+    ) }) }) });
+  }
+  return /* @__PURE__ */ jsxs(Page, { narrow: true, children: [
+    /* @__PURE__ */ jsx("h1", { children: "Мои записи" }),
+    /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Записи занятий по всем доскам, куда у вас есть доступ." }),
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    rows === null ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Читаем…" }) : rows.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Пока ни одной записи." }) : /* @__PURE__ */ jsx("div", { className: "library__list", children: rows.map((row) => /* @__PURE__ */ jsx("div", { className: "library__mine", children: /* @__PURE__ */ jsxs(
+      "button",
+      {
+        className: "btn-quiet library__pick",
+        type: "button",
+        onClick: () => setWatching({ boardId: row.boardId, recordingId: row.id }),
+        children: [
+          row.title || formatDate$1(row.startedAt),
+          /* @__PURE__ */ jsxs("span", { className: "library__count", children: [
+            row.boardTitle,
+            " · ",
+            formatDuration$1(row.durationMs)
+          ] })
+        ]
+      }
+    ) }, row.id)) })
+  ] });
+}
+function ProfilePage() {
+  const { user, refresh, logout } = useAuth();
+  const navigate = useNavigate();
+  if (!user) return /* @__PURE__ */ jsx(Page, { narrow: true, children: null });
+  return /* @__PURE__ */ jsxs(Page, { narrow: true, children: [
+    /* @__PURE__ */ jsx("h1", { children: "Профиль" }),
+    /* @__PURE__ */ jsx(NameCard, { user, onSaved: refresh }),
+    /* @__PURE__ */ jsx(PasswordCard, { email: user.email }),
+    /* @__PURE__ */ jsx(DangerCard, { onDeleted: () => {
+      logout();
+      navigate("/", { replace: true });
+    } })
+  ] });
+}
+function NameCard({ user, onSaved }) {
+  const [name, setName] = useState(user.displayName);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const submit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api("/auth/me", { method: "PATCH", body: { displayName: name } });
+      await onSaved();
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2e3);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось сохранить.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return /* @__PURE__ */ jsxs("form", { className: "card", onSubmit: submit, children: [
+    /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Имя" }),
+    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Так вас видят на досках." }),
+    /* @__PURE__ */ jsxs("div", { className: "field", children: [
+      /* @__PURE__ */ jsx("label", { htmlFor: "displayName", children: "Имя" }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          id: "displayName",
+          type: "text",
+          required: true,
+          maxLength: 100,
+          value: name,
+          onChange: (event) => setName(event.target.value)
+        }
+      )
+    ] }),
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy || name.trim() === user.displayName, children: busy ? "Сохраняем…" : saved ? "Сохранено" : "Сохранить" })
+  ] });
+}
+function PasswordCard({ email }) {
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const request = async () => {
+    setBusy(true);
+    try {
+      await api("/auth/forgot-password", { method: "POST", body: { email } });
+    } finally {
+      setBusy(false);
+      setSent(true);
+    }
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "card", children: [
+    /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Пароль" }),
+    /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
+      "Пришлём на ",
+      email,
+      " ссылку для смены."
+    ] }),
+    sent ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: "Письмо отправлено — проверьте почту." }) : /* @__PURE__ */ jsx("button", { className: "btn-outline", type: "button", onClick: request, disabled: busy, children: busy ? "Отправляем…" : "Сменить пароль" })
+  ] });
+}
+function DangerCard({ onDeleted }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!window.confirm("Удалить аккаунт? Войти в него станет нельзя.")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api("/auth/me", { method: "DELETE", body: { password } });
+      onDeleted();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось удалить аккаунт.");
+      setBusy(false);
+    }
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "card", children: [
+    /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Удаление аккаунта" }),
+    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Войти станет нельзя. Почта освободится сразу, доски проработают у участников ещё полгода." }),
+    open ? /* @__PURE__ */ jsxs("form", { onSubmit: submit, children: [
+      /* @__PURE__ */ jsxs("div", { className: "field", children: [
+        /* @__PURE__ */ jsx("label", { htmlFor: "deletePassword", children: "Подтвердите паролем" }),
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            id: "deletePassword",
+            type: "password",
+            required: true,
+            autoComplete: "current-password",
+            value: password,
+            onChange: (event) => setPassword(event.target.value)
+          }
+        )
+      ] }),
+      error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+      /* @__PURE__ */ jsxs("div", { className: "row", children: [
+        /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "submit", disabled: busy, children: busy ? "Удаляем…" : "Удалить аккаунт насовсем" }),
+        /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: () => setOpen(false), disabled: busy, children: "Отмена" })
+      ] })
+    ] }) : /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "button", onClick: () => setOpen(true), children: "Удалить аккаунт" })
+  ] });
+}
+const TOKEN_PREFIX = "schoolpiboard.guest.";
+const MARKER_KEY = "schoolpiboard.guestMarker";
+function readGuestToken(boardId) {
+  try {
+    return localStorage.getItem(TOKEN_PREFIX + boardId);
+  } catch {
+    return null;
+  }
+}
+function writeGuestToken(boardId, token) {
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_PREFIX + boardId, token);
+    } else {
+      localStorage.removeItem(TOKEN_PREFIX + boardId);
+    }
+  } catch {
+  }
+}
+function readGuestMarker() {
+  try {
+    return localStorage.getItem(MARKER_KEY);
+  } catch {
+    return null;
+  }
+}
+function writeGuestMarker(marker) {
+  try {
+    localStorage.setItem(MARKER_KEY, marker);
+  } catch {
+  }
+}
+function CanvasPanel({ open, title, onClose, children }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+  return /* @__PURE__ */ jsxs(
+    "aside",
+    {
+      className: open ? "canvas-panel canvas-panel--open" : "canvas-panel",
+      role: "dialog",
+      "aria-label": title,
+      "aria-hidden": !open,
+      children: [
+        /* @__PURE__ */ jsxs("div", { className: "canvas-panel__head", children: [
+          /* @__PURE__ */ jsx("h2", { className: "canvas-panel__title", children: title }),
+          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClose, "aria-label": "Закрыть", children: /* @__PURE__ */ jsx(IconClose, {}) })
+        ] }),
+        /* @__PURE__ */ jsx("div", { className: "canvas-panel__body", children })
+      ]
+    }
+  );
+}
+function reportBoard(boardId, comment) {
+  return api(`/boards/${boardId}/report`, {
+    method: "POST",
+    body: { comment },
+    guestToken: readGuestToken(boardId)
+  });
+}
+const PAGE_SIZE = 5;
+function PeoplePanel({
+  boardId,
+  canManage,
+  members,
+  guests,
+  guestName,
+  queue,
+  present,
+  cursors,
+  onGoTo,
+  meConnectionId,
+  onChanged
+}) {
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(0);
+  const [reporting, setReporting] = useState(false);
+  const [reportText, setReportText] = useState("");
+  const [reportSent, setReportSent] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
+  const waiting = queue.waiting;
+  const admit = async (requestId, role) => {
+    try {
+      await api(`/boards/${boardId}/waiting/admit`, { method: "POST", body: { requestId, role } });
+      queue.forget(requestId);
+      onChanged();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось впустить.");
+    }
+  };
+  const reject = async (requestId) => {
+    try {
+      await api(`/boards/${boardId}/waiting/reject`, { method: "POST", body: { requestId } });
+      queue.forget(requestId);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось отклонить.");
+    }
+  };
+  const changeRole = async (userId, role) => {
+    try {
+      await api(`/boards/${boardId}/members/${userId}`, { method: "PATCH", body: { role } });
+      onChanged();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось изменить роль.");
+    }
+  };
+  const kickMember = async (userId, name) => {
+    if (!window.confirm(`Выгнать ${name}? По ссылке он сможет попроситься снова.`)) return;
+    try {
+      await api(`/boards/${boardId}/members/${userId}`, { method: "DELETE" });
+      onChanged();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось выгнать участника.");
+    }
+  };
+  const banMember = async (userId, name) => {
+    if (!window.confirm(`Забанить ${name}? Он больше не войдёт на доску, даже по ссылке.`)) return;
+    try {
+      await api(`/boards/${boardId}/members/${userId}/ban`, { method: "POST" });
+      onChanged();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось забанить участника.");
+    }
+  };
+  const changeGuestRole = async (guestId, role) => {
+    try {
+      await api(`/boards/${boardId}/guests/role`, { method: "POST", body: { guestId, role } });
+      onChanged();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось изменить роль.");
+    }
+  };
+  const removeGuest = async (guestId, name) => {
+    if (!window.confirm(`Выгнать ${name} с доски?`)) return;
+    try {
+      await api(`/boards/${boardId}/guests/remove`, { method: "POST", body: { requestId: guestId } });
+      onChanged();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось выгнать гостя.");
+    }
+  };
+  const submitReport = async () => {
+    const comment = reportText.trim();
+    if (!comment) return;
+    setReportBusy(true);
+    try {
+      await reportBoard(boardId, comment);
+      setReportSent(true);
+      setReporting(false);
+      setReportText("");
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось отправить жалобу.");
+    } finally {
+      setReportBusy(false);
+    }
+  };
+  const memberRows = members.map((member) => /* @__PURE__ */ jsxs("li", { className: "people__item", children: [
+    /* @__PURE__ */ jsx("span", { className: "people__icon", title: roleTitle(member.role), children: /* @__PURE__ */ jsx(RoleIcon, { role: member.role }) }),
+    /* @__PURE__ */ jsx("span", { className: "people__name", children: member.displayName }),
+    canManage && member.role !== "owner" ? /* @__PURE__ */ jsxs(Menu, { label: `Действия: ${member.displayName}`, children: [
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet menu__item",
+          type: "button",
+          onClick: () => changeRole(member.userId, member.role === "editor" ? "viewer" : "editor"),
+          children: member.role === "editor" ? "Сделать наблюдателем" : "Сделать редактором"
+        }
+      ),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet menu__item",
+          type: "button",
+          onClick: () => kickMember(member.userId, member.displayName),
+          children: "Выгнать"
+        }
+      ),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet menu__item menu__item--danger",
+          type: "button",
+          onClick: () => banMember(member.userId, member.displayName),
+          children: "Забанить"
+        }
+      )
+    ] }) : null
+  ] }, `m-${member.userId}`));
+  const guestRows = guests.map((guest) => /* @__PURE__ */ jsxs("li", { className: "people__item", children: [
+    /* @__PURE__ */ jsx("span", { className: "people__icon", title: "Гость: зашёл по ссылке, без учётной записи", children: /* @__PURE__ */ jsx(IconGuest, {}) }),
+    /* @__PURE__ */ jsx("span", { className: "people__name", children: guest.displayName }),
+    /* @__PURE__ */ jsx("span", { className: "people__icon", title: roleTitle(guest.role), children: /* @__PURE__ */ jsx(RoleIcon, { role: guest.role }) }),
+    canManage ? /* @__PURE__ */ jsxs(Menu, { label: `Действия: ${guest.displayName}`, children: [
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet menu__item",
+          type: "button",
+          onClick: () => changeGuestRole(guest.guestId, guest.role === "editor" ? "viewer" : "editor"),
+          children: guest.role === "editor" ? "Сделать наблюдателем" : "Сделать редактором"
+        }
+      ),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet menu__item menu__item--danger",
+          type: "button",
+          onClick: () => removeGuest(guest.guestId, guest.displayName),
+          children: "Выгнать"
+        }
+      )
+    ] }) : null
+  ] }, `g-${guest.guestId}`));
+  const selfRow = guestName ? /* @__PURE__ */ jsxs("li", { className: "people__item", children: [
+    /* @__PURE__ */ jsx("span", { className: "people__icon", title: "Вы зашли по ссылке, без учётной записи", children: /* @__PURE__ */ jsx(IconGuest, {}) }),
+    /* @__PURE__ */ jsxs("span", { className: "people__name", children: [
+      guestName,
+      " — это вы"
+    ] })
+  ] }, "self") : null;
+  const others = present.filter((person) => person.connectionId !== meConnectionId);
+  const cursorOf = (connectionId) => cursors.find((cursor) => cursor.id === connectionId);
+  const allRows = [...memberRows, ...guestRows, ...selfRow ? [selfRow] : []];
+  const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const pageRows = allRows.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
+  return /* @__PURE__ */ jsxs("div", { children: [
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    others.length > 0 ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { className: "people__group", children: "Сейчас на доске" }),
+      /* @__PURE__ */ jsx("ul", { className: "people", children: others.map((person) => {
+        const at = cursorOf(person.connectionId);
+        return /* @__PURE__ */ jsxs("li", { className: "people__item", children: [
+          /* @__PURE__ */ jsx("span", { className: "people__icon", title: roleTitle(person.role), children: person.isGuest ? /* @__PURE__ */ jsx(IconGuest, {}) : /* @__PURE__ */ jsx(RoleIcon, { role: person.role }) }),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "people__goto",
+              type: "button",
+              disabled: !at,
+              onClick: () => onGoTo(person.connectionId),
+              title: at ? "Показать, где он сейчас" : "Пока не видно: он ещё не двигал указателем",
+              children: person.displayName
+            }
+          )
+        ] }, person.connectionId);
+      }) })
+    ] }) : null,
+    canManage && waiting.length > 0 ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { className: "people__group", children: "Просятся на доску" }),
+      /* @__PURE__ */ jsx("ul", { className: "people", children: waiting.map((request) => /* @__PURE__ */ jsxs("li", { className: "people__item people__item--waiting", children: [
+        /* @__PURE__ */ jsxs("div", { className: "people__row", children: [
+          /* @__PURE__ */ jsx("span", { className: "people__icon", children: request.isGuest ? /* @__PURE__ */ jsx(IconGuest, {}) : /* @__PURE__ */ jsx(IconViewer, {}) }),
+          /* @__PURE__ */ jsx("span", { className: "people__name", children: request.displayName })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "people__row people__row--actions", children: [
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: "btn-primary btn-sm",
+              type: "button",
+              onClick: () => admit(request.requestId, "editor"),
+              children: [
+                /* @__PURE__ */ jsx(IconCheck, { size: 16 }),
+                " Редактор"
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-quiet btn-sm",
+              type: "button",
+              onClick: () => admit(request.requestId, "viewer"),
+              children: "Наблюдатель"
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool",
+              type: "button",
+              onClick: () => reject(request.requestId),
+              "aria-label": `Отклонить: ${request.displayName}`,
+              title: "Отклонить",
+              children: /* @__PURE__ */ jsx(IconClose, { size: 16 })
+            }
+          )
+        ] })
+      ] }, request.requestId)) })
+    ] }) : null,
+    /* @__PURE__ */ jsxs("p", { className: "people__group", children: [
+      "На доске · ",
+      allRows.length
+    ] }),
+    /* @__PURE__ */ jsx("ul", { className: "people", children: pageRows }),
+    totalPages > 1 ? /* @__PURE__ */ jsxs("div", { className: "people__pager", children: [
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-tool",
+          type: "button",
+          onClick: () => setPage((p2) => Math.max(0, p2 - 1)),
+          disabled: currentPage === 0,
+          "aria-label": "Предыдущая страница",
+          children: /* @__PURE__ */ jsx(IconChevronLeft, { size: 16 })
+        }
+      ),
+      /* @__PURE__ */ jsxs("span", { className: "text-muted small", children: [
+        currentPage + 1,
+        " / ",
+        totalPages
+      ] }),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-tool",
+          type: "button",
+          onClick: () => setPage((p2) => Math.min(totalPages - 1, p2 + 1)),
+          disabled: currentPage === totalPages - 1,
+          "aria-label": "Следующая страница",
+          children: /* @__PURE__ */ jsx(IconChevronRight, { size: 16 })
+        }
+      )
+    ] }) : null,
+    /* @__PURE__ */ jsx("div", { className: "people__report", children: reportSent ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Жалоба отправлена, спасибо." }) : reporting ? /* @__PURE__ */ jsxs("div", { className: "stack", children: [
+      /* @__PURE__ */ jsx("label", { htmlFor: "report-comment", className: "small", children: "Что не так с доской?" }),
+      /* @__PURE__ */ jsx(
+        "textarea",
+        {
+          id: "report-comment",
+          rows: 3,
+          maxLength: 2e3,
+          autoFocus: true,
+          value: reportText,
+          onChange: (event) => setReportText(event.target.value)
+        }
+      ),
+      /* @__PURE__ */ jsxs("div", { className: "row", children: [
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-primary btn-sm",
+            type: "button",
+            onClick: submitReport,
+            disabled: reportBusy || reportText.trim().length === 0,
+            children: "Отправить"
+          }
+        ),
+        /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => setReporting(false), children: "Отмена" })
+      ] })
+    ] }) : /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => setReporting(true), children: "Пожаловаться на доску" }) })
+  ] });
+}
+function RoleIcon({ role }) {
+  if (role === "owner") return /* @__PURE__ */ jsx(IconOwner, {});
+  if (role === "editor") return /* @__PURE__ */ jsx(IconEditor, {});
+  return /* @__PURE__ */ jsx(IconViewer, {});
+}
+function roleTitle(role) {
+  if (role === "owner") return "Владелец доски";
+  if (role === "editor") return "Может рисовать";
+  return "Только смотрит";
+}
+const CURSOR_COLORS = [
+  "#C0392B",
+  "#E67E22",
+  "#D68910",
+  "#B7950B",
+  "#7D8C1F",
+  "#4E9A2F",
+  "#1E8449",
+  "#149174",
+  "#12877F",
+  "#1595A6",
+  "#1F78A8",
+  "#2471A3",
+  "#2E5FA3",
+  "#4A4FA8",
+  "#6C4AA8",
+  "#8E44AD",
+  "#A63A8F",
+  "#B03A6E",
+  "#B03A4E",
+  "#8C5B3F"
+];
+function cursorColor(connectionId) {
+  let hash = 0;
+  for (let index = 0; index < connectionId.length; index += 1) {
+    hash = hash * 31 + connectionId.charCodeAt(index) | 0;
+  }
+  return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length];
+}
 const GRID_STEP = 32;
 function snapValue(value, on) {
   return on ? Math.round(value / GRID_STEP) * GRID_STEP : value;
@@ -3474,64 +3800,6 @@ function anchorOf(box, handle) {
   return {
     x: handle.includes("w") ? box.x + box.width : box.x,
     y: handle.startsWith("n") ? box.y + box.height : box.y
-  };
-}
-const MIN_SCALE = 0.02;
-const MAX_SCALE = 20;
-const INITIAL_VIEWPORT = { x: 0, y: 0, scale: 1 };
-function toWorld(viewport, screenX, screenY) {
-  return {
-    x: (screenX - viewport.x) / viewport.scale,
-    y: (screenY - viewport.y) / viewport.scale
-  };
-}
-function toScreen(viewport, worldX, worldY) {
-  return {
-    x: worldX * viewport.scale + viewport.x,
-    y: worldY * viewport.scale + viewport.y
-  };
-}
-function clampScale(scale) {
-  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
-}
-function zoomAt(viewport, screenX, screenY, factor) {
-  const scale = clampScale(viewport.scale * factor);
-  const world = toWorld(viewport, screenX, screenY);
-  return {
-    scale,
-    x: screenX - world.x * scale,
-    y: screenY - world.y * scale
-  };
-}
-function centerOn(viewport, worldX, worldY, width, height, scale = viewport.scale) {
-  return {
-    scale,
-    x: width / 2 - worldX * scale,
-    y: height / 2 - worldY * scale
-  };
-}
-function fitToContent(points, width, height, padding = 48) {
-  if (points.length === 0 || width <= 0 || height <= 0) return null;
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const point of points) {
-    minX = Math.min(minX, point.x);
-    minY = Math.min(minY, point.y);
-    maxX = Math.max(maxX, point.x);
-    maxY = Math.max(maxY, point.y);
-  }
-  const contentWidth = Math.max(1, maxX - minX);
-  const contentHeight = Math.max(1, maxY - minY);
-  const scale = clampScale(Math.min(
-    (width - padding * 2) / contentWidth,
-    (height - padding * 2) / contentHeight
-  ));
-  return {
-    scale,
-    x: width / 2 - (minX + maxX) / 2 * scale,
-    y: height / 2 - (minY + maxY) / 2 * scale
   };
 }
 const CURSOR_INTERVAL_MS = 50;
@@ -6929,15 +7197,6 @@ function SummaryPanel({
     done && !busy && !note ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: canManage ? "Письмо ушло." : "Просьба передана учителю." }) : null
   ] });
 }
-function listRecordings(boardId) {
-  return api(`/boards/${boardId}/recordings`);
-}
-function getRecording(boardId, recordingId) {
-  return api(`/boards/${boardId}/recordings/${recordingId}`);
-}
-function deleteRecording(boardId, recordingId) {
-  return api(`/boards/${boardId}/recordings/${recordingId}`, { method: "DELETE" });
-}
 function formatDuration(ms) {
   const total = Math.round(ms / 1e3);
   const minutes = Math.floor(total / 60);
@@ -7033,212 +7292,6 @@ function RecordingsPanel({
         }
       ) : null
     ] }, row.id)) })
-  ] });
-}
-const DEFAULT_BACKGROUND = {
-  background: "#FFFDF8",
-  gridStyle: "none",
-  gridColor: "#D9CFC0"
-};
-const EMPTY_PLAYBACK = {
-  items: [],
-  live: /* @__PURE__ */ new Map(),
-  background: DEFAULT_BACKGROUND,
-  viewport: null
-};
-function applyRecordedStep(state, name, payload) {
-  switch (name) {
-    case "ViewportChanged":
-      return { ...state, viewport: payload };
-    case "ItemBegan": {
-      if (state.viewport && payload.pageId !== state.viewport.pageId) return state;
-      const live = new Map(state.live);
-      live.set(payload.tempId, payload);
-      return { ...state, live };
-    }
-    case "ItemPoints": {
-      const stroke = state.live.get(payload.tempId);
-      if (!stroke) return state;
-      const live = new Map(state.live);
-      live.set(payload.tempId, {
-        ...stroke,
-        data: { ...stroke.data, points: [...stroke.data.points ?? [], ...payload.points] }
-      });
-      return { ...state, live };
-    }
-    case "ItemCancelled": {
-      const live = new Map(state.live);
-      live.delete(payload.tempId);
-      return { ...state, live };
-    }
-    case "ItemCommitted": {
-      const live = new Map(state.live);
-      live.delete(payload.tempId);
-      if (state.viewport && payload.pageId !== state.viewport.pageId) return { ...state, live };
-      const items = [...state.items.filter((x) => x.id !== payload.item.id), payload.item];
-      return { ...state, items, live };
-    }
-    case "ItemsMoved":
-      return {
-        ...state,
-        items: state.items.map((item) => payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item)
-      };
-    case "ItemsReordered": {
-      const fresh = new Map(payload.items.map((item) => [item.id, item]));
-      const items = state.items.map((item) => fresh.get(item.id) ?? item).sort((a, b) => a.z - b.z || a.id - b.id);
-      return { ...state, items };
-    }
-    case "BackgroundChanged":
-      return { ...state, background: payload };
-    case "ItemUpdated":
-      return { ...state, items: state.items.map((x) => x.id === payload.item.id ? payload.item : x) };
-    case "ItemsDeleted":
-      return { ...state, items: state.items.filter((x) => !payload.itemIds.includes(x.id)) };
-    case "BoardCleared":
-      if (state.viewport && payload.pageId !== state.viewport.pageId) return state;
-      return { ...state, items: [], live: /* @__PURE__ */ new Map() };
-    default:
-      return state;
-  }
-}
-function formatTime(ms) {
-  const total = Math.max(0, Math.round(ms / 1e3));
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-function RecordingPlayer({ boardId, recordingId, onClose }) {
-  var _a;
-  const [recording, setRecording] = useState(null);
-  const [steps, setSteps] = useState([]);
-  const [error, setError] = useState(null);
-  const [offsetMs, setOffsetMs] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    getRecording(boardId, recordingId).then((answer) => {
-      if (!alive) return;
-      setRecording(answer.recording);
-      setSteps(answer.steps);
-    }).catch((reason) => {
-      if (!alive) return;
-      setError(reason instanceof ApiError ? reason.message : "Не удалось открыть запись.");
-    });
-    return () => {
-      alive = false;
-    };
-  }, [boardId, recordingId]);
-  const duration = (recording == null ? void 0 : recording.durationMs) ?? 0;
-  const startedFrom = useRef(null);
-  useEffect(() => {
-    if (!playing) return;
-    startedFrom.current = { realAt: performance.now(), offsetAt: offsetMs };
-    let frame = 0;
-    const tick = () => {
-      const base = startedFrom.current;
-      if (!base) return;
-      const next = base.offsetAt + (performance.now() - base.realAt);
-      if (next >= duration) {
-        setOffsetMs(duration);
-        setPlaying(false);
-        return;
-      }
-      setOffsetMs(next);
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [playing, duration]);
-  const cache2 = useRef({ index: 0, state: EMPTY_PLAYBACK });
-  if ((((_a = steps[cache2.current.index - 1]) == null ? void 0 : _a.offsetMs) ?? -1) > offsetMs) {
-    cache2.current = { index: 0, state: EMPTY_PLAYBACK };
-  }
-  while (cache2.current.index < steps.length && steps[cache2.current.index].offsetMs <= offsetMs) {
-    const step = steps[cache2.current.index];
-    cache2.current = {
-      index: cache2.current.index + 1,
-      state: applyRecordedStep(cache2.current.state, step.name, step.payload)
-    };
-  }
-  const content = cache2.current.state;
-  const canvasRef = useRef(null);
-  const boxRef = useRef(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const box = boxRef.current;
-    if (!canvas || !box) return;
-    const width = box.clientWidth;
-    const height = box.clientHeight;
-    if (width === 0 || height === 0) return;
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    context.fillStyle = content.background.background;
-    context.fillRect(0, 0, width, height);
-    const liveItems = Array.from(content.live.values()).map((stroke) => ({
-      id: -1,
-      type: stroke.type,
-      z: 0,
-      data: stroke.data,
-      imageRef: null,
-      lockedBy: null
-    }));
-    const all = [...content.items, ...liveItems];
-    const recorded = content.viewport;
-    const viewport = recorded ? centerOn({ scale: recorded.scale }, recorded.x, recorded.y, width, height, recorded.scale) : fitToContent(all.flatMap((item) => pointsOf(item.data)), width, height) ?? { x: width / 2, y: height / 2, scale: 1 };
-    drawGrid(
-      context,
-      content.background.gridStyle,
-      content.background.gridColor,
-      width,
-      height,
-      viewport.x,
-      viewport.y,
-      viewport.scale
-    );
-    context.save();
-    context.translate(viewport.x, viewport.y);
-    context.scale(viewport.scale, viewport.scale);
-    for (const item of all) drawItem(context, item.type, item.data, item.imageRef);
-    context.restore();
-  }, [content]);
-  return /* @__PURE__ */ jsxs("div", { className: "player", role: "dialog", "aria-label": "Воспроизведение записи", children: [
-    /* @__PURE__ */ jsxs("div", { className: "player__head", children: [
-      /* @__PURE__ */ jsx("span", { className: "params__title", children: (recording == null ? void 0 : recording.title) || "Запись занятия" }),
-      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
-    ] }),
-    error ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: error }) : null,
-    /* @__PURE__ */ jsx("div", { className: "player__canvas", ref: boxRef, children: /* @__PURE__ */ jsx("canvas", { ref: canvasRef }) }),
-    /* @__PURE__ */ jsxs("div", { className: "player__controls", children: [
-      /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-tool",
-          type: "button",
-          disabled: !recording || duration === 0,
-          onClick: () => setPlaying((current) => !current),
-          "aria-label": playing ? "Пауза" : "Воспроизвести",
-          children: playing ? /* @__PURE__ */ jsx(IconPause, {}) : /* @__PURE__ */ jsx(IconPlay, {})
-        }
-      ),
-      /* @__PURE__ */ jsx("span", { className: "text-muted small", children: formatTime(offsetMs) }),
-      /* @__PURE__ */ jsx(
-        "input",
-        {
-          className: "player__range",
-          type: "range",
-          min: 0,
-          max: Math.max(1, duration),
-          value: Math.min(offsetMs, duration),
-          onChange: (event) => {
-            setPlaying(false);
-            setOffsetMs(Number(event.target.value));
-          }
-        }
-      ),
-      /* @__PURE__ */ jsx("span", { className: "text-muted small", children: formatTime(duration) })
-    ] })
   ] });
 }
 const POLL_MS$2 = 2e4;
@@ -10234,6 +10287,7 @@ function App() {
         /* @__PURE__ */ jsx(Route, { path: "/login", element: /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true }) }),
         /* @__PURE__ */ jsx(Route, { path: "/register", element: /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true }) }),
         /* @__PURE__ */ jsx(Route, { path: "/boards", element: /* @__PURE__ */ jsx(BoardsPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "/recordings", element: /* @__PURE__ */ jsx(RecordingsLibraryPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/profile", element: /* @__PURE__ */ jsx(ProfilePage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/plan", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/plan/paid", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
