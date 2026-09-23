@@ -18,6 +18,19 @@ export interface RemovedInfo {
   reason: 'kicked' | 'banned';
 }
 
+/**
+ * «Все ко мне» от ведущего. `at` — не с сервера, а метка получения: нужна,
+ * чтобы повторная команда с той же точки не потерялась в дедупликации по
+ * значению — эффект в `BoardPage` следит именно за этим полем.
+ */
+export interface BroughtToMe {
+  pageId: number;
+  x: number;
+  y: number;
+  scale: number;
+  at: number;
+}
+
 export interface BoardHub {
   status: HubStatus;
   error: string | null;
@@ -29,6 +42,8 @@ export interface BoardHub {
    * не дожидаясь, пока это выяснится само при следующем подключении.
    */
   removed: RemovedInfo | null;
+  /** Ведущий перенёс сюда всех остальных. Раз получено — обрабатывается и забывается. */
+  broughtToMe: BroughtToMe | null;
   items: BoardItem[];
   /** Чужие штрихи, которые рисуются прямо сейчас. */
   live: Map<string, LiveStroke>;
@@ -84,6 +99,9 @@ export interface BoardHub {
   deletePage: (pageId: number) => void;
   reorderPages: (order: number[]) => void;
   setPageVisibility: (pageId: number, visibility: PageVisibility, viewers: string[]) => void;
+
+  /** Переносит всех остальных на страницу и вид, переданные здесь. */
+  bringEveryone: (pageId: number, x: number, y: number, scale: number) => void;
 }
 
 /**
@@ -101,6 +119,7 @@ export function useBoardHub(boardId: number): BoardHub {
   const [canEdit, setCanEdit] = useState(false);
   const [canManage, setCanManage] = useState(false);
   const [removed, setRemoved] = useState<RemovedInfo | null>(null);
+  const [broughtToMe, setBroughtToMe] = useState<BroughtToMe | null>(null);
   const [items, setItems] = useState<BoardItem[]>([]);
   const [live, setLive] = useState<Map<string, LiveStroke>>(new Map());
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -365,6 +384,11 @@ export function useBoardHub(boardId: number): BoardHub {
     // закрывать самим: страница покажет отдельный экран и без него.
     hub.on('Removed', (payload: RemovedInfo) => setRemoved(payload));
 
+    // Ведущий позвал к себе — страница, точка в её центре и его масштаб.
+    hub.on('BroughtToMe', (payload: { pageId: number; x: number; y: number; scale: number }) => (
+      setBroughtToMe({ ...payload, at: Date.now() })
+    ));
+
     hub.onreconnecting(() => setStatus('reconnecting'));
 
     hub.onreconnected(async () => {
@@ -415,7 +439,8 @@ export function useBoardHub(boardId: number): BoardHub {
   const page = () => current.current ?? 0;
 
   return {
-    status, error, role, canEdit, canManage, removed, items, live, participants, cursors, me, commits, background,
+    status, error, role, canEdit, canManage, removed, broughtToMe,
+    items, live, participants, cursors, me, commits, background,
     pages, pageId,
     sendCursor: useCallback((x: number, y: number) => call('Cursor', x, y), [call]),
     beginItem: useCallback((id, type, data) => call('BeginItem', id, page(), type, data), [call]),
@@ -468,6 +493,11 @@ export function useBoardHub(boardId: number): BoardHub {
       (id: number, visibility: PageVisibility, viewers: string[]) => (
         call('SetPageVisibility', id, visibility, viewers)
       ),
+      [call],
+    ),
+
+    bringEveryone: useCallback(
+      (id: number, x: number, y: number, scale: number) => call('BringEveryone', id, x, y, scale),
       [call],
     ),
   };

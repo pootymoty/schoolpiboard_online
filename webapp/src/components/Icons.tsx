@@ -445,3 +445,14 @@ export const IconExternal = (props: Props): ReactElement => (
 export const IconBookmark = (props: Props): ReactElement => (
   <Svg {...props}><path d="M6 3h12v18l-6-4.5L6 21z" /></Svg>
 );
+
+/** «Все ко мне». Прицел — переносит остальных в одну точку. */
+export const IconTarget = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="2" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+    </g>
+  </Svg>
+);

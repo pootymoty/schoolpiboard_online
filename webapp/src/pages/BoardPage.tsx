@@ -418,15 +418,48 @@ export function BoardPage(): ReactElement {
    * не мгновенно, а по ответу сервера, и до тех пор центровать вид не на
    * чем — на экране ещё содержимое прежней страницы.
    */
-  const pendingJump = useRef<{ pageId: number; x: number; y: number } | null>(null);
+  const pendingJump = useRef<{ pageId: number; x: number; y: number; scale?: number } | null>(null);
 
   useEffect(() => {
     const target = pendingJump.current;
     if (!target || hub.pageId !== target.pageId) return;
 
     pendingJump.current = null;
-    setViewport((current) => centerOn(current, target.x, target.y, canvasSize.width, canvasSize.height));
+    setViewport((current) => (
+      centerOn(current, target.x, target.y, canvasSize.width, canvasSize.height, target.scale)
+    ));
   }, [hub.pageId, canvasSize.width, canvasSize.height]);
+
+  /**
+   * «Все ко мне» пришло от ведущего. Страница может быть той же, на которой
+   * мы уже стоим, — тогда просто подвинуть вид, — а может быть другой,
+   * и тогда сперва её нужно открыть: та же дорога, что у перехода к
+   * закладке на чужой странице.
+   */
+  useEffect(() => {
+    const target = hub.broughtToMe;
+    if (!target) return;
+
+    if (target.pageId === hub.pageId) {
+      setViewport((current) => (
+        centerOn(current, target.x, target.y, canvasSize.width, canvasSize.height, target.scale)
+      ));
+    } else {
+      pendingJump.current = target;
+      hub.openPage(target.pageId);
+    }
+  }, [hub.broughtToMe]);
+
+  /**
+   * Зовёт остальных к себе: страница, точка в её центре экрана и масштаб —
+   * ровно то, что сейчас видит сам ведущий.
+   */
+  const bringEveryoneToMe = useCallback(() => {
+    if (hub.pageId === null) return;
+
+    const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
+    hub.bringEveryone(hub.pageId, center.x, center.y, viewport.scale);
+  }, [hub.pageId, hub.bringEveryone, viewport, canvasSize.width, canvasSize.height]);
 
   const jumpToBookmark = (bookmark: Bookmark) => {
     const x = bookmark.data.x1 ?? 0;
@@ -1292,6 +1325,7 @@ export function BoardPage(): ReactElement {
             onPaste={pasteClip}
             onPages={() => setShowPages((current) => !current)}
             onBookmarks={() => setShowBookmarks((current) => !current)}
+            onBringEveryone={bringEveryoneToMe}
             pageLabel={
               hub.pages.length === 0
                 ? '—'

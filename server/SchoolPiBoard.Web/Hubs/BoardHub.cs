@@ -345,6 +345,29 @@ public sealed class BoardHub : Hub
         });
     }
 
+    /// <summary>
+    /// «Все ко мне» — переносит остальных на вид ведущего: страницу, точку
+    /// в её центре экрана и масштаб.
+    ///
+    /// Права те же, что на рисование: перекладывать вид всем остальным не
+    /// должен зритель. В журнал не пишется и номера не получает — это не
+    /// изменение доски, а разовая команда, как курсор, а не как штрих; кто
+    /// не был на связи в этот момент, её просто не увидит.
+    ///
+    /// Страница у получателя проверяется не здесь, а когда его клиент сам
+    /// попросит её открыть: если она ему не открыта, он получит обычный
+    /// отказ и останется там, где был, — так же, как при любом другом
+    /// переходе по чужой ссылке на страницу.
+    /// </summary>
+    public async Task BringEveryone(long pageId, double x, double y, double scale)
+    {
+        var presence = await RequireEditorAsync();
+        if (presence is null) return;
+
+        await Clients.GroupExcept(GroupOf(presence.BoardId), new[] { Context.ConnectionId })
+            .SendAsync("BroughtToMe", new { pageId, x, y, scale });
+    }
+
     // ---------- Правка ----------
 
     public async Task LockItem(long itemId)

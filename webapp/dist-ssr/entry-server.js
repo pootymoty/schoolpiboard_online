@@ -401,6 +401,11 @@ const IconExternal = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children:
   /* @__PURE__ */ jsx("path", { d: "M10 14L21 3" })
 ] }) });
 const IconBookmark = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M6 3h12v18l-6-4.5L6 21z" }) });
+const IconTarget = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "8" }),
+  /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "2" }),
+  /* @__PURE__ */ jsx("path", { d: "M12 2v3M12 19v3M2 12h3M19 12h3" })
+] }) });
 function PiMark() {
   return /* @__PURE__ */ jsx("img", { src: "/pi-mark.png", alt: "Пи", className: "pi-mark" });
 }
@@ -4839,7 +4844,8 @@ function ViewToolbar({
   onPaste,
   onPages,
   pageLabel,
-  onBookmarks
+  onBookmarks,
+  onBringEveryone
 }) {
   return /* @__PURE__ */ jsxs("div", { className: "toolbar toolbar--view", role: "toolbar", "aria-label": "Масштаб и вид", children: [
     /* @__PURE__ */ jsxs("div", { className: "zoom", children: [
@@ -4862,6 +4868,17 @@ function ViewToolbar({
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", "data-tip": "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
     canUpload ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFiles, title: "Вставить файл или страницу PDF", "data-tip": "Вставить файл или страницу PDF", children: /* @__PURE__ */ jsx(IconImage, {}) }) : null,
     canEdit ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onLibrary, title: "Заготовки: чертежи, знаки, формулы", "data-tip": "Заготовки: чертежи, знаки, формулы", children: /* @__PURE__ */ jsx(IconLibrary, {}) }) : null,
+    canEdit ? /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: onBringEveryone,
+        title: "Все ко мне: перенести всех участников на этот вид",
+        "data-tip": "Все ко мне: перенести всех участников на этот вид",
+        children: /* @__PURE__ */ jsx(IconTarget, {})
+      }
+    ) : null,
     canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
     /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", "data-tip": "Конспект занятия по почте", children: [
       /* @__PURE__ */ jsx(IconMail, {}),
@@ -7033,6 +7050,7 @@ function useBoardHub(boardId) {
   const [canEdit, setCanEdit] = useState(false);
   const [canManage, setCanManage] = useState(false);
   const [removed, setRemoved] = useState(null);
+  const [broughtToMe, setBroughtToMe] = useState(null);
   const [items, setItems] = useState([]);
   const [live, setLive] = useState(/* @__PURE__ */ new Map());
   const [participants, setParticipants] = useState([]);
@@ -7224,6 +7242,7 @@ function useBoardHub(boardId) {
       setCanManage(payload.canManage);
     });
     hub.on("Removed", (payload) => setRemoved(payload));
+    hub.on("BroughtToMe", (payload) => setBroughtToMe({ ...payload, at: Date.now() }));
     hub.onreconnecting(() => setStatus("reconnecting"));
     hub.onreconnected(async () => {
       await join();
@@ -7260,6 +7279,7 @@ function useBoardHub(boardId) {
     canEdit,
     canManage,
     removed,
+    broughtToMe,
     items,
     live,
     participants,
@@ -7312,6 +7332,10 @@ function useBoardHub(boardId) {
     reorderPages: useCallback((order) => call("ReorderPages", order), [call]),
     setPageVisibility: useCallback(
       (id, visibility, viewers) => call("SetPageVisibility", id, visibility, viewers),
+      [call]
+    ),
+    bringEveryone: useCallback(
+      (id, x, y, scale) => call("BringEveryone", id, x, y, scale),
       [call]
     )
   };
@@ -7603,8 +7627,23 @@ function BoardPage() {
     const target = pendingJump.current;
     if (!target || hub.pageId !== target.pageId) return;
     pendingJump.current = null;
-    setViewport((current) => centerOn(current, target.x, target.y, canvasSize.width, canvasSize.height));
+    setViewport((current) => centerOn(current, target.x, target.y, canvasSize.width, canvasSize.height, target.scale));
   }, [hub.pageId, canvasSize.width, canvasSize.height]);
+  useEffect(() => {
+    const target = hub.broughtToMe;
+    if (!target) return;
+    if (target.pageId === hub.pageId) {
+      setViewport((current) => centerOn(current, target.x, target.y, canvasSize.width, canvasSize.height, target.scale));
+    } else {
+      pendingJump.current = target;
+      hub.openPage(target.pageId);
+    }
+  }, [hub.broughtToMe]);
+  const bringEveryoneToMe = useCallback(() => {
+    if (hub.pageId === null) return;
+    const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
+    hub.bringEveryone(hub.pageId, center.x, center.y, viewport.scale);
+  }, [hub.pageId, hub.bringEveryone, viewport, canvasSize.width, canvasSize.height]);
   const jumpToBookmark = (bookmark) => {
     const x = bookmark.data.x1 ?? 0;
     const y = bookmark.data.y1 ?? 0;
@@ -8194,6 +8233,7 @@ function BoardPage() {
                 onPaste: pasteClip,
                 onPages: () => setShowPages((current) => !current),
                 onBookmarks: () => setShowBookmarks((current) => !current),
+                onBringEveryone: bringEveryoneToMe,
                 pageLabel: hub.pages.length === 0 ? "—" : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`,
                 onFiles: () => setShowFiles((current) => !current),
                 onLibrary: () => setShowLibrary((current) => !current),

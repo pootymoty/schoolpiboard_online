@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
-  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark,
+  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark, IconTarget,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -113,13 +113,15 @@ interface ViewProps {
   /** Какая страница открыта из скольких — прямо на кнопке. */
   pageLabel: string;
   onBookmarks: () => void;
+  /** Переносит остальных участников на вид нажавшего. Владелец и редакторы. */
+  onBringEveryone: () => void;
 }
 
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
 export function ViewToolbar({
   canManage, canEdit, canUpload, scale, onZoom, onResetZoom, onFit,
   onBackground, onFiles, onLibrary, onSummary, summaryCount, onTimer, onHelp, onExport, onClear,
-  canPaste, onPaste, onPages, pageLabel, onBookmarks,
+  canPaste, onPaste, onPages, pageLabel, onBookmarks, onBringEveryone,
 }: ViewProps): ReactElement {
   return (
     <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
@@ -169,6 +171,18 @@ export function ViewToolbar({
       {canEdit ? (
         <button className="btn-tool" type="button" onClick={onLibrary} title="Заготовки: чертежи, знаки, формулы" data-tip="Заготовки: чертежи, знаки, формулы">
           <IconLibrary />
+        </button>
+      ) : null}
+
+      {/* Владелец и редакторы: перенос вида — часть ведения занятия,
+          а не рисования, но право на неё то же. */}
+      {canEdit ? (
+        <button
+          className="btn-tool" type="button" onClick={onBringEveryone}
+          title="Все ко мне: перенести всех участников на этот вид"
+          data-tip="Все ко мне: перенести всех участников на этот вид"
+        >
+          <IconTarget />
         </button>
       ) : null}
 
