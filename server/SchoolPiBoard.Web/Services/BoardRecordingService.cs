@@ -176,6 +176,18 @@ public sealed class BoardRecordingService
             .OrderBy(x => x.Id)
             .ToListAsync(cancellationToken);
 
+    /// <summary>Переименовывает запись — на любой стадии, идущую в том числе.</summary>
+    public async Task<RecordingOutcome> RenameAsync(
+        long boardId, long recordingId, string? title, CancellationToken cancellationToken)
+    {
+        var recording = await FindAsync(boardId, recordingId, cancellationToken);
+        if (recording is null) return RecordingOutcome.NotFound;
+
+        recording.Title = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+        await _db.SaveChangesAsync(cancellationToken);
+        return RecordingOutcome.Ok;
+    }
+
     /// <summary>Удаляет запись — только уже остановленную: идущую нужно сперва прекратить.</summary>
     public async Task<RecordingOutcome> DeleteAsync(long boardId, long recordingId, CancellationToken cancellationToken)
     {

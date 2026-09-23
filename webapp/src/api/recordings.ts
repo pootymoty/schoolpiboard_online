@@ -37,6 +37,8 @@ export interface RecordingLibraryEntry {
   startedAt: string;
   endedAt: string | null;
   durationMs: number;
+  /** Переименовать и удалить может только владелец той доски. */
+  canManage: boolean;
 }
 
 /** Все готовые записи по всем доскам, куда есть доступ. */
@@ -52,4 +54,8 @@ export function getRecording(
 
 export function deleteRecording(boardId: number, recordingId: number): Promise<void> {
   return api<void>(`/boards/${boardId}/recordings/${recordingId}`, { method: 'DELETE' });
+}
+
+export function renameRecording(boardId: number, recordingId: number, title: string): Promise<void> {
+  return api<void>(`/boards/${boardId}/recordings/${recordingId}`, { method: 'PATCH', body: { title } });
 }

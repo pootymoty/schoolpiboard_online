@@ -2211,6 +2211,9 @@ function getRecording(boardId, recordingId) {
 function deleteRecording(boardId, recordingId) {
   return api(`/boards/${boardId}/recordings/${recordingId}`, { method: "DELETE" });
 }
+function renameRecording(boardId, recordingId, title) {
+  return api(`/boards/${boardId}/recordings/${recordingId}`, { method: "PATCH", body: { title } });
+}
 const cache = /* @__PURE__ */ new Map();
 const listeners = /* @__PURE__ */ new Set();
 function onImageLoaded(listener) {
@@ -3112,9 +3115,27 @@ function RecordingsLibraryPage() {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState(null);
   const [watching, setWatching] = useState(null);
-  useEffect(() => {
+  const [renaming, setRenaming] = useState(null);
+  const [newTitle, setNewTitle] = useState("");
+  const load = () => {
     listMyRecordings().then(setRows).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось прочитать записи."));
-  }, []);
+  };
+  useEffect(load, []);
+  const rename = async (event) => {
+    event.preventDefault();
+    if (!renaming) return;
+    try {
+      await renameRecording(renaming.boardId, renaming.id, newTitle.trim());
+      setRenaming(null);
+      load();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось переименовать.");
+    }
+  };
+  const drop = (row) => {
+    if (!window.confirm(`Удалить запись «${row.title || formatDate$1(row.startedAt)}»?`)) return;
+    deleteRecording(row.boardId, row.id).then(() => setRows((current) => (current ?? []).filter((x) => x.id !== row.id))).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось удалить."));
+  };
   if (watching) {
     return /* @__PURE__ */ jsx(BoardShell, { children: /* @__PURE__ */ jsx("div", { className: "board-page", children: /* @__PURE__ */ jsx("section", { className: "board-page__canvas", children: /* @__PURE__ */ jsx(
       RecordingPlayer,
@@ -3129,22 +3150,70 @@ function RecordingsLibraryPage() {
     /* @__PURE__ */ jsx("h1", { children: "Мои записи" }),
     /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Записи занятий по всем доскам, куда у вас есть доступ." }),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    rows === null ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Читаем…" }) : rows.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Пока ни одной записи." }) : /* @__PURE__ */ jsx("div", { className: "library__list", children: rows.map((row) => /* @__PURE__ */ jsx("div", { className: "library__mine", children: /* @__PURE__ */ jsxs(
-      "button",
-      {
-        className: "btn-quiet library__pick",
-        type: "button",
-        onClick: () => setWatching({ boardId: row.boardId, recordingId: row.id }),
-        children: [
-          row.title || formatDate$1(row.startedAt),
-          /* @__PURE__ */ jsxs("span", { className: "library__count", children: [
-            row.boardTitle,
-            " · ",
-            formatDuration$1(row.durationMs)
-          ] })
-        ]
-      }
-    ) }, row.id)) })
+    rows === null ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Читаем…" }) : rows.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Пока ни одной записи." }) : /* @__PURE__ */ jsx("div", { className: "library__list", children: rows.map((row) => /* @__PURE__ */ jsxs("div", { className: "library__mine", children: [
+      /* @__PURE__ */ jsxs(
+        "button",
+        {
+          className: "btn-quiet library__pick",
+          type: "button",
+          onClick: () => setWatching({ boardId: row.boardId, recordingId: row.id }),
+          children: [
+            row.title || formatDate$1(row.startedAt),
+            /* @__PURE__ */ jsxs("span", { className: "library__count", children: [
+              row.boardTitle,
+              " · ",
+              formatDuration$1(row.durationMs)
+            ] })
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsx(Link, { className: "btn-quiet btn-sm", to: `/boards/${row.boardId}`, title: "Открыть доску", children: "На доску" }),
+      row.canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-quiet btn-sm",
+            type: "button",
+            onClick: () => {
+              setRenaming(row);
+              setNewTitle(row.title ?? "");
+            },
+            "aria-label": `Переименовать запись ${row.title || formatDate$1(row.startedAt)}`,
+            title: "Переименовать",
+            children: /* @__PURE__ */ jsx(IconEditor, {})
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-quiet btn-sm",
+            type: "button",
+            onClick: () => drop(row),
+            "aria-label": `Удалить запись ${row.title || formatDate$1(row.startedAt)}`,
+            title: "Удалить запись",
+            children: /* @__PURE__ */ jsx(IconTrash, {})
+          }
+        )
+      ] }) : null
+    ] }, row.id)) }),
+    renaming ? /* @__PURE__ */ jsx(Modal, { title: "Переименовать запись", onClose: () => setRenaming(null), children: /* @__PURE__ */ jsxs("form", { onSubmit: rename, children: [
+      /* @__PURE__ */ jsxs("div", { className: "field", children: [
+        /* @__PURE__ */ jsx("label", { htmlFor: "recordingTitle", children: "Название" }),
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            id: "recordingTitle",
+            type: "text",
+            maxLength: 80,
+            autoFocus: true,
+            placeholder: "Без названия",
+            value: newTitle,
+            onChange: (event) => setNewTitle(event.target.value)
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsx("button", { className: "btn-primary btn-block", type: "submit", children: "Сохранить" })
+    ] }) }) : null
   ] });
 }
 function ProfilePage() {
@@ -7220,6 +7289,8 @@ function RecordingsPanel({
   const [rows, setRows] = useState(null);
   const [error, setError] = useState(null);
   const [title, setTitle] = useState("");
+  const [renaming, setRenaming] = useState(null);
+  const [newTitle, setNewTitle] = useState("");
   const load = () => {
     listRecordings(boardId).then(setRows).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось прочитать записи."));
   };
@@ -7227,6 +7298,17 @@ function RecordingsPanel({
   const drop = (recording) => {
     if (!window.confirm(`Удалить запись «${recording.title || formatDate(recording.startedAt)}»?`)) return;
     deleteRecording(boardId, recording.id).then(() => setRows((current) => (current ?? []).filter((x) => x.id !== recording.id))).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось удалить."));
+  };
+  const rename = async (event) => {
+    event.preventDefault();
+    if (!renaming) return;
+    try {
+      await renameRecording(boardId, renaming.id, newTitle.trim());
+      setRenaming(null);
+      load();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось переименовать.");
+    }
   };
   return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Записи занятий", children: [
     /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
@@ -7280,18 +7362,52 @@ function RecordingsPanel({
           ]
         }
       ),
-      canManage ? /* @__PURE__ */ jsx(
-        "button",
-        {
-          className: "btn-quiet btn-sm",
-          type: "button",
-          onClick: () => drop(row),
-          "aria-label": `Удалить запись ${row.title || formatDate(row.startedAt)}`,
-          title: "Удалить запись",
-          children: "✕"
-        }
-      ) : null
-    ] }, row.id)) })
+      canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-quiet btn-sm",
+            type: "button",
+            onClick: () => {
+              setRenaming(row);
+              setNewTitle(row.title ?? "");
+            },
+            "aria-label": `Переименовать запись ${row.title || formatDate(row.startedAt)}`,
+            title: "Переименовать",
+            children: /* @__PURE__ */ jsx(IconEditor, {})
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-quiet btn-sm",
+            type: "button",
+            onClick: () => drop(row),
+            "aria-label": `Удалить запись ${row.title || formatDate(row.startedAt)}`,
+            title: "Удалить запись",
+            children: /* @__PURE__ */ jsx(IconTrash, {})
+          }
+        )
+      ] }) : null
+    ] }, row.id)) }),
+    renaming ? /* @__PURE__ */ jsx(Modal, { title: "Переименовать запись", onClose: () => setRenaming(null), children: /* @__PURE__ */ jsxs("form", { onSubmit: rename, children: [
+      /* @__PURE__ */ jsxs("div", { className: "field", children: [
+        /* @__PURE__ */ jsx("label", { htmlFor: "recordingTitle", children: "Название" }),
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            id: "recordingTitle",
+            type: "text",
+            maxLength: 80,
+            autoFocus: true,
+            placeholder: "Без названия",
+            value: newTitle,
+            onChange: (event) => setNewTitle(event.target.value)
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsx("button", { className: "btn-primary btn-block", type: "submit", children: "Сохранить" })
+    ] }) }) : null
   ] });
 }
 const POLL_MS$2 = 2e4;

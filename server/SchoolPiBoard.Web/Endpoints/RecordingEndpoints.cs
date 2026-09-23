@@ -11,9 +11,12 @@ public sealed record RecordingDto(
 
 /// <summary>Строка «Моих записей» — та же запись, но с указанием доски: там смотрят по всем сразу.</summary>
 public sealed record RecordingLibraryDto(
-    long Id, long BoardId, string BoardTitle, string? Title, DateTime StartedAt, DateTime? EndedAt, long DurationMs);
+    long Id, long BoardId, string BoardTitle, string? Title, DateTime StartedAt, DateTime? EndedAt, long DurationMs,
+    bool CanManage);
 
 public sealed record RecordingStepDto(long Id, long OffsetMs, string Name, JsonElement Payload);
+
+public sealed record RenameRecordingRequest(string? Title);
 
 /// <summary>
 /// Записи занятий: список — по одной доске и по всем сразу («Мои
@@ -41,12 +44,14 @@ public static class RecordingEndpoints
 
             var memberships = await boards.ListAsync(user.Id, ct);
             var titles = memberships.ToDictionary(x => x.Board.Id, x => x.Board.Title);
+            var canManageByBoard = memberships.ToDictionary(x => x.Board.Id, x => x.Member.CanManage);
 
             var rows = await recordings.ListStoppedAsync(titles.Keys, ct);
 
             return Results.Ok(rows.Select(row => new RecordingLibraryDto(
                 row.Id, row.BoardId, titles.GetValueOrDefault(row.BoardId, "Доска"),
-                row.Title, row.StartedAt, row.EndedAt, row.DurationMs)));
+                row.Title, row.StartedAt, row.EndedAt, row.DurationMs,
+                canManageByBoard.GetValueOrDefault(row.BoardId, false))));
         }).RequireAuthorization();
 
         app.MapGet("/api/boards/{boardId:long}/recordings", async (
@@ -77,6 +82,21 @@ public static class RecordingEndpoints
                 recording = ToDto(recording),
                 steps = steps.Select(ToStepDto),
             });
+        }).RequireAuthorization();
+
+        // Переименовать может только владелец — на любой стадии записи.
+        app.MapPatch("/api/boards/{boardId:long}/recordings/{recordingId:long}", async (
+            long boardId, long recordingId, RenameRecordingRequest request, ClaimsPrincipal principal,
+            AppDbContext db, BoardService boards, BoardRecordingService recordings, CancellationToken ct) =>
+        {
+            var actor = await ActorAsync(boardId, principal, db, boards, ct);
+            if (actor is null || !actor.CanManage) return Forbidden();
+
+            var outcome = await recordings.RenameAsync(boardId, recordingId, request.Title, ct);
+
+            return outcome == RecordingOutcome.Ok
+                ? Results.NoContent()
+                : Results.NotFound(new { message = "Запись не найдена." });
         }).RequireAuthorization();
 
         // Удаляет только владелец, и только уже остановленную: идущую
