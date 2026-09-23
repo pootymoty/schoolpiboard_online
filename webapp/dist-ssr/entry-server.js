@@ -7289,6 +7289,7 @@ function RecordingsPanel({
   const [rows, setRows] = useState(null);
   const [error, setError] = useState(null);
   const [title, setTitle] = useState("");
+  const [seedExisting, setSeedExisting] = useState(false);
   const [renaming, setRenaming] = useState(null);
   const [newTitle, setNewTitle] = useState("");
   const load = () => {
@@ -7333,13 +7334,24 @@ function RecordingsPanel({
           onChange: (event) => setTitle(event.target.value)
         }
       ),
+      /* @__PURE__ */ jsxs("label", { className: "library__toggle", children: [
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "checkbox",
+            checked: seedExisting,
+            onChange: (event) => setSeedExisting(event.target.checked)
+          }
+        ),
+        "Начать с того, что уже нарисовано на странице"
+      ] }),
       /* @__PURE__ */ jsx(
         "button",
         {
           className: "btn btn-sm btn-block",
           type: "button",
           onClick: () => {
-            onStart(title.trim() || void 0);
+            onStart(title.trim() || void 0, seedExisting);
             setTitle("");
           },
           children: "Начать запись"
@@ -7923,7 +7935,10 @@ function useBoardHub(boardId) {
       (id, x, y, scale) => call("BringEveryone", id, x, y, scale),
       [call]
     ),
-    startRecording: useCallback((title) => call("StartRecording", title ?? null), [call]),
+    startRecording: useCallback(
+      (title, seedExisting) => call("StartRecording", title ?? null, seedExisting ?? false, page()),
+      [call]
+    ),
     pauseRecording: useCallback(() => call("PauseRecording"), [call]),
     resumeRecording: useCallback(() => call("ResumeRecording"), [call]),
     stopRecording: useCallback(() => call("StopRecording"), [call]),

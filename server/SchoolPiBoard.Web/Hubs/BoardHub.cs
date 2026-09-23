@@ -558,8 +558,15 @@ public sealed class BoardHub : Hub
 
     // ---------- Запись занятия ----------
 
-    /// <summary>Начать запись — только владелец, и только если на доске нет уже идущей.</summary>
-    public async Task StartRecording(string? title)
+    /// <summary>
+    /// Начать запись — только владелец, и только если на доске нет уже
+    /// идущей. <paramref name="seedExisting"/> — положить в запись
+    /// снимок того, что уже нарисовано на <paramref name="pageId"/>, раньше
+    /// самой записи: прошлое так не показать (тайминга у него нет), но
+    /// начать не с пустого холста — можно, это обычное стартовое условие,
+    /// а не попытка изобразить историю.
+    /// </summary>
+    public async Task StartRecording(string? title, bool seedExisting, long pageId)
     {
         var presence = await RequireOwnerAsync();
         if (presence is null) return;
@@ -573,12 +580,38 @@ public sealed class BoardHub : Hub
             return;
         }
 
+        if (seedExisting) await SeedRecordingAsync(presence.BoardId, pageId);
+
         await Clients.Group(GroupOf(presence.BoardId)).SendAsync("RecordingStarted", new
         {
             id = recording.Id,
             title = recording.Title,
             startedAt = recording.StartedAt,
         });
+    }
+
+    /// <summary>
+    /// Снимок уже нарисованного — первыми шагами только что начавшейся
+    /// записи. Тот же путь, что и у обычных шагов (AppendStepAsync),
+    /// поэтому воспроизводится тем же кодом, который читает и живые события.
+    /// </summary>
+    private async Task SeedRecordingAsync(long boardId, long pageId)
+    {
+        await _recordings.AppendStepAsync(
+            boardId, "BackgroundChanged", await BackgroundOf(boardId), Context.ConnectionAborted);
+
+        var items = await _items.ListAsync(pageId, Context.ConnectionAborted);
+
+        foreach (var item in items)
+        {
+            await _recordings.AppendStepAsync(boardId, "ItemCommitted", new
+            {
+                tempId = $"seed-{item.Id}",
+                pageId,
+                by = "seed",
+                item = ToDto(item),
+            }, Context.ConnectionAborted);
+        }
     }
 
     public async Task PauseRecording()
@@ -836,15 +869,15 @@ public sealed class BoardHub : Hub
     {
         var seq = await _log.AppendAsync(boardId, name, payload);
 
-        // Пока идёт запись занятия — то же событие уходит и туда, с
-        // меткой времени. Молча, если записи нет: не отменять рассылку
-        // ради того, что не всякой доске в этот момент нужно.
-        await _recordings.AppendStepAsync(boardId, name, payload, CancellationToken.None);
-
         // Без Context.ConnectionAborted намеренно: рассылка идёт всей доске,
         // а не вызвавшему, и при отключении — когда его токен уже отменён —
         // остальные всё равно должны узнать, что он ушёл и отпустил замки.
         await Clients.Group(GroupOf(boardId)).SendAsync(name, payload, seq);
+
+        // Запись — после рассылки, а не до: это учёт для потом, и он не
+        // должен задерживать штрих у тех, кто на доске прямо сейчас. Молча,
+        // если записи нет — не всякой доске это в этот момент нужно.
+        await _recordings.AppendStepAsync(boardId, name, payload, CancellationToken.None);
     }
 
     /// <summary>

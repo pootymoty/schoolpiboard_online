@@ -106,7 +106,8 @@ export interface BoardHub {
   bringEveryone: (pageId: number, x: number, y: number, scale: number) => void;
 
   /** Запись занятия — доступно только владельцу, сервер сам это проверит. */
-  startRecording: (title?: string) => void;
+  /** seedExisting — положить в запись то, что уже нарисовано на открытой странице. */
+  startRecording: (title?: string, seedExisting?: boolean) => void;
   pauseRecording: () => void;
   resumeRecording: () => void;
   stopRecording: () => void;
@@ -525,7 +526,10 @@ export function useBoardHub(boardId: number): BoardHub {
       [call],
     ),
 
-    startRecording: useCallback((title?: string) => call('StartRecording', title ?? null), [call]),
+    startRecording: useCallback(
+      (title?: string, seedExisting?: boolean) => call('StartRecording', title ?? null, seedExisting ?? false, page()),
+      [call],
+    ),
     pauseRecording: useCallback(() => call('PauseRecording'), [call]),
     resumeRecording: useCallback(() => call('ResumeRecording'), [call]),
     stopRecording: useCallback(() => call('StopRecording'), [call]),

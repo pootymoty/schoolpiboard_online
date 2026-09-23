@@ -12,7 +12,7 @@ interface Props {
   canManage: boolean;
   /** Идёт ли запись прямо сейчас — от живого хаба, а не из списка. */
   live: RecordingStatus | null;
-  onStart: (title?: string) => void;
+  onStart: (title?: string, seedExisting?: boolean) => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
@@ -45,6 +45,7 @@ export function RecordingsPanel({
   const [rows, setRows] = useState<RecordingInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState('');
+  const [seedExisting, setSeedExisting] = useState(false);
   const [renaming, setRenaming] = useState<RecordingInfo | null>(null);
   const [newTitle, setNewTitle] = useState('');
 
@@ -113,10 +114,20 @@ export function RecordingsPanel({
               placeholder="Название занятия (не обязательно)"
               onChange={(event) => setTitle(event.target.value)}
             />
+
+            <label className="library__toggle">
+              <input
+                type="checkbox"
+                checked={seedExisting}
+                onChange={(event) => setSeedExisting(event.target.checked)}
+              />
+              Начать с того, что уже нарисовано на странице
+            </label>
+
             <button
               className="btn btn-sm btn-block"
               type="button"
-              onClick={() => { onStart(title.trim() || undefined); setTitle(''); }}
+              onClick={() => { onStart(title.trim() || undefined, seedExisting); setTitle(''); }}
             >
               Начать запись
             </button>
