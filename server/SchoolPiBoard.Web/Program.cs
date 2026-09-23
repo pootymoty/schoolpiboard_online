@@ -40,6 +40,7 @@ builder.Services.AddScoped<SummaryService>();
 builder.Services.AddScoped<ConsentService>();
 builder.Services.AddScoped<RoleChangeService>();
 builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<BoardRecordingService>();
 builder.Services.AddScoped<KeyServerClient>();
 
 // Оплата идёт через сервер ключей: паролей Робокассы у доски нет
@@ -131,6 +132,7 @@ app.MapBoardEndpoints();
 app.MapFileEndpoints();
 app.MapTemplateEndpoints();
 app.MapSummaryEndpoints();
+app.MapRecordingEndpoints();
 app.MapAdminEndpoints();
 app.MapBillingEndpoints();
 app.MapCookieConsentEndpoints();

@@ -58,6 +58,7 @@ public sealed class BoardHub : Hub
     private readonly CursorRelay _cursors;
     private readonly SubscriptionService _subscriptions;
     private readonly PageService _pages;
+    private readonly BoardRecordingService _recordings;
 
     public BoardHub(
         AppDbContext db,
@@ -67,7 +68,8 @@ public sealed class BoardHub : Hub
         BoardEventLog log,
         BoardPresence presence,
         CursorRelay cursors,
-        SubscriptionService subscriptions)
+        SubscriptionService subscriptions,
+        BoardRecordingService recordings)
     {
         _db = db;
         _boards = boards;
@@ -77,6 +79,7 @@ public sealed class BoardHub : Hub
         _presence = presence;
         _cursors = cursors;
         _subscriptions = subscriptions;
+        _recordings = recordings;
     }
 
     public static string GroupOf(long boardId) => $"board:{boardId}";
@@ -158,7 +161,8 @@ public sealed class BoardHub : Hub
                     // Присутствие шлём заново: пока связи не было, кто-то мог
                     // прийти и уйти, а эти события в журнале уже неактуальны.
                     participants = Participants(boardId),
-                    events = missed.Select(e => new { seq = e.Seq, name = e.Name, payload = e.Payload })
+                    events = missed.Select(e => new { seq = e.Seq, name = e.Name, payload = e.Payload }),
+                    recording = await RecordingStatusOf(boardId),
                 },
                 Context.ConnectionAborted);
         }
@@ -187,7 +191,8 @@ public sealed class BoardHub : Hub
                     pageId = first?.Id,
                     items = items.Select(ToDto),
                     participants = Participants(boardId),
-                    background = await BackgroundOf(boardId)
+                    background = await BackgroundOf(boardId),
+                    recording = await RecordingStatusOf(boardId),
                 },
                 Context.ConnectionAborted);
         }
@@ -232,7 +237,8 @@ public sealed class BoardHub : Hub
                 pageId = page.Id,
                 items = items.Select(ToDto),
                 participants = Participants(presence.BoardId),
-                background = await BackgroundOf(presence.BoardId)
+                background = await BackgroundOf(presence.BoardId),
+                recording = await RecordingStatusOf(presence.BoardId),
             },
             Context.ConnectionAborted);
     }
@@ -532,6 +538,80 @@ public sealed class BoardHub : Hub
         await PublishAsync(presence.BoardId, "BoardCleared", new { pageId = page.Id, by = Context.ConnectionId });
     }
 
+    // ---------- Запись занятия ----------
+
+    /// <summary>Начать запись — только владелец, и только если на доске нет уже идущей.</summary>
+    public async Task StartRecording(string? title)
+    {
+        var presence = await RequireOwnerAsync();
+        if (presence is null) return;
+
+        var (outcome, recording) = await _recordings.StartAsync(
+            presence.BoardId, presence.UserId!.Value, title, Context.ConnectionAborted);
+
+        if (outcome != RecordingOutcome.Ok || recording is null)
+        {
+            await Clients.Caller.SendAsync("Error", "recording", ExplainRecording(outcome));
+            return;
+        }
+
+        await Clients.Group(GroupOf(presence.BoardId)).SendAsync("RecordingStarted", new
+        {
+            id = recording.Id,
+            title = recording.Title,
+            startedAt = recording.StartedAt,
+        });
+    }
+
+    public async Task PauseRecording()
+    {
+        var presence = await RequireOwnerAsync();
+        if (presence is null) return;
+
+        var outcome = await _recordings.PauseAsync(presence.BoardId, Context.ConnectionAborted);
+
+        if (outcome != RecordingOutcome.Ok)
+        {
+            await Clients.Caller.SendAsync("Error", "recording", ExplainRecording(outcome));
+            return;
+        }
+
+        await Clients.Group(GroupOf(presence.BoardId)).SendAsync("RecordingPaused");
+    }
+
+    public async Task ResumeRecording()
+    {
+        var presence = await RequireOwnerAsync();
+        if (presence is null) return;
+
+        var outcome = await _recordings.ResumeAsync(presence.BoardId, Context.ConnectionAborted);
+
+        if (outcome != RecordingOutcome.Ok)
+        {
+            await Clients.Caller.SendAsync("Error", "recording", ExplainRecording(outcome));
+            return;
+        }
+
+        await Clients.Group(GroupOf(presence.BoardId)).SendAsync("RecordingResumed");
+    }
+
+    /// <summary>Остановить запись — насовсем, продолжить с этого места не получится.</summary>
+    public async Task StopRecording()
+    {
+        var presence = await RequireOwnerAsync();
+        if (presence is null) return;
+
+        var outcome = await _recordings.StopAsync(presence.BoardId, Context.ConnectionAborted);
+
+        if (outcome != RecordingOutcome.Ok)
+        {
+            await Clients.Caller.SendAsync("Error", "recording", ExplainRecording(outcome));
+            return;
+        }
+
+        await Clients.Group(GroupOf(presence.BoardId)).SendAsync("RecordingStopped");
+    }
+
     // ---------- Страницы ----------
 
     /// <summary>
@@ -738,6 +818,11 @@ public sealed class BoardHub : Hub
     {
         var seq = await _log.AppendAsync(boardId, name, payload);
 
+        // Пока идёт запись занятия — то же событие уходит и туда, с
+        // меткой времени. Молча, если записи нет: не отменять рассылку
+        // ради того, что не всякой доске в этот момент нужно.
+        await _recordings.AppendStepAsync(boardId, name, payload, CancellationToken.None);
+
         // Без Context.ConnectionAborted намеренно: рассылка идёт всей доске,
         // а не вызвавшему, и при отключении — когда его токен уже отменён —
         // остальные всё равно должны узнать, что он ушёл и отпустил замки.
@@ -767,6 +852,15 @@ public sealed class BoardHub : Hub
         return presence;
     }
 
+    private static string ExplainRecording(RecordingOutcome outcome) => outcome switch
+    {
+        RecordingOutcome.AlreadyActive => "На доске уже идёт запись — сначала остановите её.",
+        RecordingOutcome.TooMany => "Записей на доске уже столько, сколько позволяет тариф.",
+        RecordingOutcome.NotFound => "Сейчас нет записи, которую можно было бы так тронуть.",
+        RecordingOutcome.StillActive => "Сначала остановите запись, потом её можно удалить.",
+        _ => "Не получилось. Попробуйте ещё раз.",
+    };
+
     private async Task DepartAsync()
     {
         var presence = _presence.Remove(Context.ConnectionId);
@@ -791,6 +885,20 @@ public sealed class BoardHub : Hub
         return board is null
             ? new BackgroundDto("#FFFDF8", "none", "#D9CFC0")
             : new BackgroundDto(board.Background, board.GridStyle, board.GridColor);
+    }
+
+    /// <summary>
+    /// Идёт ли сейчас запись — знать нужно любому, кто входит или
+    /// возвращается: без этого метка «идёт запись» появлялась бы только
+    /// у того, кто был на связи в момент нажатия кнопки.
+    /// </summary>
+    private async Task<object?> RecordingStatusOf(long boardId)
+    {
+        var recording = await _recordings.ActiveAsync(boardId, Context.ConnectionAborted);
+
+        return recording is null
+            ? null
+            : new { id = recording.Id, title = recording.Title, status = recording.Status };
     }
 
     /// <summary>Цвет принимаем только шестнадцатеричный: остальное — чужой ввод в стиль.</summary>

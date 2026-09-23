@@ -67,6 +67,8 @@ public sealed class SubscriptionService
         MaxParticipants = int.MaxValue,
         MaxStorageBytes = long.MaxValue,
         HasLibrary = true,
+        MaxRecordingsPerBoard = int.MaxValue,
+        MaxRecordingMinutes = int.MaxValue,
     };
 
     public async Task<Access> AccessAsync(long userId, CancellationToken cancellationToken)
