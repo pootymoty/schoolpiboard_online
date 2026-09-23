@@ -39,6 +39,10 @@ public class AppDbContext : DbContext
 
     public DbSet<Report> Reports => Set<Report>();
 
+    public DbSet<BoardRecording> BoardRecordings => Set<BoardRecording>();
+
+    public DbSet<BoardRecordingStep> BoardRecordingSteps => Set<BoardRecordingStep>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(entity =>
@@ -234,6 +238,8 @@ public class AppDbContext : DbContext
             entity.Property(x => x.MaxStorageBytes).HasColumnName("max_storage_bytes");
             entity.Property(x => x.MaxParticipants).HasColumnName("max_participants");
             entity.Property(x => x.HasLibrary).HasColumnName("has_library");
+            entity.Property(x => x.MaxRecordingsPerBoard).HasColumnName("max_recordings_per_board");
+            entity.Property(x => x.MaxRecordingMinutes).HasColumnName("max_recording_minutes");
 
             // Бесплатный тариф ищут по коду на каждом запросе о пределах.
             entity.HasIndex(x => x.Code).IsUnique();
@@ -427,6 +433,51 @@ public class AppDbContext : DbContext
             entity.HasOne(x => x.Board)
                 .WithMany()
                 .HasForeignKey(x => x.BoardId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<BoardRecording>(entity =>
+        {
+            entity.ToTable("board_recordings");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.BoardId).HasColumnName("board_id");
+            entity.Property(x => x.StartedByUserId).HasColumnName("started_by_user_id");
+            entity.Property(x => x.Title).HasColumnName("title");
+            entity.Property(x => x.Status).HasColumnName("status").IsRequired();
+            entity.Property(x => x.StartedAt).HasColumnName("started_at");
+            entity.Property(x => x.EndedAt).HasColumnName("ended_at");
+            entity.Property(x => x.DurationMs).HasColumnName("duration_ms");
+            entity.Property(x => x.LastResumedAt).HasColumnName("last_resumed_at");
+            entity.Property(x => x.MaxDurationMs).HasColumnName("max_duration_ms");
+
+            // Список записей доски читается свежими сверху.
+            entity.HasIndex(x => new { x.BoardId, x.StartedAt });
+
+            entity.HasOne(x => x.Board)
+                .WithMany()
+                .HasForeignKey(x => x.BoardId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<BoardRecordingStep>(entity =>
+        {
+            entity.ToTable("board_recording_steps");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.RecordingId).HasColumnName("recording_id");
+            entity.Property(x => x.OffsetMs).HasColumnName("offset_ms");
+            entity.Property(x => x.Name).HasColumnName("name").IsRequired();
+            entity.Property(x => x.Payload).HasColumnName("payload").HasColumnType("jsonb").IsRequired();
+
+            // Воспроизведение читает шаги одной записи по порядку.
+            entity.HasIndex(x => new { x.RecordingId, x.Id });
+
+            entity.HasOne(x => x.Recording)
+                .WithMany()
+                .HasForeignKey(x => x.RecordingId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

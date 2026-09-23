@@ -50,6 +50,12 @@ public class Plan
     /// <summary>Библиотека документов: загрузка PDF и вставка страниц.</summary>
     public bool HasLibrary { get; set; }
 
+    /// <summary>Сколько записей занятий может лежать на одной доске одновременно.</summary>
+    public int MaxRecordingsPerBoard { get; set; }
+
+    /// <summary>Наибольшая длительность одной записи.</summary>
+    public int MaxRecordingMinutes { get; set; }
+
     /// <summary>Цена за выбранный период. Незнакомый период — отказ, а не догадка.</summary>
     public int? PriceFor(int days) => days switch
     {

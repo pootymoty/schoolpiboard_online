@@ -468,6 +468,14 @@ namespace SchoolPiBoard.Web.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("max_participants");
 
+                    b.Property<int>("MaxRecordingMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_recording_minutes");
+
+                    b.Property<int>("MaxRecordingsPerBoard")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_recordings_per_board");
+
                     b.Property<long>("MaxStorageBytes")
                         .HasColumnType("bigint")
                         .HasColumnName("max_storage_bytes");
@@ -821,6 +829,93 @@ namespace SchoolPiBoard.Web.Migrations
                     b.ToTable("reports", (string)null);
                 });
 
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardRecording", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BoardId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("board_id");
+
+                    b.Property<long>("DurationMs")
+                        .HasColumnType("bigint")
+                        .HasColumnName("duration_ms");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ended_at");
+
+                    b.Property<DateTime?>("LastResumedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_resumed_at");
+
+                    b.Property<long>("MaxDurationMs")
+                        .HasColumnType("bigint")
+                        .HasColumnName("max_duration_ms");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<long>("StartedByUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("started_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .HasColumnType("text")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BoardId", "StartedAt");
+
+                    b.ToTable("board_recordings", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardRecordingStep", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<long>("OffsetMs")
+                        .HasColumnType("bigint")
+                        .HasColumnName("offset_ms");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<long>("RecordingId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("recording_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordingId", "Id");
+
+                    b.ToTable("board_recording_steps", (string)null);
+                });
+
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardItem", b =>
                 {
                     b.HasOne("SchoolPiBoard.Web.Data.Entities.Board", "Board")
@@ -953,6 +1048,28 @@ namespace SchoolPiBoard.Web.Migrations
                         .IsRequired();
 
                     b.Navigation("Board");
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardRecording", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.Board", "Board")
+                        .WithMany()
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Board");
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.BoardRecordingStep", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.BoardRecording", "Recording")
+                        .WithMany()
+                        .HasForeignKey("RecordingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Recording");
                 });
 
 #pragma warning restore 612, 618
