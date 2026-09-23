@@ -7722,6 +7722,7 @@ function BoardPage() {
   }, [hub.broughtToMe]);
   const bringEveryoneToMe = useCallback(() => {
     if (hub.pageId === null) return;
+    if (!window.confirm("Перенести всех участников на этот вид?")) return;
     const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
     hub.bringEveryone(hub.pageId, center.x, center.y, viewport.scale);
   }, [hub.pageId, hub.bringEveryone, viewport, canvasSize.width, canvasSize.height]);
