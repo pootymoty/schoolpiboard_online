@@ -24,8 +24,13 @@ public static class SummaryEndpoints
 {
     private const string GuestHeader = "X-Guest-Token";
 
-    /// <summary>Вес одного листа. Страница доски в разумном разрешении — единицы мегабайт.</summary>
-    private const long MaxPageBytes = 6 * 1024 * 1024;
+    /// <summary>
+    /// Вес одного вложения. Общий предел письма проверяет сервис — здесь только
+    /// раннее отсеивание явно негодного файла, до того как его читают в память.
+    /// Тот же потолок, что и на всё письмо: вложение может быть и картинкой на
+    /// страницу, и одним PDF-файлом на все страницы сразу.
+    /// </summary>
+    private const long MaxPageBytes = SummaryService.MaxTotalBytes;
 
     public static void MapSummaryEndpoints(this WebApplication app)
     {
@@ -93,6 +98,12 @@ public static class SummaryEndpoints
 
             long? requestId = long.TryParse(form["requestId"].ToString(), out var parsed) ? parsed : null;
 
+            // Сколько страниц доски в конспекте — не то же самое, что число
+            // вложений: PDF-файл один, а страниц внутри может быть до двенадцати.
+            var pageCount = int.TryParse(form["pageCount"].ToString(), out var parsedCount)
+                ? parsedCount
+                : form.Files.Count;
+
             var pages = new List<EmailAttachment>();
 
             foreach (var file in form.Files)
@@ -103,14 +114,18 @@ public static class SummaryEndpoints
                 using var memory = new MemoryStream();
                 await using (var content = file.OpenReadStream()) await content.CopyToAsync(memory, ct);
 
+                var isPdf = file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+
                 pages.Add(new EmailAttachment(
-                    string.IsNullOrWhiteSpace(file.FileName) ? $"Лист {pages.Count + 1}.png" : file.FileName,
+                    string.IsNullOrWhiteSpace(file.FileName)
+                        ? (isPdf ? $"Лист {pages.Count + 1}.pdf" : $"Лист {pages.Count + 1}.png")
+                        : file.FileName,
                     memory.ToArray(),
-                    "image/png"));
+                    isPdf ? "application/pdf" : "image/png"));
             }
 
             var outcome = await summaries.SendAsync(
-                board, requestId, BoardPageViewer.ForUser(user.Id), user.Email, pages, ct);
+                board, requestId, BoardPageViewer.ForUser(user.Id), user.Email, pages, pageCount, ct);
 
             return outcome == SummaryOutcome.Ok
                 ? Results.NoContent()

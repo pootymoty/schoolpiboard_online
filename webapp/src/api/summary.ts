@@ -34,12 +34,18 @@ export function declineSummaryRequest(boardId: number, requestId: number): Promi
 /**
  * Отправляет конспект. Листы уезжают многочастной формой, как всякая
  * загрузка файлов: `api()` кладёт тело в JSON, а картинки так не отправить.
+ *
+ * `pageCount` — сколько страниц доски в конспекте, для письма. Когда
+ * `pages` — один PDF-файл, а не картинка на страницу, это число иначе не
+ * получить: вложение всего одно, а страниц внутри может быть до двенадцати.
  */
 export async function sendSummary(
   boardId: number, requestId: number | null, pages: { name: string; blob: Blob }[],
+  pageCount = pages.length,
 ): Promise<void> {
   const form = new FormData();
   if (requestId !== null) form.append('requestId', String(requestId));
+  form.append('pageCount', String(pageCount));
   for (const page of pages) form.append('pages', page.blob, page.name);
 
   const headers: Record<string, string> = {};

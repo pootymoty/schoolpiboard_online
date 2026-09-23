@@ -172,7 +172,7 @@ public static class EmailTemplates
     /// Листы идут вложениями, а не ссылками: письмо должно открываться и
     /// через полгода, когда доски уже нет, а ссылка на неё ведёт в пустоту.
     /// </summary>
-    public static (string Subject, string Html, string Text) Summary(string boardTitle, int pages)
+    public static (string Subject, string Html, string Text) Summary(string boardTitle, int pages, bool asPdf)
     {
         var word = pages switch
         {
@@ -182,20 +182,21 @@ public static class EmailTemplates
         };
 
         var name = string.IsNullOrWhiteSpace(boardTitle) ? "Доска" : boardTitle;
+        var how = asPdf ? "Конспект приложен одним PDF-файлом." : "Листы приложены картинками и открываются любым просмотрщиком.";
 
         return (
             $"Конспект: {name} — Доска Пи",
             $"""
              <p>Здравствуйте!</p>
              <p>Во вложении конспект «{name}» — {pages} {word}.</p>
-             <p>Листы приложены картинками и открываются любым просмотрщиком.</p>
+             <p>{how}</p>
              """,
             $"""
              Здравствуйте!
 
              Во вложении конспект «{name}» — {pages} {word}.
 
-             Листы приложены картинками и открываются любым просмотрщиком.
+             {how}
              """);
     }
 

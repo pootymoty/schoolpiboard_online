@@ -4,12 +4,15 @@ import { askSummary, declineSummaryRequest, sendSummary } from '../api/summary';
 import type { SummaryRequest } from '../api/summary';
 import { ApiError } from '../api/client';
 import { readGuestToken } from '../api/guest';
+import { sheetsToPdf, sheetsToPdfBlob } from './exportPdf';
 
 /** Столько же листов принимает сервер: предел одинаковый по обе стороны. */
 export const MAX_SHEETS = 12;
 
 interface Props {
   boardId: number;
+  /** Имя доски — для названия файла и подписи письма. */
+  title: string;
   canManage: boolean;
   /** Просьбы, которые уже пришли владельцу. */
   requests: SummaryRequest[];
@@ -31,9 +34,10 @@ interface Props {
  * доски, и вторая отрисовка там рано или поздно разошлась бы с первой.
  */
 export function SummaryPanel({
-  boardId, canManage, requests, onResolved, collect, onClose,
+  boardId, title, canManage, requests, onResolved, collect, onClose,
 }: Props): ReactElement {
   const [email, setEmail] = useState('');
+  const [asPdf, setAsPdf] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -41,6 +45,26 @@ export function SummaryPanel({
   const fail = (reason: unknown, fallback: string) => {
     setNote(reason instanceof ApiError ? reason.message : fallback);
     setBusy(null);
+  };
+
+  const download = async () => {
+    setNote(null);
+    setBusy('Собираем листы…');
+
+    try {
+      const sheets = await collect();
+
+      if (sheets.length === 0) {
+        setBusy(null);
+        setNote('Скачивать нечего: на страницах пусто.');
+        return;
+      }
+
+      await sheetsToPdf(sheets, title);
+      setBusy(null);
+    } catch (reason) {
+      fail(reason, 'PDF не собрался.');
+    }
   };
 
   const ask = async () => {
@@ -70,7 +94,19 @@ export function SummaryPanel({
       }
 
       setBusy(`Отправляем ${sheets.length} л.…`);
-      await sendSummary(boardId, requestId, sheets);
+
+      if (asPdf) {
+        const pdf = await sheetsToPdfBlob(sheets);
+        if (!pdf) {
+          setBusy(null);
+          setNote('Отправлять нечего: на страницах пусто.');
+          return;
+        }
+
+        await sendSummary(boardId, requestId, [{ name: `${title || 'Конспект'}.pdf`, blob: pdf }], sheets.length);
+      } else {
+        await sendSummary(boardId, requestId, sheets);
+      }
 
       if (requestId !== null) onResolved(requestId);
 
@@ -103,6 +139,15 @@ export function SummaryPanel({
             Каждая страница — отдельным листом, не больше {MAX_SHEETS}. Пустые пропускаются.
           </p>
 
+          <label className="library__toggle">
+            <input
+              type="checkbox"
+              checked={asPdf}
+              onChange={(event) => setAsPdf(event.target.checked)}
+            />
+            Одним PDF-файлом, а не картинками
+          </label>
+
           <button
             className="btn btn-sm btn-block"
             type="button"
@@ -110,6 +155,15 @@ export function SummaryPanel({
             onClick={() => void send(null)}
           >
             Отправить себе
+          </button>
+
+          <button
+            className="btn-quiet btn-sm btn-block"
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void download()}
+          >
+            Скачать PDF
           </button>
 
           <p className="params__label">Просят конспект</p>

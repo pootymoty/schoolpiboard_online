@@ -113,10 +113,10 @@ public sealed class SummaryService
     /// </summary>
     public async Task<SummaryOutcome> SendAsync(
         Board board, long? requestId, string ownerKey, string ownerEmail,
-        IReadOnlyList<EmailAttachment> pages, CancellationToken cancellationToken)
+        IReadOnlyList<EmailAttachment> pages, int pageCount, CancellationToken cancellationToken)
     {
         if (pages.Count == 0) return SummaryOutcome.NothingToSend;
-        if (pages.Count > MaxPages) return SummaryOutcome.TooBig;
+        if (pageCount <= 0 || pageCount > MaxPages) return SummaryOutcome.TooBig;
         if (pages.Sum(x => (long)x.Content.Length) > MaxTotalBytes) return SummaryOutcome.TooBig;
 
         var hour = DateTime.UtcNow.AddHours(-1);
@@ -144,7 +144,8 @@ public sealed class SummaryService
             address = request.Email;
         }
 
-        var letter = EmailTemplates.Summary(board.Title, pages.Count);
+        var asPdf = pages.Count == 1 && pages[0].ContentType == "application/pdf";
+        var letter = EmailTemplates.Summary(board.Title, pageCount, asPdf);
         var delivered = await _email.SendAsync(
             address, letter.Subject, letter.Html, letter.Text, pages, cancellationToken);
 

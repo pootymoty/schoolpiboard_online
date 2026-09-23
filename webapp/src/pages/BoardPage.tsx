@@ -1432,6 +1432,7 @@ export function BoardPage(): ReactElement {
           {showSummary ? (
             <SummaryPanel
               boardId={id}
+              title={board.title}
               canManage={hub.canManage}
               requests={summaries.requests}
               onResolved={summaries.forget}

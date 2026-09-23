@@ -7,7 +7,7 @@ import { StaticRouter } from "react-router-dom/server.mjs";
 import { createContext, useState, useCallback, useEffect, useMemo, useContext, useRef, Children, isValidElement, cloneElement, useLayoutEffect, Fragment as Fragment$1 } from "react";
 import { useLocation, Link, NavLink, useNavigate, useSearchParams, useParams, Navigate, Routes, Route } from "react-router-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
-const API_URL = "/api";
+const API_URL = "http://localhost:5000";
 const TOKEN_KEY = "schoolpiboard.token";
 function readToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -6586,9 +6586,10 @@ function listSummaryRequests(boardId) {
 function declineSummaryRequest(boardId, requestId) {
   return api(`/boards/${boardId}/summary/requests/${requestId}/decline`, { method: "POST" });
 }
-async function sendSummary(boardId, requestId, pages) {
+async function sendSummary(boardId, requestId, pages, pageCount = pages.length) {
   const form = new FormData();
   if (requestId !== null) form.append("requestId", String(requestId));
+  form.append("pageCount", String(pageCount));
   for (const page of pages) form.append("pages", page.blob, page.name);
   const headers = {};
   const token = readToken();
@@ -6608,9 +6609,37 @@ async function sendSummary(boardId, requestId, pages) {
   const details = text ? JSON.parse(text) : {};
   throw new ApiError(response.status, "error", details.message ?? "Конспект не отправился.");
 }
+async function buildPdf(sheets) {
+  const { jsPDF } = await import("jspdf");
+  let doc = null;
+  for (const sheet of sheets) {
+    const bitmap = await createImageBitmap(sheet.blob);
+    const bytes = new Uint8Array(await sheet.blob.arrayBuffer());
+    if (!doc) {
+      doc = new jsPDF({ unit: "px", format: [bitmap.width, bitmap.height] });
+    } else {
+      doc.addPage([bitmap.width, bitmap.height]);
+    }
+    doc.addImage(bytes, "PNG", 0, 0, bitmap.width, bitmap.height);
+    bitmap.close();
+  }
+  return doc;
+}
+async function sheetsToPdf(sheets, title) {
+  if (sheets.length === 0) return false;
+  const doc = await buildPdf(sheets);
+  doc.save(`${title || "Конспект"}.pdf`);
+  return true;
+}
+async function sheetsToPdfBlob(sheets) {
+  if (sheets.length === 0) return null;
+  const doc = await buildPdf(sheets);
+  return doc.output("blob");
+}
 const MAX_SHEETS = 12;
 function SummaryPanel({
   boardId,
+  title,
   canManage,
   requests,
   onResolved,
@@ -6618,12 +6647,29 @@ function SummaryPanel({
   onClose
 }) {
   const [email, setEmail] = useState("");
+  const [asPdf, setAsPdf] = useState(false);
   const [busy, setBusy] = useState(null);
   const [note, setNote] = useState(null);
   const [done, setDone] = useState(false);
   const fail = (reason, fallback) => {
     setNote(reason instanceof ApiError ? reason.message : fallback);
     setBusy(null);
+  };
+  const download = async () => {
+    setNote(null);
+    setBusy("Собираем листы…");
+    try {
+      const sheets = await collect();
+      if (sheets.length === 0) {
+        setBusy(null);
+        setNote("Скачивать нечего: на страницах пусто.");
+        return;
+      }
+      await sheetsToPdf(sheets, title);
+      setBusy(null);
+    } catch (reason) {
+      fail(reason, "PDF не собрался.");
+    }
   };
   const ask = async () => {
     setBusy("Отправляем просьбу…");
@@ -6647,7 +6693,17 @@ function SummaryPanel({
         return;
       }
       setBusy(`Отправляем ${sheets.length} л.…`);
-      await sendSummary(boardId, requestId, sheets);
+      if (asPdf) {
+        const pdf = await sheetsToPdfBlob(sheets);
+        if (!pdf) {
+          setBusy(null);
+          setNote("Отправлять нечего: на страницах пусто.");
+          return;
+        }
+        await sendSummary(boardId, requestId, [{ name: `${title || "Конспект"}.pdf`, blob: pdf }], sheets.length);
+      } else {
+        await sendSummary(boardId, requestId, sheets);
+      }
       if (requestId !== null) onResolved(requestId);
       setBusy(null);
       setDone(true);
@@ -6674,6 +6730,17 @@ function SummaryPanel({
         MAX_SHEETS,
         ". Пустые пропускаются."
       ] }),
+      /* @__PURE__ */ jsxs("label", { className: "library__toggle", children: [
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "checkbox",
+            checked: asPdf,
+            onChange: (event) => setAsPdf(event.target.checked)
+          }
+        ),
+        "Одним PDF-файлом, а не картинками"
+      ] }),
       /* @__PURE__ */ jsx(
         "button",
         {
@@ -6682,6 +6749,16 @@ function SummaryPanel({
           disabled: busy !== null,
           onClick: () => void send2(null),
           children: "Отправить себе"
+        }
+      ),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet btn-sm btn-block",
+          type: "button",
+          disabled: busy !== null,
+          onClick: () => void download(),
+          children: "Скачать PDF"
         }
       ),
       /* @__PURE__ */ jsx("p", { className: "params__label", children: "Просят конспект" }),
@@ -8245,6 +8322,7 @@ function BoardPage() {
               SummaryPanel,
               {
                 boardId: id,
+                title: board.title,
                 canManage: hub.canManage,
                 requests: summaries.requests,
                 onResolved: summaries.forget,
