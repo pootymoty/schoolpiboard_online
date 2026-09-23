@@ -3899,6 +3899,7 @@ function BoardCanvas({
   const canvas = useRef(null);
   const box = useRef(null);
   const drawing = useRef(null);
+  const settling = useRef(/* @__PURE__ */ new Map());
   const panning = useRef(null);
   const pointers = useRef(/* @__PURE__ */ new Map());
   const pinch = useRef(null);
@@ -4070,7 +4071,11 @@ function BoardCanvas({
     );
     const drag = moving.current;
     const chosen = new Set(latest.current.selection);
-    for (const stroke of hub.live.values()) drawItem(context, stroke.type, stroke.data);
+    for (const stroke of hub.live.values()) {
+      if (stroke.by === hub.me) continue;
+      drawItem(context, stroke.type, stroke.data);
+    }
+    for (const pending of settling.current.values()) drawItem(context, pending.type, pending.data);
     if (drawing.current) {
       const brush = drawnBy();
       drawItem(context, brush.type, { ...brush.data, ...drawing.current.preview() });
@@ -4100,7 +4105,7 @@ function BoardCanvas({
         context.restore();
       }
     }
-  }, [hub.items, hub.live, paintBase]);
+  }, [hub.items, hub.live, hub.me, paintBase]);
   const schedule = useCallback((fresh = true) => {
     if (fresh) baseStale.current = true;
     cancelAnimationFrame(frame.current);
@@ -4111,6 +4116,11 @@ function BoardCanvas({
     return () => cancelAnimationFrame(frame.current);
   }, [schedule, size, viewport, settings, tool, background]);
   useEffect(() => onImageLoaded(schedule), [schedule]);
+  useEffect(() => {
+    for (const commit of hub.commits) {
+      if (settling.current.delete(commit.tempId)) schedule();
+    }
+  }, [hub.commits, schedule]);
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
@@ -4509,6 +4519,10 @@ function BoardCanvas({
     const geometry = stroke.preview();
     const meaningful = brush.type === "shape" || brush.type === "table" ? Math.hypot(stroke.to.x - stroke.from.x, stroke.to.y - stroke.from.y) > 2 : stroke.points.length > 0;
     if (meaningful) {
+      settling.current.set(stroke.tempId, { type: brush.type, data: { ...brush.data, ...geometry } });
+      window.setTimeout(() => {
+        if (settling.current.delete(stroke.tempId)) schedule();
+      }, 5e3);
       onCommit(brush.type, { ...brush.data, ...geometry }, stroke.tempId);
     } else if (brush.type === "stroke") {
       hub.cancelItem(stroke.tempId);

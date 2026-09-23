@@ -103,6 +103,19 @@ export function BoardCanvas({
     preview: () => Partial<ItemData>;
   } | null>(null);
 
+  /**
+   * Только что дорисованные штрихи, ещё не долетевшие с сервера обратно
+   * готовым объектом.
+   *
+   * Между отпусканием пера и приходом ItemCommitted — сетевой круг, и на
+   * это время штрих больше не в `drawing` (перо отпущено), но ещё не в
+   * `hub.items`. Без этой подложки штрих на секунду пропадал бы с холста
+   * и появлялся заново — выглядит как «линия подгружается». Держим до
+   * тех пор, пока `hub.commits` не назовёт этому tempId номер, — либо до
+   * таймаута на случай, если подтверждение вообще не придёт.
+   */
+  const settling = useRef<Map<string, { type: ItemType; data: ItemData }>>(new Map());
+
   /** Перетаскивание холста: чем и откуда тащат. */
   const panning = useRef<{ pointerId: number; startX: number; startY: number; origin: Viewport } | null>(null);
 
@@ -407,7 +420,16 @@ export function BoardCanvas({
     const drag = moving.current;
     const chosen = new Set(latest.current.selection);
 
-    for (const stroke of hub.live.values()) drawItem(context, stroke.type, stroke.data);
+    // Свой же штрих сюда тоже приходит эхом от сервера (группа рассылки
+    // включает отправителя) — рисуем его ниже из локальных данных, а
+    // здесь пропускаем: чужая, более старая копия того же штриха под
+    // своей только напрасно грузила бы кадр.
+    for (const stroke of hub.live.values()) {
+      if (stroke.by === hub.me) continue;
+      drawItem(context, stroke.type, stroke.data);
+    }
+
+    for (const pending of settling.current.values()) drawItem(context, pending.type, pending.data);
 
     if (drawing.current) {
       const brush = drawnBy();
@@ -450,7 +472,7 @@ export function BoardCanvas({
         context.restore();
       }
     }
-  }, [hub.items, hub.live, paintBase]);
+  }, [hub.items, hub.live, hub.me, paintBase]);
 
   /**
    * Просит перерисовку к следующему кадру.
@@ -476,6 +498,14 @@ export function BoardCanvas({
   // время пустая рамка, и без этого она осталась бы там до следующего
   // движения мыши.
   useEffect(() => onImageLoaded(schedule), [schedule]);
+
+  // Как только сервер подтвердил tempId настоящим номером объекта, штрих
+  // уже есть в hub.items — подложка из settling больше не нужна.
+  useEffect(() => {
+    for (const commit of hub.commits) {
+      if (settling.current.delete(commit.tempId)) schedule();
+    }
+  }, [hub.commits, schedule]);
 
   // Колесо — масштаб с привязкой к точке под курсором. Слушатель вешаем
   // сами и не пассивным: иначе браузер не даст отменить прокрутку страницы.
@@ -1066,6 +1096,13 @@ export function BoardCanvas({
       : stroke.points.length > 0;
 
     if (meaningful) {
+      // От отпускания пера до ItemCommitted — сетевой круг. Штрих уже не
+      // в drawing (перо отпущено), но ещё не в hub.items — без подложки
+      // он на это время пропадал бы с холста и «подгружался» бы заново.
+      settling.current.set(stroke.tempId, { type: brush.type, data: { ...brush.data, ...geometry } });
+      window.setTimeout(() => {
+        if (settling.current.delete(stroke.tempId)) schedule();
+      }, 5000);
       onCommit(brush.type, { ...brush.data, ...geometry }, stroke.tempId);
     } else if (brush.type === 'stroke') {
       hub.cancelItem(stroke.tempId);
