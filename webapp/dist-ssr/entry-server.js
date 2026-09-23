@@ -273,7 +273,7 @@ const IconDownload = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children:
 ] }) });
 const IconGrid = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("rect", { x: "3", y: "3", width: "18", height: "18", rx: "2" }),
-  /* @__PURE__ */ jsx("path", { d: "M3 9h18M3 15h18M9 3v18M15 3v18" })
+  /* @__PURE__ */ jsx("path", { d: "M3 8h18M3 13h18M3 18h18M8 3v18M13 3v18M18 3v18" })
 ] }) });
 const IconCopy = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("rect", { x: "9", y: "9", width: "11", height: "11", rx: "2" }),
@@ -5130,11 +5130,18 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
       /* @__PURE__ */ jsx("div", { className: "params__row", children: ERASER_SIZES.map((value) => /* @__PURE__ */ jsx(
         "button",
         {
-          className: "btn-quiet btn-sm",
+          className: "btn-tool",
           type: "button",
           "aria-pressed": settings.eraser.size === value,
+          "aria-label": `Размер ${value}`,
           onClick: () => onChange({ ...settings, eraser: { size: value } }),
-          children: value
+          children: /* @__PURE__ */ jsx(
+            "span",
+            {
+              className: "width-dot",
+              style: { width: Math.min(24, value), height: Math.min(24, value) }
+            }
+          )
         },
         value
       )) })
@@ -6858,12 +6865,8 @@ function useSummaryRequests(boardId, canManage) {
   }, []);
   return { requests, reload, forget };
 }
-const MAX_MINUTES = 180;
-function clamp(raw, limit) {
-  const value = Number.parseInt(raw, 10);
-  return Number.isFinite(value) ? Math.max(0, Math.min(limit, value)) : 0;
-}
-function TimerPanel({ onClose }) {
+const TIMER_MAX_MINUTES = 180;
+function useTimer() {
   const [total, setTotal] = useState(10 * 60);
   const [left, setLeft] = useState(10 * 60);
   const [running, setRunning] = useState(false);
@@ -6883,13 +6886,25 @@ function TimerPanel({ onClose }) {
     const timer = window.setInterval(tick, 250);
     return () => window.clearInterval(timer);
   }, [running]);
-  const set = (seconds2) => {
-    const value = Math.max(0, Math.min(MAX_MINUTES * 60, seconds2));
+  const set = useCallback((seconds) => {
+    const value = Math.max(0, Math.min(TIMER_MAX_MINUTES * 60, seconds));
     setTotal(value);
     setLeft(value);
     setRunning(false);
     setDone(false);
-  };
+  }, []);
+  const toggle = useCallback(() => {
+    setDone(false);
+    setRunning((current) => !current);
+  }, []);
+  return { total, left, running, done, set, toggle };
+}
+function clamp(raw, limit) {
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) ? Math.max(0, Math.min(limit, value)) : 0;
+}
+function TimerPanel({ timer, onClose }) {
+  const { total, left, running, done, set, toggle } = timer;
   const minutes = Math.floor(left / 60);
   const seconds = left % 60;
   const progress = total > 0 ? left / total : 0;
@@ -6913,9 +6928,9 @@ function TimerPanel({ onClose }) {
             type: "number",
             inputMode: "numeric",
             min: 0,
-            max: MAX_MINUTES,
+            max: TIMER_MAX_MINUTES,
             value: minutes,
-            onChange: (event) => set(clamp(event.target.value, MAX_MINUTES) * 60 + seconds)
+            onChange: (event) => set(clamp(event.target.value, TIMER_MAX_MINUTES) * 60 + seconds)
           }
         )
       ] }),
@@ -6944,10 +6959,7 @@ function TimerPanel({ onClose }) {
       {
         className: "btn-primary btn-block",
         type: "button",
-        onClick: () => {
-          setDone(false);
-          setRunning((current) => !current);
-        },
+        onClick: toggle,
         disabled: left === 0,
         style: { marginTop: "var(--sp-2)" },
         children: running ? "Пауза" : "Пуск"
@@ -7440,6 +7452,7 @@ function BoardPage() {
   const [showParams, setShowParams] = useState(false);
   const [showBackground, setShowBackground] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
+  const timer = useTimer();
   const [showHelp, setShowHelp] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const [showPages, setShowPages] = useState(false);
@@ -8042,8 +8055,8 @@ function BoardPage() {
   useEffect(() => {
     if (!Number.isFinite(id)) return;
     void load();
-    const timer = window.setInterval(load, 5e3);
-    return () => window.clearInterval(timer);
+    const timer2 = window.setInterval(load, 5e3);
+    return () => window.clearInterval(timer2);
   }, [id, load]);
   useEffect(() => {
     if (!state || openGoalFired.current) return;
@@ -8307,7 +8320,7 @@ function BoardPage() {
                 }
               }
             ),
-            showTimer ? /* @__PURE__ */ jsx(TimerPanel, { onClose: () => setShowTimer(false) }) : null,
+            showTimer ? /* @__PURE__ */ jsx(TimerPanel, { timer, onClose: () => setShowTimer(false) }) : null,
             showHelp ? /* @__PURE__ */ jsx(HelpPanel, { onClose: () => setShowHelp(false) }) : null,
             showFiles ? /* @__PURE__ */ jsx(
               FilesPanel,

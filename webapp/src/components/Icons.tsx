@@ -130,12 +130,16 @@ export const IconDownload = (props: Props): ReactElement => (
   <Svg {...props}><g><path d="M12 3v12" /><path d="M7 11l5 5 5-5" /><path d="M4 21h16" /></g></Svg>
 );
 
-/** Фон и разлиновка. */
+/**
+ * Фон и разлиновка. Частая сетка — в отличие от таблицы (несколько
+ * крупных ячеек), здесь клетки мелкие: это разлиновка листа, а не сетка
+ * данных.
+ */
 export const IconGrid = (props: Props): ReactElement => (
   <Svg {...props}>
     <g>
       <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+      <path d="M3 8h18M3 13h18M3 18h18M8 3v18M13 3v18M18 3v18" />
     </g>
   </Svg>
 );

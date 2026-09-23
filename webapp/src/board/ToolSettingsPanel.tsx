@@ -225,12 +225,16 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
             {ERASER_SIZES.map((value) => (
               <button
                 key={value}
-                className="btn-quiet btn-sm"
+                className="btn-tool"
                 type="button"
                 aria-pressed={settings.eraser.size === value}
+                aria-label={`Размер ${value}`}
                 onClick={() => onChange({ ...settings, eraser: { size: value } })}
               >
-                {value}
+                <span
+                  className="width-dot"
+                  style={{ width: Math.min(24, value), height: Math.min(24, value) }}
+                />
               </button>
             ))}
           </div>

@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
+import type { Timer } from './useTimer';
+import { TIMER_MAX_MINUTES } from './useTimer';
 
 interface Props {
+  timer: Timer;
   onClose: () => void;
 }
-
-const MAX_MINUTES = 180;
 
 /** Число из поля ввода: пустое поле — ноль, а не «не число». */
 function clamp(raw: string, limit: number): number {
@@ -14,51 +14,13 @@ function clamp(raw: string, limit: number): number {
 }
 
 /**
- * Таймер занятия.
- *
- * Живёт только в браузере того, кто его завёл: это его способ следить за
- * временем, а не свойство доски. Общий таймер означал бы, что любой
- * участник может сбить отсчёт преподавателю.
+ * Таймер занятия — здесь только отображение и поля ввода. Сам отсчёт
+ * живёт в {@link Timer} у вызывающего: «Готово» здесь закрывает панель,
+ * а не выключает таймер, и при следующем открытии он покажет то же
+ * время, что натикало без панели на экране.
  */
-export function TimerPanel({ onClose }: Props): ReactElement {
-  const [total, setTotal] = useState(10 * 60);
-  const [left, setLeft] = useState(10 * 60);
-  const [running, setRunning] = useState(false);
-  const [done, setDone] = useState(false);
-
-  // Отсчёт от отметки времени, а не вычитанием секунды на каждом такте:
-  // приглушённая в фоне вкладка иначе отставала бы тем сильнее, чем
-  // дольше на неё не смотрят.
-  const endsAt = useRef(0);
-
-  useEffect(() => {
-    if (!running) return;
-
-    endsAt.current = Date.now() + left * 1000;
-
-    const tick = () => {
-      const rest = Math.max(0, Math.round((endsAt.current - Date.now()) / 1000));
-      setLeft(rest);
-
-      if (rest === 0) {
-        setRunning(false);
-        setDone(true);
-      }
-    };
-
-    const timer = window.setInterval(tick, 250);
-    return () => window.clearInterval(timer);
-    // left намеренно не в зависимостях: он меняется каждым тактом, и
-    // отсчёт перезапускался бы четыре раза в секунду.
-  }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const set = (seconds: number) => {
-    const value = Math.max(0, Math.min(MAX_MINUTES * 60, seconds));
-    setTotal(value);
-    setLeft(value);
-    setRunning(false);
-    setDone(false);
-  };
+export function TimerPanel({ timer, onClose }: Props): ReactElement {
+  const { total, left, running, done, set, toggle } = timer;
 
   const minutes = Math.floor(left / 60);
   const seconds = left % 60;
@@ -88,9 +50,9 @@ export function TimerPanel({ onClose }: Props): ReactElement {
             type="number"
             inputMode="numeric"
             min={0}
-            max={MAX_MINUTES}
+            max={TIMER_MAX_MINUTES}
             value={minutes}
-            onChange={(event) => set(clamp(event.target.value, MAX_MINUTES) * 60 + seconds)}
+            onChange={(event) => set(clamp(event.target.value, TIMER_MAX_MINUTES) * 60 + seconds)}
           />
         </label>
 
@@ -116,7 +78,7 @@ export function TimerPanel({ onClose }: Props): ReactElement {
       <button
         className="btn-primary btn-block"
         type="button"
-        onClick={() => { setDone(false); setRunning((current) => !current); }}
+        onClick={toggle}
         disabled={left === 0}
         style={{ marginTop: 'var(--sp-2)' }}
       >

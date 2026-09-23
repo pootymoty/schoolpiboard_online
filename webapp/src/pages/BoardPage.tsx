@@ -36,6 +36,7 @@ import { useSummaryRequests } from '../board/useSummaryRequests';
 import type { Template } from '../board/library';
 import type { TemplateItem } from '../api/templates';
 import { TimerPanel } from '../board/TimerPanel';
+import { useTimer } from '../board/useTimer';
 import { HelpPanel } from '../board/HelpPanel';
 import { exportPng, renderBoard } from '../board/exportPng';
 import { uploadBoardImage } from '../api/files';
@@ -95,6 +96,7 @@ export function BoardPage(): ReactElement {
   const [showParams, setShowParams] = useState(false);
   const [showBackground, setShowBackground] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
+  const timer = useTimer();
   const [showHelp, setShowHelp] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const [showPages, setShowPages] = useState(false);
@@ -1406,7 +1408,7 @@ export function BoardPage(): ReactElement {
             }}
           />
 
-          {showTimer ? <TimerPanel onClose={() => setShowTimer(false)} /> : null}
+          {showTimer ? <TimerPanel timer={timer} onClose={() => setShowTimer(false)} /> : null}
           {showHelp ? <HelpPanel onClose={() => setShowHelp(false)} /> : null}
 
           {showFiles ? (
