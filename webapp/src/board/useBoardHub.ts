@@ -13,6 +13,20 @@ import { DEFAULT_BACKGROUND } from './protocol';
 
 export type HubStatus = 'connecting' | 'ready' | 'reconnecting' | 'failed';
 
+/**
+ * Правки содержимого доски — по разделу 7.4 спеки разрыв до тридцати
+ * секунд не должен терять работу: то, что вызвано без связи, копится
+ * здесь и досылается по восстановлении, в том же порядке.
+ *
+ * Остальные вызовы (курсор, «все ко мне», запись, страницы) сюда не
+ * входят нарочно — не про содержимое доски, и повтор с опозданием на
+ * полминуты для них либо бессмысленен, либо неожиданен.
+ */
+const QUEUE_WHILE_OFFLINE = new Set([
+  'BeginItem', 'AppendPoints', 'CommitItem', 'CancelItem',
+  'SetBackground', 'MoveItems', 'UpdateItem', 'Reorder', 'DeleteItems', 'ClearBoard',
+]);
+
 /** Почему доступ к доске пропал именно сейчас, а не выяснился при входе. */
 export interface RemovedInfo {
   reason: 'kicked' | 'banned';
@@ -150,6 +164,9 @@ export function useBoardHub(boardId: number): BoardHub {
    * React-цикла и иначе видел бы страницу на момент подписки.
    */
   const current = useRef<number | null>(null);
+
+  /** Правки, накопленные без связи (см. QUEUE_WHILE_OFFLINE) — до досылки. */
+  const queued = useRef<{ method: string; args: unknown[] }[]>([]);
 
   /** Применяет одно событие доски — и живое, и добранное после обрыва. */
   const apply = useCallback((name: string, payload: any) => {
@@ -421,6 +438,15 @@ export function useBoardHub(boardId: number): BoardHub {
       // Догон по журналу мог не покрыть разрыв целиком — доспрашиваем
       // состояние: лишний запрос дешевле пропавшего рисунка.
       if (current.current !== null) await hub.invoke('Sync', current.current).catch(() => undefined);
+
+      // То, что нарисовали без связи, всё это время лежало в queued
+      // (см. call ниже) — теперь можно досылать, в том же порядке, в
+      // каком это рисовалось.
+      const backlog = queued.current;
+      queued.current = [];
+      for (const { method, args } of backlog) {
+        await hub.invoke(method, ...args).catch(() => undefined);
+      }
     });
 
     hub.onclose(() => setStatus('failed'));
@@ -451,10 +477,20 @@ export function useBoardHub(boardId: number): BoardHub {
     };
   }, [boardId, apply]);
 
-  /** Вызов хаба, если связь есть. Без связи молчим: рисование продолжается локально. */
+  /**
+   * Вызов хаба. Без связи правка содержимого доски (см. QUEUE_WHILE_OFFLINE)
+   * копится в queued и досылается по восстановлении — раздел 7.4 спеки:
+   * разрыв до тридцати секунд не должен стирать нарисованное. Остальные
+   * вызовы без связи просто молчат.
+   */
   const call = useCallback((method: string, ...args: unknown[]) => {
     const hub = connection.current;
-    if (hub?.state === HubConnectionState.Connected) void hub.invoke(method, ...args).catch(() => undefined);
+    if (hub?.state === HubConnectionState.Connected) {
+      void hub.invoke(method, ...args).catch(() => undefined);
+      return;
+    }
+
+    if (QUEUE_WHILE_OFFLINE.has(method)) queued.current.push({ method, args });
   }, []);
 
   /**

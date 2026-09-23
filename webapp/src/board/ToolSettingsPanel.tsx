@@ -4,6 +4,7 @@ import {
 } from './tools';
 import type { PenSettings, ShapeSettings, Tool, ToolSettings } from './tools';
 import { LineStyleIcon, ShapeIcon } from './ShapeIcons';
+import { IconCheck } from '../components/Icons';
 
 interface Props {
   tool: Tool;
@@ -47,7 +48,9 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
           aria-label={`Цвет ${value}`}
           style={{ background: value }}
           onClick={() => apply(value)}
-        />
+        >
+          {current === value ? <span className="swatch__check"><IconCheck size={14} /></span> : null}
+        </button>
       ))}
 
       {/* Произвольный цвет: палитра закрывает обычные случаи, но
@@ -65,7 +68,7 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
   );
 
   return (
-    <div className="params" role="dialog" aria-label="Параметры инструмента">
+    <div className="params params--tool" role="dialog" aria-label="Параметры инструмента">
       <div className="params__head">
         <span className="params__title">{titleOf(tool)}</span>
         <button className="btn-quiet btn-sm" type="button" onClick={onClose}>Готово</button>
@@ -203,7 +206,9 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
                 aria-label={`Заливка ${value}`}
                 style={{ background: value }}
                 onClick={() => patchShape({ fill: value })}
-              />
+              >
+                {shapes.fill === value ? <span className="swatch__check"><IconCheck size={14} /></span> : null}
+              </button>
             ))}
 
             <label className="swatch swatch--custom" title="Свой цвет заливки">

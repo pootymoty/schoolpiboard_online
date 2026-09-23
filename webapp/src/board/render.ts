@@ -85,6 +85,81 @@ function drawStroke(context: CanvasRenderingContext2D, data: ItemData): void {
   context.stroke();
 }
 
+/**
+ * Указка: угасающий след, а не сплошная линия. Каждая точка гаснет через
+ * `fadeMs` после того, как появилась, — след тает с хвоста так же, как
+ * рисовался, а не пропадает весь разом по отпусканию. Тонкая белая
+ * обводка вокруг красной линии — иначе яркий след теряется на светлом
+ * фоне и почти не виден на белой доске.
+ */
+export function drawLaser(
+  context: CanvasRenderingContext2D,
+  data: ItemData,
+  times: number[],
+  scale: number,
+  fadeMs: number,
+): void {
+  const points = data.points ?? [];
+  if (points.length === 0) return;
+
+  const now = Date.now();
+  const width = data.width;
+  const opacity = data.opacity ?? 1;
+  // Обводка — пара экранных пикселей на любом масштабе, а не мировая
+  // величина: иначе на сильном приближении она была бы толще самой линии.
+  const outline = 2 / scale;
+
+  const fadeAt = (index: number) => {
+    const age = now - (times[index] ?? now);
+    return Math.max(0, 1 - age / fadeMs);
+  };
+
+  context.save();
+  context.setLineDash([]);
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+
+  const stroke = (from: Point, to: Point, width: number, fade: number, color: string) => {
+    if (fade <= 0) return;
+
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    context.lineWidth = width;
+    context.globalAlpha = fade;
+    context.strokeStyle = color;
+    context.stroke();
+  };
+
+  for (let i = 1; i < points.length; i++) {
+    const fade = fadeAt(i);
+    stroke(points[i - 1], points[i], width + outline * 2, fade * 0.9, '#fff');
+    stroke(points[i - 1], points[i], width, fade * opacity, data.color);
+  }
+
+  // Точка без движения — тем же способом, кружком.
+  if (points.length === 1) {
+    const fade = fadeAt(0);
+    if (fade > 0) {
+      const [p] = points;
+
+      context.beginPath();
+      context.arc(p.x, p.y, width / 2 + outline, 0, Math.PI * 2);
+      context.globalAlpha = fade * 0.9;
+      context.fillStyle = '#fff';
+      context.fill();
+
+      context.beginPath();
+      context.arc(p.x, p.y, width / 2, 0, Math.PI * 2);
+      context.globalAlpha = fade * opacity;
+      context.fillStyle = data.color;
+      context.fill();
+    }
+  }
+
+  context.restore();
+}
+
 function drawArrowHead(context: CanvasRenderingContext2D, data: ItemData): void {
   const x1 = data.x1 ?? 0;
   const y1 = data.y1 ?? 0;

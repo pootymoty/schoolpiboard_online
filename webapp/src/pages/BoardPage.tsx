@@ -99,6 +99,12 @@ export function BoardPage(): ReactElement {
   const [showBackground, setShowBackground] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const timer = useTimer();
+
+  // Время вышло — сообщить сразу, а не только тому, кто потом сам
+  // заглянет в панель таймера.
+  useEffect(() => {
+    if (timer.done) setShowTimer(true);
+  }, [timer.done]);
   const [showHelp, setShowHelp] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const [showPages, setShowPages] = useState(false);

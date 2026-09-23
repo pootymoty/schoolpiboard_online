@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import type { Background, GridStyle } from './protocol';
+import { IconCheck } from '../components/Icons';
 
 /** Фон доски. Светлые — бумага, тёмные — доска в классе. */
 const COLORS = [
@@ -57,7 +58,9 @@ export function BackgroundPanel({ value, onChange, onClose }: Props): ReactEleme
             aria-label={`Фон ${color}`}
             style={{ background: color }}
             onClick={() => onChange({ ...value, background: color })}
-          />
+          >
+            {value.background === color ? <span className="swatch__check"><IconCheck size={14} /></span> : null}
+          </button>
         ))}
 
         <label className="swatch swatch--custom" title="Свой цвет фона">
@@ -96,7 +99,9 @@ export function BackgroundPanel({ value, onChange, onClose }: Props): ReactEleme
             aria-label={`Разлиновка ${color}`}
             style={{ background: color }}
             onClick={() => onChange({ ...value, gridColor: color })}
-          />
+          >
+            {value.gridColor === color ? <span className="swatch__check"><IconCheck size={14} /></span> : null}
+          </button>
         ))}
 
         <label className="swatch swatch--custom" title="Свой цвет разлиновки">

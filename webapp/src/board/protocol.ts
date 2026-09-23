@@ -78,6 +78,13 @@ export interface ItemData {
    */
   marker?: boolean;
 
+  /**
+   * Указка: обычный штрих по сети, но рисуется угасающим следом (см.
+   * `drawLaser` в `render.ts`), а не сплошной линией — и никогда не
+   * закрепляется.
+   */
+  laser?: boolean;
+
   text?: string;
   fontSize?: number;
 

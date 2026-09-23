@@ -1333,6 +1333,18 @@ body.no-scroll {
     outline: 2px solid var(--accent-soft);
 }
 
+/* Галочка внутри выбранного образца: обводка кольцом вокруг видна не
+   всегда отчётливо — особенно когда сама кнопка ещё и в фокусе или
+   цвет близок к акцентному. Смешение „difference“ само подбирает
+   контраст к любому цвету образца — не нужен отдельный тёмный вариант
+   для светлых цветов. */
+.swatch__check {
+    display: flex;
+    color: #fff;
+    mix-blend-mode: difference;
+    pointer-events: none;
+}
+
 .width-dot {
     display: block;
     border-radius: 50%;
@@ -1377,6 +1389,24 @@ body.no-scroll {
 .params--right {
     left: auto;
     right: var(--sp-3);
+}
+
+/* Параметры инструмента — правее вертикальной панели инструментов
+   (.toolbar--vertical), а не поверх неё: 12px — её отступ от края, 62px —
+   её ширина с рамкой и внутренними отступами, 8px — зазор. Ширина панели
+   сужена на ту же величину, чтобы не съезжать за правый край холста. */
+.params--tool {
+    left: 82px;
+    width: min(248px, calc(100% - 82px - var(--sp-3)));
+}
+
+@media (max-width: 720px) {
+    /* Кнопки инструментов на узком экране мельче (см. .toolbar--vertical
+       .btn-tool выше) — панель здесь сдвинута ближе, ровно на разницу. */
+    .params--tool {
+        left: 78px;
+        width: min(248px, calc(100% - 78px - var(--sp-3)));
+    }
 }
 
 .params__head {

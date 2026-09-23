@@ -10,7 +10,7 @@ import type { Bounds } from './geometry';
 import { HANDLE_SIZE, angleTo, handlesFor, resized } from './handles';
 import type { HandleId } from './handles';
 import { onImageLoaded } from './images';
-import { drawGrid, drawItem } from './render';
+import { drawGrid, drawItem, drawLaser } from './render';
 import type { ToolSettings, Tool } from './tools';
 import { clampScale, toScreen, toWorld, zoomAt } from './viewport';
 import type { Viewport } from './viewport';
@@ -59,8 +59,18 @@ const STRAIGHTEN_HOLD_MS = 600;
 /** Сколько живёт след указки после того, как руку убрали. */
 const POINTER_FADE_MS = 1200;
 
-/** Как выглядит указка. Ярко и полупрозрачно — это не рисунок, а жест. */
-const POINTER_STYLE = { color: '#E74C3C', width: 6, opacity: 0.85 };
+/**
+ * Как выглядит указка. Насыщенный, чистый красный — как у настоящей
+ * лазерной указки, а не оттенок из палитры для рисования; белая обводка
+ * добавляется отдельно, при отрисовке (см. `drawLaser` в render.ts).
+ */
+const POINTER_STYLE = { color: '#FF2222', width: 6, opacity: 0.9 };
+
+/** От какого расстояния до края холста начинается автопрокрутка, в пикселях. */
+const AUTO_PAN_MARGIN = 56;
+
+/** Скорость автопрокрутки у самого края, в пикселях за кадр. */
+const AUTO_PAN_MAX_SPEED = 18;
 
 /**
  * Холст доски.
@@ -112,9 +122,12 @@ export function BoardCanvas({
    * `hub.items`. Без этой подложки штрих на секунду пропадал бы с холста
    * и появлялся заново — выглядит как «линия подгружается». Держим до
    * тех пор, пока `hub.commits` не назовёт этому tempId номер, — либо до
-   * таймаута на случай, если подтверждение вообще не придёт.
+   * таймаута на случай, если подтверждение вообще не придёт. Таймаут
+   * считается только при живой связи: без неё вызов и не мог никуда
+   * долететь, отдельная очередь на переподключение досылает его сама
+   * (см. `useBoardHub`), а подложку до той поры трогать не нужно.
    */
-  const settling = useRef<Map<string, { type: ItemType; data: ItemData }>>(new Map());
+  const settling = useRef<Map<string, { type: ItemType; data: ItemData; at: number }>>(new Map());
 
   /** Перетаскивание холста: чем и откуда тащат. */
   const panning = useRef<{ pointerId: number; startX: number; startY: number; origin: Viewport } | null>(null);
@@ -151,6 +164,17 @@ export function BoardCanvas({
   const moving = useRef<
     { pointerId: number; from: Point; dx: number; dy: number; edit: number | null } | null
   >(null);
+
+  /** Кадр автопрокрутки при перетаскивании объекта к краю холста. */
+  const autoPanFrame = useRef<number | null>(null);
+
+  /**
+   * Время появления каждой точки указки, по tempId — чтобы след угасал
+   * с хвоста так же, как рисовался (см. `drawLaser` в render.ts). Своей
+   * временной отметки в сетевых точках нет, поэтому берём момент, когда
+   * точка впервые замечена здесь, при перерисовке.
+   */
+  const laserTimes = useRef<Map<string, number[]>>(new Map());
 
   /**
    * След указки. Это обычный «живой» штрих: он рассылается всем, но
@@ -250,8 +274,8 @@ export function BoardCanvas({
 
   // Свежие значения для обработчиков указателя: они живут вне React-цикла
   // и иначе видели бы состояние на момент подписки.
-  const latest = useRef({ viewport, tool, settings, spaceHeld, selection, background, items: hub.items });
-  latest.current = { viewport, tool, settings, spaceHeld, selection, background, items: hub.items };
+  const latest = useRef({ viewport, tool, settings, spaceHeld, selection, background, items: hub.items, size });
+  latest.current = { viewport, tool, settings, spaceHeld, selection, background, items: hub.items, size };
 
   useEffect(() => {
     const element = box.current;
@@ -420,14 +444,40 @@ export function BoardCanvas({
     const drag = moving.current;
     const chosen = new Set(latest.current.selection);
 
-    // Свой же штрих сюда тоже приходит эхом от сервера (группа рассылки
-    // включает отправителя) — рисуем его ниже из локальных данных, а
-    // здесь пропускаем: чужая, более старая копия того же штриха под
-    // своей только напрасно грузила бы кадр.
-    for (const stroke of hub.live.values()) {
+    const liveLasers = new Set<string>();
+
+    for (const [tempId, stroke] of hub.live) {
+      if (stroke.data.laser) {
+        // У указки нет своего локального предпросмотра (в отличие от
+        // «drawing» у обычного штриха) — её и себе, и всем остальным
+        // рисует именно эта, общая для всех копия из hub.live.
+        liveLasers.add(tempId);
+
+        const points = stroke.data.points ?? [];
+        const times = laserTimes.current.get(tempId) ?? [];
+        for (let i = times.length; i < points.length; i++) times.push(Date.now());
+        laserTimes.current.set(tempId, times);
+
+        drawLaser(context, stroke.data, times, view.scale, POINTER_FADE_MS);
+        continue;
+      }
+
+      // Свой же штрих сюда тоже приходит эхом от сервера (группа рассылки
+      // включает отправителя) — рисуем его ниже из локальных данных, а
+      // здесь пропускаем: чужая, более старая копия того же штриха под
+      // своей только напрасно грузила бы кадр.
       if (stroke.by === hub.me) continue;
       drawItem(context, stroke.type, stroke.data);
     }
+
+    for (const tempId of laserTimes.current.keys()) {
+      if (!liveLasers.has(tempId)) laserTimes.current.delete(tempId);
+    }
+
+    // Угасание рисуется по часам, а не по событиям с сервера — без
+    // очередного кадра сам по себе никто не попросит, и след замер бы
+    // на месте до следующего чужого движения.
+    if (liveLasers.size > 0) schedule(false);
 
     for (const pending of settling.current.values()) drawItem(context, pending.type, pending.data);
 
@@ -507,6 +557,33 @@ export function BoardCanvas({
     }
   }, [hub.commits, schedule]);
 
+  // Подстраховка на случай, если подтверждение всё же не пришло — но
+  // только пока связь жива: без неё висящая подложка не «зависшая»,
+  // просто ждёт своей очереди на досылку.
+  useEffect(() => {
+    if (hub.status !== 'ready') return;
+
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      let changed = false;
+      for (const [tempId, pending] of settling.current) {
+        if (now - pending.at > 5000) {
+          settling.current.delete(tempId);
+          changed = true;
+        }
+      }
+      if (changed) schedule();
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [hub.status, schedule]);
+
+  // Если холст размонтировали посреди перетаскивания — кадр автопрокрутки
+  // не должен продолжать дёргать уже ушедший компонент.
+  useEffect(() => () => {
+    if (autoPanFrame.current !== null) cancelAnimationFrame(autoPanFrame.current);
+  }, []);
+
   // Колесо — масштаб с привязкой к точке под курсором. Слушатель вешаем
   // сами и не пассивным: иначе браузер не даст отменить прокрутку страницы.
   useEffect(() => {
@@ -550,6 +627,56 @@ export function BoardCanvas({
       // мышью вдвое тоньше, чем просили.
       p: event.pointerType === 'pen' ? event.pressure || 0.5 : 1,
     };
+  };
+
+  /**
+   * Автопрокрутка при перетаскивании объекта к краю холста: держим объект
+   * у самой границы — доска сама плавно едет в ту сторону, без отдельной
+   * прокрутки холста рукой.
+   *
+   * Кадры идут своим ходом, а не только по событиям указателя: рука
+   * может застыть у самого края, а доска должна продолжать ехать.
+   */
+  const stepAutoPan = () => {
+    autoPanFrame.current = null;
+
+    const drag = moving.current;
+    if (!drag) return;
+
+    const screen = pointers.current.get(drag.pointerId);
+    if (!screen) return;
+
+    const { width, height } = latest.current.size;
+
+    const panOf = (pos: number, limit: number) => {
+      if (pos < AUTO_PAN_MARGIN) return AUTO_PAN_MAX_SPEED * (1 - pos / AUTO_PAN_MARGIN);
+      if (pos > limit - AUTO_PAN_MARGIN) return -AUTO_PAN_MAX_SPEED * (1 - (limit - pos) / AUTO_PAN_MARGIN);
+      return 0;
+    };
+
+    const panX = panOf(screen.x, width);
+    const panY = panOf(screen.y, height);
+
+    if (panX !== 0 || panY !== 0) {
+      const view = latest.current.viewport;
+      const next = { ...view, x: view.x + panX, y: view.y + panY };
+      onViewport(next);
+
+      // Указатель на экране не сдвинулся, а мир под ним — да: без
+      // пересчёта объект остался бы висеть на старом месте, пока рука
+      // не шевельнётся хоть на пиксель.
+      const world = toWorld(next, screen.x, screen.y);
+      const snap = latest.current.settings.select.snap;
+      drag.dx = snapValue(world.x - drag.from.x, snap);
+      drag.dy = snapValue(world.y - drag.from.y, snap);
+      schedule();
+
+      autoPanFrame.current = requestAnimationFrame(stepAutoPan);
+    }
+  };
+
+  const scheduleAutoPan = () => {
+    if (autoPanFrame.current === null) autoPanFrame.current = requestAnimationFrame(stepAutoPan);
   };
 
   /**
@@ -725,7 +852,7 @@ export function BoardCanvas({
           const tempId = `p${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
           pointing.current = { pointerId: event.pointerId, tempId, points: [point], sent: 0 };
-          hub.beginItem(tempId, 'stroke', { ...POINTER_STYLE, points: [point] });
+          hub.beginItem(tempId, 'stroke', { ...POINTER_STYLE, points: [point], laser: true });
           return;
         }
 
@@ -901,6 +1028,7 @@ export function BoardCanvas({
       drag.dx = snapValue(point.x - drag.from.x, snap);
       drag.dy = snapValue(point.y - drag.from.y, snap);
       schedule();
+      scheduleAutoPan();
       return;
     }
 
@@ -1068,6 +1196,11 @@ export function BoardCanvas({
     if (drag?.pointerId === event.pointerId) {
       moving.current = null;
 
+      if (autoPanFrame.current !== null) {
+        cancelAnimationFrame(autoPanFrame.current);
+        autoPanFrame.current = null;
+      }
+
       if (drag.dx !== 0 || drag.dy !== 0) {
         onMoved(latest.current.selection, drag.dx, drag.dy);
       } else if (drag.edit !== null) {
@@ -1099,10 +1232,7 @@ export function BoardCanvas({
       // От отпускания пера до ItemCommitted — сетевой круг. Штрих уже не
       // в drawing (перо отпущено), но ещё не в hub.items — без подложки
       // он на это время пропадал бы с холста и «подгружался» бы заново.
-      settling.current.set(stroke.tempId, { type: brush.type, data: { ...brush.data, ...geometry } });
-      window.setTimeout(() => {
-        if (settling.current.delete(stroke.tempId)) schedule();
-      }, 5000);
+      settling.current.set(stroke.tempId, { type: brush.type, data: { ...brush.data, ...geometry }, at: Date.now() });
       onCommit(brush.type, { ...brush.data, ...geometry }, stroke.tempId);
     } else if (brush.type === 'stroke') {
       hub.cancelItem(stroke.tempId);

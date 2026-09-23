@@ -2427,6 +2427,54 @@ function drawStroke(context, data) {
   }
   context.stroke();
 }
+function drawLaser(context, data, times, scale, fadeMs) {
+  const points = data.points ?? [];
+  if (points.length === 0) return;
+  const now = Date.now();
+  const width = data.width;
+  const opacity = data.opacity ?? 1;
+  const outline2 = 2 / scale;
+  const fadeAt = (index) => {
+    const age = now - (times[index] ?? now);
+    return Math.max(0, 1 - age / fadeMs);
+  };
+  context.save();
+  context.setLineDash([]);
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  const stroke = (from, to, width2, fade, color) => {
+    if (fade <= 0) return;
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    context.lineWidth = width2;
+    context.globalAlpha = fade;
+    context.strokeStyle = color;
+    context.stroke();
+  };
+  for (let i = 1; i < points.length; i++) {
+    const fade = fadeAt(i);
+    stroke(points[i - 1], points[i], width + outline2 * 2, fade * 0.9, "#fff");
+    stroke(points[i - 1], points[i], width, fade * opacity, data.color);
+  }
+  if (points.length === 1) {
+    const fade = fadeAt(0);
+    if (fade > 0) {
+      const [p2] = points;
+      context.beginPath();
+      context.arc(p2.x, p2.y, width / 2 + outline2, 0, Math.PI * 2);
+      context.globalAlpha = fade * 0.9;
+      context.fillStyle = "#fff";
+      context.fill();
+      context.beginPath();
+      context.arc(p2.x, p2.y, width / 2, 0, Math.PI * 2);
+      context.globalAlpha = fade * opacity;
+      context.fillStyle = data.color;
+      context.fill();
+    }
+  }
+  context.restore();
+}
 function drawArrowHead(context, data) {
   const x1 = data.x1 ?? 0;
   const y1 = data.y1 ?? 0;
@@ -3876,7 +3924,9 @@ const POINT_BATCH_MS = 50;
 const ERASE_RADIUS = 8;
 const STRAIGHTEN_HOLD_MS = 600;
 const POINTER_FADE_MS = 1200;
-const POINTER_STYLE = { color: "#E74C3C", width: 6, opacity: 0.85 };
+const POINTER_STYLE = { color: "#FF2222", width: 6, opacity: 0.9 };
+const AUTO_PAN_MARGIN = 56;
+const AUTO_PAN_MAX_SPEED = 18;
 function BoardCanvas({
   hub,
   tool,
@@ -3907,6 +3957,8 @@ function BoardCanvas({
   const penSeen = useRef(false);
   const marquee = useRef(null);
   const moving = useRef(null);
+  const autoPanFrame = useRef(null);
+  const laserTimes = useRef(/* @__PURE__ */ new Map());
   const pointing = useRef(null);
   const erasing = useRef(null);
   const tapping = useRef(null);
@@ -3958,8 +4010,8 @@ function BoardCanvas({
       }
     };
   };
-  const latest = useRef({ viewport, tool, settings, spaceHeld, selection, background, items: hub.items });
-  latest.current = { viewport, tool, settings, spaceHeld, selection, background, items: hub.items };
+  const latest = useRef({ viewport, tool, settings, spaceHeld, selection, background, items: hub.items, size });
+  latest.current = { viewport, tool, settings, spaceHeld, selection, background, items: hub.items, size };
   useEffect(() => {
     const element = box.current;
     if (!element) return;
@@ -4071,10 +4123,24 @@ function BoardCanvas({
     );
     const drag = moving.current;
     const chosen = new Set(latest.current.selection);
-    for (const stroke of hub.live.values()) {
+    const liveLasers = /* @__PURE__ */ new Set();
+    for (const [tempId, stroke] of hub.live) {
+      if (stroke.data.laser) {
+        liveLasers.add(tempId);
+        const points = stroke.data.points ?? [];
+        const times = laserTimes.current.get(tempId) ?? [];
+        for (let i = times.length; i < points.length; i++) times.push(Date.now());
+        laserTimes.current.set(tempId, times);
+        drawLaser(context, stroke.data, times, view.scale, POINTER_FADE_MS);
+        continue;
+      }
       if (stroke.by === hub.me) continue;
       drawItem(context, stroke.type, stroke.data);
     }
+    for (const tempId of laserTimes.current.keys()) {
+      if (!liveLasers.has(tempId)) laserTimes.current.delete(tempId);
+    }
+    if (liveLasers.size > 0) schedule(false);
     for (const pending of settling.current.values()) drawItem(context, pending.type, pending.data);
     if (drawing.current) {
       const brush = drawnBy();
@@ -4122,6 +4188,24 @@ function BoardCanvas({
     }
   }, [hub.commits, schedule]);
   useEffect(() => {
+    if (hub.status !== "ready") return;
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      let changed = false;
+      for (const [tempId, pending] of settling.current) {
+        if (now - pending.at > 5e3) {
+          settling.current.delete(tempId);
+          changed = true;
+        }
+      }
+      if (changed) schedule();
+    }, 1e3);
+    return () => window.clearInterval(timer);
+  }, [hub.status, schedule]);
+  useEffect(() => () => {
+    if (autoPanFrame.current !== null) cancelAnimationFrame(autoPanFrame.current);
+  }, []);
+  useEffect(() => {
     const element = canvas.current;
     if (!element) return;
     const onWheel = (event) => {
@@ -4153,6 +4237,35 @@ function BoardCanvas({
       // мышью вдвое тоньше, чем просили.
       p: event.pointerType === "pen" ? event.pressure || 0.5 : 1
     };
+  };
+  const stepAutoPan = () => {
+    autoPanFrame.current = null;
+    const drag = moving.current;
+    if (!drag) return;
+    const screen = pointers.current.get(drag.pointerId);
+    if (!screen) return;
+    const { width, height } = latest.current.size;
+    const panOf = (pos, limit) => {
+      if (pos < AUTO_PAN_MARGIN) return AUTO_PAN_MAX_SPEED * (1 - pos / AUTO_PAN_MARGIN);
+      if (pos > limit - AUTO_PAN_MARGIN) return -AUTO_PAN_MAX_SPEED * (1 - (limit - pos) / AUTO_PAN_MARGIN);
+      return 0;
+    };
+    const panX = panOf(screen.x, width);
+    const panY = panOf(screen.y, height);
+    if (panX !== 0 || panY !== 0) {
+      const view = latest.current.viewport;
+      const next = { ...view, x: view.x + panX, y: view.y + panY };
+      onViewport(next);
+      const world = toWorld(next, screen.x, screen.y);
+      const snap = latest.current.settings.select.snap;
+      drag.dx = snapValue(world.x - drag.from.x, snap);
+      drag.dy = snapValue(world.y - drag.from.y, snap);
+      schedule();
+      autoPanFrame.current = requestAnimationFrame(stepAutoPan);
+    }
+  };
+  const scheduleAutoPan = () => {
+    if (autoPanFrame.current === null) autoPanFrame.current = requestAnimationFrame(stepAutoPan);
   };
   const coalescedPoint = (event) => {
     const element = canvas.current;
@@ -4263,7 +4376,7 @@ function BoardCanvas({
         if (latest.current.settings.select.pointer) {
           const tempId2 = `p${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
           pointing.current = { pointerId: event.pointerId, tempId: tempId2, points: [point], sent: 0 };
-          hub.beginItem(tempId2, "stroke", { ...POINTER_STYLE, points: [point] });
+          hub.beginItem(tempId2, "stroke", { ...POINTER_STYLE, points: [point], laser: true });
           return;
         }
         marquee.current = { pointerId: event.pointerId, from: point, to: point };
@@ -4395,6 +4508,7 @@ function BoardCanvas({
       drag.dx = snapValue(point.x - drag.from.x, snap);
       drag.dy = snapValue(point.y - drag.from.y, snap);
       schedule();
+      scheduleAutoPan();
       return;
     }
     const now = performance.now();
@@ -4504,6 +4618,10 @@ function BoardCanvas({
     const drag = moving.current;
     if ((drag == null ? void 0 : drag.pointerId) === event.pointerId) {
       moving.current = null;
+      if (autoPanFrame.current !== null) {
+        cancelAnimationFrame(autoPanFrame.current);
+        autoPanFrame.current = null;
+      }
       if (drag.dx !== 0 || drag.dy !== 0) {
         onMoved(latest.current.selection, drag.dx, drag.dy);
       } else if (drag.edit !== null) {
@@ -4519,10 +4637,7 @@ function BoardCanvas({
     const geometry = stroke.preview();
     const meaningful = brush.type === "shape" || brush.type === "table" ? Math.hypot(stroke.to.x - stroke.from.x, stroke.to.y - stroke.from.y) > 2 : stroke.points.length > 0;
     if (meaningful) {
-      settling.current.set(stroke.tempId, { type: brush.type, data: { ...brush.data, ...geometry } });
-      window.setTimeout(() => {
-        if (settling.current.delete(stroke.tempId)) schedule();
-      }, 5e3);
+      settling.current.set(stroke.tempId, { type: brush.type, data: { ...brush.data, ...geometry }, at: Date.now() });
       onCommit(brush.type, { ...brush.data, ...geometry }, stroke.tempId);
     } else if (brush.type === "stroke") {
       hub.cancelItem(stroke.tempId);
@@ -5344,7 +5459,8 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
         "aria-pressed": current === value,
         "aria-label": `Цвет ${value}`,
         style: { background: value },
-        onClick: () => apply(value)
+        onClick: () => apply(value),
+        children: current === value ? /* @__PURE__ */ jsx("span", { className: "swatch__check", children: /* @__PURE__ */ jsx(IconCheck, { size: 14 }) }) : null
       },
       value
     )),
@@ -5358,7 +5474,7 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
       }
     ) })
   ] });
-  return /* @__PURE__ */ jsxs("div", { className: "params", role: "dialog", "aria-label": "Параметры инструмента", children: [
+  return /* @__PURE__ */ jsxs("div", { className: "params params--tool", role: "dialog", "aria-label": "Параметры инструмента", children: [
     /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
       /* @__PURE__ */ jsx("span", { className: "params__title", children: titleOf(tool) }),
       /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
@@ -5481,7 +5597,8 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
             "aria-pressed": shapes.fill === value,
             "aria-label": `Заливка ${value}`,
             style: { background: value },
-            onClick: () => patchShape({ fill: value })
+            onClick: () => patchShape({ fill: value }),
+            children: shapes.fill === value ? /* @__PURE__ */ jsx("span", { className: "swatch__check", children: /* @__PURE__ */ jsx(IconCheck, { size: 14 }) }) : null
           },
           value
         )),
@@ -6099,7 +6216,8 @@ function BackgroundPanel({ value, onChange, onClose }) {
           "aria-pressed": value.background === color,
           "aria-label": `Фон ${color}`,
           style: { background: color },
-          onClick: () => onChange({ ...value, background: color })
+          onClick: () => onChange({ ...value, background: color }),
+          children: value.background === color ? /* @__PURE__ */ jsx("span", { className: "swatch__check", children: /* @__PURE__ */ jsx(IconCheck, { size: 14 }) }) : null
         },
         color
       )),
@@ -6135,7 +6253,8 @@ function BackgroundPanel({ value, onChange, onClose }) {
           "aria-pressed": value.gridColor === color,
           "aria-label": `Разлиновка ${color}`,
           style: { background: color },
-          onClick: () => onChange({ ...value, gridColor: color })
+          onClick: () => onChange({ ...value, gridColor: color }),
+          children: value.gridColor === color ? /* @__PURE__ */ jsx("span", { className: "swatch__check", children: /* @__PURE__ */ jsx(IconCheck, { size: 14 }) }) : null
         },
         color
       )),
@@ -7645,6 +7764,18 @@ async function exportPng(items, background, title) {
   link.click();
   return true;
 }
+const QUEUE_WHILE_OFFLINE = /* @__PURE__ */ new Set([
+  "BeginItem",
+  "AppendPoints",
+  "CommitItem",
+  "CancelItem",
+  "SetBackground",
+  "MoveItems",
+  "UpdateItem",
+  "Reorder",
+  "DeleteItems",
+  "ClearBoard"
+]);
 function useBoardHub(boardId) {
   const [status, setStatus] = useState("connecting");
   const [error, setError] = useState(null);
@@ -7666,6 +7797,7 @@ function useBoardHub(boardId) {
   const connection = useRef(null);
   const seq = useRef(0);
   const current = useRef(null);
+  const queued = useRef([]);
   const apply = useCallback((name, payload) => {
     switch (name) {
       case "ItemBegan":
@@ -7857,6 +7989,11 @@ function useBoardHub(boardId) {
     hub.onreconnected(async () => {
       await join();
       if (current.current !== null) await hub.invoke("Sync", current.current).catch(() => void 0);
+      const backlog = queued.current;
+      queued.current = [];
+      for (const { method, args } of backlog) {
+        await hub.invoke(method, ...args).catch(() => void 0);
+      }
     });
     hub.onclose(() => setStatus("failed"));
     const onVisible = () => {
@@ -7879,7 +8016,11 @@ function useBoardHub(boardId) {
   }, [boardId, apply]);
   const call = useCallback((method, ...args) => {
     const hub = connection.current;
-    if ((hub == null ? void 0 : hub.state) === HubConnectionState.Connected) void hub.invoke(method, ...args).catch(() => void 0);
+    if ((hub == null ? void 0 : hub.state) === HubConnectionState.Connected) {
+      void hub.invoke(method, ...args).catch(() => void 0);
+      return;
+    }
+    if (QUEUE_WHILE_OFFLINE.has(method)) queued.current.push({ method, args });
   }, []);
   const page = () => current.current ?? 0;
   return {
@@ -8063,6 +8204,9 @@ function BoardPage() {
   const [showBackground, setShowBackground] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const timer = useTimer();
+  useEffect(() => {
+    if (timer.done) setShowTimer(true);
+  }, [timer.done]);
   const [showHelp, setShowHelp] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const [showPages, setShowPages] = useState(false);
