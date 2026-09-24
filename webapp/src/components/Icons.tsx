@@ -450,29 +450,63 @@ export const IconBookmark = (props: Props): ReactElement => (
   <Svg {...props}><path d="M6 3h12v18l-6-4.5L6 21z" /></Svg>
 );
 
-/** Запись занятия идёт — закрашенный круг, тот же знак, что на пульте записи. */
+/** Поставить закладку — тот же значок с плюсом, чтобы не путать со списком закладок. */
+export const IconBookmarkAdd = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <path d="M6 3h12v18l-6-4.5L6 21z" />
+      <circle cx="18" cy="18" r="5.5" fill="var(--surface)" />
+      <path d="M18 15.5v5M15.5 18h5" />
+    </g>
+  </Svg>
+);
+
+/** Кольцо вокруг знака записи/паузы/стопа — как на пульте настоящего плеера. */
+function RecordRing(): ReactElement {
+  return <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" />;
+}
+
+/** Запись занятия идёт — закрашенный круг в кольце, тот же знак, что на пульте записи. */
 export const IconRecord = (props: Props): ReactElement => (
-  <Svg {...props}><circle cx="12" cy="12" r="7" fill="currentColor" stroke="none" /></Svg>
+  <Svg {...props}>
+    <g>
+      <RecordRing />
+      <circle cx="12" cy="12" r="5" fill="currentColor" stroke="none" />
+    </g>
+  </Svg>
 );
 
 /** Запись не идёт: можно начать (или это же — «воспроизвести»). */
 export const IconPlay = (props: Props): ReactElement => (
-  <Svg {...props}><path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none" /></Svg>
+  <Svg {...props}>
+    <g>
+      <RecordRing />
+      <path d="M9.5 8l7 4-7 4z" fill="currentColor" stroke="none" />
+    </g>
+  </Svg>
 );
 
 /** Запись на паузе. */
 export const IconPause = (props: Props): ReactElement => (
   <Svg {...props}>
-    <g fill="currentColor" stroke="none">
-      <rect x="6" y="4" width="4" height="16" />
-      <rect x="14" y="4" width="4" height="16" />
+    <g>
+      <RecordRing />
+      <g fill="currentColor" stroke="none">
+        <rect x="8.5" y="7.5" width="2.5" height="9" />
+        <rect x="13" y="7.5" width="2.5" height="9" />
+      </g>
     </g>
   </Svg>
 );
 
 /** Остановить запись. */
 export const IconStop = (props: Props): ReactElement => (
-  <Svg {...props}><rect x="5" y="5" width="14" height="14" rx="1.5" fill="currentColor" stroke="none" /></Svg>
+  <Svg {...props}>
+    <g>
+      <RecordRing />
+      <rect x="8" y="8" width="8" height="8" rx="1" fill="currentColor" stroke="none" />
+    </g>
+  </Svg>
 );
 
 /** «Все ко мне». Прицел — переносит остальных в одну точку. */

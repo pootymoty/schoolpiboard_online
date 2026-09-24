@@ -401,13 +401,33 @@ const IconExternal = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children:
   /* @__PURE__ */ jsx("path", { d: "M10 14L21 3" })
 ] }) });
 const IconBookmark = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M6 3h12v18l-6-4.5L6 21z" }) });
-const IconRecord = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "7", fill: "currentColor", stroke: "none" }) });
-const IconPlay = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M7 4l13 8-13 8z", fill: "currentColor", stroke: "none" }) });
-const IconPause = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { fill: "currentColor", stroke: "none", children: [
-  /* @__PURE__ */ jsx("rect", { x: "6", y: "4", width: "4", height: "16" }),
-  /* @__PURE__ */ jsx("rect", { x: "14", y: "4", width: "4", height: "16" })
+const IconBookmarkAdd = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M6 3h12v18l-6-4.5L6 21z" }),
+  /* @__PURE__ */ jsx("circle", { cx: "18", cy: "18", r: "5.5", fill: "var(--surface)" }),
+  /* @__PURE__ */ jsx("path", { d: "M18 15.5v5M15.5 18h5" })
 ] }) });
-const IconStop = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("rect", { x: "5", y: "5", width: "14", height: "14", rx: "1.5", fill: "currentColor", stroke: "none" }) });
+function RecordRing() {
+  return /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "10", fill: "none", stroke: "currentColor", strokeWidth: "1.5" });
+}
+const IconRecord = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx(RecordRing, {}),
+  /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "5", fill: "currentColor", stroke: "none" })
+] }) });
+const IconPlay = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx(RecordRing, {}),
+  /* @__PURE__ */ jsx("path", { d: "M9.5 8l7 4-7 4z", fill: "currentColor", stroke: "none" })
+] }) });
+const IconPause = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx(RecordRing, {}),
+  /* @__PURE__ */ jsxs("g", { fill: "currentColor", stroke: "none", children: [
+    /* @__PURE__ */ jsx("rect", { x: "8.5", y: "7.5", width: "2.5", height: "9" }),
+    /* @__PURE__ */ jsx("rect", { x: "13", y: "7.5", width: "2.5", height: "9" })
+  ] })
+] }) });
+const IconStop = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx(RecordRing, {}),
+  /* @__PURE__ */ jsx("rect", { x: "8", y: "8", width: "8", height: "8", rx: "1", fill: "currentColor", stroke: "none" })
+] }) });
 const IconTarget = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "8" }),
   /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "2" }),
@@ -5264,11 +5284,11 @@ function DrawToolbar({
       }
     );
   };
-  return /* @__PURE__ */ jsxs(Fragment, { children: [
+  return /* @__PURE__ */ jsxs("div", { className: open ? "toolbar-slot--vertical" : "toolbar-slot--vertical toolbar-slot--collapsed", children: [
     /* @__PURE__ */ jsxs(
       "div",
       {
-        className: open ? "toolbar toolbar--vertical" : "toolbar toolbar--vertical toolbar--collapsed",
+        className: "toolbar toolbar--vertical",
         role: "toolbar",
         "aria-label": "Инструменты рисования",
         children: [
@@ -5380,11 +5400,11 @@ function ViewToolbar({
   open,
   onToggleOpen
 }) {
-  return /* @__PURE__ */ jsxs(Fragment, { children: [
+  return /* @__PURE__ */ jsxs("div", { className: open ? "toolbar-slot--view" : "toolbar-slot--view toolbar-slot--collapsed", children: [
     /* @__PURE__ */ jsxs(
       "div",
       {
-        className: open ? "toolbar toolbar--view" : "toolbar toolbar--view toolbar--collapsed",
+        className: "toolbar toolbar--view",
         role: "toolbar",
         "aria-label": "Масштаб и вид",
         children: [
@@ -5412,7 +5432,7 @@ function ViewToolbar({
               onClick: () => onTool("bookmark"),
               title: "Закладка: подписанная метка в этом месте",
               "data-tip": "Закладка: подписанная метка в этом месте",
-              children: /* @__PURE__ */ jsx(IconBookmark, {})
+              children: /* @__PURE__ */ jsx(IconBookmarkAdd, {})
             }
           ) : null,
           /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
@@ -9052,36 +9072,68 @@ function BoardPage() {
   const presentCount = members.length + otherGuests.length + (me.isGuest ? 1 : 0);
   return /* @__PURE__ */ jsxs(BoardShell, { children: [
     /* @__PURE__ */ jsxs("div", { className: "board-page", children: [
-      board.canManage ? /* @__PURE__ */ jsxs("div", { className: "board-page__bar", children: [
-        /* @__PURE__ */ jsxs(
+      /* @__PURE__ */ jsxs("div", { className: "board-page__bar", children: [
+        editingTitle ? /* @__PURE__ */ jsxs("div", { className: "board-title", children: [
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              className: "board-title__input",
+              type: "text",
+              autoFocus: true,
+              maxLength: 200,
+              value: titleDraft,
+              onChange: (event) => setTitleDraft(event.target.value),
+              onKeyDown: (event) => {
+                if (event.key === "Enter") saveTitle();
+                if (event.key === "Escape") setEditingTitle(false);
+              }
+            }
+          ),
+          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: saveTitle, "aria-label": "Сохранить название", children: /* @__PURE__ */ jsx(IconCheck, {}) })
+        ] }) : board.canManage ? /* @__PURE__ */ jsx(
           "button",
           {
-            className: "btn-tool btn-tool--wide",
+            className: "board-title__text",
             type: "button",
-            onClick: () => setShowLink(true),
-            title: "Ссылка на доску",
-            children: [
-              /* @__PURE__ */ jsx(IconLink, {}),
-              /* @__PURE__ */ jsx("span", { children: "Ссылка" })
-            ]
+            onClick: () => {
+              setTitleDraft(board.title);
+              setEditingTitle(true);
+            },
+            title: "Переименовать доску",
+            children: board.title
           }
-        ),
-        /* @__PURE__ */ jsxs(
-          "button",
-          {
-            className: "btn-tool btn-tool--wide",
-            type: "button",
-            onClick: toggleLock,
-            disabled: busy,
-            "aria-pressed": board.locked,
-            title: board.locked ? "Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть" : "Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть",
-            children: [
-              board.locked ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconLockOpen, {}),
-              /* @__PURE__ */ jsx("span", { children: board.locked ? "Закрыта" : "Открыта" })
-            ]
-          }
-        )
-      ] }) : null,
+        ) : /* @__PURE__ */ jsx("p", { className: "board-title__text", children: board.title }),
+        board.canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: "btn-tool btn-tool--wide",
+              type: "button",
+              onClick: () => setShowLink(true),
+              title: "Ссылка на доску",
+              children: [
+                /* @__PURE__ */ jsx(IconLink, {}),
+                /* @__PURE__ */ jsx("span", { children: "Ссылка" })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: "btn-tool btn-tool--wide",
+              type: "button",
+              onClick: toggleLock,
+              disabled: busy,
+              "aria-pressed": board.locked,
+              title: board.locked ? "Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть" : "Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть",
+              children: [
+                board.locked ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconLockOpen, {}),
+                /* @__PURE__ */ jsx("span", { children: board.locked ? "Закрыта" : "Открыта" })
+              ]
+            }
+          )
+        ] }) : null
+      ] }),
       board.locked && board.canManage ? /* @__PURE__ */ jsx("p", { className: "note note-warning", children: "Доска закрыта для новых участников." }) : null,
       error ?? hub.error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error ?? hub.error }) : null,
       /* @__PURE__ */ jsx(
@@ -9100,36 +9152,6 @@ function BoardPage() {
             void insertFile(file, file.name);
           },
           children: watching !== null ? /* @__PURE__ */ jsx(RecordingPlayer, { boardId: id, recordingId: watching, onClose: () => setWatching(null) }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-            /* @__PURE__ */ jsx("div", { className: "board-title", children: editingTitle ? /* @__PURE__ */ jsxs(Fragment, { children: [
-              /* @__PURE__ */ jsx(
-                "input",
-                {
-                  className: "board-title__input",
-                  type: "text",
-                  autoFocus: true,
-                  maxLength: 200,
-                  value: titleDraft,
-                  onChange: (event) => setTitleDraft(event.target.value),
-                  onKeyDown: (event) => {
-                    if (event.key === "Enter") saveTitle();
-                    if (event.key === "Escape") setEditingTitle(false);
-                  }
-                }
-              ),
-              /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: saveTitle, "aria-label": "Сохранить название", children: /* @__PURE__ */ jsx(IconCheck, {}) })
-            ] }) : board.canManage ? /* @__PURE__ */ jsx(
-              "button",
-              {
-                className: "board-title__text",
-                type: "button",
-                onClick: () => {
-                  setTitleDraft(board.title);
-                  setEditingTitle(true);
-                },
-                title: "Переименовать доску",
-                children: board.title
-              }
-            ) : /* @__PURE__ */ jsx("p", { className: "board-title__text", children: board.title }) }),
             docked ? null : /* @__PURE__ */ jsx(
               DrawToolbar,
               {

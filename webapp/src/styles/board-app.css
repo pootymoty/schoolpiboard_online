@@ -1000,30 +1000,22 @@ body.no-scroll {
     border-radius: var(--radius-lg);
 }
 
-/* --- Название доски: верхний левый угол холста ------------------------------ */
+/* --- Название доски: слева от кнопки «Ссылка» ------------------------------- */
 
 .board-title {
-    position: absolute;
-    left: var(--sp-3);
-    top: var(--sp-3);
-    z-index: 8;
     display: flex;
     align-items: center;
     gap: var(--sp-1);
-    max-width: min(60%, 420px);
-    padding: var(--sp-1) var(--sp-2);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
 }
 
+/* Ширина фиксирована, а не по тексту: длинное название иначе растягивало
+   бы строку с кнопками и сдвигало холст вниз. */
 .board-title__text {
     font-family: var(--font-head);
     font-weight: 700;
     margin: 0;
-    padding: var(--sp-1);
-    min-width: 0;
+    padding: var(--sp-1) var(--sp-2);
+    width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1035,8 +1027,7 @@ body.no-scroll {
 }
 
 .board-title__input {
-    min-width: 0;
-    width: 160px;
+    width: 200px;
     padding: var(--sp-1) var(--sp-2);
     font-family: var(--font-head);
     font-weight: 700;
@@ -1193,23 +1184,35 @@ body.no-scroll {
 
 /* --- Инструменты рисования: вертикальная полоса слева от холста ------------- */
 
-.toolbar--vertical {
+/*
+ * Слот несёт позиционирование и сдвиг за край (см. .toolbar--collapsed
+ * ниже), сама полоса внутри — только прокрутку кнопок. Разведено на два
+ * элемента специально: у полосы обязательна прокрутка по вертикали
+ * (кнопок больше, чем помещается на телефоне), а раз задан overflow-y,
+ * браузер по правилам CSS обрезает и overflow-x тоже — стрелка, которая
+ * должна торчать сбоку, приклеенная к полосе, обрезалась бы этим же
+ * правилом, если бы жила внутри неё, а не в отдельном слоте снаружи.
+ */
+.toolbar-slot--vertical {
     position: absolute;
     left: var(--sp-3);
     /* Отступ сверху — под рамку с названием доски: впритык они на
        телефоне слегка наезжали друг на друга. */
     top: 72px;
     z-index: 8;
+    transition: transform .25s ease;
+}
+
+.toolbar--vertical {
     flex-direction: column;
     flex-wrap: nowrap;
     /* Высота по числу кнопок, не во весь холст — иначе снизу пустует
        место, где инструментов уже нет. Прокрутка — только когда кнопкам
        правда не хватает места по вертикали. */
-    max-height: calc(100% - 72px - var(--sp-3));
+    max-height: calc(100vh - 72px - var(--sp-3));
     overflow-y: auto;
     overscroll-behavior-y: contain;
     scrollbar-width: none;
-    transition: transform .25s ease;
 }
 
 .toolbar--vertical::-webkit-scrollbar { display: none; }
@@ -1286,14 +1289,18 @@ body.no-scroll {
 
 /* --- Масштаб и вид: горизонтальная полоса в правом верхнем углу ------------- */
 
-.toolbar--view {
+.toolbar-slot--view {
     position: absolute;
     right: var(--sp-3);
     top: var(--sp-3);
     z-index: 8;
     max-width: calc(100% - 2 * var(--sp-3));
-    flex-wrap: nowrap;
     transition: transform .25s ease;
+}
+
+.toolbar--view {
+    flex-wrap: nowrap;
+    max-width: 100%;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
@@ -1328,9 +1335,15 @@ body.no-scroll {
  * Только на телефоне: на большом экране обе панели ничего не загораживают,
  * и убирать их незачем — там этих кнопок нет вовсе.
  */
-.toolbar--vertical.toolbar--collapsed { transform: translateX(-130%); }
-.toolbar--view.toolbar--collapsed { transform: translateY(-130%); }
+.toolbar-slot--vertical.toolbar-slot--collapsed { transform: translateX(-100%); }
+.toolbar-slot--view.toolbar-slot--collapsed { transform: translateY(-100%); }
 
+/*
+ * Стрелка — не в самой полосе (см. пояснение у .toolbar-slot--vertical
+ * выше), а в общем с ней слоте: сдвиг слота трансформом двигает и полосу,
+ * и стрелку одним куском — стрелка «приклеена» к панели в буквальном
+ * смысле, а не просто нарисована на её обычном месте.
+ */
 .toolbar-toggle {
     display: none;
     position: absolute;
@@ -1345,13 +1358,12 @@ body.no-scroll {
     border: 1px solid var(--line-strong);
     background: var(--surface);
     color: var(--text);
-    transition: transform .25s ease;
 }
 
-.toolbar-toggle svg { width: 14px; height: 14px; }
+.toolbar-toggle svg { width: 14px; height: 14px; transition: transform .25s ease; }
 
 .toolbar-toggle--vertical {
-    left: 0;
+    right: -28px;
     top: 50%;
     transform: translateY(-50%);
     border-radius: 0 var(--radius) var(--radius) 0;
@@ -1361,8 +1373,8 @@ body.no-scroll {
 .toolbar-toggle--vertical.toolbar-toggle--closed svg { transform: rotate(0); }
 
 .toolbar-toggle--view {
-    top: 0;
-    right: var(--sp-4);
+    left: var(--sp-4);
+    bottom: -20px;
     border-radius: 0 0 var(--radius) var(--radius);
 }
 

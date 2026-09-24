@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
-  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark, IconTarget,
+  IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark, IconBookmarkAdd, IconTarget,
   IconRecord, IconPlay, IconPause, IconStop, IconChevronLeft, IconChevronDown,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
@@ -62,9 +62,9 @@ export function DrawToolbar({
   };
 
   return (
-    <>
+    <div className={open ? 'toolbar-slot--vertical' : 'toolbar-slot--vertical toolbar-slot--collapsed'}>
     <div
-      className={open ? 'toolbar toolbar--vertical' : 'toolbar toolbar--vertical toolbar--collapsed'}
+      className="toolbar toolbar--vertical"
       role="toolbar" aria-label="Инструменты рисования"
     >
       <button
@@ -132,7 +132,7 @@ export function DrawToolbar({
     >
       <IconChevronLeft />
     </button>
-    </>
+    </div>
   );
 }
 
@@ -186,9 +186,9 @@ export function ViewToolbar({
   open, onToggleOpen,
 }: ViewProps): ReactElement {
   return (
-    <>
+    <div className={open ? 'toolbar-slot--view' : 'toolbar-slot--view toolbar-slot--collapsed'}>
     <div
-      className={open ? 'toolbar toolbar--view' : 'toolbar toolbar--view toolbar--collapsed'}
+      className="toolbar toolbar--view"
       role="toolbar" aria-label="Масштаб и вид"
     >
       {/* Масштаб доступен всем: наблюдателю он нужен ровно так же. */}
@@ -225,7 +225,7 @@ export function ViewToolbar({
           onClick={() => onTool('bookmark')}
           title="Закладка: подписанная метка в этом месте" data-tip="Закладка: подписанная метка в этом месте"
         >
-          <IconBookmark />
+          <IconBookmarkAdd />
         </button>
       ) : null}
 
@@ -324,6 +324,6 @@ export function ViewToolbar({
     >
       <IconChevronDown />
     </button>
-    </>
+    </div>
   );
 }

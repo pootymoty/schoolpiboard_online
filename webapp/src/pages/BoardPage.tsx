@@ -1282,33 +1282,69 @@ export function BoardPage(): ReactElement {
   return (
     <BoardShell>
       <div className="board-page">
-        {board.canManage ? (
-          <div className="board-page__bar">
+        <div className="board-page__bar">
+          {/* Название — слева от «Ссылка»: тут же, в одной строке, а не
+              отдельной плывущей надписью над холстом. Править может
+              только владелец, щёлкнув по надписи. */}
+          {editingTitle ? (
+            <div className="board-title">
+              <input
+                className="board-title__input"
+                type="text"
+                autoFocus
+                maxLength={200}
+                value={titleDraft}
+                onChange={(event) => setTitleDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') saveTitle();
+                  if (event.key === 'Escape') setEditingTitle(false);
+                }}
+              />
+              <button className="btn-tool" type="button" onClick={saveTitle} aria-label="Сохранить название">
+                <IconCheck />
+              </button>
+            </div>
+          ) : board.canManage ? (
             <button
-              className="btn-tool btn-tool--wide"
+              className="board-title__text"
               type="button"
-              onClick={() => setShowLink(true)}
-              title="Ссылка на доску"
+              onClick={() => { setTitleDraft(board.title); setEditingTitle(true); }}
+              title="Переименовать доску"
             >
-              <IconLink />
-              <span>Ссылка</span>
+              {board.title}
             </button>
+          ) : (
+            <p className="board-title__text">{board.title}</p>
+          )}
 
-            <button
-              className="btn-tool btn-tool--wide"
-              type="button"
-              onClick={toggleLock}
-              disabled={busy}
-              aria-pressed={board.locked}
-              title={board.locked
-                ? 'Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть'
-                : 'Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть'}
-            >
-              {board.locked ? <IconLockClosed /> : <IconLockOpen />}
-              <span>{board.locked ? 'Закрыта' : 'Открыта'}</span>
-            </button>
-          </div>
-        ) : null}
+          {board.canManage ? (
+            <>
+              <button
+                className="btn-tool btn-tool--wide"
+                type="button"
+                onClick={() => setShowLink(true)}
+                title="Ссылка на доску"
+              >
+                <IconLink />
+                <span>Ссылка</span>
+              </button>
+
+              <button
+                className="btn-tool btn-tool--wide"
+                type="button"
+                onClick={toggleLock}
+                disabled={busy}
+                aria-pressed={board.locked}
+                title={board.locked
+                  ? 'Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть'
+                  : 'Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть'}
+              >
+                {board.locked ? <IconLockClosed /> : <IconLockOpen />}
+                <span>{board.locked ? 'Закрыта' : 'Открыта'}</span>
+              </button>
+            </>
+          ) : null}
+        </div>
 
         {board.locked && board.canManage ? (
           <p className="note note-warning">Доска закрыта для новых участников.</p>
@@ -1335,41 +1371,6 @@ export function BoardPage(): ReactElement {
             <RecordingPlayer boardId={id} recordingId={watching} onClose={() => setWatching(null)} />
           ) : (
             <>
-          {/* Название — в верхнем левом углу холста. Править может только
-              владелец, щёлкнув по надписи. */}
-          <div className="board-title">
-            {editingTitle ? (
-              <>
-                <input
-                  className="board-title__input"
-                  type="text"
-                  autoFocus
-                  maxLength={200}
-                  value={titleDraft}
-                  onChange={(event) => setTitleDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') saveTitle();
-                    if (event.key === 'Escape') setEditingTitle(false);
-                  }}
-                />
-                <button className="btn-tool" type="button" onClick={saveTitle} aria-label="Сохранить название">
-                  <IconCheck />
-                </button>
-              </>
-            ) : board.canManage ? (
-              <button
-                className="board-title__text"
-                type="button"
-                onClick={() => { setTitleDraft(board.title); setEditingTitle(true); }}
-                title="Переименовать доску"
-              >
-                {board.title}
-              </button>
-            ) : (
-              <p className="board-title__text">{board.title}</p>
-            )}
-          </div>
-
           {/* Панель показывается всем: наблюдателю нужны рука и масштаб,
               а рисующие кнопки у него просто заблокированы. */}
           {/* Пока на узком экране что-то выбрано, слева стоит панель
