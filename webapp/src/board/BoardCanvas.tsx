@@ -65,7 +65,7 @@ const STRAIGHTEN_HOLD_MS = 600;
 const STRAIGHTEN_MAX_BOW_PX = 6;
 
 /** Сколько живёт след указки после того, как руку убрали. */
-const POINTER_FADE_MS = 1200;
+const POINTER_FADE_MS = 2200;
 
 /**
  * Как выглядит указка. Насыщенный, чистый красный — как у настоящей

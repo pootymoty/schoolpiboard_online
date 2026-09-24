@@ -294,8 +294,15 @@ interface Vertex {
  * три ребра при дальней вершине — как в учебнике.
  */
 function baseVertices(center: Pt, rx: number, ry: number, sides: number): Vertex[] {
+  // Небольшой поворот основания: без него у чётного числа углов одна
+  // вершина встаёт точно спереди, другая — точно сзади, обе на одной
+  // вертикали с вершиной пирамиды или друг с другом — ближнее и дальнее
+  // ребро сливаются в одну линию. Поворота на глазок хватает, чтобы
+  // разнести их, и силуэт при этом остаётся тем же самым многоугольником.
+  const tilt = Math.PI / 12;
+
   const angles: number[] = [];
-  for (let k = 0; k < sides; k += 1) angles.push(-Math.PI / 2 + (2 * Math.PI * k) / sides);
+  for (let k = 0; k < sides; k += 1) angles.push(-Math.PI / 2 + tilt + (2 * Math.PI * k) / sides);
 
   const edge = Math.max(...angles.map((angle) => Math.abs(Math.cos(angle))));
 

@@ -94,8 +94,8 @@ export function SelectionPanel({
     ? items[0].data.text ?? ''
     : null;
 
-  // Картинки в заготовку не идут: файл принадлежит своей доске, а не
-  // человеку, — тот же список, что уходит в панель «Заготовки».
+  // Картинки в шаблон не идут: файл принадлежит своей доске, а не
+  // человеку, — тот же список, что уходит в панель «Шаблоны».
   const keepable = items.filter((item) => item.type !== 'image');
 
   const [naming, setNaming] = useState(false);
@@ -331,10 +331,10 @@ export function SelectionPanel({
           {canKeep && keepable.length > 0 ? (
             <button
               className="btn-tool" type="button" onClick={() => setNaming(true)}
-              title="Сохранить как заготовку"
+              title="Сохранить как шаблон"
             >
               <IconLibrary />
-              {cap('Заготовка')}
+              {cap('Шаблон')}
             </button>
           ) : null}
 

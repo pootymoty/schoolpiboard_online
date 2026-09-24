@@ -11,8 +11,17 @@ import { IconTrash } from '../components/Icons';
 
 type Tab = TemplateGroup | 'symbols' | 'formulas' | 'mine';
 
-const TABS: { kind: Tab; title: string }[] = [
-  ...TEMPLATE_GROUPS.map((group) => ({ kind: group.kind as Tab, title: group.title })),
+/** Разделы с чертежами — сами шаблоны, настраиваемые до вставки. */
+const GROUP_TABS: { kind: Tab; title: string }[] = TEMPLATE_GROUPS.map(
+  (group) => ({ kind: group.kind as Tab, title: group.title }),
+);
+
+/**
+ * Остальные разделы — не чертежи, а другое содержимое библиотеки: готовый
+ * значок текстом, формула текстом, свой сохранённый чертёж. Отделены от
+ * групп чертежей линией, чтобы не читались одним и тем же рядом вкладок.
+ */
+const EXTRA_TABS: { kind: Tab; title: string }[] = [
   { kind: 'symbols', title: 'Знаки' },
   { kind: 'formulas', title: 'Формулы' },
   { kind: 'mine', title: 'Мои шаблоны' },
@@ -95,7 +104,7 @@ export function LibraryPanel({
   };
 
   const drop = (template: UserTemplate) => {
-    if (!window.confirm(`Удалить заготовку «${template.title}»?`)) return;
+    if (!window.confirm(`Удалить шаблон «${template.title}»?`)) return;
 
     deleteTemplate(template.id)
       .then(() => setMine((current) => (current ?? []).filter((one) => one.id !== template.id)))
@@ -145,14 +154,37 @@ export function LibraryPanel({
   );
 
   return (
-    <div className="params params--right params--tall" role="dialog" aria-label="Заготовки">
+    <div className="params params--right params--tall" role="dialog" aria-label="Шаблоны">
       <div className="params__head">
-        <span className="params__title">Заготовки</span>
+        <span className="params__title">Шаблоны</span>
         <button className="btn-quiet btn-sm" type="button" onClick={onClose}>Готово</button>
       </div>
 
       <div className="params__row library__tabs">
-        {TABS.map((one) => (
+        {GROUP_TABS.map((one) => (
+          <button
+            key={one.kind}
+            className="btn-quiet btn-sm"
+            type="button"
+            aria-pressed={tab === one.kind}
+            onClick={() => {
+              setTab(one.kind);
+              setChosen(null);
+              setNote(null);
+            }}
+          >
+            {one.title}
+          </button>
+        ))}
+      </div>
+
+      {/* Ниже — не чертежи, а другое содержимое библиотеки: линия
+          отделяет их от разделов с чертежами выше, чтобы не читались
+          одним и тем же рядом вкладок. */}
+      <div className="library__tabs-split" aria-hidden="true" />
+
+      <div className="params__row library__tabs">
+        {EXTRA_TABS.map((one) => (
           <button
             key={one.kind}
             className="btn-quiet btn-sm"
@@ -189,7 +221,7 @@ export function LibraryPanel({
                   <button
                     className="btn btn-sm"
                     type="button"
-                    onClick={() => onInsert(template, params[template.id])}
+                    onClick={() => { onInsert(template, params[template.id]); onClose(); }}
                   >
                     Вставить
                   </button>
@@ -252,13 +284,13 @@ export function LibraryPanel({
         <div className="library__list">
           {!canKeep ? (
             <p className="library__hint">
-              Гостю недоступны: заготовки хранятся в учётной записи.
+              Гостю недоступны: шаблоны хранятся в учётной записи.
             </p>
           ) : (
             <>
               <p className="library__hint">
                 Выделите чертёж и сохраните под именем — он будет доступен на любой доске.
-                Картинки в заготовку не попадают.
+                Картинки в шаблон не попадают.
               </p>
 
               <div className="library__keep">
@@ -267,7 +299,7 @@ export function LibraryPanel({
                   type="text"
                   value={title}
                   maxLength={80}
-                  placeholder="Название заготовки"
+                  placeholder="Название шаблона"
                   onChange={(event) => setTitle(event.target.value)}
                 />
                 <button
@@ -294,7 +326,7 @@ export function LibraryPanel({
                   <button
                     className="btn-quiet library__pick"
                     type="button"
-                    onClick={() => onInsertItems(itemsOf(one))}
+                    onClick={() => { onInsertItems(itemsOf(one)); onClose(); }}
                     title="Поставить на доску"
                   >
                     {one.title}
@@ -305,8 +337,8 @@ export function LibraryPanel({
                     className="btn-quiet btn-sm"
                     type="button"
                     onClick={() => drop(one)}
-                    aria-label={`Удалить заготовку ${one.title}`}
-                    title="Удалить заготовку"
+                    aria-label={`Удалить шаблон ${one.title}`}
+                    title="Удалить шаблон"
                   >
                     <IconTrash />
                   </button>

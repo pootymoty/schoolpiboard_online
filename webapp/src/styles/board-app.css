@@ -1209,6 +1209,7 @@ body.no-scroll {
     overflow-y: auto;
     overscroll-behavior-y: contain;
     scrollbar-width: none;
+    transition: transform .25s ease;
 }
 
 .toolbar--vertical::-webkit-scrollbar { display: none; }
@@ -1292,6 +1293,7 @@ body.no-scroll {
     z-index: 8;
     max-width: calc(100% - 2 * var(--sp-3));
     flex-wrap: nowrap;
+    transition: transform .25s ease;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
@@ -1314,6 +1316,61 @@ body.no-scroll {
         width: 40px;
         min-height: 40px;
     }
+}
+
+/* --- Стрелки скрытия панелей инструментов (только телефон) ---------------- */
+
+/*
+ * Тот же приём, что у стрелки шапки сайта (.board-header-toggle): сама
+ * панель уезжает трансформом за край, а стрелка остаётся на месте и
+ * переворачивается — открывает и закрывает один и тот же жест.
+ *
+ * Только на телефоне: на большом экране обе панели ничего не загораживают,
+ * и убирать их незачем — там этих кнопок нет вовсе.
+ */
+.toolbar--vertical.toolbar--collapsed { transform: translateX(-130%); }
+.toolbar--view.toolbar--collapsed { transform: translateY(-130%); }
+
+.toolbar-toggle {
+    display: none;
+    position: absolute;
+    z-index: 9;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 28px;
+    height: 20px;
+    min-height: 20px;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--text);
+    transition: transform .25s ease;
+}
+
+.toolbar-toggle svg { width: 14px; height: 14px; }
+
+.toolbar-toggle--vertical {
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.toolbar-toggle--vertical svg { transform: rotate(180deg); }
+.toolbar-toggle--vertical.toolbar-toggle--closed svg { transform: rotate(0); }
+
+.toolbar-toggle--view {
+    top: 0;
+    right: var(--sp-4);
+    border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.toolbar-toggle--view svg { transform: rotate(180deg); }
+.toolbar-toggle--view.toolbar-toggle--closed svg { transform: rotate(0); }
+
+@media (max-width: 720px) {
+    .toolbar-toggle { display: flex; }
 }
 
 /* Образец цвета. Обводка вместо заливки в состоянии «выбран»: заливка
@@ -1490,6 +1547,23 @@ body.no-scroll {
 }
 
 .library__tabs { margin-bottom: var(--sp-2); }
+
+/* Выбранная вкладка иначе ничем не отличалась от остальных — заливка
+   тем же приёмом, что и у выбранного инструмента и образца цвета. */
+.library__tabs .btn-quiet[aria-pressed="true"] {
+    background-color: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Отделяет разделы с чертежами (Координаты, Объёмные фигуры) от разделов
+   с другим содержимым библиотеки (Знаки, Формулы, Мои шаблоны) — иначе
+   пять вкладок читаются одним неразличимым рядом. */
+.library__tabs-split {
+    height: 1px;
+    margin: 0 0 var(--sp-2);
+    background: var(--line);
+}
 
 .library__list {
     display: flex;

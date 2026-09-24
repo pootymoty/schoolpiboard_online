@@ -3,7 +3,7 @@ import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
   IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark, IconTarget,
-  IconRecord, IconPlay, IconPause,
+  IconRecord, IconPlay, IconPause, IconStop, IconChevronLeft, IconChevronDown,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -18,6 +18,13 @@ interface ToolProps {
   onTool: (tool: Tool) => void;
   onUndo: () => void;
   onRedo: () => void;
+  /** Гостю загрузка закрыта: файлы кладут только те, у кого есть учётная запись. */
+  canUpload: boolean;
+  onFiles: () => void;
+  onLibrary: () => void;
+  /** Убрать с экрана на телефоне — на счету каждый пиксель холста. */
+  open: boolean;
+  onToggleOpen: () => void;
 }
 
 /**
@@ -28,7 +35,8 @@ interface ToolProps {
  * равно один щелчок.
  */
 export function DrawToolbar({
-  tool, settings, canEdit, canUndo, canRedo, onTool, onUndo, onRedo,
+  tool, settings, canEdit, canUndo, canRedo, onTool, onUndo, onRedo, canUpload, onFiles, onLibrary,
+  open, onToggleOpen,
 }: ToolProps): ReactElement {
   const pick = (which: Tool, icon: ReactElement, title: string, needsEdit = true) => {
     const dot = toolColor(which, settings);
@@ -54,7 +62,11 @@ export function DrawToolbar({
   };
 
   return (
-    <div className="toolbar toolbar--vertical" role="toolbar" aria-label="Инструменты рисования">
+    <>
+    <div
+      className={open ? 'toolbar toolbar--vertical' : 'toolbar toolbar--vertical toolbar--collapsed'}
+      role="toolbar" aria-label="Инструменты рисования"
+    >
       <button
         className="btn-tool" type="button" onClick={onUndo}
         disabled={!canEdit || !canUndo} title="Отменить (Ctrl+Z)" aria-label="Отменить"
@@ -82,8 +94,45 @@ export function DrawToolbar({
       {pick('text', <IconText />, 'Текст')}
       {pick('shapes', <IconShapes />, 'Фигуры')}
       {pick('table', <IconTable />, 'Таблица')}
-      {pick('bookmark', <IconBookmark />, 'Закладка: подписанная метка в этом месте')}
+
+      {/* Заготовки и файлы — тоже про то, что кладут на холст, а не про
+          вид на него, поэтому здесь, рядом с рисующими инструментами, а
+          не в верхней панели. */}
+      {canEdit ? (
+        <>
+          <span className="toolbar__divider" aria-hidden="true" />
+
+          <button
+            className="btn-tool" type="button" onClick={onLibrary}
+            title="Шаблоны: чертежи, знаки, формулы" data-tip="Шаблоны: чертежи, знаки, формулы"
+          >
+            <IconLibrary />
+          </button>
+
+          {canUpload ? (
+            <button
+              className="btn-tool" type="button" onClick={onFiles}
+              title="Вставить файл или страницу PDF" data-tip="Вставить файл или страницу PDF"
+            >
+              <IconImage />
+            </button>
+          ) : null}
+        </>
+      ) : null}
     </div>
+
+    {/* Только на телефоне: на большом экране панель инструментов не
+        загораживает ничего и убирать её незачем. */}
+    <button
+      type="button"
+      className={open ? 'toolbar-toggle toolbar-toggle--vertical' : 'toolbar-toggle toolbar-toggle--vertical toolbar-toggle--closed'}
+      onClick={onToggleOpen}
+      aria-expanded={open}
+      aria-label={open ? 'Скрыть инструменты' : 'Показать инструменты'}
+    >
+      <IconChevronLeft />
+    </button>
+    </>
   );
 }
 
@@ -91,15 +140,14 @@ interface ViewProps {
   canManage: boolean;
   /** Наблюдателю класть на доску нечего: у него нет права рисовать. */
   canEdit: boolean;
-  /** Гостю загрузка закрыта: файлы кладут только те, у кого есть учётная запись. */
-  canUpload: boolean;
+  /** Ставит закладку в этом месте — та же кнопка, что раньше стояла слева. */
+  tool: Tool;
+  onTool: (tool: Tool) => void;
   scale: number;
   onZoom: (factor: number) => void;
   onResetZoom: () => void;
   onFit: () => void;
   onBackground: () => void;
-  onFiles: () => void;
-  onLibrary: () => void;
   onSummary: () => void;
   /** Сколько просьб о конспекте ждёт владельца — точкой на кнопке. */
   summaryCount: number;
@@ -119,19 +167,30 @@ interface ViewProps {
   /** Гостю записи не показываем: у него нет учётной записи для доступа к ним. */
   canRecordings: boolean;
   onRecordings: () => void;
+  onPauseRecording: () => void;
+  onResumeRecording: () => void;
+  onStopRecording: () => void;
   /** Значок кнопки сам меняется по состоянию — playстоп, пауза, идёт запись. */
   recordingStatus: 'recording' | 'paused' | null;
+  /** Убрать с экрана на телефоне — на счету каждый пиксель холста. */
+  open: boolean;
+  onToggleOpen: () => void;
 }
 
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
 export function ViewToolbar({
-  canManage, canEdit, canUpload, scale, onZoom, onResetZoom, onFit,
-  onBackground, onFiles, onLibrary, onSummary, summaryCount, onTimer, onHelp, onExport, onClear,
+  canManage, canEdit, tool, onTool, scale, onZoom, onResetZoom, onFit,
+  onBackground, onSummary, summaryCount, onTimer, onHelp, onExport, onClear,
   canPaste, onPaste, onPages, pageLabel, onBookmarks, onBringEveryone,
-  canRecordings, onRecordings, recordingStatus,
+  canRecordings, onRecordings, onPauseRecording, onResumeRecording, onStopRecording, recordingStatus,
+  open, onToggleOpen,
 }: ViewProps): ReactElement {
   return (
-    <div className="toolbar toolbar--view" role="toolbar" aria-label="Масштаб и вид">
+    <>
+    <div
+      className={open ? 'toolbar toolbar--view' : 'toolbar toolbar--view toolbar--collapsed'}
+      role="toolbar" aria-label="Масштаб и вид"
+    >
       {/* Масштаб доступен всем: наблюдателю он нужен ровно так же. */}
       <div className="zoom">
         <button className="btn-tool" type="button" onClick={() => onZoom(1 / 1.15)} aria-label="Отдалить" data-tip="Отдалить">−</button>
@@ -157,6 +216,19 @@ export function ViewToolbar({
         <IconBookmark />
       </button>
 
+      {/* Поставить закладку — рядом со списком закладок: две стороны
+          одного дела, а не рисование, поэтому и не в левой панели. */}
+      {canEdit ? (
+        <button
+          className="btn-tool" type="button"
+          aria-pressed={tool === 'bookmark'}
+          onClick={() => onTool('bookmark')}
+          title="Закладка: подписанная метка в этом месте" data-tip="Закладка: подписанная метка в этом месте"
+        >
+          <IconBookmark />
+        </button>
+      ) : null}
+
       <span className="toolbar__divider" aria-hidden="true" />
 
       <button className="btn-tool" type="button" onClick={onHelp} title="Что умеет доска" data-tip="Что умеет доска">
@@ -166,20 +238,6 @@ export function ViewToolbar({
       <button className="btn-tool" type="button" onClick={onTimer} title="Таймер" data-tip="Таймер">
         <IconTimer />
       </button>
-
-      {canUpload ? (
-        <button className="btn-tool" type="button" onClick={onFiles} title="Вставить файл или страницу PDF" data-tip="Вставить файл или страницу PDF">
-          <IconImage />
-        </button>
-      ) : null}
-
-      {/* Заготовки рядом с файлами: и то и другое — «положить на доску
-          готовое», а не «нарисовать самому». */}
-      {canEdit ? (
-        <button className="btn-tool" type="button" onClick={onLibrary} title="Заготовки: чертежи, знаки, формулы" data-tip="Заготовки: чертежи, знаки, формулы">
-          <IconLibrary />
-        </button>
-      ) : null}
 
       {/* Владелец и редакторы: перенос вида — часть ведения занятия,
           а не рисования, но право на неё то же. */}
@@ -201,15 +259,33 @@ export function ViewToolbar({
       ) : null}
 
       {/* Записи рядом с конспектом: и то и другое — след занятия, который
-          можно открыть потом, а не то, что делают на самом холсте. */}
-      {canRecordings ? (
+          можно открыть потом, а не то, что делают на самом холсте.
+          Пока не записывают — одна кнопка на панель записей. Как только
+          запись пошла, для владельца это уже не кнопка открытия панели, а
+          прямое управление: пауза/продолжить и стоп, без лишнего клика в
+          панель. Наблюдателю панель ничего не даст (управляет только
+          владелец), поэтому ему оставлена только метка «идёт запись». */}
+      {canRecordings && canManage && recordingStatus !== null ? (
+        <>
+          {recordingStatus === 'recording' ? (
+            <button className="btn-tool" type="button" onClick={onPauseRecording} title="Пауза" data-tip="Пауза">
+              <IconPause />
+            </button>
+          ) : (
+            <button className="btn-tool" type="button" onClick={onResumeRecording} title="Продолжить" data-tip="Продолжить">
+              <IconPlay />
+            </button>
+          )}
+          <button className="btn-tool" type="button" onClick={onStopRecording} title="Стоп" data-tip="Стоп">
+            <IconStop />
+          </button>
+        </>
+      ) : canRecordings ? (
         <button
           className="btn-tool" type="button" onClick={onRecordings}
           title="Записи занятия" data-tip="Записи занятия"
         >
-          {recordingStatus === 'recording' ? <IconRecord />
-            : recordingStatus === 'paused' ? <IconPause />
-            : <IconPlay />}
+          {recordingStatus === 'paused' ? <IconPause /> : <IconRecord />}
         </button>
       ) : null}
 
@@ -236,5 +312,18 @@ export function ViewToolbar({
         </>
       ) : null}
     </div>
+
+    {/* Только на телефоне: на большом экране панель не загораживает
+        ничего и убирать её незачем. */}
+    <button
+      type="button"
+      className={open ? 'toolbar-toggle toolbar-toggle--view' : 'toolbar-toggle toolbar-toggle--view toolbar-toggle--closed'}
+      onClick={onToggleOpen}
+      aria-expanded={open}
+      aria-label={open ? 'Скрыть панель масштаба и вида' : 'Показать панель масштаба и вида'}
+    >
+      <IconChevronDown />
+    </button>
+    </>
   );
 }

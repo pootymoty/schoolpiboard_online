@@ -116,7 +116,10 @@ export function drawLaser(
 
   context.save();
   context.setLineDash([]);
-  context.lineCap = 'round';
+  // Торцы без скругления: скруглённые торцы у каждого мелкого отрезка —
+  // это отдельный кружок на каждом стыке, а стыков на длинном росчерке
+  // много. Со скруглением след выглядел рябым, будто состоит из бисера.
+  context.lineCap = 'butt';
   context.lineJoin = 'round';
 
   const stroke = (from: Point, to: Point, width: number, fade: number, color: string) => {
@@ -131,11 +134,12 @@ export function drawLaser(
     context.stroke();
   };
 
-  for (let i = 1; i < points.length; i++) {
-    const fade = fadeAt(i);
-    stroke(points[i - 1], points[i], width + outline * 2, fade * 0.9, '#fff');
-    stroke(points[i - 1], points[i], width, fade * opacity, data.color);
-  }
+  // Сначала вся белая обводка целиком, потом вся красная линия сверху —
+  // иначе обводка каждого следующего отрезка легла бы поверх красного
+  // конца предыдущего, и в середине линии было бы видно белые метки на
+  // стыке каждой пары точек.
+  for (let i = 1; i < points.length; i++) stroke(points[i - 1], points[i], width + outline * 2, fadeAt(i) * 0.9, '#fff');
+  for (let i = 1; i < points.length; i++) stroke(points[i - 1], points[i], width, fadeAt(i) * opacity, data.color);
 
   // Точка без движения — тем же способом, кружком.
   if (points.length === 1) {

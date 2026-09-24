@@ -407,6 +407,7 @@ const IconPause = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /*
   /* @__PURE__ */ jsx("rect", { x: "6", y: "4", width: "4", height: "16" }),
   /* @__PURE__ */ jsx("rect", { x: "14", y: "4", width: "4", height: "16" })
 ] }) });
+const IconStop = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("rect", { x: "5", y: "5", width: "14", height: "14", rx: "1.5", fill: "currentColor", stroke: "none" }) });
 const IconTarget = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "8" }),
   /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "2" }),
@@ -2440,7 +2441,7 @@ function drawLaser(context, data, times, scale, fadeMs) {
   };
   context.save();
   context.setLineDash([]);
-  context.lineCap = "round";
+  context.lineCap = "butt";
   context.lineJoin = "round";
   const stroke = (from, to, width2, fade, color) => {
     if (fade <= 0) return;
@@ -2452,11 +2453,8 @@ function drawLaser(context, data, times, scale, fadeMs) {
     context.strokeStyle = color;
     context.stroke();
   };
-  for (let i = 1; i < points.length; i++) {
-    const fade = fadeAt(i);
-    stroke(points[i - 1], points[i], width + outline2 * 2, fade * 0.9, "#fff");
-    stroke(points[i - 1], points[i], width, fade * opacity, data.color);
-  }
+  for (let i = 1; i < points.length; i++) stroke(points[i - 1], points[i], width + outline2 * 2, fadeAt(i) * 0.9, "#fff");
+  for (let i = 1; i < points.length; i++) stroke(points[i - 1], points[i], width, fadeAt(i) * opacity, data.color);
   if (points.length === 1) {
     const fade = fadeAt(0);
     if (fade > 0) {
@@ -3924,7 +3922,7 @@ const POINT_BATCH_MS = 50;
 const ERASE_RADIUS = 8;
 const STRAIGHTEN_HOLD_MS = 600;
 const STRAIGHTEN_MAX_BOW_PX = 6;
-const POINTER_FADE_MS = 1200;
+const POINTER_FADE_MS = 2200;
 const POINTER_STYLE = { color: "#FF2222", width: 6, opacity: 0.9 };
 const AUTO_PAN_MARGIN = 56;
 const AUTO_PAN_MAX_SPEED = 18;
@@ -5239,7 +5237,12 @@ function DrawToolbar({
   canRedo,
   onTool,
   onUndo,
-  onRedo
+  onRedo,
+  canUpload,
+  onFiles,
+  onLibrary,
+  open,
+  onToggleOpen
 }) {
   const pick = (which, icon, title, needsEdit = true) => {
     const dot = toolColor(which, settings);
@@ -5261,57 +5264,101 @@ function DrawToolbar({
       }
     );
   };
-  return /* @__PURE__ */ jsxs("div", { className: "toolbar toolbar--vertical", role: "toolbar", "aria-label": "Инструменты рисования", children: [
-    /* @__PURE__ */ jsx(
-      "button",
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsxs(
+      "div",
       {
-        className: "btn-tool",
-        type: "button",
-        onClick: onUndo,
-        disabled: !canEdit || !canUndo,
-        title: "Отменить (Ctrl+Z)",
-        "aria-label": "Отменить",
-        "data-tip": "Отменить (Ctrl+Z)",
-        children: /* @__PURE__ */ jsx(IconUndo, {})
+        className: open ? "toolbar toolbar--vertical" : "toolbar toolbar--vertical toolbar--collapsed",
+        role: "toolbar",
+        "aria-label": "Инструменты рисования",
+        children: [
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool",
+              type: "button",
+              onClick: onUndo,
+              disabled: !canEdit || !canUndo,
+              title: "Отменить (Ctrl+Z)",
+              "aria-label": "Отменить",
+              "data-tip": "Отменить (Ctrl+Z)",
+              children: /* @__PURE__ */ jsx(IconUndo, {})
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool",
+              type: "button",
+              onClick: onRedo,
+              disabled: !canEdit || !canRedo,
+              title: "Повторить (Ctrl+Y)",
+              "aria-label": "Повторить",
+              "data-tip": "Повторить (Ctrl+Y)",
+              children: /* @__PURE__ */ jsx(IconRedo, {})
+            }
+          ),
+          /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
+          pick("select", /* @__PURE__ */ jsx(IconCursor, {}), "Выделять и перемещать"),
+          pick("hand", /* @__PURE__ */ jsx(IconHand, {}), "Двигать холст. То же — пробел или средняя кнопка", false),
+          pick("pen1", /* @__PURE__ */ jsx(IconEditor, {}), "Перо 1"),
+          pick("pen2", /* @__PURE__ */ jsx(IconEditor, {}), "Перо 2"),
+          pick("marker", /* @__PURE__ */ jsx(IconMarker, {}), "Маркер"),
+          pick("eraser", /* @__PURE__ */ jsx(IconEraser, {}), "Ластик"),
+          pick("text", /* @__PURE__ */ jsx(IconText, {}), "Текст"),
+          pick("shapes", /* @__PURE__ */ jsx(IconShapes, {}), "Фигуры"),
+          pick("table", /* @__PURE__ */ jsx(IconTable, {}), "Таблица"),
+          canEdit ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool",
+                type: "button",
+                onClick: onLibrary,
+                title: "Шаблоны: чертежи, знаки, формулы",
+                "data-tip": "Шаблоны: чертежи, знаки, формулы",
+                children: /* @__PURE__ */ jsx(IconLibrary, {})
+              }
+            ),
+            canUpload ? /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool",
+                type: "button",
+                onClick: onFiles,
+                title: "Вставить файл или страницу PDF",
+                "data-tip": "Вставить файл или страницу PDF",
+                children: /* @__PURE__ */ jsx(IconImage, {})
+              }
+            ) : null
+          ] }) : null
+        ]
       }
     ),
     /* @__PURE__ */ jsx(
       "button",
       {
-        className: "btn-tool",
         type: "button",
-        onClick: onRedo,
-        disabled: !canEdit || !canRedo,
-        title: "Повторить (Ctrl+Y)",
-        "aria-label": "Повторить",
-        "data-tip": "Повторить (Ctrl+Y)",
-        children: /* @__PURE__ */ jsx(IconRedo, {})
+        className: open ? "toolbar-toggle toolbar-toggle--vertical" : "toolbar-toggle toolbar-toggle--vertical toolbar-toggle--closed",
+        onClick: onToggleOpen,
+        "aria-expanded": open,
+        "aria-label": open ? "Скрыть инструменты" : "Показать инструменты",
+        children: /* @__PURE__ */ jsx(IconChevronLeft, {})
       }
-    ),
-    /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-    pick("select", /* @__PURE__ */ jsx(IconCursor, {}), "Выделять и перемещать"),
-    pick("hand", /* @__PURE__ */ jsx(IconHand, {}), "Двигать холст. То же — пробел или средняя кнопка", false),
-    pick("pen1", /* @__PURE__ */ jsx(IconEditor, {}), "Перо 1"),
-    pick("pen2", /* @__PURE__ */ jsx(IconEditor, {}), "Перо 2"),
-    pick("marker", /* @__PURE__ */ jsx(IconMarker, {}), "Маркер"),
-    pick("eraser", /* @__PURE__ */ jsx(IconEraser, {}), "Ластик"),
-    pick("text", /* @__PURE__ */ jsx(IconText, {}), "Текст"),
-    pick("shapes", /* @__PURE__ */ jsx(IconShapes, {}), "Фигуры"),
-    pick("table", /* @__PURE__ */ jsx(IconTable, {}), "Таблица"),
-    pick("bookmark", /* @__PURE__ */ jsx(IconBookmark, {}), "Закладка: подписанная метка в этом месте")
+    )
   ] });
 }
 function ViewToolbar({
   canManage,
   canEdit,
-  canUpload,
+  tool,
+  onTool,
   scale,
   onZoom,
   onResetZoom,
   onFit,
   onBackground,
-  onFiles,
-  onLibrary,
   onSummary,
   summaryCount,
   onTimer,
@@ -5326,61 +5373,100 @@ function ViewToolbar({
   onBringEveryone,
   canRecordings,
   onRecordings,
-  recordingStatus
+  onPauseRecording,
+  onResumeRecording,
+  onStopRecording,
+  recordingStatus,
+  open,
+  onToggleOpen
 }) {
-  return /* @__PURE__ */ jsxs("div", { className: "toolbar toolbar--view", role: "toolbar", "aria-label": "Масштаб и вид", children: [
-    /* @__PURE__ */ jsxs("div", { className: "zoom", children: [
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onZoom(1 / 1.15), "aria-label": "Отдалить", "data-tip": "Отдалить", children: "−" }),
-      /* @__PURE__ */ jsxs("button", { className: "zoom__value", type: "button", onClick: onResetZoom, title: "Вернуть 100 %", "data-tip": "Вернуть 100 %", children: [
-        Math.round(scale * 100),
-        " %"
-      ] }),
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onZoom(1.15), "aria-label": "Приблизить", "data-tip": "Приблизить", children: "+" }),
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFit, title: "Показать всё нарисованное", "data-tip": "Показать всё нарисованное", children: "⤢" })
-    ] }),
-    /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-    /* @__PURE__ */ jsxs("button", { className: "btn-tool btn-tool--wide", type: "button", onClick: onPages, title: "Страницы занятия", "data-tip": "Страницы занятия", children: [
-      /* @__PURE__ */ jsx(IconPages, {}),
-      /* @__PURE__ */ jsx("span", { className: "btn-tool__label", children: pageLabel })
-    ] }),
-    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBookmarks, title: "Закладки", "data-tip": "Закладки", children: /* @__PURE__ */ jsx(IconBookmark, {}) }),
-    /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onHelp, title: "Что умеет доска", "data-tip": "Что умеет доска", children: /* @__PURE__ */ jsx(IconHelp, {}) }),
-    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", "data-tip": "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
-    canUpload ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFiles, title: "Вставить файл или страницу PDF", "data-tip": "Вставить файл или страницу PDF", children: /* @__PURE__ */ jsx(IconImage, {}) }) : null,
-    canEdit ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onLibrary, title: "Заготовки: чертежи, знаки, формулы", "data-tip": "Заготовки: чертежи, знаки, формулы", children: /* @__PURE__ */ jsx(IconLibrary, {}) }) : null,
-    canEdit ? /* @__PURE__ */ jsx(
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsxs(
+      "div",
+      {
+        className: open ? "toolbar toolbar--view" : "toolbar toolbar--view toolbar--collapsed",
+        role: "toolbar",
+        "aria-label": "Масштаб и вид",
+        children: [
+          /* @__PURE__ */ jsxs("div", { className: "zoom", children: [
+            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onZoom(1 / 1.15), "aria-label": "Отдалить", "data-tip": "Отдалить", children: "−" }),
+            /* @__PURE__ */ jsxs("button", { className: "zoom__value", type: "button", onClick: onResetZoom, title: "Вернуть 100 %", "data-tip": "Вернуть 100 %", children: [
+              Math.round(scale * 100),
+              " %"
+            ] }),
+            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onZoom(1.15), "aria-label": "Приблизить", "data-tip": "Приблизить", children: "+" }),
+            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onFit, title: "Показать всё нарисованное", "data-tip": "Показать всё нарисованное", children: "⤢" })
+          ] }),
+          /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
+          /* @__PURE__ */ jsxs("button", { className: "btn-tool btn-tool--wide", type: "button", onClick: onPages, title: "Страницы занятия", "data-tip": "Страницы занятия", children: [
+            /* @__PURE__ */ jsx(IconPages, {}),
+            /* @__PURE__ */ jsx("span", { className: "btn-tool__label", children: pageLabel })
+          ] }),
+          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBookmarks, title: "Закладки", "data-tip": "Закладки", children: /* @__PURE__ */ jsx(IconBookmark, {}) }),
+          canEdit ? /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool",
+              type: "button",
+              "aria-pressed": tool === "bookmark",
+              onClick: () => onTool("bookmark"),
+              title: "Закладка: подписанная метка в этом месте",
+              "data-tip": "Закладка: подписанная метка в этом месте",
+              children: /* @__PURE__ */ jsx(IconBookmark, {})
+            }
+          ) : null,
+          /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
+          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onHelp, title: "Что умеет доска", "data-tip": "Что умеет доска", children: /* @__PURE__ */ jsx(IconHelp, {}) }),
+          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", "data-tip": "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
+          canEdit ? /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool",
+              type: "button",
+              onClick: onBringEveryone,
+              title: "Все ко мне: перенести всех участников на этот вид",
+              "data-tip": "Все ко мне: перенести всех участников на этот вид",
+              children: /* @__PURE__ */ jsx(IconTarget, {})
+            }
+          ) : null,
+          canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
+          canRecordings && canManage && recordingStatus !== null ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            recordingStatus === "recording" ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPauseRecording, title: "Пауза", "data-tip": "Пауза", children: /* @__PURE__ */ jsx(IconPause, {}) }) : /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onResumeRecording, title: "Продолжить", "data-tip": "Продолжить", children: /* @__PURE__ */ jsx(IconPlay, {}) }),
+            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onStopRecording, title: "Стоп", "data-tip": "Стоп", children: /* @__PURE__ */ jsx(IconStop, {}) })
+          ] }) : canRecordings ? /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool",
+              type: "button",
+              onClick: onRecordings,
+              title: "Записи занятия",
+              "data-tip": "Записи занятия",
+              children: recordingStatus === "paused" ? /* @__PURE__ */ jsx(IconPause, {}) : /* @__PURE__ */ jsx(IconRecord, {})
+            }
+          ) : null,
+          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", "data-tip": "Конспект занятия по почте", children: [
+            /* @__PURE__ */ jsx(IconMail, {}),
+            summaryCount > 0 ? /* @__PURE__ */ jsx("span", { className: "badge-dot", children: summaryCount }) : null
+          ] }),
+          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onExport, title: "Сохранить картинкой", "data-tip": "Сохранить картинкой", children: /* @__PURE__ */ jsx(IconDownload, {}) }),
+          canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBackground, title: "Фон и разлиновка", "data-tip": "Фон и разлиновка", children: /* @__PURE__ */ jsx(IconGrid, {}) }),
+            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClear, title: "Очистить страницу", "data-tip": "Очистить страницу", children: /* @__PURE__ */ jsx(IconTrash, {}) })
+          ] }) : null
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsx(
       "button",
       {
-        className: "btn-tool",
         type: "button",
-        onClick: onBringEveryone,
-        title: "Все ко мне: перенести всех участников на этот вид",
-        "data-tip": "Все ко мне: перенести всех участников на этот вид",
-        children: /* @__PURE__ */ jsx(IconTarget, {})
+        className: open ? "toolbar-toggle toolbar-toggle--view" : "toolbar-toggle toolbar-toggle--view toolbar-toggle--closed",
+        onClick: onToggleOpen,
+        "aria-expanded": open,
+        "aria-label": open ? "Скрыть панель масштаба и вида" : "Показать панель масштаба и вида",
+        children: /* @__PURE__ */ jsx(IconChevronDown, {})
       }
-    ) : null,
-    canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
-    canRecordings ? /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "btn-tool",
-        type: "button",
-        onClick: onRecordings,
-        title: "Записи занятия",
-        "data-tip": "Записи занятия",
-        children: recordingStatus === "recording" ? /* @__PURE__ */ jsx(IconRecord, {}) : recordingStatus === "paused" ? /* @__PURE__ */ jsx(IconPause, {}) : /* @__PURE__ */ jsx(IconPlay, {})
-      }
-    ) : null,
-    /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", "data-tip": "Конспект занятия по почте", children: [
-      /* @__PURE__ */ jsx(IconMail, {}),
-      summaryCount > 0 ? /* @__PURE__ */ jsx("span", { className: "badge-dot", children: summaryCount }) : null
-    ] }),
-    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onExport, title: "Сохранить картинкой", "data-tip": "Сохранить картинкой", children: /* @__PURE__ */ jsx(IconDownload, {}) }),
-    canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBackground, title: "Фон и разлиновка", "data-tip": "Фон и разлиновка", children: /* @__PURE__ */ jsx(IconGrid, {}) }),
-      /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClear, title: "Очистить страницу", "data-tip": "Очистить страницу", children: /* @__PURE__ */ jsx(IconTrash, {}) })
-    ] }) : null
+    )
   ] });
 }
 function Svg({ children }) {
@@ -6110,10 +6196,10 @@ function SelectionPanel({
                 className: "btn-tool",
                 type: "button",
                 onClick: () => setNaming(true),
-                title: "Сохранить как заготовку",
+                title: "Сохранить как шаблон",
                 children: [
                   /* @__PURE__ */ jsx(IconLibrary, {}),
-                  cap("Заготовка")
+                  cap("Шаблон")
                 ]
               }
             ) : null,
@@ -6667,8 +6753,9 @@ const NUMBER_LINE = {
   }
 };
 function baseVertices(center, rx, ry, sides) {
+  const tilt = Math.PI / 12;
   const angles = [];
-  for (let k = 0; k < sides; k += 1) angles.push(-Math.PI / 2 + 2 * Math.PI * k / sides);
+  for (let k = 0; k < sides; k += 1) angles.push(-Math.PI / 2 + tilt + 2 * Math.PI * k / sides);
   const edge = Math.max(...angles.map((angle) => Math.abs(Math.cos(angle))));
   return angles.map((angle) => ({
     at: { x: center.x + rx * Math.cos(angle), y: center.y + ry * Math.sin(angle) },
@@ -6946,8 +7033,10 @@ const FORMULAS = [
     ]
   }
 ];
-const TABS = [
-  ...TEMPLATE_GROUPS.map((group) => ({ kind: group.kind, title: group.title })),
+const GROUP_TABS = TEMPLATE_GROUPS.map(
+  (group) => ({ kind: group.kind, title: group.title })
+);
+const EXTRA_TABS = [
   { kind: "symbols", title: "Знаки" },
   { kind: "formulas", title: "Формулы" },
   { kind: "mine", title: "Мои шаблоны" }
@@ -6990,7 +7079,7 @@ function LibraryPanel({
     }).catch((reason) => setNote(reason instanceof ApiError ? reason.message : "Не удалось сохранить.")).finally(() => setBusy(false));
   };
   const drop = (template) => {
-    if (!window.confirm(`Удалить заготовку «${template.title}»?`)) return;
+    if (!window.confirm(`Удалить шаблон «${template.title}»?`)) return;
     deleteTemplate(template.id).then(() => setMine((current) => (current ?? []).filter((one) => one.id !== template.id))).catch((reason) => setNote(reason instanceof ApiError ? reason.message : "Не удалось удалить."));
   };
   const tune = (id, key, value) => {
@@ -7032,12 +7121,28 @@ function LibraryPanel({
       )
     ] }, knob.key);
   }) });
-  return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Заготовки", children: [
+  return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Шаблоны", children: [
     /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
-      /* @__PURE__ */ jsx("span", { className: "params__title", children: "Заготовки" }),
+      /* @__PURE__ */ jsx("span", { className: "params__title", children: "Шаблоны" }),
       /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
     ] }),
-    /* @__PURE__ */ jsx("div", { className: "params__row library__tabs", children: TABS.map((one) => /* @__PURE__ */ jsx(
+    /* @__PURE__ */ jsx("div", { className: "params__row library__tabs", children: GROUP_TABS.map((one) => /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-quiet btn-sm",
+        type: "button",
+        "aria-pressed": tab === one.kind,
+        onClick: () => {
+          setTab(one.kind);
+          setChosen(null);
+          setNote(null);
+        },
+        children: one.title
+      },
+      one.kind
+    )) }),
+    /* @__PURE__ */ jsx("div", { className: "library__tabs-split", "aria-hidden": "true" }),
+    /* @__PURE__ */ jsx("div", { className: "params__row library__tabs", children: EXTRA_TABS.map((one) => /* @__PURE__ */ jsx(
       "button",
       {
         className: "btn-quiet btn-sm",
@@ -7071,7 +7176,10 @@ function LibraryPanel({
           {
             className: "btn btn-sm",
             type: "button",
-            onClick: () => onInsert(template, params[template.id]),
+            onClick: () => {
+              onInsert(template, params[template.id]);
+              onClose();
+            },
             children: "Вставить"
           }
         )
@@ -7110,8 +7218,8 @@ function LibraryPanel({
         one.label
       ))
     ] }, row.title)) }) : null,
-    tab === "mine" ? /* @__PURE__ */ jsx("div", { className: "library__list", children: !canKeep ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Гостю недоступны: заготовки хранятся в учётной записи." }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Выделите чертёж и сохраните под именем — он будет доступен на любой доске. Картинки в заготовку не попадают." }),
+    tab === "mine" ? /* @__PURE__ */ jsx("div", { className: "library__list", children: !canKeep ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Гостю недоступны: шаблоны хранятся в учётной записи." }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Выделите чертёж и сохраните под именем — он будет доступен на любой доске. Картинки в шаблон не попадают." }),
       /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
         /* @__PURE__ */ jsx(
           "input",
@@ -7120,7 +7228,7 @@ function LibraryPanel({
             type: "text",
             value: title,
             maxLength: 80,
-            placeholder: "Название заготовки",
+            placeholder: "Название шаблона",
             onChange: (event) => setTitle(event.target.value)
           }
         ),
@@ -7149,7 +7257,10 @@ function LibraryPanel({
           {
             className: "btn-quiet library__pick",
             type: "button",
-            onClick: () => onInsertItems(itemsOf(one)),
+            onClick: () => {
+              onInsertItems(itemsOf(one));
+              onClose();
+            },
             title: "Поставить на доску",
             children: [
               one.title,
@@ -7163,8 +7274,8 @@ function LibraryPanel({
             className: "btn-quiet btn-sm",
             type: "button",
             onClick: () => drop(one),
-            "aria-label": `Удалить заготовку ${one.title}`,
-            title: "Удалить заготовку",
+            "aria-label": `Удалить шаблон ${one.title}`,
+            title: "Удалить шаблон",
             children: /* @__PURE__ */ jsx(IconTrash, {})
           }
         )
@@ -7430,9 +7541,6 @@ function RecordingsPanel({
   canManage,
   live,
   onStart,
-  onPause,
-  onResume,
-  onStop,
   onWatch,
   onClose
 }) {
@@ -7466,13 +7574,7 @@ function RecordingsPanel({
       /* @__PURE__ */ jsx("span", { className: "params__title", children: "Записи занятия" }),
       /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
     ] }),
-    canManage ? live ? /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
-      /* @__PURE__ */ jsx("p", { className: "library__hint", children: live.status === "recording" ? "Идёт запись." : "Запись на паузе." }),
-      /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
-        live.status === "recording" ? /* @__PURE__ */ jsx("button", { className: "btn btn-sm", type: "button", onClick: onPause, children: "Пауза" }) : /* @__PURE__ */ jsx("button", { className: "btn btn-sm", type: "button", onClick: onResume, children: "Продолжить" }),
-        /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onStop, children: "Стоп" })
-      ] })
-    ] }) : /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
+    canManage && !live ? /* @__PURE__ */ jsxs("div", { className: "library__keep", children: [
       /* @__PURE__ */ jsx(
         "input",
         {
@@ -7507,7 +7609,7 @@ function RecordingsPanel({
           children: "Начать запись"
         }
       )
-    ] }) : live ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: live.status === "recording" ? "Владелец сейчас записывает занятие." : "Запись занятия на паузе." }) : null,
+    ] }) : live ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: canManage ? live.status === "recording" ? "Идёт запись — пауза и стоп на панели инструментов." : "Запись на паузе — продолжить и стоп на панели инструментов." : live.status === "recording" ? "Владелец сейчас записывает занятие." : "Запись занятия на паузе." }) : null,
     /* @__PURE__ */ jsx("p", { className: "params__label", children: "Сохранённые записи" }),
     error ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: error }) : null,
     rows === null ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Читаем…" }) : rows.filter((x) => x.status === "stopped").length === 0 ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Пока ни одной." }) : /* @__PURE__ */ jsx("div", { className: "library__list", children: rows.filter((x) => x.status === "stopped").map((row) => /* @__PURE__ */ jsxs("div", { className: "library__mine", children: [
@@ -7709,8 +7811,8 @@ const TIPS = [
   { keys: "Ctrl + A", what: "выделить всё" },
   { keys: "Ctrl + C, Ctrl + X, Ctrl + V", what: "копировать, вырезать, вставить — на другой странице и на другой доске" },
   { keys: "Страницы в верхней панели", what: "занятие идёт по страницам; каждый ходит по ним сам" },
-  { keys: "Заготовки в верхней панели", what: "оси, объёмные фигуры, знаки и формулы — настраиваются до вставки" },
-  { keys: "Заготовки → Мои", what: "сохранить выделенный чертёж под именем и ставить его на любой доске" },
+  { keys: "Шаблоны в левой панели", what: "оси, объёмные фигуры, знаки и формулы — настраиваются до вставки" },
+  { keys: "Шаблоны → Мои", what: "сохранить выделенный чертёж под именем и ставить его на любой доске" },
   { keys: "Файлы → Разложить по страницам", what: "каждый лист PDF — отдельной страницей занятия, запертой подложкой" },
   { keys: "Конверт в верхней панели", what: "конспект занятия письмом: участник просит, владелец отправляет" },
   { keys: "Двойной щелчок по названию", what: "переименовать страницу — у владельца" },
@@ -8217,6 +8319,8 @@ function BoardPage() {
   }, []);
   const [tool, setToolRaw] = useState("pen1");
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [toolbarOpen, setToolbarOpen] = useState(true);
+  const [viewToolbarOpen, setViewToolbarOpen] = useState(true);
   const [showParams, setShowParams] = useState(false);
   const [showBackground, setShowBackground] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
@@ -8243,6 +8347,25 @@ function BoardPage() {
     setShowParams(next === tool && TOOLS_WITH_SETTINGS.includes(next) ? !showParams : false);
     setToolRaw(next);
   };
+  useEffect(() => {
+    const anyOpen = showParams || showBackground || showTimer || showHelp || showFiles || showPages || showLibrary || showSummary || showRecordings || showBookmarks;
+    if (!anyOpen) return;
+    const onPointerDown = (event) => {
+      if (event.target.closest(".params, .files, .toolbar, .toolbar-toggle")) return;
+      setShowParams(false);
+      setShowBackground(false);
+      setShowTimer(false);
+      setShowHelp(false);
+      setShowFiles(false);
+      setShowPages(false);
+      setShowLibrary(false);
+      setShowSummary(false);
+      setShowRecordings(false);
+      setShowBookmarks(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [showParams, showBackground, showTimer, showHelp, showFiles, showPages, showLibrary, showSummary, showRecordings, showBookmarks]);
   const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const viewportRef = useRef(viewport);
@@ -9017,7 +9140,12 @@ function BoardPage() {
                 canRedo: history.canRedo,
                 onTool: setTool,
                 onUndo: history.undo,
-                onRedo: history.redo
+                onRedo: history.redo,
+                canUpload: hub.canEdit && !me.isGuest,
+                onFiles: () => setShowFiles((current) => !current),
+                onLibrary: () => setShowLibrary((current) => !current),
+                open: toolbarOpen,
+                onToggleOpen: () => setToolbarOpen((current) => !current)
               }
             ),
             /* @__PURE__ */ jsx(
@@ -9025,7 +9153,10 @@ function BoardPage() {
               {
                 canManage: hub.canManage,
                 canEdit: hub.canEdit,
-                canUpload: hub.canEdit && !me.isGuest,
+                tool,
+                onTool: setTool,
+                open: viewToolbarOpen,
+                onToggleOpen: () => setViewToolbarOpen((current) => !current),
                 canPaste: hasClip && hub.canEdit,
                 onPaste: pasteClip,
                 onPages: () => setShowPages((current) => !current),
@@ -9033,10 +9164,11 @@ function BoardPage() {
                 onBringEveryone: bringEveryoneToMe,
                 canRecordings: !me.isGuest,
                 onRecordings: () => setShowRecordings((current) => !current),
+                onPauseRecording: hub.pauseRecording,
+                onResumeRecording: hub.resumeRecording,
+                onStopRecording: hub.stopRecording,
                 recordingStatus: ((_c = hub.recording) == null ? void 0 : _c.status) ?? null,
                 pageLabel: hub.pages.length === 0 ? "—" : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`,
-                onFiles: () => setShowFiles((current) => !current),
-                onLibrary: () => setShowLibrary((current) => !current),
                 onSummary: () => setShowSummary((current) => !current),
                 summaryCount: summaries.requests.length,
                 scale: viewport.scale,
@@ -9176,10 +9308,10 @@ function BoardPage() {
                 boardId: id,
                 canManage: hub.canManage,
                 live: hub.recording,
-                onStart: hub.startRecording,
-                onPause: hub.pauseRecording,
-                onResume: hub.resumeRecording,
-                onStop: hub.stopRecording,
+                onStart: (title, seedExisting) => {
+                  hub.startRecording(title, seedExisting);
+                  setShowRecordings(false);
+                },
                 onWatch: setWatching,
                 onClose: () => setShowRecordings(false)
               }

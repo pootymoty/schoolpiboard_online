@@ -470,6 +470,11 @@ export const IconPause = (props: Props): ReactElement => (
   </Svg>
 );
 
+/** Остановить запись. */
+export const IconStop = (props: Props): ReactElement => (
+  <Svg {...props}><rect x="5" y="5" width="14" height="14" rx="1.5" fill="currentColor" stroke="none" /></Svg>
+);
+
 /** «Все ко мне». Прицел — переносит остальных в одну точку. */
 export const IconTarget = (props: Props): ReactElement => (
   <Svg {...props}>

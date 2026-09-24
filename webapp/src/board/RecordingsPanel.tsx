@@ -10,12 +10,15 @@ import { IconEditor, IconTrash } from '../components/Icons';
 interface Props {
   boardId: number;
   canManage: boolean;
-  /** Идёт ли запись прямо сейчас — от живого хаба, а не из списка. */
+  /**
+   * Идёт ли запись прямо сейчас — от живого хаба, а не из списка. Сама
+   * эта панель управление записью больше не показывает (пауза и стоп —
+   * прямо на панели инструментов, см. `BoardToolbar`); значение здесь
+   * только чтобы перечитать список после «Стоп» и не показывать форму
+   * запуска повторно, если панель открыли снова, пока запись уже идёт.
+   */
   live: RecordingStatus | null;
   onStart: (title?: string, seedExisting?: boolean) => void;
-  onPause: () => void;
-  onResume: () => void;
-  onStop: () => void;
   /** Открыть просмотр — вместо холста, этим распоряжается страница доски. */
   onWatch: (recordingId: number) => void;
   onClose: () => void;
@@ -33,14 +36,16 @@ function formatDate(iso: string): string {
 }
 
 /**
- * Записи занятий: список, старт/пауза/стоп и воспроизведение.
+ * Записи занятий: старт и список сохранённых для просмотра.
  *
- * Начинать может только владелец — управляющие кнопки видит только он.
- * Метку «идёт запись» видят все: участник должен знать, что его сейчас
+ * Начинать может только владелец. Пауза и стоп — уже не здесь, а прямо
+ * на панели инструментов (см. `BoardToolbar`): начал запись — эта форма
+ * не нужна, дальше управление одним кликом, без захода в панель. Метку
+ * «идёт запись» видят все: участник должен знать, что его сейчас
  * записывают, а не выяснять это по слухам.
  */
 export function RecordingsPanel({
-  boardId, canManage, live, onStart, onPause, onResume, onStop, onWatch, onClose,
+  boardId, canManage, live, onStart, onWatch, onClose,
 }: Props): ReactElement {
   const [rows, setRows] = useState<RecordingInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,54 +93,39 @@ export function RecordingsPanel({
         <button className="btn-quiet btn-sm" type="button" onClick={onClose}>Готово</button>
       </div>
 
-      {canManage ? (
-        live ? (
-          <div className="library__keep">
-            <p className="library__hint">
-              {live.status === 'recording' ? 'Идёт запись.' : 'Запись на паузе.'}
-            </p>
+      {canManage && !live ? (
+        <div className="library__keep">
+          <input
+            className="input"
+            type="text"
+            value={title}
+            maxLength={80}
+            placeholder="Название занятия (не обязательно)"
+            onChange={(event) => setTitle(event.target.value)}
+          />
 
-            <div className="params__row">
-              {live.status === 'recording' ? (
-                <button className="btn btn-sm" type="button" onClick={onPause}>Пауза</button>
-              ) : (
-                <button className="btn btn-sm" type="button" onClick={onResume}>Продолжить</button>
-              )}
-              <button className="btn-quiet btn-sm" type="button" onClick={onStop}>Стоп</button>
-            </div>
-          </div>
-        ) : (
-          <div className="library__keep">
+          <label className="library__toggle">
             <input
-              className="input"
-              type="text"
-              value={title}
-              maxLength={80}
-              placeholder="Название занятия (не обязательно)"
-              onChange={(event) => setTitle(event.target.value)}
+              type="checkbox"
+              checked={seedExisting}
+              onChange={(event) => setSeedExisting(event.target.checked)}
             />
+            Начать с того, что уже нарисовано на странице
+          </label>
 
-            <label className="library__toggle">
-              <input
-                type="checkbox"
-                checked={seedExisting}
-                onChange={(event) => setSeedExisting(event.target.checked)}
-              />
-              Начать с того, что уже нарисовано на странице
-            </label>
-
-            <button
-              className="btn btn-sm btn-block"
-              type="button"
-              onClick={() => { onStart(title.trim() || undefined, seedExisting); setTitle(''); }}
-            >
-              Начать запись
-            </button>
-          </div>
-        )
+          <button
+            className="btn btn-sm btn-block"
+            type="button"
+            onClick={() => { onStart(title.trim() || undefined, seedExisting); setTitle(''); }}
+          >
+            Начать запись
+          </button>
+        </div>
       ) : live ? (
         <p className="library__hint">
-          {live.status === 'recording' ? 'Владелец сейчас записывает занятие.' : 'Запись занятия на паузе.'}
+          {canManage
+            ? (live.status === 'recording' ? 'Идёт запись — пауза и стоп на панели инструментов.' : 'Запись на паузе — продолжить и стоп на панели инструментов.')
+            : (live.status === 'recording' ? 'Владелец сейчас записывает занятие.' : 'Запись занятия на паузе.')}
         </p>
       ) : null}
 

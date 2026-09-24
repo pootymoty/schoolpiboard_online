@@ -95,6 +95,11 @@ export function BoardPage(): ReactElement {
 
   const [tool, setToolRaw] = useState<Tool>('pen1');
   const [settings, setSettings] = useState<ToolSettings>(DEFAULT_SETTINGS);
+
+  // Только на телефоне видны стрелки, чтобы убрать эти панели с экрана —
+  // как и у шапки сайта. На большом экране открыты всегда.
+  const [toolbarOpen, setToolbarOpen] = useState(true);
+  const [viewToolbarOpen, setViewToolbarOpen] = useState(true);
   const [showParams, setShowParams] = useState(false);
   const [showBackground, setShowBackground] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
@@ -147,6 +152,35 @@ export function BoardPage(): ReactElement {
     setShowParams(next === tool && TOOLS_WITH_SETTINGS.includes(next) ? !showParams : false);
     setToolRaw(next);
   };
+
+  // Клик мимо открытой панели настроек закрывает её — так же, как кнопка
+  // «Готово», но без отдельного клика по ней. Клики по самим панелям и
+  // по панелям инструментов не в счёт: там свой обработчик уже решает,
+  // что делать. Список участников (showPeople) сюда нарочно не входит —
+  // он открыт, чтобы поглядывать в него, не прекращая работать.
+  useEffect(() => {
+    const anyOpen = showParams || showBackground || showTimer || showHelp || showFiles
+      || showPages || showLibrary || showSummary || showRecordings || showBookmarks;
+    if (!anyOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if ((event.target as HTMLElement).closest('.params, .files, .toolbar, .toolbar-toggle')) return;
+
+      setShowParams(false);
+      setShowBackground(false);
+      setShowTimer(false);
+      setShowHelp(false);
+      setShowFiles(false);
+      setShowPages(false);
+      setShowLibrary(false);
+      setShowSummary(false);
+      setShowRecordings(false);
+      setShowBookmarks(false);
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [showParams, showBackground, showTimer, showHelp, showFiles, showPages, showLibrary, showSummary, showRecordings, showBookmarks]);
 
   const [viewport, setViewport] = useState<Viewport>(INITIAL_VIEWPORT);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -1351,13 +1385,21 @@ export function BoardPage(): ReactElement {
             onTool={setTool}
             onUndo={history.undo}
             onRedo={history.redo}
+            canUpload={hub.canEdit && !me.isGuest}
+            onFiles={() => setShowFiles((current) => !current)}
+            onLibrary={() => setShowLibrary((current) => !current)}
+            open={toolbarOpen}
+            onToggleOpen={() => setToolbarOpen((current) => !current)}
           />
           )}
 
           <ViewToolbar
             canManage={hub.canManage}
             canEdit={hub.canEdit}
-            canUpload={hub.canEdit && !me.isGuest}
+            tool={tool}
+            onTool={setTool}
+            open={viewToolbarOpen}
+            onToggleOpen={() => setViewToolbarOpen((current) => !current)}
             canPaste={hasClip && hub.canEdit}
             onPaste={pasteClip}
             onPages={() => setShowPages((current) => !current)}
@@ -1365,14 +1407,15 @@ export function BoardPage(): ReactElement {
             onBringEveryone={bringEveryoneToMe}
             canRecordings={!me.isGuest}
             onRecordings={() => setShowRecordings((current) => !current)}
+            onPauseRecording={hub.pauseRecording}
+            onResumeRecording={hub.resumeRecording}
+            onStopRecording={hub.stopRecording}
             recordingStatus={hub.recording?.status ?? null}
             pageLabel={
               hub.pages.length === 0
                 ? '—'
                 : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`
             }
-            onFiles={() => setShowFiles((current) => !current)}
-            onLibrary={() => setShowLibrary((current) => !current)}
             onSummary={() => setShowSummary((current) => !current)}
             summaryCount={summaries.requests.length}
             scale={viewport.scale}
@@ -1520,10 +1563,13 @@ export function BoardPage(): ReactElement {
               boardId={id}
               canManage={hub.canManage}
               live={hub.recording}
-              onStart={hub.startRecording}
-              onPause={hub.pauseRecording}
-              onResume={hub.resumeRecording}
-              onStop={hub.stopRecording}
+              onStart={(title, seedExisting) => {
+                hub.startRecording(title, seedExisting);
+                // Дальше записью управляют прямо с панели инструментов
+                // (пауза/стоп) — этой панели, с формой запуска, тут уже
+                // нечего показывать.
+                setShowRecordings(false);
+              }}
               onWatch={setWatching}
               onClose={() => setShowRecordings(false)}
             />
