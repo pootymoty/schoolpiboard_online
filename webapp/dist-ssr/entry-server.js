@@ -341,6 +341,14 @@ const IconMore = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* 
 ] }) });
 const IconChevronLeft = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M15 18l-6-6 6-6" }) });
 const IconChevronRight = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M9 18l6-6-6-6" }) });
+const IconChevronsLeft = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M11 17l-5-5 5-5" }),
+  /* @__PURE__ */ jsx("path", { d: "M18 17l-5-5 5-5" })
+] }) });
+const IconChevronsRight = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M13 17l5-5-5-5" }),
+  /* @__PURE__ */ jsx("path", { d: "M6 17l5-5-5-5" })
+] }) });
 const IconCheck = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M20 6L9 17l-5-5" }) });
 const IconClose = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("path", { d: "M18 6L6 18" }),
@@ -2051,13 +2059,25 @@ function Modal({ title, onClose, children }) {
     }
   );
 }
+const PAGE_SIZE$1 = 10;
+const PAGE_SPAN = 2;
+const DEFAULT_SORT = { key: "updatedAt", direction: "natural" };
+const COLUMNS = [
+  { key: "title", label: "Название" },
+  { key: "createdAt", label: "Создана" },
+  { key: "updatedAt", label: "Изменена" }
+];
 function BoardsPage() {
   const navigate = useNavigate();
   const [boards, setBoards] = useState([]);
-  const [title, setTitle] = useState("");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState(DEFAULT_SORT);
+  const [page, setPage] = useState(1);
   const [error, setError] = useState(null);
   const [loading2, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [title, setTitle] = useState("");
+  const [createError, setCreateError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(null);
   const [newTitle, setNewTitle] = useState("");
@@ -2076,6 +2096,11 @@ function BoardsPage() {
     const timer = window.setInterval(load, 5e3);
     return () => window.clearInterval(timer);
   }, [load]);
+  const openCreate = () => {
+    setTitle("");
+    setCreateError(null);
+    setCreating(true);
+  };
   const create = async (event) => {
     event.preventDefault();
     setBusy(true);
@@ -2084,7 +2109,7 @@ function BoardsPage() {
       reachGoal("board_create");
       navigate(`/boards/${board.id}`, { state: { openLink: true } });
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось создать доску.");
+      setCreateError(reason instanceof ApiError ? reason.message : "Не удалось создать доску.");
       setBusy(false);
     }
   };
@@ -2103,17 +2128,133 @@ function BoardsPage() {
     if (!window.confirm(`Удалить доску «${board.title}»? Она пропадёт у всех участников.`)) return;
     try {
       await api(`/boards/${board.id}`, { method: "DELETE" });
-      setBoards((current) => current.filter((item) => item.id !== board.id));
+      setBoards((current2) => current2.filter((item) => item.id !== board.id));
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Не удалось удалить доску.");
     }
   };
-  const filtered = query.trim() ? boards.filter((board) => board.title.toLowerCase().includes(query.trim().toLowerCase())) : boards;
+  const sortBy = (key) => {
+    setSort((current2) => current2.key === key ? { key, direction: current2.direction === "natural" ? "reversed" : "natural" } : { key, direction: "natural" });
+    setPage(1);
+  };
+  const search = (value) => {
+    setQuery(value);
+    setPage(1);
+  };
+  const needle = query.trim().toLowerCase();
+  const found = useMemo(() => {
+    const matched = needle ? boards.map((board) => ({
+      board,
+      titleHit: board.title.toLowerCase().includes(needle),
+      bookmarkHits: board.bookmarks.filter((text) => text.toLowerCase().includes(needle))
+    })).filter((row) => row.titleHit || row.bookmarkHits.length > 0) : boards.map((board) => ({ board, titleHit: false, bookmarkHits: [] }));
+    return [...matched].sort((a, b) => compare(a.board, b.board, sort));
+  }, [boards, needle, sort]);
+  const pageCount = Math.max(1, Math.ceil(found.length / PAGE_SIZE$1));
+  const current = Math.min(page, pageCount);
+  const visible = found.slice((current - 1) * PAGE_SIZE$1, current * PAGE_SIZE$1);
   return /* @__PURE__ */ jsxs(Page, { children: [
-    /* @__PURE__ */ jsx("div", { className: "page-header", children: /* @__PURE__ */ jsx("h1", { children: "Мои доски" }) }),
-    /* @__PURE__ */ jsxs("form", { className: "board-create", onSubmit: create, children: [
-      /* @__PURE__ */ jsx("label", { htmlFor: "title", children: "Создание новой доски" }),
-      /* @__PURE__ */ jsxs("div", { className: "board-create__row", children: [
+    /* @__PURE__ */ jsxs("div", { className: "page-header", children: [
+      /* @__PURE__ */ jsx("h1", { children: "Мои доски" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: openCreate, children: "Создать доску" })
+    ] }),
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    !loading2 && boards.length > 0 ? /* @__PURE__ */ jsx(
+      "input",
+      {
+        className: "input boards-search",
+        type: "search",
+        value: query,
+        placeholder: "Найти доску по названию или закладке",
+        onChange: (event) => search(event.target.value),
+        "aria-label": "Найти доску по названию или закладке"
+      }
+    ) : null,
+    loading2 ? null : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty", children: "Досок пока нет." }) : found.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "empty", children: [
+      "Ничего не найдено по «",
+      query.trim(),
+      "»."
+    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsxs("div", { className: "board-list", children: [
+        /* @__PURE__ */ jsxs("div", { className: "board-list__head", role: "group", "aria-label": "Порядок досок", children: [
+          /* @__PURE__ */ jsx("span", { className: "board-list__icon-col", "aria-hidden": "true" }),
+          COLUMNS.map((column) => {
+            const active = sort.key === column.key;
+            const reversed = active && sort.direction === "reversed";
+            return /* @__PURE__ */ jsxs(
+              "button",
+              {
+                type: "button",
+                className: `board-list__sort board-list__sort--${column.key}${active ? " board-list__sort--active" : ""}`,
+                onClick: () => sortBy(column.key),
+                "aria-pressed": active,
+                title: sortTitle(column.key, active ? sort.direction : "natural"),
+                children: [
+                  /* @__PURE__ */ jsx("span", { children: column.label }),
+                  reversed ? /* @__PURE__ */ jsx(IconArrowUp, { size: 14 }) : /* @__PURE__ */ jsx(IconArrowDown, { size: 14 })
+                ]
+              },
+              column.key
+            );
+          }),
+          /* @__PURE__ */ jsx("span", { className: "board-list__tail-col", "aria-hidden": "true" })
+        ] }),
+        /* @__PURE__ */ jsx("ul", { className: "board-list__rows", children: visible.map(({ board, bookmarkHits }) => /* @__PURE__ */ jsxs("li", { className: "board-item", children: [
+          /* @__PURE__ */ jsx("span", { className: "people__icon board-item__icon", title: roleTitle$1(board.role), children: /* @__PURE__ */ jsx(RoleIcon$1, { role: board.role }) }),
+          /* @__PURE__ */ jsxs("div", { className: "board-item__main", children: [
+            /* @__PURE__ */ jsxs("div", { className: "board-item__name", children: [
+              /* @__PURE__ */ jsx(Link, { className: "board-item__title", to: `/boards/${board.id}`, children: board.title }),
+              board.locked ? /* @__PURE__ */ jsx("span", { className: "badge badge-warning", children: "закрыта" }) : null
+            ] }),
+            bookmarkHits.length > 0 ? /* @__PURE__ */ jsxs("p", { className: "board-item__hits", children: [
+              "Закладки: ",
+              bookmarkHits.join(", ")
+            ] }) : null
+          ] }),
+          /* @__PURE__ */ jsxs("span", { className: "board-item__date board-item__date--created", children: [
+            /* @__PURE__ */ jsx("span", { className: "board-item__date-label", children: "Создана " }),
+            formatDate$2(board.createdAt)
+          ] }),
+          /* @__PURE__ */ jsxs("span", { className: "board-item__date board-item__date--updated", children: [
+            /* @__PURE__ */ jsx("span", { className: "board-item__date-label", children: "Изменена " }),
+            formatDate$2(board.updatedAt)
+          ] }),
+          /* @__PURE__ */ jsxs("span", { className: "board-item__tail", children: [
+            board.activeCount > 0 ? /* @__PURE__ */ jsxs("span", { className: "board-item__active", title: `Сейчас на доске: ${board.activeCount}`, children: [
+              /* @__PURE__ */ jsx(IconPeople, { size: 14 }),
+              board.activeCount
+            ] }) : null,
+            board.canManage ? /* @__PURE__ */ jsxs(Menu, { label: "Действия с доской", children: [
+              /* @__PURE__ */ jsx(
+                "button",
+                {
+                  className: "btn-quiet menu__item",
+                  type: "button",
+                  onClick: () => {
+                    setRenaming(board);
+                    setNewTitle(board.title);
+                  },
+                  children: "Переименовать"
+                }
+              ),
+              /* @__PURE__ */ jsx(
+                "button",
+                {
+                  className: "btn-quiet menu__item menu__item--danger",
+                  type: "button",
+                  onClick: () => remove(board),
+                  children: "Удалить"
+                }
+              )
+            ] }) : null
+          ] })
+        ] }, board.id)) })
+      ] }),
+      found.length > PAGE_SIZE$1 ? /* @__PURE__ */ jsx(Pagination, { page: current, count: pageCount, onPage: setPage }) : null
+    ] }),
+    creating ? /* @__PURE__ */ jsx(Modal, { title: "Новая доска", onClose: () => setCreating(false), children: /* @__PURE__ */ jsxs("form", { onSubmit: create, children: [
+      /* @__PURE__ */ jsxs("div", { className: "field", children: [
+        /* @__PURE__ */ jsx("label", { htmlFor: "title", children: "Название" }),
         /* @__PURE__ */ jsx(
           "input",
           {
@@ -2121,66 +2262,19 @@ function BoardsPage() {
             type: "text",
             required: true,
             maxLength: 200,
+            autoFocus: true,
             placeholder: "Имя доски",
             value: title,
             onChange: (event) => setTitle(event.target.value)
           }
-        ),
-        /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: "Создать" })
-      ] })
-    ] }),
-    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    !loading2 && boards.length > 1 ? /* @__PURE__ */ jsx(
-      "input",
-      {
-        className: "input",
-        type: "search",
-        value: query,
-        placeholder: "Найти доску по названию",
-        onChange: (event) => setQuery(event.target.value),
-        "aria-label": "Найти доску по названию",
-        style: { marginBottom: "var(--sp-4)" }
-      }
-    ) : null,
-    loading2 ? null : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty", children: "Досок пока нет." }) : filtered.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "empty", children: [
-      "Ничего не найдено по «",
-      query.trim(),
-      "»."
-    ] }) : /* @__PURE__ */ jsx("ul", { className: "board-list", children: filtered.map((board) => /* @__PURE__ */ jsxs("li", { className: "board-item", children: [
-      /* @__PURE__ */ jsx("span", { className: "people__icon", title: roleTitle$1(board.role), children: /* @__PURE__ */ jsx(RoleIcon$1, { role: board.role }) }),
-      /* @__PURE__ */ jsx(Link, { className: "board-item__title", to: `/boards/${board.id}`, children: board.title }),
-      board.locked ? /* @__PURE__ */ jsx("span", { className: "badge badge-warning", children: "закрыта" }) : null,
-      /* @__PURE__ */ jsxs("span", { className: "board-item__meta", children: [
-        board.activeCount > 0 ? /* @__PURE__ */ jsxs("span", { className: "board-item__active", title: `Сейчас на доске: ${board.activeCount}`, children: [
-          /* @__PURE__ */ jsx(IconPeople, { size: 14 }),
-          board.activeCount
-        ] }) : null,
-        /* @__PURE__ */ jsx("span", { title: "Последнее изменение", children: formatLastEdited(board.updatedAt) })
-      ] }),
-      board.canManage ? /* @__PURE__ */ jsxs(Menu, { label: "Действия с доской", children: [
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "btn-quiet menu__item",
-            type: "button",
-            onClick: () => {
-              setRenaming(board);
-              setNewTitle(board.title);
-            },
-            children: "Переименовать"
-          }
-        ),
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "btn-quiet menu__item menu__item--danger",
-            type: "button",
-            onClick: () => remove(board),
-            children: "Удалить"
-          }
         )
-      ] }) : null
-    ] }, board.id)) }),
+      ] }),
+      createError ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: createError }) : null,
+      /* @__PURE__ */ jsxs("div", { className: "row modal__actions", children: [
+        /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: "Создать" }),
+        /* @__PURE__ */ jsx("button", { className: "btn", type: "button", onClick: () => setCreating(false), children: "Отмена" })
+      ] })
+    ] }) }) : null,
     renaming ? /* @__PURE__ */ jsx(Modal, { title: "Переименовать доску", onClose: () => setRenaming(null), children: /* @__PURE__ */ jsxs("form", { onSubmit: rename, children: [
       /* @__PURE__ */ jsxs("div", { className: "field", children: [
         /* @__PURE__ */ jsx("label", { htmlFor: "newTitle", children: "Название" }),
@@ -2201,6 +2295,87 @@ function BoardsPage() {
     ] }) }) : null
   ] });
 }
+function Pagination({ page, count, onPage }) {
+  const from = Math.max(1, page - PAGE_SPAN);
+  const to = Math.min(count, page + PAGE_SPAN);
+  const numbers = Array.from({ length: to - from + 1 }, (_, index) => from + index);
+  return /* @__PURE__ */ jsxs("nav", { className: "pagination", "aria-label": "Страницы списка досок", children: [
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: () => onPage(1),
+        disabled: page === 1,
+        "aria-label": "Первая страница",
+        title: "Первая страница",
+        children: /* @__PURE__ */ jsx(IconChevronsLeft, {})
+      }
+    ),
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: () => onPage(page - 1),
+        disabled: page === 1,
+        "aria-label": "Предыдущая страница",
+        title: "Предыдущая страница",
+        children: /* @__PURE__ */ jsx(IconChevronLeft, {})
+      }
+    ),
+    numbers.map((number) => /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool pagination__number",
+        type: "button",
+        onClick: () => onPage(number),
+        "aria-pressed": number === page,
+        "aria-current": number === page ? "page" : void 0,
+        children: number
+      },
+      number
+    )),
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: () => onPage(page + 1),
+        disabled: page === count,
+        "aria-label": "Следующая страница",
+        title: "Следующая страница",
+        children: /* @__PURE__ */ jsx(IconChevronRight, {})
+      }
+    ),
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: () => onPage(count),
+        disabled: page === count,
+        "aria-label": "Последняя страница",
+        title: "Последняя страница",
+        children: /* @__PURE__ */ jsx(IconChevronsRight, {})
+      }
+    )
+  ] });
+}
+function compare(a, b, sort) {
+  let result;
+  if (sort.key === "title") {
+    result = a.title.localeCompare(b.title, "ru", { sensitivity: "base", numeric: true });
+  } else {
+    result = Date.parse(b[sort.key]) - Date.parse(a[sort.key]);
+  }
+  if (sort.direction === "reversed") result = -result;
+  return result !== 0 ? result : b.id - a.id;
+}
+function sortTitle(key, direction) {
+  if (key === "title") return direction === "natural" ? "По названию: от А до Я" : "По названию: от Я до А";
+  return direction === "natural" ? "Сначала новые" : "Сначала старые";
+}
 function RoleIcon$1({ role }) {
   if (role === "owner") return /* @__PURE__ */ jsx(IconOwner, {});
   if (role === "editor") return /* @__PURE__ */ jsx(IconEditor, {});
@@ -2211,7 +2386,7 @@ function roleTitle$1(role) {
   if (role === "editor") return "Вы можете работать на доске";
   return "Вы можете только смотреть";
 }
-function formatLastEdited(value) {
+function formatDate$2(value) {
   return new Date(value).toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "short",

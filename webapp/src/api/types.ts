@@ -34,6 +34,9 @@ export interface Board {
   updatedAt: string;
   /** Сколько человек на доске прямо сейчас. */
   activeCount: number;
+  createdAt: string;
+  /** Подписи закладок — приходят только в списке досок, для поиска. */
+  bookmarks: string[];
 }
 
 /** Участник с учётной записью. Роль и доступ сохранены за ним навсегда. */

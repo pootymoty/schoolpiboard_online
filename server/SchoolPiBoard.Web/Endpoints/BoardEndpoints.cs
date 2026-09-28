@@ -30,7 +30,12 @@ public sealed record BoardDto(
     string? LinkUrl,
     DateTime UpdatedAt,
     // Сколько человек на доске прямо сейчас — 0 везде, кроме списка досок.
-    int ActiveCount);
+    int ActiveCount,
+    DateTime CreatedAt,
+    // Подписи закладок — только в списке досок, для поиска по ним; в
+    // остальных ответах пусто. Закладки со страниц, закрытых от этого
+    // участника, сюда не попадают.
+    IReadOnlyList<string> Bookmarks);
 
 public sealed record MemberDto(long UserId, string DisplayName, string Email, string Role, DateTime JoinedAt);
 
@@ -72,7 +77,7 @@ public static class BoardEndpoints
 
         boards.MapGet("/", async (
             ClaimsPrincipal principal, AppDbContext db, BoardService service, AppOptions options,
-            BoardPresence presence, CancellationToken ct) =>
+            BoardPresence presence, PageService pages, CancellationToken ct) =>
         {
             var user = await AuthEndpoints.CurrentUser(principal, db, ct);
             if (user is null) return Results.Unauthorized();
@@ -91,6 +96,37 @@ public static class BoardEndpoints
                 .ToListAsync(ct);
             var lastEdits = lastEditRows.ToDictionary(x => x.BoardId, x => x.Last);
 
+            // Закладки — для поиска по ним в списке досок. Одним запросом по
+            // всем доскам; видимость страниц проверяется только там, где
+            // закладки вообще есть, и только у чужих досок: владельцу
+            // открыты все страницы.
+            var bookmarkRows = await db.BoardItems
+                .Where(x => boardIds.Contains(x.BoardId) && x.Type == BoardItem.TypeBookmark)
+                .OrderBy(x => x.CreatedAt)
+                .Select(x => new { x.BoardId, x.PageId, x.Data })
+                .ToListAsync(ct);
+
+            var bookmarks = new Dictionary<long, List<string>>();
+
+            foreach (var group in bookmarkRows.GroupBy(x => x.BoardId))
+            {
+                var row = rows.First(r => r.Board.Id == group.Key);
+                var canManage = row.Member.Role == BoardMember.RoleOwner;
+
+                HashSet<long>? visible = null;
+                if (!canManage)
+                {
+                    var open = await pages.VisibleAsync(group.Key, false, user.Id, null, ct);
+                    visible = open.Select(page => page.Id).ToHashSet();
+                }
+
+                bookmarks[group.Key] = group
+                    .Where(x => visible is null || visible.Contains(x.PageId))
+                    .Select(x => BookmarkText(x.Data))
+                    .Where(text => text.Length > 0)
+                    .ToList();
+            }
+
             return Results.Ok(rows.Select(row =>
             {
                 var lastEdited = lastEdits.TryGetValue(row.Board.Id, out var itemsLast) && itemsLast > row.Board.UpdatedAt
@@ -99,7 +135,8 @@ public static class BoardEndpoints
 
                 return ToDto(
                     row.Board, row.Member.Role, options,
-                    activeCount: presence.CountOnBoard(row.Board.Id), lastEdited: lastEdited);
+                    activeCount: presence.CountOnBoard(row.Board.Id), lastEdited: lastEdited,
+                    bookmarks: bookmarks.GetValueOrDefault(row.Board.Id));
             }));
         });
 
@@ -435,7 +472,7 @@ public static class BoardEndpoints
     /// </summary>
     private static BoardDto ToDto(
         Board board, string role, AppOptions options, bool? canManage = null,
-        int activeCount = 0, DateTime? lastEdited = null)
+        int activeCount = 0, DateTime? lastEdited = null, IReadOnlyList<string>? bookmarks = null)
     {
         var manages = canManage ?? role == BoardMember.RoleOwner;
 
@@ -449,7 +486,31 @@ public static class BoardEndpoints
             board.AutoAdmit,
             LinkUrl: manages ? $"{options.PublicUrl}/join/{board.LinkToken}" : null,
             lastEdited ?? board.UpdatedAt,
-            activeCount);
+            activeCount,
+            board.CreatedAt,
+            bookmarks ?? Array.Empty<string>());
+    }
+
+    /// <summary>
+    /// Подпись закладки из её JSON — поле <c>text</c>, как его пишет холст.
+    /// Битый или непохожий JSON — просто пустая подпись: из-за одной
+    /// странной закладки список досок падать не должен.
+    /// </summary>
+    private static string BookmarkText(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("text", out var text)
+                && text.ValueKind == JsonValueKind.String
+                ? (text.GetString() ?? string.Empty).Trim()
+                : string.Empty;
+        }
+        catch (JsonException)
+        {
+            return string.Empty;
+        }
     }
 
     /// <summary>

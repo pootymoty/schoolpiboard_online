@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
@@ -6,16 +6,54 @@ import type { Board } from '../api/types';
 import { Page } from '../components/Layout';
 import { Menu } from '../components/Menu';
 import { Modal } from '../components/Modal';
-import { IconEditor, IconOwner, IconPeople, IconViewer } from '../components/Icons';
+import {
+  IconArrowDown, IconArrowUp, IconChevronLeft, IconChevronRight, IconChevronsLeft, IconChevronsRight,
+  IconEditor, IconOwner, IconPeople, IconViewer,
+} from '../components/Icons';
 import { reachGoal } from '../components/Analytics';
+
+/** Досок на одной странице списка. */
+const PAGE_SIZE = 10;
+
+/** Сколько номеров страниц показывать по обе стороны от текущей. */
+const PAGE_SPAN = 2;
+
+type SortKey = 'title' | 'createdAt' | 'updatedAt';
+
+/**
+ * Порядок столбца: `natural` — обычный для него (даты — от новых к
+ * старым, название — от А до Я), стрелка вниз; `reversed` — обратный,
+ * стрелка вверх.
+ */
+type SortDirection = 'natural' | 'reversed';
+
+interface Sort {
+  key: SortKey;
+  direction: SortDirection;
+}
+
+/** По умолчанию — сначала те, где работали последними. */
+const DEFAULT_SORT: Sort = { key: 'updatedAt', direction: 'natural' };
+
+const COLUMNS: { key: SortKey; label: string }[] = [
+  { key: 'title', label: 'Название' },
+  { key: 'createdAt', label: 'Создана' },
+  { key: 'updatedAt', label: 'Изменена' },
+];
 
 export function BoardsPage(): ReactElement {
   const navigate = useNavigate();
   const [boards, setBoards] = useState<Board[]>([]);
-  const [title, setTitle] = useState('');
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<Sort>(DEFAULT_SORT);
+  const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  /** Окно создания доски: открыто ли, что в поле, идёт ли запрос. */
+  const [creating, setCreating] = useState(false);
+  const [title, setTitle] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   /** Доска, которую переименовываем. */
@@ -43,6 +81,12 @@ export function BoardsPage(): ReactElement {
     return () => window.clearInterval(timer);
   }, [load]);
 
+  const openCreate = () => {
+    setTitle('');
+    setCreateError(null);
+    setCreating(true);
+  };
+
   const create = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -55,7 +99,7 @@ export function BoardsPage(): ReactElement {
       // дополнительных кликов «открыть доску → найти иконку ссылки».
       navigate(`/boards/${board.id}`, { state: { openLink: true } });
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось создать доску.');
+      setCreateError(reason instanceof ApiError ? reason.message : 'Не удалось создать доску.');
       setBusy(false);
     }
   };
@@ -84,39 +128,66 @@ export function BoardsPage(): ReactElement {
     }
   };
 
-  // Список приходит целиком, без страниц — фильтр по названию считается
-  // на месте, без похода на сервер: досок у одного человека десятки,
-  // не тысячи.
-  const filtered = query.trim()
-    ? boards.filter((board) => board.title.toLowerCase().includes(query.trim().toLowerCase()))
-    : boards;
+  // Щелчок по уже выбранному столбцу переворачивает порядок, по другому —
+  // выбирает его в обычном для него порядке.
+  const sortBy = (key: SortKey) => {
+    setSort((current) => (
+      current.key === key
+        ? { key, direction: current.direction === 'natural' ? 'reversed' : 'natural' }
+        : { key, direction: 'natural' }
+    ));
+    setPage(1);
+  };
+
+  const search = (value: string) => {
+    setQuery(value);
+    setPage(1);
+  };
+
+  // Список приходит целиком, без страниц — поиск, порядок и страницы
+  // считаются на месте, без похода на сервер: досок у одного человека
+  // десятки, не тысячи. Страницы режут уже найденное и упорядоченное —
+  // поэтому они всегда про то, что сейчас на экране.
+  const needle = query.trim().toLowerCase();
+
+  const found = useMemo(() => {
+    const matched = needle
+      ? boards
+        .map((board) => ({
+          board,
+          titleHit: board.title.toLowerCase().includes(needle),
+          bookmarkHits: board.bookmarks.filter((text) => text.toLowerCase().includes(needle)),
+        }))
+        .filter((row) => row.titleHit || row.bookmarkHits.length > 0)
+      : boards.map((board) => ({ board, titleHit: false, bookmarkHits: [] as string[] }));
+
+    return [...matched].sort((a, b) => compare(a.board, b.board, sort));
+  }, [boards, needle, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(found.length / PAGE_SIZE));
+
+  // Доску удалили или опрос принёс список короче — страница, на которой
+  // стояли, могла кончиться.
+  const current = Math.min(page, pageCount);
+  const visible = found.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
     <Page>
       <div className="page-header">
         <h1>Мои доски</h1>
+        <button className="btn-primary" type="button" onClick={openCreate}>Создать доску</button>
       </div>
-
-      <form className="board-create" onSubmit={create}>
-        <label htmlFor="title">Создание новой доски</label>
-        <div className="board-create__row">
-          <input id="title" type="text" required maxLength={200} placeholder="Имя доски"
-                 value={title} onChange={(event) => setTitle(event.target.value)} />
-          <button className="btn-primary" type="submit" disabled={busy}>Создать</button>
-        </div>
-      </form>
 
       {error ? <p className="note note-danger">{error}</p> : null}
 
-      {!loading && boards.length > 1 ? (
+      {!loading && boards.length > 0 ? (
         <input
-          className="input"
+          className="input boards-search"
           type="search"
           value={query}
-          placeholder="Найти доску по названию"
-          onChange={(event) => setQuery(event.target.value)}
-          aria-label="Найти доску по названию"
-          style={{ marginBottom: 'var(--sp-4)' }}
+          placeholder="Найти доску по названию или закладке"
+          onChange={(event) => search(event.target.value)}
+          aria-label="Найти доску по названию или закладке"
         />
       ) : null}
 
@@ -124,55 +195,127 @@ export function BoardsPage(): ReactElement {
         <p className="empty">
           Досок пока нет.
         </p>
-      ) : filtered.length === 0 ? (
+      ) : found.length === 0 ? (
         <p className="empty">
           Ничего не найдено по «{query.trim()}».
         </p>
       ) : (
-        <ul className="board-list">
-          {filtered.map((board) => (
-            <li className="board-item" key={board.id}>
-              <span className="people__icon" title={roleTitle(board.role)}>
-                <RoleIcon role={board.role} />
-              </span>
+        <>
+          <div className="board-list">
+            {/* Заголовки столбцов — они же переключатели порядка. Стрелка
+                у каждого: вниз — обычный порядок, вверх — обратный; у
+                выбранного сейчас она яркая, у остальных бледная. */}
+            <div className="board-list__head" role="group" aria-label="Порядок досок">
+              <span className="board-list__icon-col" aria-hidden="true" />
+              {COLUMNS.map((column) => {
+                const active = sort.key === column.key;
+                const reversed = active && sort.direction === 'reversed';
 
-              <Link className="board-item__title" to={`/boards/${board.id}`}>{board.title}</Link>
+                return (
+                  <button
+                    key={column.key}
+                    type="button"
+                    className={`board-list__sort board-list__sort--${column.key}${active ? ' board-list__sort--active' : ''}`}
+                    onClick={() => sortBy(column.key)}
+                    aria-pressed={active}
+                    title={sortTitle(column.key, active ? sort.direction : 'natural')}
+                  >
+                    <span>{column.label}</span>
+                    {reversed ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />}
+                  </button>
+                );
+              })}
+              <span className="board-list__tail-col" aria-hidden="true" />
+            </div>
 
-              {board.locked ? <span className="badge badge-warning">закрыта</span> : null}
-
-              <span className="board-item__meta">
-                {board.activeCount > 0 ? (
-                  <span className="board-item__active" title={`Сейчас на доске: ${board.activeCount}`}>
-                    <IconPeople size={14} />
-                    {board.activeCount}
+            <ul className="board-list__rows">
+              {visible.map(({ board, bookmarkHits }) => (
+                <li className="board-item" key={board.id}>
+                  <span className="people__icon board-item__icon" title={roleTitle(board.role)}>
+                    <RoleIcon role={board.role} />
                   </span>
-                ) : null}
 
-                <span title="Последнее изменение">{formatLastEdited(board.updatedAt)}</span>
-              </span>
+                  <div className="board-item__main">
+                    <div className="board-item__name">
+                      <Link className="board-item__title" to={`/boards/${board.id}`}>{board.title}</Link>
+                      {board.locked ? <span className="badge badge-warning">закрыта</span> : null}
+                    </div>
 
-              {board.canManage ? (
-                <Menu label="Действия с доской">
-                  <button
-                    className="btn-quiet menu__item"
-                    type="button"
-                    onClick={() => { setRenaming(board); setNewTitle(board.title); }}
-                  >
-                    Переименовать
-                  </button>
-                  <button
-                    className="btn-quiet menu__item menu__item--danger"
-                    type="button"
-                    onClick={() => remove(board)}
-                  >
-                    Удалить
-                  </button>
-                </Menu>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+                    {/* Нашлась по закладке — показываем по какой: иначе
+                        непонятно, почему доска с другим названием в выдаче. */}
+                    {bookmarkHits.length > 0 ? (
+                      <p className="board-item__hits">
+                        Закладки: {bookmarkHits.join(', ')}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <span className="board-item__date board-item__date--created">
+                    <span className="board-item__date-label">Создана </span>
+                    {formatDate(board.createdAt)}
+                  </span>
+
+                  <span className="board-item__date board-item__date--updated">
+                    <span className="board-item__date-label">Изменена </span>
+                    {formatDate(board.updatedAt)}
+                  </span>
+
+                  <span className="board-item__tail">
+                    {board.activeCount > 0 ? (
+                      <span className="board-item__active" title={`Сейчас на доске: ${board.activeCount}`}>
+                        <IconPeople size={14} />
+                        {board.activeCount}
+                      </span>
+                    ) : null}
+
+                    {board.canManage ? (
+                      <Menu label="Действия с доской">
+                        <button
+                          className="btn-quiet menu__item"
+                          type="button"
+                          onClick={() => { setRenaming(board); setNewTitle(board.title); }}
+                        >
+                          Переименовать
+                        </button>
+                        <button
+                          className="btn-quiet menu__item menu__item--danger"
+                          type="button"
+                          onClick={() => remove(board)}
+                        >
+                          Удалить
+                        </button>
+                      </Menu>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {found.length > PAGE_SIZE ? (
+            <Pagination page={current} count={pageCount} onPage={setPage} />
+          ) : null}
+        </>
       )}
+
+      {creating ? (
+        <Modal title="Новая доска" onClose={() => setCreating(false)}>
+          <form onSubmit={create}>
+            <div className="field">
+              <label htmlFor="title">Название</label>
+              <input id="title" type="text" required maxLength={200} autoFocus placeholder="Имя доски"
+                     value={title} onChange={(event) => setTitle(event.target.value)} />
+            </div>
+
+            {createError ? <p className="note note-danger">{createError}</p> : null}
+
+            <div className="row modal__actions">
+              <button className="btn-primary" type="submit" disabled={busy}>Создать</button>
+              <button className="btn" type="button" onClick={() => setCreating(false)}>Отмена</button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
 
       {renaming ? (
         <Modal title="Переименовать доску" onClose={() => setRenaming(null)}>
@@ -190,6 +333,76 @@ export function BoardsPage(): ReactElement {
   );
 }
 
+/**
+ * Листалка страниц: в начало, назад, по два номера вокруг текущей,
+ * вперёд, в конец. Кнопки у краёв не прячутся, а гаснут — иначе на
+ * первой и последней странице остальные съезжали бы под пальцем.
+ */
+function Pagination({ page, count, onPage }: {
+  page: number;
+  count: number;
+  onPage: (page: number) => void;
+}): ReactElement {
+  const from = Math.max(1, page - PAGE_SPAN);
+  const to = Math.min(count, page + PAGE_SPAN);
+  const numbers = Array.from({ length: to - from + 1 }, (_, index) => from + index);
+
+  return (
+    <nav className="pagination" aria-label="Страницы списка досок">
+      <button className="btn-tool" type="button" onClick={() => onPage(1)} disabled={page === 1}
+              aria-label="Первая страница" title="Первая страница">
+        <IconChevronsLeft />
+      </button>
+      <button className="btn-tool" type="button" onClick={() => onPage(page - 1)} disabled={page === 1}
+              aria-label="Предыдущая страница" title="Предыдущая страница">
+        <IconChevronLeft />
+      </button>
+
+      {numbers.map((number) => (
+        <button
+          key={number}
+          className="btn-tool pagination__number"
+          type="button"
+          onClick={() => onPage(number)}
+          aria-pressed={number === page}
+          aria-current={number === page ? 'page' : undefined}
+        >
+          {number}
+        </button>
+      ))}
+
+      <button className="btn-tool" type="button" onClick={() => onPage(page + 1)} disabled={page === count}
+              aria-label="Следующая страница" title="Следующая страница">
+        <IconChevronRight />
+      </button>
+      <button className="btn-tool" type="button" onClick={() => onPage(count)} disabled={page === count}
+              aria-label="Последняя страница" title="Последняя страница">
+        <IconChevronsRight />
+      </button>
+    </nav>
+  );
+}
+
+/** Сравнение досок для выбранного порядка. Равные — по номеру, чтобы строки не прыгали между опросами. */
+function compare(a: Board, b: Board, sort: Sort): number {
+  let result: number;
+
+  if (sort.key === 'title') {
+    result = a.title.localeCompare(b.title, 'ru', { sensitivity: 'base', numeric: true });
+  } else {
+    // Даты в обычном порядке — от новых к старым.
+    result = Date.parse(b[sort.key]) - Date.parse(a[sort.key]);
+  }
+
+  if (sort.direction === 'reversed') result = -result;
+  return result !== 0 ? result : b.id - a.id;
+}
+
+function sortTitle(key: SortKey, direction: SortDirection): string {
+  if (key === 'title') return direction === 'natural' ? 'По названию: от А до Я' : 'По названию: от Я до А';
+  return direction === 'natural' ? 'Сначала новые' : 'Сначала старые';
+}
+
 function RoleIcon({ role }: { role: Board['role'] }): ReactElement {
   if (role === 'owner') return <IconOwner />;
   if (role === 'editor') return <IconEditor />;
@@ -202,7 +415,7 @@ function roleTitle(role: Board['role']): string {
   return 'Вы можете только смотреть';
 }
 
-function formatLastEdited(value: string): string {
+function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('ru-RU', {
     day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit',
   });

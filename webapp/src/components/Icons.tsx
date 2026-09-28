@@ -315,6 +315,16 @@ export const IconChevronRight = (props: Props): ReactElement => (
   <Svg {...props}><path d="M9 18l6-6-6-6" /></Svg>
 );
 
+/** Листалка страниц: в самое начало. */
+export const IconChevronsLeft = (props: Props): ReactElement => (
+  <Svg {...props}><g><path d="M11 17l-5-5 5-5" /><path d="M18 17l-5-5 5-5" /></g></Svg>
+);
+
+/** Листалка страниц: в самый конец. */
+export const IconChevronsRight = (props: Props): ReactElement => (
+  <Svg {...props}><g><path d="M13 17l5-5-5-5" /><path d="M6 17l5-5-5-5" /></g></Svg>
+);
+
 export const IconCheck = (props: Props): ReactElement => (
   <Svg {...props}><path d="M20 6L9 17l-5-5" /></Svg>
 );
