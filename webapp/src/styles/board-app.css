@@ -3031,6 +3031,40 @@ body.no-scroll {
     background: color-mix(in srgb, var(--info) 20%, transparent);
 }
 
+/*
+ * Кнопка внутри блока при наведении и нажатии — тем же цветом, что и
+ * блок, только гуще, а не общим серым (`.btn-tool:hover`): тот на
+ * светлой подложке выглядел тёмной заплаткой чужого цвета.
+ */
+.rec-group--recording .btn-tool:hover,
+.rec-group--recording .btn-tool:active {
+    background: color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+.rec-group--paused .btn-tool:hover,
+.rec-group--paused .btn-tool:active {
+    background: color-mix(in srgb, var(--info) 35%, transparent);
+}
+
+/* На сенсорном экране `:hover` залипает после касания — там подсветка
+   только пока палец держит кнопку. Без блока (записи нет) — то же самое:
+   залипший серый на единственной кнопке выглядел бы как состояние. */
+@media (hover: none) {
+    .rec-group .btn-tool:hover { background: transparent; }
+
+    .rec-group--recording .btn-tool:active {
+        background: color-mix(in srgb, var(--success) 30%, transparent);
+    }
+
+    .rec-group--paused .btn-tool:active {
+        background: color-mix(in srgb, var(--info) 35%, transparent);
+    }
+
+    .rec-group:not(.rec-group--recording):not(.rec-group--paused) .btn-tool:active {
+        background: var(--surface-2);
+    }
+}
+
 @keyframes rec-group-pulse {
     0%, 100% { background: color-mix(in srgb, var(--success) 8%, transparent); }
     50% { background: color-mix(in srgb, var(--success) 30%, transparent); }
