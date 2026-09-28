@@ -3012,13 +3012,6 @@ body.no-scroll {
     letter-spacing: 0;
 }
 
-.admin__pager {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-    margin-top: var(--sp-3);
-}
-
 /* Кнопки в строке списка — рядом, а не столбиком: их две, и каждая
    раскрывает своё под этой же строкой. */
 .admin__actions {

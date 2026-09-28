@@ -6,18 +6,13 @@ import type { Board } from '../api/types';
 import { Page } from '../components/Layout';
 import { Menu } from '../components/Menu';
 import { Modal } from '../components/Modal';
-import {
-  IconArrowDown, IconArrowUp, IconChevronLeft, IconChevronRight, IconChevronsLeft, IconChevronsRight,
-  IconEditor, IconOwner, IconPeople, IconViewer,
-} from '../components/Icons';
+import { IconArrowDown, IconArrowUp, IconEditor, IconOwner, IconPeople, IconViewer } from '../components/Icons';
+import { Pagination } from '../components/Pagination';
 import { reachGoal } from '../components/Analytics';
 import { BOARD_TITLE_HINT, BOARD_TITLE_MAX, cleanBoardTitle } from '../boardTitle';
 
 /** Досок на одной странице списка. */
 const PAGE_SIZE = 10;
-
-/** Сколько номеров страниц показывать по обе стороны от текущей. */
-const PAGE_SPAN = 2;
 
 type SortKey = 'title' | 'createdAt' | 'updatedAt';
 
@@ -294,7 +289,7 @@ export function BoardsPage(): ReactElement {
           </div>
 
           {found.length > PAGE_SIZE ? (
-            <Pagination page={current} count={pageCount} onPage={setPage} />
+            <Pagination page={current} count={pageCount} onPage={setPage} label="Страницы списка досок" />
           ) : null}
         </>
       )}
@@ -335,56 +330,6 @@ export function BoardsPage(): ReactElement {
         </Modal>
       ) : null}
     </Page>
-  );
-}
-
-/**
- * Листалка страниц: в начало, назад, по два номера вокруг текущей,
- * вперёд, в конец. Кнопки у краёв не прячутся, а гаснут — иначе на
- * первой и последней странице остальные съезжали бы под пальцем.
- */
-function Pagination({ page, count, onPage }: {
-  page: number;
-  count: number;
-  onPage: (page: number) => void;
-}): ReactElement {
-  const from = Math.max(1, page - PAGE_SPAN);
-  const to = Math.min(count, page + PAGE_SPAN);
-  const numbers = Array.from({ length: to - from + 1 }, (_, index) => from + index);
-
-  return (
-    <nav className="pagination" aria-label="Страницы списка досок">
-      <button className="btn-tool" type="button" onClick={() => onPage(1)} disabled={page === 1}
-              aria-label="Первая страница" title="Первая страница">
-        <IconChevronsLeft />
-      </button>
-      <button className="btn-tool" type="button" onClick={() => onPage(page - 1)} disabled={page === 1}
-              aria-label="Предыдущая страница" title="Предыдущая страница">
-        <IconChevronLeft />
-      </button>
-
-      {numbers.map((number) => (
-        <button
-          key={number}
-          className="btn-tool pagination__number"
-          type="button"
-          onClick={() => onPage(number)}
-          aria-pressed={number === page}
-          aria-current={number === page ? 'page' : undefined}
-        >
-          {number}
-        </button>
-      ))}
-
-      <button className="btn-tool" type="button" onClick={() => onPage(page + 1)} disabled={page === count}
-              aria-label="Следующая страница" title="Следующая страница">
-        <IconChevronRight />
-      </button>
-      <button className="btn-tool" type="button" onClick={() => onPage(count)} disabled={page === count}
-              aria-label="Последняя страница" title="Последняя страница">
-        <IconChevronsRight />
-      </button>
-    </nav>
   );
 }
 

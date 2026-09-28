@@ -11,6 +11,7 @@ import type {
 } from '../api/admin';
 import { useAuth } from '../auth/AuthContext';
 import { Page } from '../components/Layout';
+import { Pagination } from '../components/Pagination';
 
 /** Столько строк на странице. Больше не помещается на экран без прокрутки. */
 const SIZE = 20;
@@ -455,27 +456,7 @@ export function AdminPage(): ReactElement {
         </div>
 
         {boardsPages > 1 ? (
-          <div className="admin__pager">
-            <button
-              className="btn-quiet btn-sm"
-              type="button"
-              disabled={boardsPage <= 1}
-              onClick={() => setBoardsPage((current) => current - 1)}
-            >
-              Назад
-            </button>
-
-            <span className="text-muted small">{boardsPage} из {boardsPages}</span>
-
-            <button
-              className="btn-quiet btn-sm"
-              type="button"
-              disabled={boardsPage >= boardsPages}
-              onClick={() => setBoardsPage((current) => current + 1)}
-            >
-              Вперёд
-            </button>
-          </div>
+          <Pagination page={boardsPage} count={boardsPages} onPage={setBoardsPage} label="Страницы списка досок" />
         ) : null}
       </section>
 
@@ -625,27 +606,7 @@ export function AdminPage(): ReactElement {
         </div>
 
         {pages > 1 ? (
-          <div className="admin__pager">
-            <button
-              className="btn-quiet btn-sm"
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((current) => current - 1)}
-            >
-              Назад
-            </button>
-
-            <span className="text-muted small">{page} из {pages}</span>
-
-            <button
-              className="btn-quiet btn-sm"
-              type="button"
-              disabled={page >= pages}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              Вперёд
-            </button>
-          </div>
+          <Pagination page={page} count={pages} onPage={setPage} label="Страницы списка пользователей" />
         ) : null}
       </section>
     </Page>

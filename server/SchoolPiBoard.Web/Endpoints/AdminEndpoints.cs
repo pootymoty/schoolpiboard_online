@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using SchoolPiBoard.Web.Configuration;
 using SchoolPiBoard.Web.Data;
@@ -380,6 +381,7 @@ public static class AdminEndpoints
                 .ToListAsync(ct);
 
             var result = items
+                .Where(x => !IsTemplateCaption(x))
                 .Select(x => new AdminBoardTextDto(
                     x.Id, x.PageId, titleOf.GetValueOrDefault(x.PageId, "?"), ExtractText(x) ?? "", x.UpdatedAt))
                 .Where(x => x.Text.Trim().Length > 0);
@@ -544,6 +546,38 @@ public static class AdminEndpoints
     /// </summary>
     private static IResult Denied()
         => Results.NotFound(new { message = "Страница не найдена." });
+
+    /// <summary>
+    /// Подпись, которую поставил шаблон (числа у засечек осей, O, x, y, R),
+    /// а не человек. Новые помечены полем <c>templateCaption</c>; у
+    /// вставленных до этой пометки её нет, и их узнаём по виду — ровно
+    /// такие подписи шаблоны и ставят: одно число или одна из этих букв.
+    /// Набранное руками «5» при этом тоже пропадёт из списка, но одинокое
+    /// число о содержимом доски ничего и не говорит.
+    /// </summary>
+    private static bool IsTemplateCaption(BoardItem item)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(item.Data);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return false;
+
+            if (root.TryGetProperty("templateCaption", out var flag) && flag.ValueKind == JsonValueKind.True)
+                return true;
+
+            if (!root.TryGetProperty("text", out var value) || value.ValueKind != JsonValueKind.String)
+                return false;
+
+            return TemplateCaptionText.IsMatch((value.GetString() ?? string.Empty).Trim());
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static readonly Regex TemplateCaptionText = new("^(-?[0-9]{1,2}|[OxyR])$", RegexOptions.Compiled);
 
     /// <summary>
     /// Текст надписи из <c>data.text</c>. Только у типа «текст» он лежит

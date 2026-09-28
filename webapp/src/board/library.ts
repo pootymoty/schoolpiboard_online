@@ -162,6 +162,7 @@ function caption(
       fontSize,
       color: frame.color,
       width: 1,
+      templateCaption: true,
     },
   };
 }

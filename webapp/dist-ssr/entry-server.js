@@ -2059,13 +2059,80 @@ function Modal({ title, onClose, children }) {
     }
   );
 }
+const PAGE_SPAN = 2;
+function Pagination({ page, count, onPage, label }) {
+  const from = Math.max(1, page - PAGE_SPAN);
+  const to = Math.min(count, page + PAGE_SPAN);
+  const numbers = Array.from({ length: to - from + 1 }, (_, index) => from + index);
+  return /* @__PURE__ */ jsxs("nav", { className: "pagination", "aria-label": label, children: [
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: () => onPage(1),
+        disabled: page === 1,
+        "aria-label": "Первая страница",
+        title: "Первая страница",
+        children: /* @__PURE__ */ jsx(IconChevronsLeft, {})
+      }
+    ),
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: () => onPage(page - 1),
+        disabled: page === 1,
+        "aria-label": "Предыдущая страница",
+        title: "Предыдущая страница",
+        children: /* @__PURE__ */ jsx(IconChevronLeft, {})
+      }
+    ),
+    numbers.map((number) => /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool pagination__number",
+        type: "button",
+        onClick: () => onPage(number),
+        "aria-pressed": number === page,
+        "aria-current": number === page ? "page" : void 0,
+        children: number
+      },
+      number
+    )),
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: () => onPage(page + 1),
+        disabled: page === count,
+        "aria-label": "Следующая страница",
+        title: "Следующая страница",
+        children: /* @__PURE__ */ jsx(IconChevronRight, {})
+      }
+    ),
+    /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: () => onPage(count),
+        disabled: page === count,
+        "aria-label": "Последняя страница",
+        title: "Последняя страница",
+        children: /* @__PURE__ */ jsx(IconChevronsRight, {})
+      }
+    )
+  ] });
+}
 const BOARD_TITLE_MAX = 50;
 const BOARD_TITLE_HINT = `Буквы (русские или английские), цифры и пробелы — до ${BOARD_TITLE_MAX} символов.`;
 function cleanBoardTitle(value) {
   return value.replace(/[^A-Za-zА-Яа-яЁё0-9 ]/g, "").replace(/ {2,}/g, " ").slice(0, BOARD_TITLE_MAX);
 }
 const PAGE_SIZE$1 = 10;
-const PAGE_SPAN = 2;
 const DEFAULT_SORT = { key: "updatedAt", direction: "natural" };
 const COLUMNS = [
   { key: "title", label: "Название" },
@@ -2255,7 +2322,7 @@ function BoardsPage() {
           ] })
         ] }, board.id)) })
       ] }),
-      found.length > PAGE_SIZE$1 ? /* @__PURE__ */ jsx(Pagination, { page: current, count: pageCount, onPage: setPage }) : null
+      found.length > PAGE_SIZE$1 ? /* @__PURE__ */ jsx(Pagination, { page: current, count: pageCount, onPage: setPage, label: "Страницы списка досок" }) : null
     ] }),
     creating ? /* @__PURE__ */ jsx(Modal, { title: "Новая доска", onClose: () => setCreating(false), children: /* @__PURE__ */ jsxs("form", { onSubmit: create, children: [
       /* @__PURE__ */ jsxs("div", { className: "field", children: [
@@ -2302,73 +2369,6 @@ function BoardsPage() {
       ] }),
       /* @__PURE__ */ jsx("button", { className: "btn-primary btn-block", type: "submit", children: "Сохранить" })
     ] }) }) : null
-  ] });
-}
-function Pagination({ page, count, onPage }) {
-  const from = Math.max(1, page - PAGE_SPAN);
-  const to = Math.min(count, page + PAGE_SPAN);
-  const numbers = Array.from({ length: to - from + 1 }, (_, index) => from + index);
-  return /* @__PURE__ */ jsxs("nav", { className: "pagination", "aria-label": "Страницы списка досок", children: [
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "btn-tool",
-        type: "button",
-        onClick: () => onPage(1),
-        disabled: page === 1,
-        "aria-label": "Первая страница",
-        title: "Первая страница",
-        children: /* @__PURE__ */ jsx(IconChevronsLeft, {})
-      }
-    ),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "btn-tool",
-        type: "button",
-        onClick: () => onPage(page - 1),
-        disabled: page === 1,
-        "aria-label": "Предыдущая страница",
-        title: "Предыдущая страница",
-        children: /* @__PURE__ */ jsx(IconChevronLeft, {})
-      }
-    ),
-    numbers.map((number) => /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "btn-tool pagination__number",
-        type: "button",
-        onClick: () => onPage(number),
-        "aria-pressed": number === page,
-        "aria-current": number === page ? "page" : void 0,
-        children: number
-      },
-      number
-    )),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "btn-tool",
-        type: "button",
-        onClick: () => onPage(page + 1),
-        disabled: page === count,
-        "aria-label": "Следующая страница",
-        title: "Следующая страница",
-        children: /* @__PURE__ */ jsx(IconChevronRight, {})
-      }
-    ),
-    /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "btn-tool",
-        type: "button",
-        onClick: () => onPage(count),
-        disabled: page === count,
-        "aria-label": "Последняя страница",
-        title: "Последняя страница",
-        children: /* @__PURE__ */ jsx(IconChevronsRight, {})
-      }
-    )
   ] });
 }
 function compare(a, b, sort) {
@@ -6868,7 +6868,8 @@ function caption(frame, at, text, anchor, fontSize = frame.fontSize) {
       text,
       fontSize,
       color: frame.color,
-      width: 1
+      width: 1,
+      templateCaption: true
     }
   };
 }
@@ -10705,33 +10706,7 @@ function AdminPage() {
           boards.length === 0 && !boardsBusy ? /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsx("td", { colSpan: 5, children: /* @__PURE__ */ jsx("span", { className: "text-muted", children: "Ничего не нашлось." }) }) }) : null
         ] })
       ] }) }),
-      boardsPages > 1 ? /* @__PURE__ */ jsxs("div", { className: "admin__pager", children: [
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "btn-quiet btn-sm",
-            type: "button",
-            disabled: boardsPage <= 1,
-            onClick: () => setBoardsPage((current) => current - 1),
-            children: "Назад"
-          }
-        ),
-        /* @__PURE__ */ jsxs("span", { className: "text-muted small", children: [
-          boardsPage,
-          " из ",
-          boardsPages
-        ] }),
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "btn-quiet btn-sm",
-            type: "button",
-            disabled: boardsPage >= boardsPages,
-            onClick: () => setBoardsPage((current) => current + 1),
-            children: "Вперёд"
-          }
-        )
-      ] }) : null
+      boardsPages > 1 ? /* @__PURE__ */ jsx(Pagination, { page: boardsPage, count: boardsPages, onPage: setBoardsPage, label: "Страницы списка досок" }) : null
     ] }),
     /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsxs("div", { className: "admin__search", children: [
@@ -10852,33 +10827,7 @@ function AdminPage() {
           rows.length === 0 && !busy ? /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsx("td", { colSpan: 7, children: /* @__PURE__ */ jsx("span", { className: "text-muted", children: "Никого не нашлось." }) }) }) : null
         ] })
       ] }) }),
-      pages > 1 ? /* @__PURE__ */ jsxs("div", { className: "admin__pager", children: [
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "btn-quiet btn-sm",
-            type: "button",
-            disabled: page <= 1,
-            onClick: () => setPage((current) => current - 1),
-            children: "Назад"
-          }
-        ),
-        /* @__PURE__ */ jsxs("span", { className: "text-muted small", children: [
-          page,
-          " из ",
-          pages
-        ] }),
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "btn-quiet btn-sm",
-            type: "button",
-            disabled: page >= pages,
-            onClick: () => setPage((current) => current + 1),
-            children: "Вперёд"
-          }
-        )
-      ] }) : null
+      pages > 1 ? /* @__PURE__ */ jsx(Pagination, { page, count: pages, onPage: setPage, label: "Страницы списка пользователей" }) : null
     ] })
   ] });
 }
