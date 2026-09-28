@@ -1347,7 +1347,7 @@ export function BoardPage(): ReactElement {
         </div>
 
         {board.locked && board.canManage ? (
-          <p className="note note-warning">Доска закрыта для новых участников.</p>
+          <p className="note note-warning board-page__locked-note">Доска закрыта для новых участников.</p>
         ) : null}
 
         {error ?? hub.error ? <p className="note note-danger">{error ?? hub.error}</p> : null}

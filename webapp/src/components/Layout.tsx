@@ -384,9 +384,9 @@ export function Page({ children, narrow }: { children: ReactNode; narrow?: boole
  * холст сам управляет своим пространством.
  *
  * Шапка здесь не стоит постоянно — на счету каждый пиксель высоты
- * холста, — а выезжает поверх него по кнопке и прячется обратно. Сам
- * холст размера не меняет ни при выезде, ни при уборке: шапка ложится
- * над ним, а не сдвигает его.
+ * холста, — а выезжает по кнопке и прячется обратно. Выехав, она не
+ * ложится поверх строки с названием и кнопками доски, а сдвигает всё
+ * содержимое вниз: одна панель не должна закрывать другую.
  */
 export function BoardShell({ children }: { children: ReactNode }): ReactElement {
   const [headerOpen, setHeaderOpen] = useState(false);
@@ -407,7 +407,7 @@ export function BoardShell({ children }: { children: ReactNode }): ReactElement 
         <IconChevronDown />
       </button>
 
-      <main className="app__main app__main--board">{children}</main>
+      <main className={headerOpen ? 'app__main app__main--board app__main--header-open' : 'app__main app__main--board'}>{children}</main>
     </div>
   );
 }

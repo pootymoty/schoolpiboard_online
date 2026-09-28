@@ -719,7 +719,7 @@ function BoardShell({ children }) {
         children: /* @__PURE__ */ jsx(IconChevronDown, {})
       }
     ),
-    /* @__PURE__ */ jsx("main", { className: "app__main app__main--board", children })
+    /* @__PURE__ */ jsx("main", { className: headerOpen ? "app__main app__main--board app__main--header-open" : "app__main app__main--board", children })
   ] });
 }
 const SHORT_WORDS = /* @__PURE__ */ new Set([
@@ -9134,7 +9134,7 @@ function BoardPage() {
           )
         ] }) : null
       ] }),
-      board.locked && board.canManage ? /* @__PURE__ */ jsx("p", { className: "note note-warning", children: "Доска закрыта для новых участников." }) : null,
+      board.locked && board.canManage ? /* @__PURE__ */ jsx("p", { className: "note note-warning board-page__locked-note", children: "Доска закрыта для новых участников." }) : null,
       error ?? hub.error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error ?? hub.error }) : null,
       /* @__PURE__ */ jsx(
         "section",

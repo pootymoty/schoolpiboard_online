@@ -872,10 +872,18 @@ body.no-scroll {
     padding: 0;
     gap: 0;
     min-height: 0;
+    transition: margin-top .25s ease;
 }
 
-/* Шапка на доске лежит поверх холста, а не над ним в общем потоке:
-   холст всегда занимает весь экран, и её выезд ничего не пересчитывает. */
+/* Выехавшая шапка сдвигает содержимое вниз, а не ложится поверх строки
+   с названием и кнопками доски: одна панель не закрывает другую. Сдвиг
+   отступом, а не переводом шапки в общий поток, — так он едет той же
+   анимацией и за то же время, что и сама шапка, и холст просто
+   становится на её высоту ниже. */
+.app__main--header-open { margin-top: var(--header-h); }
+
+/* Сама шапка — вне потока и выезжает трансформом: место под неё
+   освобождает отступ у содержимого выше, а не она сама. */
 .board-header {
     position: absolute;
     top: 0;
@@ -946,14 +954,31 @@ body.no-scroll {
     gap: var(--sp-2);
     flex: 1;
     min-height: 0;
-    padding: var(--sp-2) var(--sp-3);
+    /* Сверху — место под стрелку шапки (20px, .board-header-toggle) и
+       немного воздуха: иначе она ложилась на строку с названием и
+       кнопками, а при коротком названии — прямо на «Ссылку». */
+    padding: calc(20px + var(--sp-1)) var(--sp-3) var(--sp-2);
 }
 
+/* Всё в одну строку, без переноса: лишняя строка над холстом на
+   телефоне съедала бы его высоту. Сжимается только название — кнопки
+   остаются целыми. */
 .board-page__bar {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+.board-page__bar > .btn-tool { flex: none; }
+
+@media (max-width: 720px) {
+    .board-page__bar { gap: var(--sp-2); }
+
+    /* «Доска закрыта для новых участников» — на телефоне лишняя строка
+       над холстом: то же самое и так видно по кнопке «Закрыта» с замком. */
+    .board-page__locked-note { display: none; }
 }
 
 /* Кнопки на панели доски подписаны текстом: значок без подписи не
@@ -1002,20 +1027,28 @@ body.no-scroll {
 
 /* --- Название доски: слева от кнопки «Ссылка» ------------------------------- */
 
+/* Ширина — не по тексту, а не больше 200px и сколько останется рядом с
+   кнопками: длинное название иначе растягивало бы строку и сталкивало
+   кнопки за край экрана или на новую строку. */
 .board-title {
     display: flex;
     align-items: center;
     gap: var(--sp-1);
+    flex: 0 1 200px;
+    min-width: 0;
 }
 
-/* Ширина фиксирована, а не по тексту: длинное название иначе растягивало
-   бы строку с кнопками и сдвигало холст вниз. */
 .board-title__text {
+    /* Блоком, а не общим для кнопок flex с выравниванием по центру:
+       иначе не влезающий текст обрезался с обеих сторон сразу, и
+       начала названия видно не было. */
+    display: block;
+    flex: 0 1 200px;
+    min-width: 0;
     font-family: var(--font-head);
     font-weight: 700;
     margin: 0;
     padding: var(--sp-1) var(--sp-2);
-    width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1027,7 +1060,9 @@ body.no-scroll {
 }
 
 .board-title__input {
-    width: 200px;
+    flex: 1;
+    min-width: 0;
+    width: 100%;
     padding: var(--sp-1) var(--sp-2);
     font-family: var(--font-head);
     font-weight: 700;
@@ -1145,6 +1180,10 @@ body.no-scroll {
     align-items: center;
     gap: var(--sp-1);
     flex-wrap: wrap;
+    /* В теме у .toolbar нижний отступ для обычных страниц. Здесь он
+       растягивал слот панели на 24px ниже самой панели — и стрелка,
+       приклеенная к краю слота, висела в воздухе, а не у панели. */
+    margin: 0;
     padding: var(--sp-1) var(--sp-2);
     background: var(--surface);
     border: 1px solid var(--line);
@@ -1196,10 +1235,17 @@ body.no-scroll {
 .toolbar-slot--vertical {
     position: absolute;
     left: var(--sp-3);
-    /* Отступ сверху — под рамку с названием доски: впритык они на
-       телефоне слегка наезжали друг на друга. */
+    /* Отступ сверху — под верхнюю панель (масштаб и вид): на телефоне
+       она во всю ширину, и впритык они наезжали бы друг на друга. */
     top: 72px;
     z-index: 8;
+    /* Предел — высота холста, а не экрана: процент у абсолютного блока
+       считается от холста. С пределом по экрану (100vh) полоса была выше
+       холста, прокручивать ей было нечего, и её низ просто обрезался
+       краем холста — а палец вместо полосы листал страницу. */
+    max-height: calc(100% - 72px - var(--sp-3));
+    display: flex;
+    flex-direction: column;
     transition: transform .25s ease;
 }
 
@@ -1207,11 +1253,13 @@ body.no-scroll {
     flex-direction: column;
     flex-wrap: nowrap;
     /* Высота по числу кнопок, не во весь холст — иначе снизу пустует
-       место, где инструментов уже нет. Прокрутка — только когда кнопкам
-       правда не хватает места по вертикали. */
-    max-height: calc(100vh - 72px - var(--sp-3));
+       место, где инструментов уже нет. Когда кнопкам не хватает места,
+       полоса сжимается по слоту и прокручивается. */
+    min-height: 0;
     overflow-y: auto;
     overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 }
 
@@ -1335,8 +1383,10 @@ body.no-scroll {
  * Только на телефоне: на большом экране обе панели ничего не загораживают,
  * и убирать их незачем — там этих кнопок нет вовсе.
  */
-.toolbar-slot--vertical.toolbar-slot--collapsed { transform: translateX(-100%); }
-.toolbar-slot--view.toolbar-slot--collapsed { transform: translateY(-100%); }
+/* Сдвиг — на свой размер плюс отступ от края холста: панель уходит за
+   край целиком, а стрелка остаётся прижатой к самому краю холста. */
+.toolbar-slot--vertical.toolbar-slot--collapsed { transform: translateX(calc(-100% - var(--sp-3))); }
+.toolbar-slot--view.toolbar-slot--collapsed { transform: translateY(calc(-100% - var(--sp-3))); }
 
 /*
  * Стрелка — не в самой полосе (см. пояснение у .toolbar-slot--vertical
@@ -1344,6 +1394,8 @@ body.no-scroll {
  * и стрелку одним куском — стрелка «приклеена» к панели в буквальном
  * смысле, а не просто нарисована на её обычном месте.
  */
+/* Размер — как у стрелки шапки сайта (36×20): все три стрелки одного
+   вида, у левой панели та же кнопка, только повёрнутая на бок. */
 .toolbar-toggle {
     display: none;
     position: absolute;
@@ -1351,7 +1403,7 @@ body.no-scroll {
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    width: 28px;
+    width: 36px;
     height: 20px;
     min-height: 20px;
     padding: 0;
@@ -1360,20 +1412,33 @@ body.no-scroll {
     color: var(--text);
 }
 
+/* Общее `button:hover` подменило бы фон, а `button:active` — трансформ;
+   см. то же у .board-header-toggle. */
+.toolbar-toggle:hover { background: var(--surface); }
+
 .toolbar-toggle svg { width: 14px; height: 14px; transition: transform .25s ease; }
 
+/* Посередине полосы — отступом через calc, а не translateY(-50%): общее
+   `button:active { transform: scale(.98) }` на время нажатия сбрасывало
+   этот сдвиг, кнопка прыгала вниз на полвысоты из-под пальца, и нажатие
+   до неё не доходило. */
 .toolbar-toggle--vertical {
-    right: -28px;
-    top: 50%;
-    transform: translateY(-50%);
+    right: -20px;
+    top: calc(50% - 18px);
+    width: 20px;
+    height: 36px;
     border-radius: 0 var(--radius) var(--radius) 0;
 }
 
-.toolbar-toggle--vertical svg { transform: rotate(180deg); }
-.toolbar-toggle--vertical.toolbar-toggle--closed svg { transform: rotate(0); }
+/* Стрелка смотрит туда, куда поедет панель: у открытой — влево, за
+   край, у спрятанной — вправо, обратно на холст. */
+.toolbar-toggle--vertical svg { transform: rotate(0); }
+.toolbar-toggle--vertical.toolbar-toggle--closed svg { transform: rotate(180deg); }
 
+/* Справа, а не слева: слева под верхней панелью начинается левая, и
+   стрелка ложилась бы на её верхнюю кнопку. */
 .toolbar-toggle--view {
-    left: var(--sp-4);
+    right: var(--sp-4);
     bottom: -20px;
     border-radius: 0 0 var(--radius) var(--radius);
 }
