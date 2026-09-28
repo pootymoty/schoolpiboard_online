@@ -2059,6 +2059,11 @@ function Modal({ title, onClose, children }) {
     }
   );
 }
+const BOARD_TITLE_MAX = 50;
+const BOARD_TITLE_HINT = `Буквы (русские или английские), цифры и пробелы — до ${BOARD_TITLE_MAX} символов.`;
+function cleanBoardTitle(value) {
+  return value.replace(/[^A-Za-zА-Яа-яЁё0-9 ]/g, "").replace(/ {2,}/g, " ").slice(0, BOARD_TITLE_MAX);
+}
 const PAGE_SIZE$1 = 10;
 const PAGE_SPAN = 2;
 const DEFAULT_SORT = { key: "updatedAt", direction: "natural" };
@@ -2105,7 +2110,7 @@ function BoardsPage() {
     event.preventDefault();
     setBusy(true);
     try {
-      const board = await api("/boards", { method: "POST", body: { title } });
+      const board = await api("/boards", { method: "POST", body: { title: title.trim() } });
       reachGoal("board_create");
       navigate(`/boards/${board.id}`, { state: { openLink: true } });
     } catch (reason) {
@@ -2117,7 +2122,7 @@ function BoardsPage() {
     event.preventDefault();
     if (!renaming) return;
     try {
-      await api(`/boards/${renaming.id}`, { method: "PATCH", body: { title: newTitle } });
+      await api(`/boards/${renaming.id}`, { method: "PATCH", body: { title: newTitle.trim() } });
       setRenaming(null);
       await load();
     } catch (reason) {
@@ -2261,13 +2266,15 @@ function BoardsPage() {
             id: "title",
             type: "text",
             required: true,
-            maxLength: 200,
+            maxLength: BOARD_TITLE_MAX,
             autoFocus: true,
             placeholder: "Имя доски",
+            "aria-describedby": "titleHint",
             value: title,
-            onChange: (event) => setTitle(event.target.value)
+            onChange: (event) => setTitle(cleanBoardTitle(event.target.value))
           }
-        )
+        ),
+        /* @__PURE__ */ jsx("p", { className: "field__hint", id: "titleHint", children: BOARD_TITLE_HINT })
       ] }),
       createError ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: createError }) : null,
       /* @__PURE__ */ jsxs("div", { className: "row modal__actions", children: [
@@ -2284,12 +2291,14 @@ function BoardsPage() {
             id: "newTitle",
             type: "text",
             required: true,
-            maxLength: 200,
+            maxLength: BOARD_TITLE_MAX,
             autoFocus: true,
+            "aria-describedby": "newTitleHint",
             value: newTitle,
-            onChange: (event) => setNewTitle(event.target.value)
+            onChange: (event) => setNewTitle(cleanBoardTitle(event.target.value))
           }
-        )
+        ),
+        /* @__PURE__ */ jsx("p", { className: "field__hint", id: "newTitleHint", children: BOARD_TITLE_HINT })
       ] }),
       /* @__PURE__ */ jsx("button", { className: "btn-primary btn-block", type: "submit", children: "Сохранить" })
     ] }) }) : null
@@ -9237,7 +9246,7 @@ function BoardPage() {
     }
   };
   const saveTitle = async () => {
-    const trimmed = titleDraft.trim();
+    const trimmed = cleanBoardTitle(titleDraft).trim();
     setEditingTitle(false);
     if (!trimmed || !state || trimmed === state.board.title) return;
     try {
@@ -9296,9 +9305,10 @@ function BoardPage() {
               className: "board-title__input",
               type: "text",
               autoFocus: true,
-              maxLength: 200,
+              maxLength: BOARD_TITLE_MAX,
+              title: BOARD_TITLE_HINT,
               value: titleDraft,
-              onChange: (event) => setTitleDraft(event.target.value),
+              onChange: (event) => setTitleDraft(cleanBoardTitle(event.target.value)),
               onKeyDown: (event) => {
                 if (event.key === "Enter") saveTitle();
                 if (event.key === "Escape") setEditingTitle(false);

@@ -11,6 +11,7 @@ import {
   IconEditor, IconOwner, IconPeople, IconViewer,
 } from '../components/Icons';
 import { reachGoal } from '../components/Analytics';
+import { BOARD_TITLE_HINT, BOARD_TITLE_MAX, cleanBoardTitle } from '../boardTitle';
 
 /** Досок на одной странице списка. */
 const PAGE_SIZE = 10;
@@ -92,7 +93,7 @@ export function BoardsPage(): ReactElement {
     setBusy(true);
 
     try {
-      const board = await api<Board>('/boards', { method: 'POST', body: { title } });
+      const board = await api<Board>('/boards', { method: 'POST', body: { title: title.trim() } });
       reachGoal('board_create');
       // Сразу на доску, с открытой ссылкой: обещание с пустого экрана —
       // «ссылка появится сразу» — должно выполняться буквально, без
@@ -109,7 +110,7 @@ export function BoardsPage(): ReactElement {
     if (!renaming) return;
 
     try {
-      await api(`/boards/${renaming.id}`, { method: 'PATCH', body: { title: newTitle } });
+      await api(`/boards/${renaming.id}`, { method: 'PATCH', body: { title: newTitle.trim() } });
       setRenaming(null);
       await load();
     } catch (reason) {
@@ -303,8 +304,10 @@ export function BoardsPage(): ReactElement {
           <form onSubmit={create}>
             <div className="field">
               <label htmlFor="title">Название</label>
-              <input id="title" type="text" required maxLength={200} autoFocus placeholder="Имя доски"
-                     value={title} onChange={(event) => setTitle(event.target.value)} />
+              <input id="title" type="text" required maxLength={BOARD_TITLE_MAX} autoFocus placeholder="Имя доски"
+                     aria-describedby="titleHint"
+                     value={title} onChange={(event) => setTitle(cleanBoardTitle(event.target.value))} />
+              <p className="field__hint" id="titleHint">{BOARD_TITLE_HINT}</p>
             </div>
 
             {createError ? <p className="note note-danger">{createError}</p> : null}
@@ -322,8 +325,10 @@ export function BoardsPage(): ReactElement {
           <form onSubmit={rename}>
             <div className="field">
               <label htmlFor="newTitle">Название</label>
-              <input id="newTitle" type="text" required maxLength={200} autoFocus
-                     value={newTitle} onChange={(event) => setNewTitle(event.target.value)} />
+              <input id="newTitle" type="text" required maxLength={BOARD_TITLE_MAX} autoFocus
+                     aria-describedby="newTitleHint"
+                     value={newTitle} onChange={(event) => setNewTitle(cleanBoardTitle(event.target.value))} />
+              <p className="field__hint" id="newTitleHint">{BOARD_TITLE_HINT}</p>
             </div>
             <button className="btn-primary btn-block" type="submit">Сохранить</button>
           </form>

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using SchoolPiBoard.Web.Data;
@@ -44,7 +45,16 @@ public sealed record JoinAttempt(
 /// </summary>
 public sealed class BoardService
 {
-    private const int MaxTitleLength = 200;
+    private const int MaxTitleLength = 50;
+
+    /// <summary>
+    /// Что можно в названии доски: русские и английские буквы, цифры и
+    /// пробел. Проверяется при создании и переименовании; у досок,
+    /// названных раньше по старым правилам, название остаётся как было.
+    /// </summary>
+    private static readonly Regex TitlePattern = new("^[A-Za-zА-Яа-яЁё0-9 ]+$", RegexOptions.Compiled);
+
+    private static readonly Regex Spaces = new(" {2,}", RegexOptions.Compiled);
     private const int MaxGuestNameLength = 60;
 
     /// <summary>
@@ -98,11 +108,28 @@ public sealed class BoardService
 
     // ---------- Доски ----------
 
+    /// <summary>Края обрезаны, несколько пробелов подряд — один.</summary>
+    private static string NormalizeTitle(string? title)
+        => Spaces.Replace((title ?? string.Empty).Trim(), " ");
+
+    /// <summary>Что не так с названием — или null, если всё в порядке.</summary>
+    private static string? TitleProblem(string name)
+    {
+        if (name.Length is 0 or > MaxTitleLength)
+            return $"Название доски — от 1 до {MaxTitleLength} символов.";
+
+        if (!TitlePattern.IsMatch(name))
+            return "В названии доски можно только русские и английские буквы, цифры и пробелы.";
+
+        return null;
+    }
+
     public async Task<BoardResult<Board>> CreateAsync(long userId, string? title, CancellationToken cancellationToken)
     {
-        var name = (title ?? string.Empty).Trim();
-        if (name.Length is 0 or > MaxTitleLength)
-            return BoardResult<Board>.Bad($"Название доски — от 1 до {MaxTitleLength} символов.");
+        var name = NormalizeTitle(title);
+        var problem = TitleProblem(name);
+        if (problem is not null)
+            return BoardResult<Board>.Bad(problem);
 
         // Предел тарифа проверяется только при создании: доски сверх предела
         // не пропадают, когда платный срок кончился, — новые просто не
@@ -194,9 +221,10 @@ public sealed class BoardService
 
     public async Task<BoardResult<Board>> RenameAsync(long boardId, long userId, string? title, CancellationToken cancellationToken)
     {
-        var name = (title ?? string.Empty).Trim();
-        if (name.Length is 0 or > MaxTitleLength)
-            return BoardResult<Board>.Bad($"Название доски — от 1 до {MaxTitleLength} символов.");
+        var name = NormalizeTitle(title);
+        var problem = TitleProblem(name);
+        if (problem is not null)
+            return BoardResult<Board>.Bad(problem);
 
         var board = await OwnedAsync(boardId, userId, cancellationToken);
         if (board is null)

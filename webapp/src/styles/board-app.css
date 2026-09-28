@@ -3171,3 +3171,10 @@ body.no-scroll {
 @media (prefers-reduced-motion: reduce) {
     .rec-group--recording { animation: none; }
 }
+
+/* Подсказка под полем: какие символы можно. */
+.field__hint {
+    margin: var(--sp-1) 0 0;
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+}

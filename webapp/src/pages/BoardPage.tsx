@@ -50,6 +50,7 @@ import type { ItemSnapshot } from '../board/useHistory';
 import { INITIAL_VIEWPORT, centerOn, fitToContent, toScreen, toWorld, zoomAt } from '../board/viewport';
 import type { Viewport } from '../board/viewport';
 import { reachGoal } from '../components/Analytics';
+import { BOARD_TITLE_HINT, BOARD_TITLE_MAX, cleanBoardTitle } from '../boardTitle';
 
 /**
  * Страница доски.
@@ -1196,7 +1197,7 @@ export function BoardPage(): ReactElement {
   };
 
   const saveTitle = async () => {
-    const trimmed = titleDraft.trim();
+    const trimmed = cleanBoardTitle(titleDraft).trim();
     setEditingTitle(false);
     if (!trimmed || !state || trimmed === state.board.title) return;
 
@@ -1292,9 +1293,10 @@ export function BoardPage(): ReactElement {
                 className="board-title__input"
                 type="text"
                 autoFocus
-                maxLength={200}
+                maxLength={BOARD_TITLE_MAX}
+                title={BOARD_TITLE_HINT}
                 value={titleDraft}
-                onChange={(event) => setTitleDraft(event.target.value)}
+                onChange={(event) => setTitleDraft(cleanBoardTitle(event.target.value))}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') saveTitle();
                   if (event.key === 'Escape') setEditingTitle(false);
