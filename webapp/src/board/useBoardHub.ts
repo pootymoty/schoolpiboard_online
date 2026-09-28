@@ -137,6 +137,29 @@ export interface BoardHub {
  * пропущенное — доска не перезагружается целиком, и то, что человек
  * нарисовал без связи, не затирается (раздел 7.4).
  */
+/** Перезагрузку обрабатываем один раз на документ — см. takeReload. */
+let reloadTaken = false;
+
+/**
+ * Была ли эта страница перезагружена — и именно эта: тип навигации
+ * остаётся «reload» на весь документ, и без сверки адреса пауза
+ * сработала бы и на доске, куда перешли уже внутри сайта после
+ * перезагрузки совсем другой страницы. Отвечает «да» один раз.
+ */
+function takeReload(): boolean {
+  if (reloadTaken || typeof performance === 'undefined') return false;
+  reloadTaken = true;
+
+  const entry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+  if (entry?.type !== 'reload') return false;
+
+  try {
+    return new URL(entry.name).pathname === window.location.pathname;
+  } catch {
+    return false;
+  }
+}
+
 export function useBoardHub(boardId: number): BoardHub {
   const [status, setStatus] = useState<HubStatus>('connecting');
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +187,15 @@ export function useBoardHub(boardId: number): BoardHub {
    * React-цикла и иначе видел бы страницу на момент подписки.
    */
   const current = useRef<number | null>(null);
+
+  /**
+   * Запись и право ею управлять — ещё и ссылками: их читают уход со
+   * страницы и размонтирование, которые живут вне React-цикла.
+   */
+  const recordingRef = useRef<RecordingStatus | null>(null);
+  const canManageRef = useRef(false);
+  recordingRef.current = recording;
+  canManageRef.current = canManage;
 
   /** Правки, накопленные без связи (см. QUEUE_WHILE_OFFLINE) — до досылки. */
   const queued = useRef<{ method: string; args: unknown[] }[]>([]);
@@ -335,6 +367,16 @@ export function useBoardHub(boardId: number): BoardHub {
       setMe(hub.connectionId);
       setStatus('ready');
       setError(null);
+
+      // Запасной путь паузы при перезагрузке (основной — pagehide ниже):
+      // если сообщение с уходящей страницы не успело уйти, запись ставится
+      // на паузу, как только ведущий вернулся.
+      // Спрашиваем при каждом входе, но «да» бывает только на первом —
+      // переподключение позже перезагрузкой не считается.
+      const reloaded = takeReload();
+      if (reloaded && payload.canManage && payload.recording?.status === 'recording') {
+        void hub.invoke('PauseRecording').catch(() => undefined);
+      }
     });
 
     hub.on('Resumed', (payload: ResumedPayload) => {
@@ -462,6 +504,20 @@ export function useBoardHub(boardId: number): BoardHub {
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
 
+    // Страницу перезагружают или закрывают. Отличить одно от другого
+    // отсюда нельзя, поэтому идущая запись встаёт на паузу: после
+    // перезагрузки её продолжают, а если ведущий не вернулся — сервер сам
+    // остановит и сохранит её (RecordingWatchdog). `send`, а не `invoke`:
+    // ответа страница уже не дождётся. pagehide, а не beforeunload: на
+    // iOS второго при перезагрузке может и не быть.
+    const onPageHide = () => {
+      if (!canManageRef.current || recordingRef.current?.status !== 'recording') return;
+      if (hub.state !== HubConnectionState.Connected) return;
+      void hub.send('PauseRecording').catch(() => undefined);
+    };
+
+    window.addEventListener('pagehide', onPageHide);
+
     hub.start()
       .then(join)
       .catch(() => {
@@ -472,8 +528,22 @@ export function useBoardHub(boardId: number): BoardHub {
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
+      window.removeEventListener('pagehide', onPageHide);
       connection.current = null;
-      void hub.stop();
+
+      // Ушли с доски внутри сайта (при перезагрузке сюда не доходит —
+      // страница просто исчезает): запись, идущая или на паузе,
+      // останавливается и сохраняется, а соединение закрывается уже
+      // после ответа — иначе «стоп» мог не успеть уйти.
+      const leavingRecording = canManageRef.current
+        && recordingRef.current !== null
+        && hub.state === HubConnectionState.Connected;
+
+      if (leavingRecording) {
+        void hub.invoke('StopRecording').catch(() => undefined).finally(() => { void hub.stop(); });
+      } else {
+        void hub.stop();
+      }
     };
   }, [boardId, apply]);
 

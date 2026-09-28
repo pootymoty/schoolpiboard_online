@@ -266,7 +266,7 @@ export function ViewToolbar({
           панель. Наблюдателю панель ничего не даст (управляет только
           владелец), поэтому ему оставлена только метка «идёт запись». */}
       {canRecordings && canManage && recordingStatus !== null ? (
-        <>
+        <span className={`rec-group rec-group--${recordingStatus}`} role="group" aria-label={recordingStatus === 'recording' ? 'Идёт запись' : 'Запись на паузе'}>
           {recordingStatus === 'recording' ? (
             <button className="btn-tool" type="button" onClick={onPauseRecording} title="Пауза" data-tip="Пауза">
               <IconPause />
@@ -279,14 +279,19 @@ export function ViewToolbar({
           <button className="btn-tool" type="button" onClick={onStopRecording} title="Стоп" data-tip="Стоп">
             <IconStop />
           </button>
-        </>
+        </span>
       ) : canRecordings ? (
-        <button
-          className="btn-tool" type="button" onClick={onRecordings}
-          title="Записи занятия" data-tip="Записи занятия"
-        >
-          {recordingStatus === 'paused' ? <IconPause /> : <IconRecord />}
-        </button>
+        // Одна кнопка — открыть панель записей. У того, кто запись не
+        // ведёт, вокруг неё та же подсветка идущей записи или паузы; пока
+        // записи нет — кнопка обычная, без подложки.
+        <span className={recordingStatus ? `rec-group rec-group--${recordingStatus}` : 'rec-group'}>
+          <button
+            className="btn-tool" type="button" onClick={onRecordings}
+            title="Записи занятия" data-tip="Записи занятия"
+          >
+            {recordingStatus === 'paused' ? <IconPause /> : <IconRecord />}
+          </button>
+        </span>
       ) : null}
 
       {/* Конспект рядом с сохранением: и то и другое — «забрать занятие

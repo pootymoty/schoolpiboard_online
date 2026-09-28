@@ -5450,19 +5450,24 @@ function ViewToolbar({
             }
           ) : null,
           canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
-          canRecordings && canManage && recordingStatus !== null ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          canRecordings && canManage && recordingStatus !== null ? /* @__PURE__ */ jsxs("span", { className: `rec-group rec-group--${recordingStatus}`, role: "group", "aria-label": recordingStatus === "recording" ? "Идёт запись" : "Запись на паузе", children: [
             recordingStatus === "recording" ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPauseRecording, title: "Пауза", "data-tip": "Пауза", children: /* @__PURE__ */ jsx(IconPause, {}) }) : /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onResumeRecording, title: "Продолжить", "data-tip": "Продолжить", children: /* @__PURE__ */ jsx(IconPlay, {}) }),
             /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onStopRecording, title: "Стоп", "data-tip": "Стоп", children: /* @__PURE__ */ jsx(IconStop, {}) })
-          ] }) : canRecordings ? /* @__PURE__ */ jsx(
-            "button",
-            {
-              className: "btn-tool",
-              type: "button",
-              onClick: onRecordings,
-              title: "Записи занятия",
-              "data-tip": "Записи занятия",
-              children: recordingStatus === "paused" ? /* @__PURE__ */ jsx(IconPause, {}) : /* @__PURE__ */ jsx(IconRecord, {})
-            }
+          ] }) : canRecordings ? (
+            // Одна кнопка — открыть панель записей. У того, кто запись не
+            // ведёт, вокруг неё та же подсветка идущей записи или паузы; пока
+            // записи нет — кнопка обычная, без подложки.
+            /* @__PURE__ */ jsx("span", { className: recordingStatus ? `rec-group rec-group--${recordingStatus}` : "rec-group", children: /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool",
+                type: "button",
+                onClick: onRecordings,
+                title: "Записи занятия",
+                "data-tip": "Записи занятия",
+                children: recordingStatus === "paused" ? /* @__PURE__ */ jsx(IconPause, {}) : /* @__PURE__ */ jsx(IconRecord, {})
+              }
+            ) })
           ) : null,
           /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", "data-tip": "Конспект занятия по почте", children: [
             /* @__PURE__ */ jsx(IconMail, {}),
@@ -7915,6 +7920,18 @@ const QUEUE_WHILE_OFFLINE = /* @__PURE__ */ new Set([
   "DeleteItems",
   "ClearBoard"
 ]);
+let reloadTaken = false;
+function takeReload() {
+  if (reloadTaken || typeof performance === "undefined") return false;
+  reloadTaken = true;
+  const entry = performance.getEntriesByType("navigation")[0];
+  if ((entry == null ? void 0 : entry.type) !== "reload") return false;
+  try {
+    return new URL(entry.name).pathname === window.location.pathname;
+  } catch {
+    return false;
+  }
+}
 function useBoardHub(boardId) {
   const [status, setStatus] = useState("connecting");
   const [error, setError] = useState(null);
@@ -7936,6 +7953,10 @@ function useBoardHub(boardId) {
   const connection = useRef(null);
   const seq = useRef(0);
   const current = useRef(null);
+  const recordingRef = useRef(null);
+  const canManageRef = useRef(false);
+  recordingRef.current = recording;
+  canManageRef.current = canManage;
   const queued = useRef([]);
   const apply = useCallback((name, payload) => {
     switch (name) {
@@ -8050,6 +8071,7 @@ function useBoardHub(boardId) {
     }
     hub.on("Cursors", (frame) => setCursors(frame));
     hub.on("Joined", (payload) => {
+      var _a;
       seq.current = payload.seq;
       current.current = payload.pageId ?? null;
       setPages(payload.pages ?? []);
@@ -8065,6 +8087,10 @@ function useBoardHub(boardId) {
       setMe(hub.connectionId);
       setStatus("ready");
       setError(null);
+      const reloaded = takeReload();
+      if (reloaded && payload.canManage && ((_a = payload.recording) == null ? void 0 : _a.status) === "recording") {
+        void hub.invoke("PauseRecording").catch(() => void 0);
+      }
     });
     hub.on("Resumed", (payload) => {
       setRole(payload.role);
@@ -8142,6 +8168,13 @@ function useBoardHub(boardId) {
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
+    const onPageHide = () => {
+      var _a;
+      if (!canManageRef.current || ((_a = recordingRef.current) == null ? void 0 : _a.status) !== "recording") return;
+      if (hub.state !== HubConnectionState.Connected) return;
+      void hub.send("PauseRecording").catch(() => void 0);
+    };
+    window.addEventListener("pagehide", onPageHide);
     hub.start().then(join).catch(() => {
       setStatus("failed");
       setError("Не удалось подключиться к доске.");
@@ -8149,8 +8182,16 @@ function useBoardHub(boardId) {
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
+      window.removeEventListener("pagehide", onPageHide);
       connection.current = null;
-      void hub.stop();
+      const leavingRecording = canManageRef.current && recordingRef.current !== null && hub.state === HubConnectionState.Connected;
+      if (leavingRecording) {
+        void hub.invoke("StopRecording").catch(() => void 0).finally(() => {
+          void hub.stop();
+        });
+      } else {
+        void hub.stop();
+      }
     };
   }, [boardId, apply]);
   const call = useCallback((method, ...args) => {

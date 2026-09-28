@@ -2997,3 +2997,45 @@ body.no-scroll {
     flex: 1;
     min-width: 0;
 }
+
+/* --- Запись занятия: подсветка кнопок управления -------------------------- */
+
+/*
+ * Пауза/продолжить и стоп — одним блоком со своей подложкой: идёт запись
+ * — светло-зелёная и плавно мерцает, чтобы было видно краем глаза; на
+ * паузе — ровная светло-голубая. Пока записи нет, блок ничем не выделен:
+ * это обычная кнопка панели.
+ */
+.rec-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+}
+
+.rec-group--recording,
+.rec-group--paused {
+    padding: 1px;
+}
+
+.rec-group--recording {
+    border-color: color-mix(in srgb, var(--success) 45%, transparent);
+    background: color-mix(in srgb, var(--success) 14%, transparent);
+    animation: rec-group-pulse 2s ease-in-out infinite;
+}
+
+.rec-group--paused {
+    border-color: color-mix(in srgb, var(--info) 55%, transparent);
+    background: color-mix(in srgb, var(--info) 20%, transparent);
+}
+
+@keyframes rec-group-pulse {
+    0%, 100% { background: color-mix(in srgb, var(--success) 8%, transparent); }
+    50% { background: color-mix(in srgb, var(--success) 30%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rec-group--recording { animation: none; }
+}

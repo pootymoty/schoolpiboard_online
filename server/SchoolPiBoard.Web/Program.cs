@@ -63,6 +63,7 @@ builder.Services.AddSingleton<BoardPresence>();
 builder.Services.AddSingleton<CursorRelay>();
 builder.Services.AddHostedService(services => services.GetRequiredService<CursorRelay>());
 builder.Services.AddHostedService<PresenceKeepAlive>();
+builder.Services.AddHostedService<RecordingWatchdog>();
 
 builder.Services.AddSignalR().AddStackExchangeRedis(options.RedisUrl);
 
