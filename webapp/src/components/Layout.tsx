@@ -391,6 +391,32 @@ export function Page({ children, narrow }: { children: ReactNode; narrow?: boole
 export function BoardShell({ children }: { children: ReactNode }): ReactElement {
   const [headerOpen, setHeaderOpen] = useState(false);
 
+  // Высота страницы доски — по-настоящему видимая часть окна.
+  //
+  // `100dvh` Safari на повёрнутом телефоне считает с запасом: панель
+  // адреса стоит сверху, а высота берётся как без неё, и низ холста с
+  // кнопкой «Участники» уезжал за край экрана. `innerHeight` — это ровно
+  // то, что видно; обновляем его при повороте и изменении окна.
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = () => {
+      root.style.setProperty('--board-h', `${window.innerHeight}px`);
+      // Страница доски не прокручивается; если браузер при повороте
+      // всё же сдвинул её, возвращаем на место.
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
+    };
+
+    apply();
+    window.addEventListener('resize', apply);
+    window.addEventListener('orientationchange', apply);
+
+    return () => {
+      window.removeEventListener('resize', apply);
+      window.removeEventListener('orientationchange', apply);
+      root.style.removeProperty('--board-h');
+    };
+  }, []);
+
   return (
     <div className="app app--board">
       <div className={headerOpen ? 'board-header board-header--open' : 'board-header'}>

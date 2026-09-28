@@ -714,6 +714,21 @@ function Page({ children, narrow }) {
 }
 function BoardShell({ children }) {
   const [headerOpen, setHeaderOpen] = useState(false);
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = () => {
+      root.style.setProperty("--board-h", `${window.innerHeight}px`);
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    window.addEventListener("orientationchange", apply);
+    return () => {
+      window.removeEventListener("resize", apply);
+      window.removeEventListener("orientationchange", apply);
+      root.style.removeProperty("--board-h");
+    };
+  }, []);
   return /* @__PURE__ */ jsxs("div", { className: "app app--board", children: [
     /* @__PURE__ */ jsx("div", { className: headerOpen ? "board-header board-header--open" : "board-header", children: /* @__PURE__ */ jsx(Header, {}) }),
     /* @__PURE__ */ jsx(

@@ -960,9 +960,25 @@ body.no-scroll {
    в мировых координатах). */
 .app--board {
     position: relative;
+    box-sizing: border-box;
     height: 100vh;
     height: 100dvh;
+    /* Точная видимая высота — из BoardShell; dvh выше остаётся запасом. */
+    height: var(--board-h, 100dvh);
     overflow: hidden;
+    /*
+     * Безопасная зона экрана: вырез камеры, «чёлка», точка камеры,
+     * полоска «домой». Страница размечена `viewport-fit=cover` и без
+     * этих отступов рисовала бы под ними — на повёрнутом телефоне стрелка
+     * панели у края пряталась прямо под камерой. Где именно камера у
+     * этого телефона (слева, справа, по центру), браузер сообщает сам —
+     * отступ появляется только с той стороны, где он нужен.
+     */
+    padding:
+        env(safe-area-inset-top, 0px)
+        env(safe-area-inset-right, 0px)
+        env(safe-area-inset-bottom, 0px)
+        env(safe-area-inset-left, 0px);
 }
 
 .app__main--board {
@@ -987,6 +1003,12 @@ body.no-scroll {
     top: 0;
     left: 0;
     right: 0;
+    /* Фон шапки — во всю ширину, а содержимое — в безопасной зоне
+       (см. .app--board): иначе название или бургер уходили бы под камеру. */
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    background: var(--header-bg);
     z-index: 40;
     transform: translateY(-100%);
     transition: transform .25s ease;
@@ -999,7 +1021,7 @@ body.no-scroll {
    один и тот же жест открывает и закрывает. */
 .board-header-toggle {
     position: absolute;
-    top: 0;
+    top: env(safe-area-inset-top, 0px);
     left: 50%;
     z-index: 41;
     display: flex;
@@ -1039,7 +1061,7 @@ body.no-scroll {
 }
 
 .board-header-toggle--open {
-    top: var(--header-h);
+    top: calc(env(safe-area-inset-top, 0px) + var(--header-h));
 }
 
 .board-header-toggle--open svg { transform: rotate(180deg); }
