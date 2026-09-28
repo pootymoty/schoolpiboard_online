@@ -231,14 +231,8 @@ export function ViewToolbar({
 
       <span className="toolbar__divider" aria-hidden="true" />
 
-      <button className="btn-tool" type="button" onClick={onHelp} title="Что умеет доска" data-tip="Что умеет доска">
-        <IconHelp />
-      </button>
-
-      <button className="btn-tool" type="button" onClick={onTimer} title="Таймер" data-tip="Таймер">
-        <IconTimer />
-      </button>
-
+      {/* Ведение занятия: собрать всех, засечь время, записать, вставить
+          заготовленное, поменять фон. */}
       {/* Владелец и редакторы: перенос вида — часть ведения занятия,
           а не рисования, но право на неё то же. */}
       {canEdit ? (
@@ -251,16 +245,11 @@ export function ViewToolbar({
         </button>
       ) : null}
 
-      {/* Вставка отдельной кнопкой: на планшете Ctrl+V нажать нечем. */}
-      {canPaste ? (
-        <button className="btn-tool" type="button" onClick={onPaste} title="Вставить из буфера доски (Ctrl+V)" data-tip="Вставить из буфера доски (Ctrl+V)">
-          <IconPaste />
-        </button>
-      ) : null}
+      <button className="btn-tool" type="button" onClick={onTimer} title="Таймер" data-tip="Таймер">
+        <IconTimer />
+      </button>
 
-      {/* Записи рядом с конспектом: и то и другое — след занятия, который
-          можно открыть потом, а не то, что делают на самом холсте.
-          Пока не записывают — одна кнопка на панель записей. Как только
+      {/* Пока не записывают — одна кнопка на панель записей. Как только
           запись пошла, для владельца это уже не кнопка открытия панели, а
           прямое управление: пауза/продолжить и стоп, без лишнего клика в
           панель. Наблюдателю панель ничего не даст (управляет только
@@ -294,6 +283,21 @@ export function ViewToolbar({
         </span>
       ) : null}
 
+      {/* Вставка отдельной кнопкой: на планшете Ctrl+V нажать нечем. */}
+      {canPaste ? (
+        <button className="btn-tool" type="button" onClick={onPaste} title="Вставить из буфера доски (Ctrl+V)" data-tip="Вставить из буфера доски (Ctrl+V)">
+          <IconPaste />
+        </button>
+      ) : null}
+
+      {canManage ? (
+        <button className="btn-tool" type="button" onClick={onBackground} title="Фон и разлиновка" data-tip="Фон и разлиновка">
+          <IconGrid />
+        </button>
+      ) : null}
+
+      <span className="toolbar__divider" aria-hidden="true" />
+
       {/* Конспект рядом с сохранением: и то и другое — «забрать занятие
           с собой», разница только в том, себе на диск или письмом. */}
       <button className="btn-tool" type="button" onClick={onSummary} title="Конспект занятия по почте" data-tip="Конспект занятия по почте">
@@ -307,15 +311,15 @@ export function ViewToolbar({
       </button>
 
       {canManage ? (
-        <>
-          <button className="btn-tool" type="button" onClick={onBackground} title="Фон и разлиновка" data-tip="Фон и разлиновка">
-            <IconGrid />
-          </button>
-          <button className="btn-tool" type="button" onClick={onClear} title="Очистить страницу" data-tip="Очистить страницу">
-            <IconTrash />
-          </button>
-        </>
+        <button className="btn-tool" type="button" onClick={onClear} title="Очистить страницу" data-tip="Очистить страницу">
+          <IconTrash />
+        </button>
       ) : null}
+
+      {/* Подсказка — последней: к ней обращаются реже всего. */}
+      <button className="btn-tool" type="button" onClick={onHelp} title="Что умеет доска" data-tip="Что умеет доска">
+        <IconHelp />
+      </button>
     </div>
 
     {/* Только на телефоне: на большом экране панель не загораживает

@@ -1,12 +1,12 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import type { BoardItem } from './protocol';
+import type { BoardItem, ItemData } from './protocol';
 import type { Bounds } from './geometry';
-import { PALETTE } from './tools';
+import { LINE_STYLES, PALETTE, SIZES } from './tools';
+import { LineStyleIcon } from './ShapeIcons';
 import { DEFAULT_COLS, DEFAULT_ROWS, MAX_COLS, MAX_ROWS, clampCols, clampRows } from './tables';
 import { toScreen } from './viewport';
 import type { Viewport } from './viewport';
-import { Menu } from '../components/Menu';
 import {
   IconCheck, IconCopy, IconCopyText, IconDuplicate, IconLibrary, IconLockClosed, IconLockOpen,
   IconToBack, IconToFront, IconTrash,
@@ -21,6 +21,12 @@ interface Props {
   /** Габариты холста: панель не должна уезжать за его край. */
   canvas: { width: number; height: number };
   onColor: (color: string) => void;
+  /**
+   * Поменять у выделенного свои параметры — толщину, тип линии, заливку,
+   * размер шрифта. Те же, что задаются инструменту перед вставкой: что
+   * можно было выбрать до, то можно и поправить после.
+   */
+  onPatch: (patch: Partial<ItemData>) => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onReorder: (toFront: boolean) => void;
@@ -68,6 +74,16 @@ const BOTTOM_GUTTER = 60;
 const NARROW = 720;
 
 /**
+ * Ниже этой высоты холста — тоже слева (телефон, повёрнутый набок):
+ * летающая панель с параметрами над невысоким холстом не помещалась бы
+ * ни над объектом, ни под ним.
+ */
+const SHORT = 460;
+
+/** Кружок «цвета разные» — у группы разноцветного выделенного. */
+const MIXED = 'conic-gradient(#C62828, #FFB300, #2E7D32, #1565C0, #6A1B9A, #C62828)';
+
+/**
  * Действия над выделенным — над самим выделением.
  *
  * Не в общей панели инструментов: там их пришлось бы искать глазами, а
@@ -78,7 +94,7 @@ const NARROW = 720;
  * его приходится дольше, чем подпись.
  */
 export function SelectionPanel({
-  items, bounds, viewport, canvas, onColor, onDuplicate, onDelete, onReorder, onCopyText, onDone,
+  items, bounds, viewport, canvas, onColor, onPatch, onDuplicate, onDelete, onReorder, onCopyText, onDone,
   onTable, onLock, onCopy, canKeep,
 }: Props): ReactElement {
   /**
@@ -127,7 +143,29 @@ export function SelectionPanel({
   const table = items.length === 1 && items[0].type === 'table' ? items[0] : null;
   const rows = table ? clampRows(table.data.rows ?? DEFAULT_ROWS) : 0;
   const cols = table ? clampCols(table.data.cols ?? DEFAULT_COLS) : 0;
-  const docked = canvas.width > 0 && canvas.width < NARROW;
+  const docked = canvas.width > 0 && (canvas.width < NARROW || canvas.height < SHORT);
+
+  /**
+   * Тип выделенного — если он у всего выделенного один: только тогда
+   * есть общие для всех параметры. У пестрой группы (штрих и надпись)
+   * остаётся лишь цвет.
+   */
+  const kind = items.length > 0 && items.every((item) => item.type === items[0].type) ? items[0].type : null;
+
+  /** Заливка имеет смысл только у замкнутых фигур. */
+  const fillable = items.every((item) => item.data.shape !== 'line' && item.data.shape !== 'arrow');
+
+  /** Значение, общее для всего выделенного, — им отмечена нажатая кнопка. */
+  const common = <T,>(read: (item: BoardItem) => T): T | undefined => {
+    const first = items[0] ? read(items[0]) : undefined;
+    return items.every((item) => read(item) === first) ? first : undefined;
+  };
+
+  const color = common((item) => item.data.color);
+  const fill = common((item) => item.data.fill ?? '');
+
+  /** Какая палитра развёрнута — цвета или заливки; свёрнуты обе по умолчанию. */
+  const [palette, setPalette] = useState<'color' | 'fill' | null>(null);
 
   /**
    * Подпись под значком — только в узкой панели.
@@ -189,36 +227,158 @@ export function SelectionPanel({
       role="toolbar"
       aria-label="Действия с выделенным"
     >
-      {/* Палитра та же, что у инструментов: перекрасить выбранное и
+      {/* Сначала цвет, сразу под ним — свои параметры выбранного (толщина,
+          тип линии, заливка, шрифт, размерность таблицы), потом действия.
+          Палитра та же, что у инструментов: перекрасить выбранное и
           нарисовать новое — одно и то же действие, и цвета в них должны
           совпадать, иначе подобранный оттенок не повторить. */}
-      <div className="selection-panel__colors">
-        {PALETTE.map((value) => (
-          <button
-            key={value}
-            className="swatch swatch--sm"
-            type="button"
-            aria-label={`Цвет ${value}`}
-            style={{ background: value }}
-            onClick={() => onColor(value)}
-          />
-        ))}
+      <div className="selection-panel__section">
+        {/* Палитра свёрнута в один кружок текущего цвета: развёрнутые
+            сразу цвет и заливка — это три десятка кружков, и на телефоне
+            кнопки действий уезжали далеко вниз. */}
+        <button
+          className="selection-panel__pick"
+          type="button"
+          aria-expanded={palette === 'color'}
+          onClick={() => setPalette((current) => (current === 'color' ? null : 'color'))}
+        >
+          <span className="selection-panel__label">Цвет</span>
+          <span className="swatch swatch--sm" style={{ background: color ?? MIXED }} aria-hidden="true" />
+        </button>
 
-        <label className="swatch swatch--sm swatch--custom" title="Свой цвет">
-          <input
-            type="color"
-            value={custom}
-            onChange={(event) => setCustom(event.target.value)}
-            onBlur={() => onColor(custom)}
-            aria-label="Свой цвет"
-          />
-        </label>
+        {palette === 'color' ? (
+        <div className="selection-panel__colors">
+          {PALETTE.map((value) => (
+            <button
+              key={value}
+              className="swatch swatch--sm"
+              type="button"
+              aria-label={`Цвет ${value}`}
+              aria-pressed={color === value}
+              style={{ background: value }}
+              onClick={() => onColor(value)}
+            />
+          ))}
+
+          <label className="swatch swatch--sm swatch--custom" title="Свой цвет">
+            <input
+              type="color"
+              value={custom}
+              onChange={(event) => setCustom(event.target.value)}
+              onBlur={() => onColor(custom)}
+              aria-label="Свой цвет"
+            />
+          </label>
+        </div>
+        ) : null}
       </div>
 
-      {table ? (
-        <>
-          <span className="toolbar__divider" aria-hidden="true" />
+      {kind === 'stroke' || kind === 'shape' ? (
+        <div className="selection-panel__section">
+          <span className="selection-panel__label">Толщина</span>
+          <div className="selection-panel__options">
+            {SIZES.map((value) => (
+              <button
+                key={value}
+                className="btn-tool btn-tool--tiny"
+                type="button"
+                aria-pressed={common((item) => item.data.width) === value}
+                aria-label={`Толщина ${value}`}
+                title={`Толщина ${value}`}
+                onClick={() => onPatch({ width: value })}
+              >
+                <span className="width-dot" style={{ width: Math.min(16, Math.max(3, value / 1.6)), height: Math.min(16, Math.max(3, value / 1.6)) }} />
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
+      {kind === 'shape' ? (
+        <div className="selection-panel__section">
+          <span className="selection-panel__label">Линия</span>
+          <div className="selection-panel__options">
+            {LINE_STYLES.map((style) => (
+              <button
+                key={style.kind}
+                className="btn-tool btn-tool--tiny btn-tool--line"
+                type="button"
+                aria-pressed={(common((item) => item.data.lineStyle ?? 'solid')) === style.kind}
+                aria-label={style.label}
+                title={style.label}
+                onClick={() => onPatch({ lineStyle: style.kind })}
+              >
+                <LineStyleIcon kind={style.kind} />
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {kind === 'shape' && fillable ? (
+        <div className="selection-panel__section">
+          <button
+            className="selection-panel__pick"
+            type="button"
+            aria-expanded={palette === 'fill'}
+            onClick={() => setPalette((current) => (current === 'fill' ? null : 'fill'))}
+          >
+            <span className="selection-panel__label">Заливка</span>
+            <span
+              className={fill ? 'swatch swatch--sm' : 'swatch swatch--sm swatch--none'}
+              style={fill ? { background: fill } : undefined}
+              aria-hidden="true"
+            />
+          </button>
+
+          {palette === 'fill' ? (
+          <div className="selection-panel__colors">
+            <button
+              className="swatch swatch--sm swatch--none"
+              type="button"
+              aria-label="Без заливки"
+              title="Без заливки"
+              aria-pressed={!common((item) => item.data.fill ?? '')}
+              onClick={() => onPatch({ fill: '' })}
+            />
+            {PALETTE.map((value) => (
+              <button
+                key={value}
+                className="swatch swatch--sm"
+                type="button"
+                aria-label={`Заливка ${value}`}
+                aria-pressed={common((item) => item.data.fill ?? '') === value}
+                style={{ background: value }}
+                onClick={() => onPatch({ fill: value })}
+              />
+            ))}
+          </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {kind === 'text' || kind === 'table' ? (
+        <div className="selection-panel__section">
+          <span className="selection-panel__label">Шрифт</span>
+          <div className="selection-panel__options">
+            {(kind === 'text' ? [16, 20, 24, 32, 48, 64] : [14, 16, 20, 24, 32]).map((value) => (
+              <button
+                key={value}
+                className="btn-tool btn-tool--tiny"
+                type="button"
+                aria-pressed={common((item) => item.data.fontSize) === value}
+                title={`Размер шрифта ${value}`}
+                onClick={() => onPatch({ fontSize: value })}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {table ? (
+        <div className="selection-panel__section">
           {/* Под кнопками стоит название того, что они меняют, а
               размерность — отдельной строкой внизу. Прежде размерность
               стояла в одной строке со строками, а слово «столбцы» — в
@@ -274,105 +434,75 @@ export function SelectionPanel({
 
             <span className="selection-panel__size">{rows} × {cols}</span>
           </div>
-        </>
+        </div>
       ) : null}
 
-      <span className="toolbar__divider" aria-hidden="true" />
+      {/* Действия — одним рядом (на телефоне — столбиком, с подписями):
+          копия, дубль, вперёд, назад, шаблон, удалить, готово. Скопировать
+          текст и замок — перед удалением: они нужны реже, но прятать их
+          под три точки значило бы снова искать их глазами. */}
+      <div className="selection-panel__actions">
+        <button className="btn-tool" type="button" onClick={onCopy} title="Копировать (Ctrl+C)">
+          <IconCopy />
+          {cap('Копия')}
+        </button>
 
-      <button
-        className="btn-tool"
-        type="button"
-        onClick={() => onLock(!locked)}
-        aria-pressed={locked}
-        title={locked ? 'Отпереть' : 'Запереть: не двигается и не стирается'}
-      >
-        {locked ? <IconLockClosed /> : <IconLockOpen />}
-        {cap(locked ? 'Отпереть' : 'Запереть')}
-      </button>
-
-      <button className="btn-tool" type="button" onClick={onCopy} title="Копировать (Ctrl+C)">
-        <IconCopy />
-        {cap('Копия')}
-      </button>
-
-      {locked ? null : (
-        <>
+        {locked ? null : (
           <button className="btn-tool" type="button" onClick={onDuplicate} title="Дублировать (Ctrl+D)">
             <IconDuplicate />
             {cap('Дубль')}
           </button>
+        )}
+
+        <button className="btn-tool" type="button" onClick={() => onReorder(true)} title="На передний план">
+          <IconToFront />
+          {cap('Вперёд')}
+        </button>
+        <button className="btn-tool" type="button" onClick={() => onReorder(false)} title="На задний план">
+          <IconToBack />
+          {cap('Назад')}
+        </button>
+
+        {canKeep && keepable.length > 0 ? (
+          <button
+            className="btn-tool" type="button" onClick={() => setNaming(true)}
+            title="Сохранить как шаблон"
+          >
+            <IconLibrary />
+            {cap('Шаблон')}
+          </button>
+        ) : null}
+
+        {text ? (
+          <button className="btn-tool" type="button" onClick={() => onCopyText(text)} title="Скопировать текст">
+            <IconCopyText />
+            {cap('Текст')}
+          </button>
+        ) : null}
+
+        <button
+          className="btn-tool"
+          type="button"
+          onClick={() => onLock(!locked)}
+          aria-pressed={locked}
+          title={locked ? 'Отпереть' : 'Запереть: не двигается и не стирается'}
+        >
+          {locked ? <IconLockClosed /> : <IconLockOpen />}
+          {cap(locked ? 'Отпереть' : 'Запереть')}
+        </button>
+
+        {locked ? null : (
           <button className="btn-tool" type="button" onClick={onDelete} title="Удалить (Delete)">
             <IconTrash />
             {cap('Удалить')}
           </button>
-        </>
-      )}
+        )}
 
-      {docked ? (
-        // На телефоне три точки только путали: на что там жать, было не
-        // понять без подписи. Кнопки столбиком — тот же приём, что уже
-        // прижился в панели инструментов.
-        <>
-          <button className="btn-tool" type="button" onClick={() => onReorder(true)} title="На передний план">
-            <IconToFront />
-            {cap('Вперёд')}
-          </button>
-          <button className="btn-tool" type="button" onClick={() => onReorder(false)} title="На задний план">
-            <IconToBack />
-            {cap('Назад')}
-          </button>
-          {text ? (
-            <button className="btn-tool" type="button" onClick={() => onCopyText(text)} title="Скопировать текст">
-              <IconCopyText />
-              {cap('Текст')}
-            </button>
-          ) : null}
-
-          {canKeep && keepable.length > 0 ? (
-            <button
-              className="btn-tool" type="button" onClick={() => setNaming(true)}
-              title="Сохранить как шаблон"
-            >
-              <IconLibrary />
-              {cap('Шаблон')}
-            </button>
-          ) : null}
-
-          <span className="toolbar__divider" aria-hidden="true" />
-
-          <button className="btn-tool" type="button" onClick={onDone} title="Готово — снять выделение">
-            <IconCheck />
-            {cap('Готово')}
-          </button>
-        </>
-      ) : (
-        // На ПК места хватает — а вот словесная подпись читается быстрее,
-        // чем два похожих значка «вперёд»/«назад» по слою.
-        <Menu label="Ещё действия">
-          <button className="btn-quiet menu__item" type="button" onClick={() => onReorder(true)}>
-            На передний план
-          </button>
-          <button className="btn-quiet menu__item" type="button" onClick={() => onReorder(false)}>
-            На задний план
-          </button>
-          <button className="btn-quiet menu__item" type="button" onClick={onDuplicate}>
-            Дублировать
-          </button>
-          {text ? (
-            <button className="btn-quiet menu__item" type="button" onClick={() => onCopyText(text)}>
-              Скопировать текст
-            </button>
-          ) : null}
-          {canKeep && keepable.length > 0 ? (
-            <button className="btn-quiet menu__item" type="button" onClick={() => setNaming(true)}>
-              Сохранить как заготовку
-            </button>
-          ) : null}
-          <button className="btn-quiet menu__item menu__item--danger" type="button" onClick={onDelete}>
-            Удалить
-          </button>
-        </Menu>
-      )}
+        <button className="btn-tool" type="button" onClick={onDone} title="Готово — снять выделение">
+          <IconCheck />
+          {cap('Готово')}
+        </button>
+      </div>
 
       {naming ? (
         <div className="selection-panel__keep">

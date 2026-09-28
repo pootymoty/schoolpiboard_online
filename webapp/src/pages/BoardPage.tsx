@@ -10,13 +10,13 @@ import { Modal } from '../components/Modal';
 import { PeoplePanel } from '../components/PeoplePanel';
 import { IconCheck, IconLink, IconLockClosed, IconLockOpen, IconPeople } from '../components/Icons';
 import { BoardCanvas } from '../board/BoardCanvas';
+import type { ErasedStroke } from '../board/BoardCanvas';
 import { FilesPanel } from '../board/FilesPanel';
 import { DrawToolbar, ViewToolbar } from '../board/BoardToolbar';
 import { ToolSettingsPanel } from '../board/ToolSettingsPanel';
 import { BOOKMARK_COLOR, BOOKMARK_FONT_SIZE, DEFAULT_SETTINGS, TOOLS_WITH_SETTINGS } from '../board/tools';
 import type { Tool, ToolSettings } from '../board/tools';
 import type { ItemData, ItemType, Point } from '../board/protocol';
-import { erase } from '../board/erase';
 import { readClip, writeClip } from '../board/clipboard';
 import { TextInput } from '../board/TextInput';
 import {
@@ -325,45 +325,41 @@ export function BoardPage(): ReactElement {
   }, [hub, history, refOf, selection]);
 
   /**
-   * Ластик. Задетый штрих не удаляется целиком: от него остаются куски,
-   * и они заводятся заново под своими ссылками — сервер умеет создавать
-   * и удалять, но не резать чужую геометрию.
+   * Проход ластика закончен (стирание во время прохода считает сам
+   * холст): задетые штрихи удаляются, от каждого заводится то, что
+   * осталось, — сервер умеет создавать и удалять, но не резать чужую
+   * геометрию. Отменяется всё это одним шагом.
    */
-  const eraseAt = useCallback((at: Point, radius: number) => {
+  const eraseDone = useCallback((changes: ErasedStroke[]) => {
     const doomed: number[] = [];
-    const born: { ref: string; type: ItemType; data: ItemData }[] = [];
-    const undoItems: ItemSnapshot[] = [];
+    const removed: ItemSnapshot[] = [];
+    const added: ItemSnapshot[] = [];
 
-    for (const item of hub.items) {
-      // Удаление уходит на сервер и возвращается не мгновенно, а ластик
-      // ведут дальше — без этой отметки тот же штрих резался бы снова на
-      // каждом движении, и его куски множились бы.
-      if (erased.current.has(item.id)) continue;
+    for (const change of changes) {
+      const item = hub.items.find((candidate) => candidate.id === change.itemId);
+      if (!item) continue;
 
-      const result = erase(item, at, radius);
-      if (result.kind === 'keep') continue;
-
-      erased.current.add(item.id);
       doomed.push(item.id);
-      undoItems.push({ ref: refOf(item.id), type: item.type, data: item.data, imageRef: item.imageRef });
+      removed.push({ ref: refOf(item.id), type: item.type, data: item.data, imageRef: item.imageRef });
 
-      if (result.kind === 'split') {
-        for (const part of result.parts) {
-          born.push({ ref: `e${Date.now().toString(36)}${born.length}`, type: item.type, data: part });
-        }
+      if (change.rest && change.tempId) {
+        const ref = `e${change.tempId}`;
+        added.push({ ref, type: item.type, data: change.rest });
+        pending.current.set(change.tempId, { ref });
       }
     }
 
     if (doomed.length === 0) return;
 
     hub.deleteItems(doomed);
-    for (const part of born) send(part.ref, part.type, part.data);
+    for (const change of changes) {
+      if (change.rest && change.tempId && pending.current.has(change.tempId)) {
+        hub.commitItem(change.tempId, 'stroke', change.rest);
+      }
+    }
 
-    history.push({ kind: 'delete', items: undoItems });
-  }, [hub, history, refOf, send]);
-
-  /** Уже стёртое за этот проход ластика. Сбрасывается, когда его отпускают. */
-  const erased = useRef(new Set<number>());
+    history.push({ kind: 'replace', removed, added });
+  }, [hub, history, refOf]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -529,19 +525,26 @@ export function BoardPage(): ReactElement {
     hub.reportViewport(hub.pageId, center.x, center.y, viewport.scale);
   }, [viewport, hub.canManage, hub.recording?.status, hub.pageId, hub.reportViewport, canvasSize.width, canvasSize.height]);
 
+  /**
+   * Переход к закладке: её середина — ровно в центр холста, масштаб —
+   * 100 %. При мелком масштабе закладка иначе оказывалась в центре
+   * крошечной точкой, и найти её глазами было не проще, чем без перехода.
+   */
   const jumpToBookmark = (bookmark: Bookmark) => {
-    const x = bookmark.data.x1 ?? 0;
-    const y = bookmark.data.y1 ?? 0;
+    const x1 = bookmark.data.x1 ?? 0;
+    const y1 = bookmark.data.y1 ?? 0;
+    const x = (x1 + (bookmark.data.x2 ?? x1)) / 2;
+    const y = (y1 + (bookmark.data.y2 ?? y1)) / 2;
 
     setShowBookmarks(false);
 
     if (bookmark.pageId === hub.pageId) {
-      setViewport((current) => centerOn(current, x, y, canvasSize.width, canvasSize.height));
+      setViewport((current) => centerOn(current, x, y, canvasSize.width, canvasSize.height, 1));
       return;
     }
 
     setSelection([]);
-    pendingJump.current = { pageId: bookmark.pageId, x, y };
+    pendingJump.current = { pageId: bookmark.pageId, x, y, scale: 1 };
     hub.openPage(bookmark.pageId);
   };
 
@@ -689,7 +692,8 @@ export function BoardPage(): ReactElement {
    * панелям тесно.
    */
   const docked = Boolean(
-    selectionBounds && hub.canEdit && canvasSize.width > 0 && canvasSize.width < 720,
+    selectionBounds && hub.canEdit && canvasSize.width > 0
+      && (canvasSize.width < 720 || canvasSize.height < 460),
   );
 
   /** Копия выделенного со сдвигом — чтобы копия не легла ровно поверх оригинала. */
@@ -820,6 +824,28 @@ export function BoardPage(): ReactElement {
 
   const recolorSelection = (color: string) => {
     for (const item of selectedItems) hub.updateItem(item.id, { ...item.data, color });
+  };
+
+  /**
+   * Свои параметры выделенного — толщина, тип линии, заливка, шрифт.
+   * У надписи со сменой шрифта меняется и её размер: габариты считаются
+   * заново, иначе рамка выделения и попадание по надписи остались бы от
+   * старого шрифта.
+   */
+  const patchSelection = (patch: Partial<ItemData>) => {
+    for (const item of selectedItems) {
+      if (item.data.locked) continue;
+
+      const data: ItemData = { ...item.data, ...patch };
+
+      if (item.type === 'text' && patch.fontSize !== undefined && data.x1 !== undefined && data.y1 !== undefined) {
+        const box = measureText(data.text ?? '', patch.fontSize);
+        data.x2 = data.x1 + box.width;
+        data.y2 = data.y1 + box.height;
+      }
+
+      hub.updateItem(item.id, data);
+    }
   };
 
   /**
@@ -1479,8 +1505,7 @@ export function BoardPage(): ReactElement {
               hub.commitItem(tempId, type, data);
             }}
             onCellAt={editCell}
-            onErase={eraseAt}
-            onEraseEnd={() => erased.current.clear()}
+            onErased={eraseDone}
             onDrawStart={() => setShowParams(false)}
             onTextAt={(world) => {
               keepFieldVisible(world);
@@ -1604,6 +1629,7 @@ export function BoardPage(): ReactElement {
               viewport={viewport}
               canvas={canvasSize}
               onColor={recolorSelection}
+              onPatch={patchSelection}
               onDuplicate={duplicateSelection}
               onDelete={removeSelection}
               onReorder={(toFront) => hub.reorder(selection, toFront)}

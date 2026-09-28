@@ -11,6 +11,7 @@ import { HANDLE_SIZE, angleTo, handlesFor, resized } from './handles';
 import type { HandleId } from './handles';
 import { onImageLoaded } from './images';
 import { drawGrid, drawItem, drawLaser } from './render';
+import { erase } from './erase';
 import type { ToolSettings, Tool } from './tools';
 import { clampScale, toScreen, toWorld, zoomAt } from './viewport';
 import type { Viewport } from './viewport';
@@ -38,10 +39,22 @@ interface Props {
   onBookmarkAt: (world: Point) => void;
   /** Ткнули в ячейку уже выбранной таблицы: там откроется поле ввода. */
   onCellAt: (itemId: number, world: Point) => void;
-  /** Ластик прошёл по точке: что стереть и что оставить, решает страница. */
-  onErase: (at: Point, radius: number) => void;
-  /** Ластик отпустили — можно забыть, что уже стёрли за этот проход. */
-  onEraseEnd: () => void;
+  /**
+   * Проход ластика закончен: какие штрихи он задел и что от каждого
+   * осталось (`null` — стёрт целиком). У обрезков — черновой ключ, под
+   * которым их надо закрепить: по нему холст держит их на экране, пока
+   * сервер не пришлёт настоящие.
+   */
+  onErased: (changes: ErasedStroke[]) => void;
+}
+
+/** Штрих, задетый проходом ластика. */
+export interface ErasedStroke {
+  itemId: number;
+  /** Что осталось; `null` — ничего. */
+  rest: ItemData | null;
+  /** Черновой ключ оставшегося — есть, только если что-то осталось. */
+  tempId: string | null;
 }
 
 /** Не чаще двадцати раз в секунду — предел из раздела 7.1. */
@@ -94,7 +107,7 @@ const AUTO_PAN_MAX_SPEED = 18;
 export function BoardCanvas({
   hub, tool, settings, viewport, background, selection,
   onViewport, onSize, onSelection, onMoved, onCommit, onDrawStart, onTextAt, onBookmarkAt, onCellAt,
-  onErase, onEraseEnd,
+  onErased,
 }: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
@@ -136,6 +149,40 @@ export function BoardCanvas({
    * (см. `useBoardHub`), а подложку до той поры трогать не нужно.
    */
   const settling = useRef<Map<string, { type: ItemType; data: ItemData; at: number }>>(new Map());
+
+  /**
+   * Проход ластика, пока его ведут: что стало с каждым задетым штрихом
+   * (`null` — стёрт целиком).
+   *
+   * Стирание считается здесь же, на экране, а на сервер уходит одним
+   * разом, когда ластик отпустили. Раньше каждое движение сразу удаляло
+   * штрих на сервере и создавало его обрезки: пока ответ не вернулся,
+   * этот штрих нельзя было стирать дальше (ластик «запаздывал»), а
+   * обрезки, приходя по одному, заново рисовались на холсте — линии
+   * мигали и рвались.
+   */
+  const eraseEdits = useRef<Map<number, ItemData | null>>(new Map());
+
+  /**
+   * Штрихи, которые ластик уже убрал, но сервер ещё не прислал их
+   * удаление, — с моментом ухода. Без этого после отпускания ластика
+   * стёртое на долю секунды возвращалось бы на холст.
+   */
+  const vanishing = useRef<Map<number, number>>(new Map());
+
+  /**
+   * Кружок инструмента под пальцем или стилусом — там, где нет мыши.
+   *
+   * Мышь показывает его курсором (см. `cursor`), а у касания курсора нет
+   * вовсе: не видно, какой ширины ляжет след и что захватит ластик.
+   * Кружок появляется, как только палец или стилус коснулся (стилус,
+   * который умеет парить над экраном, — и без касания), и пропадает,
+   * когда его убрали.
+   */
+  const touchCursor = useRef<Point | null>(null);
+
+  /** Где ластик был на прошлом событии — чтобы пройти путь между ними. */
+  const lastErase = useRef<Point | null>(null);
 
   /** Перетаскивание холста: чем и откуда тащат. */
   const panning = useRef<{ pointerId: number; startX: number; startY: number; origin: Viewport } | null>(null);
@@ -376,6 +423,15 @@ export function BoardCanvas({
     const chosen = new Set(latest.current.selection);
 
     for (const item of hub.items) {
+      if (vanishing.current.has(item.id)) continue;
+
+      // Под ластиком — то, что от штриха осталось сейчас, а не на сервере.
+      if (eraseEdits.current.has(item.id)) {
+        const rest = eraseEdits.current.get(item.id);
+        if (rest) drawItem(context, item.type, rest, item.imageRef);
+        continue;
+      }
+
       // Пока выделенное тащат, рисуем его со сдвигом, не дожидаясь
       // ответа сервера: иначе рисунок отставал бы от пальца.
       const grip = resizing.current;
@@ -492,6 +548,27 @@ export function BoardCanvas({
     if (drawing.current) {
       const brush = drawnBy();
       drawItem(context, brush.type, { ...brush.data, ...drawing.current.preview() });
+    }
+
+    const under = touchCursor.current;
+    const reach = under ? toolReach() : null;
+    if (under && reach !== null) {
+      // Тот же вид, что у кружка-курсора мыши: белая обводка снаружи и
+      // тёмная внутри — виден и на светлом фоне, и на тёмном. Линии —
+      // постоянной толщины на экране, сам кружок — размера инструмента.
+      const hairline = 1 / view.scale;
+      const radius = Math.max(reach / 2, 4 * hairline);
+      context.save();
+      context.setLineDash([]);
+      context.beginPath();
+      context.arc(under.x, under.y, radius, 0, Math.PI * 2);
+      context.lineWidth = 3 * hairline;
+      context.strokeStyle = 'rgba(255, 255, 255, .85)';
+      context.stroke();
+      context.lineWidth = 1.5 * hairline;
+      context.strokeStyle = 'rgba(60, 60, 70, .9)';
+      context.stroke();
+      context.restore();
     }
 
     // Рамка выделения и габариты выбранного — линиями постоянной толщины
@@ -683,6 +760,93 @@ export function BoardCanvas({
     }
   };
 
+  /** Ластик в точке: стираем на экране, сервер узнает при отпускании. */
+  const eraseStep = (at: Point, radius: number) => {
+    // Между двумя событиями указателя быстрый ластик пролетает десятки
+    // точек — проходим путь шагами в полрадиуса, иначе тонкая линия
+    // поперёк движения оставалась бы нетронутой.
+    const from = lastErase.current;
+    lastErase.current = at;
+
+    const distance = from ? Math.hypot(at.x - from.x, at.y - from.y) : 0;
+    const steps = from ? Math.min(64, Math.max(1, Math.ceil(distance / Math.max(1, radius / 2)))) : 1;
+
+    let changed = false;
+
+    for (let step = 1; step <= steps; step += 1) {
+      const point = from
+        ? { x: from.x + ((at.x - from.x) * step) / steps, y: from.y + ((at.y - from.y) * step) / steps, p: 1 }
+        : at;
+      if (eraseAt(point, radius)) changed = true;
+    }
+
+    if (changed) schedule();
+  };
+
+  /** Одна точка пути ластика; `true` — что-то задела. */
+  const eraseAt = (at: Point, radius: number): boolean => {
+    let changed = false;
+
+    for (const item of latest.current.items) {
+      if (vanishing.current.has(item.id)) continue;
+
+      const edits = eraseEdits.current;
+      const current = edits.has(item.id) ? edits.get(item.id) : item.data;
+      if (!current) continue;
+
+      const result = erase({ ...item, data: current }, at, radius);
+      if (result.kind === 'keep') continue;
+
+      edits.set(item.id, result.kind === 'delete' ? null : result.parts[0]);
+      changed = true;
+    }
+
+    return changed;
+  };
+
+  /**
+   * Ластик отпустили (или второй палец превратил касание в жест): всё
+   * стёртое за проход уходит на сервер одним разом. Обрезки до ответа
+   * держим в той же подложке, что и только что дорисованные штрихи.
+   */
+  const finishErase = () => {
+    erasing.current = null;
+    lastErase.current = null;
+
+    const edits = eraseEdits.current;
+    if (edits.size === 0) return;
+
+    const now = Date.now();
+    const stamp = now.toString(36);
+    const changes: ErasedStroke[] = [];
+
+    for (const [itemId, rest] of edits) {
+      const tempId = rest ? `e${stamp}-${changes.length}` : null;
+      if (tempId && rest) settling.current.set(tempId, { type: 'stroke', data: rest, at: now });
+
+      vanishing.current.set(itemId, now);
+      changes.push({ itemId, rest, tempId });
+    }
+
+    edits.clear();
+    onErased(changes);
+    schedule();
+  };
+
+  // Ушедшее с сервера больше не прячем — его и так нет. Подстраховка по
+  // времени — если удаление почему-то не дошло: лучше штрих вернётся,
+  // чем пропадёт с экрана, оставшись на доске у всех остальных.
+  useEffect(() => {
+    if (vanishing.current.size === 0) return;
+
+    const alive = new Set(hub.items.map((item) => item.id));
+    const now = Date.now();
+
+    for (const [itemId, at] of vanishing.current) {
+      if (!alive.has(itemId) || now - at > 10000) vanishing.current.delete(itemId);
+    }
+  }, [hub.items]);
+
   const scheduleAutoPan = () => {
     if (autoPanFrame.current === null) autoPanFrame.current = requestAnimationFrame(stepAutoPan);
   };
@@ -743,7 +907,30 @@ export function BoardCanvas({
     || !hub.canEdit
     || (event.pointerType === 'touch' && penSeen.current);
 
+  /** Размер кружка у текущего инструмента в мировых единицах; `null` — кружка нет. */
+  const toolReach = (): number | null => {
+    const { tool: current, settings: config } = latest.current;
+    if (current === 'eraser') return config.eraser.size;
+    if (current === 'pen1' || current === 'pen2' || current === 'marker') return config[current].width;
+    return null;
+  };
+
+  /** Обновляет кружок под пальцем: только не для мыши и только у рисующих инструментов. */
+  const trackTouchCursor = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (event.pointerType === 'mouse' || toolReach() === null || !hub.canEdit) return;
+    touchCursor.current = worldPoint(event);
+    schedule(false);
+  };
+
+  const hideTouchCursor = () => {
+    if (!touchCursor.current) return;
+    touchCursor.current = null;
+    schedule(false);
+  };
+
   const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    trackTouchCursor(event);
+
     // Иначе Safari на касании начинает выделять текст и показывает
     // системное меню поверх доски.
     event.preventDefault();
@@ -764,7 +951,7 @@ export function BoardCanvas({
     if (touches().length >= 2) {
       cancelStroke();
       panning.current = null;
-      erasing.current = null;
+      finishErase();
       tapping.current = null;
       blockUntilRelease.current = true;
       startPinch();
@@ -796,7 +983,9 @@ export function BoardCanvas({
     if (latest.current.tool === 'eraser') {
       event.currentTarget.setPointerCapture(event.pointerId);
       erasing.current = event.pointerId;
-      onErase(point, reach);
+      eraseEdits.current.clear();
+      lastErase.current = null;
+      eraseStep(point, reach);
       return;
     }
 
@@ -952,6 +1141,8 @@ export function BoardCanvas({
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    trackTouchCursor(event);
+
     // Записываем указатель даже если его нажатие до нас не дошло: так
     // второй палец опознаётся по одному движению, а не только по касанию.
     pointers.current.set(event.pointerId, { ...screenPoint(event), type: event.pointerType });
@@ -959,7 +1150,7 @@ export function BoardCanvas({
     if (!pinch.current && touches().length >= 2) {
       cancelStroke();
       panning.current = null;
-      erasing.current = null;
+      finishErase();
       tapping.current = null;
       blockUntilRelease.current = true;
       startPinch();
@@ -1010,7 +1201,7 @@ export function BoardCanvas({
     }
 
     if (erasing.current === event.pointerId) {
-      onErase(point, latest.current.settings.eraser.size / 2);
+      eraseStep(point, latest.current.settings.eraser.size / 2);
       return;
     }
 
@@ -1140,6 +1331,7 @@ export function BoardCanvas({
 
   const finish = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     pointers.current.delete(event.pointerId);
+    hideTouchCursor();
 
     // Один палец из двух убрали — жест окончен, но оставшийся не должен
     // тут же начать рисовать с середины экрана.
@@ -1160,8 +1352,7 @@ export function BoardCanvas({
     }
 
     if (erasing.current === event.pointerId) {
-      erasing.current = null;
-      onEraseEnd();
+      finishErase();
       return;
     }
 
@@ -1275,6 +1466,8 @@ export function BoardCanvas({
         // Без onPointerLeave намеренно: указатель захвачен, и штрих,
         // уведённый за край холста, должен продолжаться, а не обрываться.
         onPointerCancel={finish}
+        // Парящий стилус ушёл с холста — его кружок не должен висеть.
+        onPointerOut={(event) => { if (event.pointerType === 'pen' && event.buttons === 0) hideTouchCursor(); }}
         // Долгое нажатие на телефоне иначе открывает системное меню
         // «скопировать / выделить» прямо поверх рисунка.
         onContextMenu={(event) => event.preventDefault()}

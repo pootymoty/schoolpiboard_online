@@ -4121,6 +4121,48 @@ function anchorOf(box, handle) {
     y: handle.startsWith("n") ? box.y + box.height : box.y
   };
 }
+function erase(item, at, radius) {
+  if (item.type !== "stroke" || item.data.locked) return { kind: "keep" };
+  const reach = radius + item.data.width / 2;
+  const before = segmentsOf(item.data);
+  if (before.length === 0) return { kind: "keep" };
+  const after = [];
+  let touched = false;
+  for (const segment2 of before) {
+    const pieces = eraseSegment(segment2, at, reach);
+    if (pieces === null) {
+      after.push(segment2);
+      continue;
+    }
+    touched = true;
+    for (const piece of pieces) if (piece.length > 1) after.push(piece);
+  }
+  if (!touched) return { kind: "keep" };
+  if (after.length === 0) return { kind: "delete" };
+  return { kind: "split", parts: [withSegments(item.data, after)] };
+}
+function eraseSegment(points, at, reach) {
+  const survives = points.map((point) => Math.hypot(point.x - at.x, point.y - at.y) > reach);
+  if (survives.every(Boolean)) {
+    for (let index = 1; index < points.length; index += 1) {
+      if (distanceToSegment(at, points[index - 1], points[index]) > reach) continue;
+      return [points.slice(0, index), points.slice(index)];
+    }
+    return null;
+  }
+  const parts = [];
+  let run = [];
+  for (let index = 0; index < points.length; index += 1) {
+    if (survives[index]) {
+      run.push(points[index]);
+    } else if (run.length > 0) {
+      parts.push(run);
+      run = [];
+    }
+  }
+  if (run.length > 0) parts.push(run);
+  return parts;
+}
 const CURSOR_INTERVAL_MS = 50;
 const POINT_BATCH_MS = 50;
 const ERASE_RADIUS = 8;
@@ -4146,13 +4188,16 @@ function BoardCanvas({
   onTextAt,
   onBookmarkAt,
   onCellAt,
-  onErase,
-  onEraseEnd
+  onErased
 }) {
   const canvas = useRef(null);
   const box = useRef(null);
   const drawing = useRef(null);
   const settling = useRef(/* @__PURE__ */ new Map());
+  const eraseEdits = useRef(/* @__PURE__ */ new Map());
+  const vanishing = useRef(/* @__PURE__ */ new Map());
+  const touchCursor = useRef(null);
+  const lastErase = useRef(null);
   const panning = useRef(null);
   const pointers = useRef(/* @__PURE__ */ new Map());
   const pinch = useRef(null);
@@ -4283,6 +4328,12 @@ function BoardCanvas({
     const drag = moving.current;
     const chosen = new Set(latest.current.selection);
     for (const item of hub.items) {
+      if (vanishing.current.has(item.id)) continue;
+      if (eraseEdits.current.has(item.id)) {
+        const rest = eraseEdits.current.get(item.id);
+        if (rest) drawItem(context, item.type, rest, item.imageRef);
+        continue;
+      }
       const grip = resizing.current;
       const spin = rotating.current;
       const shifted = (grip == null ? void 0 : grip.itemId) === item.id ? grip.data : (spin == null ? void 0 : spin.itemId) === item.id ? spin.data : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
@@ -4348,6 +4399,23 @@ function BoardCanvas({
     if (drawing.current) {
       const brush = drawnBy();
       drawItem(context, brush.type, { ...brush.data, ...drawing.current.preview() });
+    }
+    const under = touchCursor.current;
+    const reach = under ? toolReach() : null;
+    if (under && reach !== null) {
+      const hairline = 1 / view.scale;
+      const radius = Math.max(reach / 2, 4 * hairline);
+      context.save();
+      context.setLineDash([]);
+      context.beginPath();
+      context.arc(under.x, under.y, radius, 0, Math.PI * 2);
+      context.lineWidth = 3 * hairline;
+      context.strokeStyle = "rgba(255, 255, 255, .85)";
+      context.stroke();
+      context.lineWidth = 1.5 * hairline;
+      context.strokeStyle = "rgba(60, 60, 70, .9)";
+      context.stroke();
+      context.restore();
     }
     const hair = 1 / view.scale;
     const selected = hub.items.filter((item) => chosen.has(item.id));
@@ -4467,6 +4535,58 @@ function BoardCanvas({
       autoPanFrame.current = requestAnimationFrame(stepAutoPan);
     }
   };
+  const eraseStep = (at, radius) => {
+    const from = lastErase.current;
+    lastErase.current = at;
+    const distance = from ? Math.hypot(at.x - from.x, at.y - from.y) : 0;
+    const steps = from ? Math.min(64, Math.max(1, Math.ceil(distance / Math.max(1, radius / 2)))) : 1;
+    let changed = false;
+    for (let step = 1; step <= steps; step += 1) {
+      const point = from ? { x: from.x + (at.x - from.x) * step / steps, y: from.y + (at.y - from.y) * step / steps } : at;
+      if (eraseAt(point, radius)) changed = true;
+    }
+    if (changed) schedule();
+  };
+  const eraseAt = (at, radius) => {
+    let changed = false;
+    for (const item of latest.current.items) {
+      if (vanishing.current.has(item.id)) continue;
+      const edits = eraseEdits.current;
+      const current = edits.has(item.id) ? edits.get(item.id) : item.data;
+      if (!current) continue;
+      const result = erase({ ...item, data: current }, at, radius);
+      if (result.kind === "keep") continue;
+      edits.set(item.id, result.kind === "delete" ? null : result.parts[0]);
+      changed = true;
+    }
+    return changed;
+  };
+  const finishErase = () => {
+    erasing.current = null;
+    lastErase.current = null;
+    const edits = eraseEdits.current;
+    if (edits.size === 0) return;
+    const now = Date.now();
+    const stamp = now.toString(36);
+    const changes = [];
+    for (const [itemId, rest] of edits) {
+      const tempId = rest ? `e${stamp}-${changes.length}` : null;
+      if (tempId && rest) settling.current.set(tempId, { type: "stroke", data: rest, at: now });
+      vanishing.current.set(itemId, now);
+      changes.push({ itemId, rest, tempId });
+    }
+    edits.clear();
+    onErased(changes);
+    schedule();
+  };
+  useEffect(() => {
+    if (vanishing.current.size === 0) return;
+    const alive = new Set(hub.items.map((item) => item.id));
+    const now = Date.now();
+    for (const [itemId, at] of vanishing.current) {
+      if (!alive.has(itemId) || now - at > 1e4) vanishing.current.delete(itemId);
+    }
+  }, [hub.items]);
   const scheduleAutoPan = () => {
     if (autoPanFrame.current === null) autoPanFrame.current = requestAnimationFrame(stepAutoPan);
   };
@@ -4503,7 +4623,24 @@ function BoardCanvas({
     };
   };
   const wantsPan = (event) => latest.current.tool === "hand" || latest.current.spaceHeld || event.button === 1 || !hub.canEdit || event.pointerType === "touch" && penSeen.current;
+  const toolReach = () => {
+    const { tool: current, settings: config } = latest.current;
+    if (current === "eraser") return config.eraser.size;
+    if (current === "pen1" || current === "pen2" || current === "marker") return config[current].width;
+    return null;
+  };
+  const trackTouchCursor = (event) => {
+    if (event.pointerType === "mouse" || toolReach() === null || !hub.canEdit) return;
+    touchCursor.current = worldPoint(event);
+    schedule(false);
+  };
+  const hideTouchCursor = () => {
+    if (!touchCursor.current) return;
+    touchCursor.current = null;
+    schedule(false);
+  };
   const onPointerDown = (event) => {
+    trackTouchCursor(event);
     event.preventDefault();
     if (event.pointerType === "pen") penSeen.current = true;
     if (pointers.current.size === 0) blockUntilRelease.current = false;
@@ -4512,7 +4649,7 @@ function BoardCanvas({
     if (touches().length >= 2) {
       cancelStroke();
       panning.current = null;
-      erasing.current = null;
+      finishErase();
       tapping.current = null;
       blockUntilRelease.current = true;
       startPinch();
@@ -4535,7 +4672,9 @@ function BoardCanvas({
     if (latest.current.tool === "eraser") {
       event.currentTarget.setPointerCapture(event.pointerId);
       erasing.current = event.pointerId;
-      onErase(point, reach);
+      eraseEdits.current.clear();
+      lastErase.current = null;
+      eraseStep(point, reach);
       return;
     }
     if (latest.current.tool === "select") {
@@ -4643,11 +4782,12 @@ function BoardCanvas({
   };
   const onPointerMove = (event) => {
     var _a;
+    trackTouchCursor(event);
     pointers.current.set(event.pointerId, { ...screenPoint(event), type: event.pointerType });
     if (!pinch.current && touches().length >= 2) {
       cancelStroke();
       panning.current = null;
-      erasing.current = null;
+      finishErase();
       tapping.current = null;
       blockUntilRelease.current = true;
       startPinch();
@@ -4686,7 +4826,7 @@ function BoardCanvas({
       return;
     }
     if (erasing.current === event.pointerId) {
-      onErase(point, latest.current.settings.eraser.size / 2);
+      eraseStep(point, latest.current.settings.eraser.size / 2);
       return;
     }
     const grip = resizing.current;
@@ -4773,6 +4913,7 @@ function BoardCanvas({
   };
   const finish = (event) => {
     pointers.current.delete(event.pointerId);
+    hideTouchCursor();
     if (touches().length < 2) pinch.current = null;
     if (pointers.current.size === 0) blockUntilRelease.current = false;
     panning.current = null;
@@ -4784,8 +4925,7 @@ function BoardCanvas({
       return;
     }
     if (erasing.current === event.pointerId) {
-      erasing.current = null;
-      onEraseEnd();
+      finishErase();
       return;
     }
     const tap = tapping.current;
@@ -4867,6 +5007,9 @@ function BoardCanvas({
         onPointerMove,
         onPointerUp: finish,
         onPointerCancel: finish,
+        onPointerOut: (event) => {
+          if (event.pointerType === "pen" && event.buttons === 0) hideTouchCursor();
+        },
         onContextMenu: (event) => event.preventDefault()
       }
     ),
@@ -5620,8 +5763,6 @@ function ViewToolbar({
             }
           ) : null,
           /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onHelp, title: "Что умеет доска", "data-tip": "Что умеет доска", children: /* @__PURE__ */ jsx(IconHelp, {}) }),
-          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", "data-tip": "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
           canEdit ? /* @__PURE__ */ jsx(
             "button",
             {
@@ -5633,7 +5774,7 @@ function ViewToolbar({
               children: /* @__PURE__ */ jsx(IconTarget, {})
             }
           ) : null,
-          canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
+          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", "data-tip": "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
           canRecordings && canManage && recordingStatus !== null ? /* @__PURE__ */ jsxs("span", { className: `rec-group rec-group--${recordingStatus}`, role: "group", "aria-label": recordingStatus === "recording" ? "Идёт запись" : "Запись на паузе", children: [
             recordingStatus === "recording" ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPauseRecording, title: "Пауза", "data-tip": "Пауза", children: /* @__PURE__ */ jsx(IconPause, {}) }) : /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onResumeRecording, title: "Продолжить", "data-tip": "Продолжить", children: /* @__PURE__ */ jsx(IconPlay, {}) }),
             /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onStopRecording, title: "Стоп", "data-tip": "Стоп", children: /* @__PURE__ */ jsx(IconStop, {}) })
@@ -5653,15 +5794,16 @@ function ViewToolbar({
               }
             ) })
           ) : null,
+          canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
+          canManage ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBackground, title: "Фон и разлиновка", "data-tip": "Фон и разлиновка", children: /* @__PURE__ */ jsx(IconGrid, {}) }) : null,
+          /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
           /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", "data-tip": "Конспект занятия по почте", children: [
             /* @__PURE__ */ jsx(IconMail, {}),
             summaryCount > 0 ? /* @__PURE__ */ jsx("span", { className: "badge-dot", children: summaryCount }) : null
           ] }),
           /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onExport, title: "Сохранить картинкой", "data-tip": "Сохранить картинкой", children: /* @__PURE__ */ jsx(IconDownload, {}) }),
-          canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
-            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBackground, title: "Фон и разлиновка", "data-tip": "Фон и разлиновка", children: /* @__PURE__ */ jsx(IconGrid, {}) }),
-            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClear, title: "Очистить страницу", "data-tip": "Очистить страницу", children: /* @__PURE__ */ jsx(IconTrash, {}) })
-          ] }) : null
+          canManage ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClear, title: "Очистить страницу", "data-tip": "Очистить страницу", children: /* @__PURE__ */ jsx(IconTrash, {}) }) : null,
+          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onHelp, title: "Что умеет доска", "data-tip": "Что умеет доска", children: /* @__PURE__ */ jsx(IconHelp, {}) })
         ]
       }
     ),
@@ -6049,48 +6191,6 @@ function titleOf(tool) {
   if (tool === "select") return "Курсор";
   return "Фигуры";
 }
-function erase(item, at, radius) {
-  if (item.type !== "stroke" || item.data.locked) return { kind: "keep" };
-  const reach = radius + item.data.width / 2;
-  const before = segmentsOf(item.data);
-  if (before.length === 0) return { kind: "keep" };
-  const after = [];
-  let touched = false;
-  for (const segment2 of before) {
-    const pieces = eraseSegment(segment2, at, reach);
-    if (pieces === null) {
-      after.push(segment2);
-      continue;
-    }
-    touched = true;
-    for (const piece of pieces) if (piece.length > 1) after.push(piece);
-  }
-  if (!touched) return { kind: "keep" };
-  if (after.length === 0) return { kind: "delete" };
-  return { kind: "split", parts: [withSegments(item.data, after)] };
-}
-function eraseSegment(points, at, reach) {
-  const survives = points.map((point) => Math.hypot(point.x - at.x, point.y - at.y) > reach);
-  if (survives.every(Boolean)) {
-    for (let index = 1; index < points.length; index += 1) {
-      if (distanceToSegment(at, points[index - 1], points[index]) > reach) continue;
-      return [points.slice(0, index), points.slice(index)];
-    }
-    return null;
-  }
-  const parts = [];
-  let run = [];
-  for (let index = 0; index < points.length; index += 1) {
-    if (survives[index]) {
-      run.push(points[index]);
-    } else if (run.length > 0) {
-      parts.push(run);
-      run = [];
-    }
-  }
-  if (run.length > 0) parts.push(run);
-  return parts;
-}
 const KEY = "schoolpi.board.clipboard";
 function writeClip(clip) {
   try {
@@ -6199,12 +6299,15 @@ const HEIGHT = 150;
 const LEFT_GUTTER = 72;
 const BOTTOM_GUTTER = 60;
 const NARROW = 720;
+const SHORT = 460;
+const MIXED = "conic-gradient(#C62828, #FFB300, #2E7D32, #1565C0, #6A1B9A, #C62828)";
 function SelectionPanel({
   items,
   bounds,
   viewport,
   canvas,
   onColor,
+  onPatch,
   onDuplicate,
   onDelete,
   onReorder,
@@ -6235,7 +6338,16 @@ function SelectionPanel({
   const table = items.length === 1 && items[0].type === "table" ? items[0] : null;
   const rows = table ? clampRows(table.data.rows ?? DEFAULT_ROWS) : 0;
   const cols = table ? clampCols(table.data.cols ?? DEFAULT_COLS) : 0;
-  const docked = canvas.width > 0 && canvas.width < NARROW;
+  const docked = canvas.width > 0 && (canvas.width < NARROW || canvas.height < SHORT);
+  const kind = items.length > 0 && items.every((item) => item.type === items[0].type) ? items[0].type : null;
+  const fillable = items.every((item) => item.data.shape !== "line" && item.data.shape !== "arrow");
+  const common = (read) => {
+    const first = items[0] ? read(items[0]) : void 0;
+    return items.every((item) => read(item) === first) ? first : void 0;
+  };
+  const color = common((item) => item.data.color);
+  const fill = common((item) => item.data.fill ?? "");
+  const [palette, setPalette] = useState(null);
   const cap = (text2) => docked ? /* @__PURE__ */ jsx("span", { className: "btn-tool__cap", children: text2 }) : null;
   const panel = useRef(null);
   const [height, setHeight] = useState(HEIGHT);
@@ -6266,170 +6378,257 @@ function SelectionPanel({
       role: "toolbar",
       "aria-label": "Действия с выделенным",
       children: [
-        /* @__PURE__ */ jsxs("div", { className: "selection-panel__colors", children: [
-          PALETTE.map((value) => /* @__PURE__ */ jsx(
+        /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
+          /* @__PURE__ */ jsxs(
             "button",
             {
-              className: "swatch swatch--sm",
+              className: "selection-panel__pick",
               type: "button",
-              "aria-label": `Цвет ${value}`,
-              style: { background: value },
-              onClick: () => onColor(value)
+              "aria-expanded": palette === "color",
+              onClick: () => setPalette((current) => current === "color" ? null : "color"),
+              children: [
+                /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Цвет" }),
+                /* @__PURE__ */ jsx("span", { className: "swatch swatch--sm", style: { background: color ?? MIXED }, "aria-hidden": "true" })
+              ]
+            }
+          ),
+          palette === "color" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__colors", children: [
+            PALETTE.map((value) => /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "swatch swatch--sm",
+                type: "button",
+                "aria-label": `Цвет ${value}`,
+                "aria-pressed": color === value,
+                style: { background: value },
+                onClick: () => onColor(value)
+              },
+              value
+            )),
+            /* @__PURE__ */ jsx("label", { className: "swatch swatch--sm swatch--custom", title: "Свой цвет", children: /* @__PURE__ */ jsx(
+              "input",
+              {
+                type: "color",
+                value: custom,
+                onChange: (event) => setCustom(event.target.value),
+                onBlur: () => onColor(custom),
+                "aria-label": "Свой цвет"
+              }
+            ) })
+          ] }) : null
+        ] }),
+        kind === "stroke" || kind === "shape" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
+          /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Толщина" }),
+          /* @__PURE__ */ jsx("div", { className: "selection-panel__options", children: SIZES.map((value) => /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool btn-tool--tiny",
+              type: "button",
+              "aria-pressed": common((item) => item.data.width) === value,
+              "aria-label": `Толщина ${value}`,
+              title: `Толщина ${value}`,
+              onClick: () => onPatch({ width: value }),
+              children: /* @__PURE__ */ jsx("span", { className: "width-dot", style: { width: Math.min(16, Math.max(3, value / 1.6)), height: Math.min(16, Math.max(3, value / 1.6)) } })
             },
             value
-          )),
-          /* @__PURE__ */ jsx("label", { className: "swatch swatch--sm swatch--custom", title: "Свой цвет", children: /* @__PURE__ */ jsx(
-            "input",
-            {
-              type: "color",
-              value: custom,
-              onChange: (event) => setCustom(event.target.value),
-              onBlur: () => onColor(custom),
-              "aria-label": "Свой цвет"
-            }
-          ) })
-        ] }),
-        table ? /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-          /* @__PURE__ */ jsxs("div", { className: "selection-panel__sizes", children: [
-            /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
-              /* @__PURE__ */ jsx(
-                "button",
-                {
-                  className: "btn-tool btn-tool--tiny",
-                  type: "button",
-                  "aria-label": "Убрать строку",
-                  title: "Убрать строку",
-                  disabled: rows <= 1,
-                  onClick: () => onTable(rows - 1, cols),
-                  children: "−"
-                }
-              ),
-              /* @__PURE__ */ jsx("span", { className: "selection-panel__what", children: "Строки" }),
-              /* @__PURE__ */ jsx(
-                "button",
-                {
-                  className: "btn-tool btn-tool--tiny",
-                  type: "button",
-                  "aria-label": "Добавить строку",
-                  title: "Добавить строку",
-                  disabled: rows >= MAX_ROWS,
-                  onClick: () => onTable(rows + 1, cols),
-                  children: "+"
-                }
-              )
-            ] }),
-            /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
-              /* @__PURE__ */ jsx(
-                "button",
-                {
-                  className: "btn-tool btn-tool--tiny",
-                  type: "button",
-                  "aria-label": "Убрать столбец",
-                  title: "Убрать столбец",
-                  disabled: cols <= 1,
-                  onClick: () => onTable(rows, cols - 1),
-                  children: "−"
-                }
-              ),
-              /* @__PURE__ */ jsx("span", { className: "selection-panel__what", children: "Столбцы" }),
-              /* @__PURE__ */ jsx(
-                "button",
-                {
-                  className: "btn-tool btn-tool--tiny",
-                  type: "button",
-                  "aria-label": "Добавить столбец",
-                  title: "Добавить столбец",
-                  disabled: cols >= MAX_COLS,
-                  onClick: () => onTable(rows, cols + 1),
-                  children: "+"
-                }
-              )
-            ] }),
-            /* @__PURE__ */ jsxs("span", { className: "selection-panel__size", children: [
-              rows,
-              " × ",
-              cols
-            ] })
-          ] })
+          )) })
         ] }) : null,
-        /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-        /* @__PURE__ */ jsxs(
-          "button",
-          {
-            className: "btn-tool",
-            type: "button",
-            onClick: () => onLock(!locked),
-            "aria-pressed": locked,
-            title: locked ? "Отпереть" : "Запереть: не двигается и не стирается",
-            children: [
-              locked ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconLockOpen, {}),
-              cap(locked ? "Отпереть" : "Запереть")
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onCopy, title: "Копировать (Ctrl+C)", children: [
-          /* @__PURE__ */ jsx(IconCopy, {}),
-          cap("Копия")
-        ] }),
-        locked ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDuplicate, title: "Дублировать (Ctrl+D)", children: [
+        kind === "shape" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
+          /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Линия" }),
+          /* @__PURE__ */ jsx("div", { className: "selection-panel__options", children: LINE_STYLES.map((style) => /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool btn-tool--tiny btn-tool--line",
+              type: "button",
+              "aria-pressed": common((item) => item.data.lineStyle ?? "solid") === style.kind,
+              "aria-label": style.label,
+              title: style.label,
+              onClick: () => onPatch({ lineStyle: style.kind }),
+              children: /* @__PURE__ */ jsx(LineStyleIcon, { kind: style.kind })
+            },
+            style.kind
+          )) })
+        ] }) : null,
+        kind === "shape" && fillable ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: "selection-panel__pick",
+              type: "button",
+              "aria-expanded": palette === "fill",
+              onClick: () => setPalette((current) => current === "fill" ? null : "fill"),
+              children: [
+                /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Заливка" }),
+                /* @__PURE__ */ jsx(
+                  "span",
+                  {
+                    className: fill ? "swatch swatch--sm" : "swatch swatch--sm swatch--none",
+                    style: fill ? { background: fill } : void 0,
+                    "aria-hidden": "true"
+                  }
+                )
+              ]
+            }
+          ),
+          palette === "fill" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__colors", children: [
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "swatch swatch--sm swatch--none",
+                type: "button",
+                "aria-label": "Без заливки",
+                title: "Без заливки",
+                "aria-pressed": !common((item) => item.data.fill ?? ""),
+                onClick: () => onPatch({ fill: "" })
+              }
+            ),
+            PALETTE.map((value) => /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "swatch swatch--sm",
+                type: "button",
+                "aria-label": `Заливка ${value}`,
+                "aria-pressed": common((item) => item.data.fill ?? "") === value,
+                style: { background: value },
+                onClick: () => onPatch({ fill: value })
+              },
+              value
+            ))
+          ] }) : null
+        ] }) : null,
+        kind === "text" || kind === "table" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
+          /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Шрифт" }),
+          /* @__PURE__ */ jsx("div", { className: "selection-panel__options", children: (kind === "text" ? [16, 20, 24, 32, 48, 64] : [14, 16, 20, 24, 32]).map((value) => /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool btn-tool--tiny",
+              type: "button",
+              "aria-pressed": common((item) => item.data.fontSize) === value,
+              title: `Размер шрифта ${value}`,
+              onClick: () => onPatch({ fontSize: value }),
+              children: value
+            },
+            value
+          )) })
+        ] }) : null,
+        table ? /* @__PURE__ */ jsx("div", { className: "selection-panel__section", children: /* @__PURE__ */ jsxs("div", { className: "selection-panel__sizes", children: [
+          /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool btn-tool--tiny",
+                type: "button",
+                "aria-label": "Убрать строку",
+                title: "Убрать строку",
+                disabled: rows <= 1,
+                onClick: () => onTable(rows - 1, cols),
+                children: "−"
+              }
+            ),
+            /* @__PURE__ */ jsx("span", { className: "selection-panel__what", children: "Строки" }),
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool btn-tool--tiny",
+                type: "button",
+                "aria-label": "Добавить строку",
+                title: "Добавить строку",
+                disabled: rows >= MAX_ROWS,
+                onClick: () => onTable(rows + 1, cols),
+                children: "+"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "selection-panel__table", children: [
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool btn-tool--tiny",
+                type: "button",
+                "aria-label": "Убрать столбец",
+                title: "Убрать столбец",
+                disabled: cols <= 1,
+                onClick: () => onTable(rows, cols - 1),
+                children: "−"
+              }
+            ),
+            /* @__PURE__ */ jsx("span", { className: "selection-panel__what", children: "Столбцы" }),
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-tool btn-tool--tiny",
+                type: "button",
+                "aria-label": "Добавить столбец",
+                title: "Добавить столбец",
+                disabled: cols >= MAX_COLS,
+                onClick: () => onTable(rows, cols + 1),
+                children: "+"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxs("span", { className: "selection-panel__size", children: [
+            rows,
+            " × ",
+            cols
+          ] })
+        ] }) }) : null,
+        /* @__PURE__ */ jsxs("div", { className: "selection-panel__actions", children: [
+          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onCopy, title: "Копировать (Ctrl+C)", children: [
+            /* @__PURE__ */ jsx(IconCopy, {}),
+            cap("Копия")
+          ] }),
+          locked ? null : /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDuplicate, title: "Дублировать (Ctrl+D)", children: [
             /* @__PURE__ */ jsx(IconDuplicate, {}),
             cap("Дубль")
           ] }),
-          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDelete, title: "Удалить (Delete)", children: [
+          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onReorder(true), title: "На передний план", children: [
+            /* @__PURE__ */ jsx(IconToFront, {}),
+            cap("Вперёд")
+          ] }),
+          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onReorder(false), title: "На задний план", children: [
+            /* @__PURE__ */ jsx(IconToBack, {}),
+            cap("Назад")
+          ] }),
+          canKeep && keepable.length > 0 ? /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: "btn-tool",
+              type: "button",
+              onClick: () => setNaming(true),
+              title: "Сохранить как шаблон",
+              children: [
+                /* @__PURE__ */ jsx(IconLibrary, {}),
+                cap("Шаблон")
+              ]
+            }
+          ) : null,
+          text ? /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onCopyText(text), title: "Скопировать текст", children: [
+            /* @__PURE__ */ jsx(IconCopyText, {}),
+            cap("Текст")
+          ] }) : null,
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: "btn-tool",
+              type: "button",
+              onClick: () => onLock(!locked),
+              "aria-pressed": locked,
+              title: locked ? "Отпереть" : "Запереть: не двигается и не стирается",
+              children: [
+                locked ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconLockOpen, {}),
+                cap(locked ? "Отпереть" : "Запереть")
+              ]
+            }
+          ),
+          locked ? null : /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDelete, title: "Удалить (Delete)", children: [
             /* @__PURE__ */ jsx(IconTrash, {}),
             cap("Удалить")
+          ] }),
+          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDone, title: "Готово — снять выделение", children: [
+            /* @__PURE__ */ jsx(IconCheck, {}),
+            cap("Готово")
           ] })
         ] }),
-        docked ? (
-          // На телефоне три точки только путали: на что там жать, было не
-          // понять без подписи. Кнопки столбиком — тот же приём, что уже
-          // прижился в панели инструментов.
-          /* @__PURE__ */ jsxs(Fragment, { children: [
-            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onReorder(true), title: "На передний план", children: [
-              /* @__PURE__ */ jsx(IconToFront, {}),
-              cap("Вперёд")
-            ] }),
-            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onReorder(false), title: "На задний план", children: [
-              /* @__PURE__ */ jsx(IconToBack, {}),
-              cap("Назад")
-            ] }),
-            text ? /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onCopyText(text), title: "Скопировать текст", children: [
-              /* @__PURE__ */ jsx(IconCopyText, {}),
-              cap("Текст")
-            ] }) : null,
-            canKeep && keepable.length > 0 ? /* @__PURE__ */ jsxs(
-              "button",
-              {
-                className: "btn-tool",
-                type: "button",
-                onClick: () => setNaming(true),
-                title: "Сохранить как шаблон",
-                children: [
-                  /* @__PURE__ */ jsx(IconLibrary, {}),
-                  cap("Шаблон")
-                ]
-              }
-            ) : null,
-            /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
-            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDone, title: "Готово — снять выделение", children: [
-              /* @__PURE__ */ jsx(IconCheck, {}),
-              cap("Готово")
-            ] })
-          ] })
-        ) : (
-          // На ПК места хватает — а вот словесная подпись читается быстрее,
-          // чем два похожих значка «вперёд»/«назад» по слою.
-          /* @__PURE__ */ jsxs(Menu, { label: "Ещё действия", children: [
-            /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item", type: "button", onClick: () => onReorder(true), children: "На передний план" }),
-            /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item", type: "button", onClick: () => onReorder(false), children: "На задний план" }),
-            /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item", type: "button", onClick: onDuplicate, children: "Дублировать" }),
-            text ? /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item", type: "button", onClick: () => onCopyText(text), children: "Скопировать текст" }) : null,
-            canKeep && keepable.length > 0 ? /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item", type: "button", onClick: () => setNaming(true), children: "Сохранить как заготовку" }) : null,
-            /* @__PURE__ */ jsx("button", { className: "btn-quiet menu__item menu__item--danger", type: "button", onClick: onDelete, children: "Удалить" })
-          ] })
-        ),
         naming ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__keep", children: [
           /* @__PURE__ */ jsx(
             "input",
@@ -8512,6 +8711,9 @@ function useHistory(actions) {
       actions.remove(operation.items.map((item) => item.ref));
     } else if (operation.kind === "delete") {
       for (const item of operation.items) actions.restore(item);
+    } else if (operation.kind === "replace") {
+      actions.remove(operation.added.map((item) => item.ref));
+      for (const item of operation.removed) actions.restore(item);
     } else {
       actions.move(operation.refs, -operation.dx, -operation.dy);
     }
@@ -8526,6 +8728,9 @@ function useHistory(actions) {
       for (const item of operation.items) actions.restore(item);
     } else if (operation.kind === "delete") {
       actions.remove(operation.items.map((item) => item.ref));
+    } else if (operation.kind === "replace") {
+      actions.remove(operation.removed.map((item) => item.ref));
+      for (const item of operation.added) actions.restore(item);
     } else {
       actions.move(operation.refs, operation.dx, operation.dy);
     }
@@ -8691,29 +8896,30 @@ function BoardPage() {
     hub.deleteItems(doomed.map((item) => item.id));
     setSelection([]);
   }, [hub, history, refOf, selection]);
-  const eraseAt = useCallback((at, radius) => {
+  const eraseDone = useCallback((changes) => {
     const doomed = [];
-    const born = [];
-    const undoItems = [];
-    for (const item of hub.items) {
-      if (erased.current.has(item.id)) continue;
-      const result = erase(item, at, radius);
-      if (result.kind === "keep") continue;
-      erased.current.add(item.id);
+    const removed = [];
+    const added = [];
+    for (const change of changes) {
+      const item = hub.items.find((candidate) => candidate.id === change.itemId);
+      if (!item) continue;
       doomed.push(item.id);
-      undoItems.push({ ref: refOf(item.id), type: item.type, data: item.data, imageRef: item.imageRef });
-      if (result.kind === "split") {
-        for (const part of result.parts) {
-          born.push({ ref: `e${Date.now().toString(36)}${born.length}`, type: item.type, data: part });
-        }
+      removed.push({ ref: refOf(item.id), type: item.type, data: item.data, imageRef: item.imageRef });
+      if (change.rest && change.tempId) {
+        const ref = `e${change.tempId}`;
+        added.push({ ref, type: item.type, data: change.rest });
+        pending.current.set(change.tempId, { ref });
       }
     }
     if (doomed.length === 0) return;
     hub.deleteItems(doomed);
-    for (const part of born) send2(part.ref, part.type, part.data);
-    history.push({ kind: "delete", items: undoItems });
-  }, [hub, history, refOf, send2]);
-  const erased = useRef(/* @__PURE__ */ new Set());
+    for (const change of changes) {
+      if (change.rest && change.tempId && pending.current.has(change.tempId)) {
+        hub.commitItem(change.tempId, "stroke", change.rest);
+      }
+    }
+    history.push({ kind: "replace", removed, added });
+  }, [hub, history, refOf]);
   useEffect(() => {
     const onKey = (event) => {
       const target = event.target;
@@ -8811,15 +9017,17 @@ function BoardPage() {
     hub.reportViewport(hub.pageId, center.x, center.y, viewport.scale);
   }, [viewport, hub.canManage, (_b = hub.recording) == null ? void 0 : _b.status, hub.pageId, hub.reportViewport, canvasSize.width, canvasSize.height]);
   const jumpToBookmark = (bookmark) => {
-    const x = bookmark.data.x1 ?? 0;
-    const y = bookmark.data.y1 ?? 0;
+    const x1 = bookmark.data.x1 ?? 0;
+    const y1 = bookmark.data.y1 ?? 0;
+    const x = (x1 + (bookmark.data.x2 ?? x1)) / 2;
+    const y = (y1 + (bookmark.data.y2 ?? y1)) / 2;
     setShowBookmarks(false);
     if (bookmark.pageId === hub.pageId) {
-      setViewport((current) => centerOn(current, x, y, canvasSize.width, canvasSize.height));
+      setViewport((current) => centerOn(current, x, y, canvasSize.width, canvasSize.height, 1));
       return;
     }
     setSelection([]);
-    pendingJump.current = { pageId: bookmark.pageId, x, y };
+    pendingJump.current = { pageId: bookmark.pageId, x, y, scale: 1 };
     hub.openPage(bookmark.pageId);
   };
   const commitText = (text) => {
@@ -8919,7 +9127,7 @@ function BoardPage() {
   const tableItem = cellEdit ? hub.items.find((item) => item.id === cellEdit.itemId) ?? null : null;
   const selectionBounds = selectedItems.length > 0 ? boundsOf(selectedItems) : null;
   const docked = Boolean(
-    selectionBounds && hub.canEdit && canvasSize.width > 0 && canvasSize.width < 720
+    selectionBounds && hub.canEdit && canvasSize.width > 0 && (canvasSize.width < 720 || canvasSize.height < 460)
   );
   const duplicateSelection = () => {
     const born = [];
@@ -9004,6 +9212,18 @@ function BoardPage() {
   };
   const recolorSelection = (color) => {
     for (const item of selectedItems) hub.updateItem(item.id, { ...item.data, color });
+  };
+  const patchSelection = (patch) => {
+    for (const item of selectedItems) {
+      if (item.data.locked) continue;
+      const data = { ...item.data, ...patch };
+      if (item.type === "text" && patch.fontSize !== void 0 && data.x1 !== void 0 && data.y1 !== void 0) {
+        const box = measureText(data.text ?? "", patch.fontSize);
+        data.x2 = data.x1 + box.width;
+        data.y2 = data.y1 + box.height;
+      }
+      hub.updateItem(item.id, data);
+    }
   };
   const insertImage = useCallback(async (blob, name, ratio) => {
     const uploaded = await uploadBoardImage(id, blob, name, readGuestToken(id));
@@ -9475,8 +9695,7 @@ function BoardPage() {
                   hub.commitItem(tempId, type, data);
                 },
                 onCellAt: editCell,
-                onErase: eraseAt,
-                onEraseEnd: () => erased.current.clear(),
+                onErased: eraseDone,
                 onDrawStart: () => setShowParams(false),
                 onTextAt: (world) => {
                   keepFieldVisible(world);
@@ -9590,6 +9809,7 @@ function BoardPage() {
                 viewport,
                 canvas: canvasSize,
                 onColor: recolorSelection,
+                onPatch: patchSelection,
                 onDuplicate: duplicateSelection,
                 onDelete: removeSelection,
                 onReorder: (toFront) => hub.reorder(selection, toFront),

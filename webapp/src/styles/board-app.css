@@ -1880,15 +1880,72 @@ body.no-scroll {
     /* Выше панелей инструментов (8) и кнопки участников (9): она
        появляется по действию человека и на это время главная. */
     z-index: 11;
+    /* Сверху вниз: цвет, свои параметры выбранного, ряд действий. */
     display: flex;
-    align-items: center;
-    gap: var(--sp-1);
-    padding: var(--sp-1) var(--sp-2);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-2);
+    width: max-content;
+    max-width: 340px;
+    padding: var(--sp-2);
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
-    white-space: nowrap;
+}
+
+/* Один параметр: подпись и варианты под ней. */
+.selection-panel__section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.selection-panel__label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.selection-panel__options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+}
+
+.selection-panel__options .btn-tool--tiny { width: 28px; min-width: 28px; }
+.selection-panel__options .btn-tool--line { width: 40px; }
+
+/* Подпись параметра и кружок его значения — одной строкой; по нажатию
+   под ней раскрывается палитра. */
+.selection-panel__pick {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    min-height: 28px;
+    padding: 2px 4px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+}
+
+.selection-panel__pick:hover { background: var(--surface-2); }
+.selection-panel__pick:active { transform: none; }
+.selection-panel__pick[aria-expanded="true"] { border-color: var(--line); }
+
+.selection-panel__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-1);
+    padding-top: var(--sp-1);
+    border-top: 1px solid var(--line);
+}
+
+/* «Без заливки» — белый кружок, перечёркнутый красным. */
+.swatch--none {
+    background: linear-gradient(135deg, #fff 45%, #C62828 45%, #C62828 55%, #fff 55%);
 }
 
 /* На узком экране панель занимает место вертикальной панели инструментов:
@@ -1900,12 +1957,22 @@ body.no-scroll {
     transform: none;
     flex-direction: column;
     align-items: stretch;
+    width: auto;
+    max-width: none;
     max-height: calc(100% - 72px - var(--sp-3));
     overflow-y: auto;
     overscroll-behavior-y: contain;
     scrollbar-width: none;
     white-space: normal;
 }
+
+/* В узкой панели действия — столбиком, как инструменты на их месте. */
+.selection-panel--docked .selection-panel__actions {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.selection-panel--docked .selection-panel__options { max-width: 92px; }
 
 /* Подпись под значком в узкой панели: на телефоне нет ни наведения, ни
    места для всплывающей подсказки, а восемь значков подряд читаются
@@ -3170,4 +3237,128 @@ body.no-scroll {
     margin: var(--sp-1) 0 0;
     color: var(--text-muted);
     font-size: var(--fs-sm);
+}
+
+/* Мелкие кнопки параметров в узкой панели — без высоты и подписей
+   больших кнопок действий. */
+.selection-panel--docked .btn-tool--tiny {
+    min-height: 26px;
+    padding: 0;
+}
+
+/* --- Телефон набок ---------------------------------------------------------- */
+
+/*
+ * Повёрнутый телефон: экран широкий, но низкий — сверху вниз едва
+ * помещаются строка названия, верхняя панель и полоса инструментов
+ * слева, а холсту не остаётся ничего. Поэтому здесь всё уходит по бокам:
+ *
+ * - строка с названием, «Ссылкой» и замком прячется вместе с шапкой сайта
+ *   и выезжает той же стрелкой сверху;
+ * - верхняя панель становится вертикальной полосой у правого края, левая
+ *   остаётся слева — обе во всю высоту холста, со своей прокруткой и
+ *   своими стрелками скрытия;
+ * - «Участники» и окна панелей встают левее правой полосы.
+ */
+@media (orientation: landscape) and (max-height: 520px) {
+    .app__main--board:not(.app__main--header-open) .board-page__bar { display: none; }
+    .board-page__locked-note { display: none; }
+
+    .board-page { padding-bottom: var(--sp-1); }
+
+    .toolbar-toggle { display: flex; }
+
+    .toolbar--vertical .btn-tool,
+    .toolbar--view .btn-tool {
+        width: 40px;
+        min-height: 40px;
+    }
+
+    /* Левая полоса — от самого верха холста: сверху над ней больше ничего нет. */
+    .toolbar-slot--vertical {
+        top: var(--sp-3);
+        max-height: calc(100% - 2 * var(--sp-3));
+    }
+
+    .selection-panel--docked {
+        top: var(--sp-3);
+        max-height: calc(100% - 2 * var(--sp-3));
+    }
+
+    /* Правая полоса — бывшая верхняя. */
+    .toolbar-slot--view {
+        top: var(--sp-3);
+        right: var(--sp-3);
+        max-width: none;
+        max-height: calc(100% - 2 * var(--sp-3));
+        display: flex;
+        flex-direction: column;
+    }
+
+    .toolbar--view {
+        flex-direction: column;
+        min-height: 0;
+        max-width: none;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        touch-action: pan-y;
+    }
+
+    .toolbar--view .toolbar__divider {
+        width: auto;
+        height: 1px;
+        align-self: stretch;
+        margin: var(--sp-1) 0;
+    }
+
+    .toolbar--view .zoom,
+    .toolbar--view .rec-group {
+        flex-direction: column;
+    }
+
+    .toolbar--view .zoom__value {
+        min-width: 0;
+        width: 40px;
+        padding: 0;
+        font-size: var(--fs-xs);
+    }
+
+    .toolbar--view .btn-tool--wide {
+        width: 40px;
+        padding: 0;
+        flex-direction: column;
+        gap: 0;
+        font-size: var(--fs-xs);
+    }
+
+    /* Стрелка правой полосы — на её левом боку, та же, что у левой. */
+    .toolbar-toggle--view {
+        left: -20px;
+        right: auto;
+        top: calc(50% - 18px);
+        bottom: auto;
+        width: 20px;
+        height: 36px;
+        border-radius: var(--radius) 0 0 var(--radius);
+    }
+
+    .toolbar-toggle--view svg { transform: rotate(-90deg); }
+    .toolbar-toggle--view.toolbar-toggle--closed svg { transform: rotate(90deg); }
+
+    .toolbar-slot--view.toolbar-slot--collapsed {
+        transform: translateX(calc(100% + var(--sp-3)));
+    }
+
+    /* Ширина правой полосы: кнопка 40 + отступы 2 × 8 + рамка — около
+       58px, плюс её отступ от края и зазор. */
+    .board-page__people-corner { right: 78px; }
+
+    .canvas-panel {
+        right: 78px;
+        bottom: var(--sp-3);
+        max-height: calc(100% - 2 * var(--sp-3));
+    }
+
+    .params { max-height: calc(100% - 2 * var(--sp-3)); }
 }

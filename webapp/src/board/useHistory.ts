@@ -15,6 +15,12 @@ export interface ItemSnapshot {
 export type Operation =
   | { kind: 'create'; items: ItemSnapshot[] }
   | { kind: 'delete'; items: ItemSnapshot[] }
+  /**
+   * Одни объекты заменены другими — проход ластика: задетые штрихи
+   * удалены, их обрезки созданы. Отменяется одним шагом целиком: иначе
+   * отмена вернула бы штрих, оставив поверх него его же обрезки.
+   */
+  | { kind: 'replace'; removed: ItemSnapshot[]; added: ItemSnapshot[] }
   | { kind: 'move'; refs: string[]; dx: number; dy: number };
 
 interface Actions {
@@ -75,6 +81,9 @@ export function useHistory(actions: Actions): History {
       actions.remove(operation.items.map((item) => item.ref));
     } else if (operation.kind === 'delete') {
       for (const item of operation.items) actions.restore(item);
+    } else if (operation.kind === 'replace') {
+      actions.remove(operation.added.map((item) => item.ref));
+      for (const item of operation.removed) actions.restore(item);
     } else {
       actions.move(operation.refs, -operation.dx, -operation.dy);
     }
@@ -93,6 +102,9 @@ export function useHistory(actions: Actions): History {
       for (const item of operation.items) actions.restore(item);
     } else if (operation.kind === 'delete') {
       actions.remove(operation.items.map((item) => item.ref));
+    } else if (operation.kind === 'replace') {
+      actions.remove(operation.removed.map((item) => item.ref));
+      for (const item of operation.added) actions.restore(item);
     } else {
       actions.move(operation.refs, operation.dx, operation.dy);
     }
