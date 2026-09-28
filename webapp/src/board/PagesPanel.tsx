@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ReactElement } from 'react';
 import type { BoardPageInfo, PageVisibility, Participant } from './protocol';
 import {
-  IconArrowDown, IconArrowUp, IconCheck, IconEditor, IconEye, IconEyeClosed, IconEyeHalf, IconTrash,
+  IconArrowDown, IconArrowUp, IconEditor, IconEye, IconEyeClosed, IconEyeHalf, IconTrash,
 } from '../components/Icons';
 
 interface Props {
@@ -94,11 +94,6 @@ export function PagesPanel({
                   }}
                 >
                   {page.title}
-                  {page.visibility !== 'all' ? (
-                    <span className="pages__mark">
-                      {page.visibility === 'owner' ? 'только я' : 'выборочно'}
-                    </span>
-                  ) : null}
                 </button>
 
                 {/* Переименовать — карандашом сразу после названия: двойной
@@ -135,7 +130,11 @@ export function PagesPanel({
                 </button>
                 <button
                   className="btn-tool btn-tool--tiny" type="button" title="Кому видна"
-                  aria-label="Кому видна" aria-pressed={tuning === page.id}
+                  // Страница видна не всем — глаз подсвечен так же, как
+                  // замок закрытой доски: доступ ограничен, это видно
+                  // сразу, без подписи в названии.
+                  aria-label="Кому видна" aria-pressed={page.visibility !== 'all'}
+                  aria-expanded={tuning === page.id}
                   onClick={() => setTuning(tuning === page.id ? null : page.id)}
                 >
                   {/* Глаз показывает, кому страница видна: всем — открыт,
@@ -217,7 +216,6 @@ export function PagesPanel({
               </div>
             ) : null}
 
-            {page.id === pageId ? <IconCheck size={16} /> : null}
           </div>
         ))}
       </div>

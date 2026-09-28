@@ -6863,7 +6863,7 @@ function PagesPanel({
             }
           }
         ) : /* @__PURE__ */ jsxs("span", { className: "pages__head", children: [
-          /* @__PURE__ */ jsxs(
+          /* @__PURE__ */ jsx(
             "button",
             {
               className: "btn-quiet pages__name",
@@ -6874,10 +6874,7 @@ function PagesPanel({
                 setEditing(page.id);
                 setDraft(page.title);
               },
-              children: [
-                page.title,
-                page.visibility !== "all" ? /* @__PURE__ */ jsx("span", { className: "pages__mark", children: page.visibility === "owner" ? "только я" : "выборочно" }) : null
-              ]
+              children: page.title
             }
           ),
           canManage ? /* @__PURE__ */ jsx(
@@ -6927,7 +6924,8 @@ function PagesPanel({
               type: "button",
               title: "Кому видна",
               "aria-label": "Кому видна",
-              "aria-pressed": tuning === page.id,
+              "aria-pressed": page.visibility !== "all",
+              "aria-expanded": tuning === page.id,
               onClick: () => setTuning(tuning === page.id ? null : page.id),
               children: page.visibility === "owner" ? /* @__PURE__ */ jsx(IconEyeClosed, { size: 14 }) : page.visibility === "selected" ? /* @__PURE__ */ jsx(IconEyeHalf, { size: 14 }) : /* @__PURE__ */ jsx(IconEye, { size: 14 })
             }
@@ -6985,8 +6983,7 @@ function PagesPanel({
             }),
             participants.filter((one) => one.key !== meKey).length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "На доске пока никого нет." }) : /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "Гость держится в списке, пока идёт занятие." })
           ] }) : null
-        ] }) : null,
-        page.id === pageId ? /* @__PURE__ */ jsx(IconCheck, { size: 16 }) : null
+        ] }) : null
       ] }, page.id);
     }) }),
     canManage ? /* @__PURE__ */ jsx("button", { className: "btn btn-quiet btn-sm", type: "button", onClick: onAdd, children: "Добавить страницу" }) : null,
