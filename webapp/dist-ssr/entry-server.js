@@ -723,10 +723,12 @@ function BoardShell({ children }) {
     apply();
     window.addEventListener("resize", apply);
     window.addEventListener("orientationchange", apply);
+    root.classList.add("board-locked");
     return () => {
       window.removeEventListener("resize", apply);
       window.removeEventListener("orientationchange", apply);
       root.style.removeProperty("--board-h");
+      root.classList.remove("board-locked");
     };
   }, []);
   return /* @__PURE__ */ jsxs("div", { className: "app app--board", children: [

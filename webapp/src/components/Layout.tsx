@@ -410,10 +410,16 @@ export function BoardShell({ children }: { children: ReactNode }): ReactElement 
     window.addEventListener('resize', apply);
     window.addEventListener('orientationchange', apply);
 
+    // Саму страницу браузера на доске закрепляем: прокручивать на ней
+    // нечего, а iOS иначе давал потянуть её вверх — и показывал, как
+    // резко обрезан холст снизу.
+    root.classList.add('board-locked');
+
     return () => {
       window.removeEventListener('resize', apply);
       window.removeEventListener('orientationchange', apply);
       root.style.removeProperty('--board-h');
+      root.classList.remove('board-locked');
     };
   }, []);
 

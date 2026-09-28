@@ -958,9 +958,27 @@ body.no-scroll {
 /* На доске рисуют, а не читают: страница целиком отдана холсту, а
    прокрутки нет вовсе — ни у страницы, ни у самого холста (у него своя,
    в мировых координатах). */
+/* Страница доски закреплена целиком (см. BoardShell): не прокручивается
+   и не оттягивается пальцем. */
+html.board-locked,
+html.board-locked body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+html.board-locked body {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+}
+
 .app--board {
     position: relative;
     box-sizing: border-box;
+    /* У всех страниц .app — не ниже 100dvh. Здесь это правило перебивало
+       точную высоту ниже, и страница снова выходила выше экрана. */
+    min-height: 0;
     height: 100vh;
     height: 100dvh;
     /* Точная видимая высота — из BoardShell; dvh выше остаётся запасом. */
@@ -1139,7 +1157,10 @@ body.no-scroll {
     overflow: hidden;
 
     flex: 1;
-    min-height: 320px;
+    /* Без нижнего предела: холст — ровно то, что осталось под строкой
+       названия и предупреждениями. С пределом в 320px на повёрнутом
+       телефоне он выходил за нижний край экрана и обрезался. */
+    min-height: 0;
     background: var(--canvas);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
