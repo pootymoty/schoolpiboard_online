@@ -35,7 +35,9 @@ public sealed record BoardDto(
     // Подписи закладок — только в списке досок, для поиска по ним; в
     // остальных ответах пусто. Закладки со страниц, закрытых от этого
     // участника, сюда не попадают.
-    IReadOnlyList<string> Bookmarks);
+    IReadOnlyList<string> Bookmarks,
+    // Названия страниц — тоже только в списке досок и тоже только видимых.
+    IReadOnlyList<string> Pages);
 
 public sealed record MemberDto(long UserId, string DisplayName, string Email, string Role, DateTime JoinedAt);
 
@@ -77,7 +79,7 @@ public static class BoardEndpoints
 
         boards.MapGet("/", async (
             ClaimsPrincipal principal, AppDbContext db, BoardService service, AppOptions options,
-            BoardPresence presence, PageService pages, CancellationToken ct) =>
+            BoardPresence presence, CancellationToken ct) =>
         {
             var user = await AuthEndpoints.CurrentUser(principal, db, ct);
             if (user is null) return Results.Unauthorized();
@@ -96,36 +98,55 @@ public static class BoardEndpoints
                 .ToListAsync(ct);
             var lastEdits = lastEditRows.ToDictionary(x => x.BoardId, x => x.Last);
 
-            // Закладки — для поиска по ним в списке досок. Одним запросом по
-            // всем доскам; видимость страниц проверяется только там, где
-            // закладки вообще есть, и только у чужих досок: владельцу
-            // открыты все страницы.
+            // Страницы и закладки — для поиска по ним в списке досок.
+            // Видимость — по тем же правилам, что и на самой доске
+            // (PageService.VisibleAsync): владельцу открыты все страницы,
+            // остальным — общие и те, куда их позвали поимённо. Считаем
+            // разом по всем доскам, а не запросом на каждую: список
+            // перечитывается раз в пять секунд.
+            var pageRows = await db.BoardPages
+                .Where(x => boardIds.Contains(x.BoardId))
+                .OrderBy(x => x.Sort).ThenBy(x => x.Id)
+                .Select(x => new { x.Id, x.BoardId, x.Title, x.Visibility })
+                .ToListAsync(ct);
+
+            var pageIds = pageRows.Select(x => x.Id).ToList();
+            var viewerKey = PageService.KeyOf(user.Id, null);
+            var invited = (await db.BoardPageViewers
+                .Where(x => x.ParticipantKey == viewerKey && pageIds.Contains(x.PageId))
+                .Select(x => x.PageId)
+                .ToListAsync(ct))
+                .ToHashSet();
+
+            var owned = rows
+                .Where(row => row.Member.Role == BoardMember.RoleOwner)
+                .Select(row => row.Board.Id)
+                .ToHashSet();
+
+            var visiblePages = pageRows
+                .Where(x => owned.Contains(x.BoardId)
+                    || x.Visibility == BoardPage.VisibilityAll
+                    || (x.Visibility == BoardPage.VisibilitySelected && invited.Contains(x.Id)))
+                .ToList();
+
+            var visiblePageIds = visiblePages.Select(x => x.Id).ToHashSet();
+
+            var pageTitles = visiblePages
+                .GroupBy(x => x.BoardId)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.Title).ToList());
+
             var bookmarkRows = await db.BoardItems
                 .Where(x => boardIds.Contains(x.BoardId) && x.Type == BoardItem.TypeBookmark)
                 .OrderBy(x => x.CreatedAt)
                 .Select(x => new { x.BoardId, x.PageId, x.Data })
                 .ToListAsync(ct);
 
-            var bookmarks = new Dictionary<long, List<string>>();
-
-            foreach (var group in bookmarkRows.GroupBy(x => x.BoardId))
-            {
-                var row = rows.First(r => r.Board.Id == group.Key);
-                var canManage = row.Member.Role == BoardMember.RoleOwner;
-
-                HashSet<long>? visible = null;
-                if (!canManage)
-                {
-                    var open = await pages.VisibleAsync(group.Key, false, user.Id, null, ct);
-                    visible = open.Select(page => page.Id).ToHashSet();
-                }
-
-                bookmarks[group.Key] = group
-                    .Where(x => visible is null || visible.Contains(x.PageId))
-                    .Select(x => BookmarkText(x.Data))
-                    .Where(text => text.Length > 0)
-                    .ToList();
-            }
+            var bookmarks = bookmarkRows
+                .Where(x => visiblePageIds.Contains(x.PageId))
+                .GroupBy(x => x.BoardId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(x => BookmarkText(x.Data)).Where(text => text.Length > 0).ToList());
 
             return Results.Ok(rows.Select(row =>
             {
@@ -136,7 +157,8 @@ public static class BoardEndpoints
                 return ToDto(
                     row.Board, row.Member.Role, options,
                     activeCount: presence.CountOnBoard(row.Board.Id), lastEdited: lastEdited,
-                    bookmarks: bookmarks.GetValueOrDefault(row.Board.Id));
+                    bookmarks: bookmarks.GetValueOrDefault(row.Board.Id),
+                    pages: pageTitles.GetValueOrDefault(row.Board.Id));
             }));
         });
 
@@ -472,7 +494,8 @@ public static class BoardEndpoints
     /// </summary>
     private static BoardDto ToDto(
         Board board, string role, AppOptions options, bool? canManage = null,
-        int activeCount = 0, DateTime? lastEdited = null, IReadOnlyList<string>? bookmarks = null)
+        int activeCount = 0, DateTime? lastEdited = null, IReadOnlyList<string>? bookmarks = null,
+        IReadOnlyList<string>? pages = null)
     {
         var manages = canManage ?? role == BoardMember.RoleOwner;
 
@@ -488,7 +511,8 @@ public static class BoardEndpoints
             lastEdited ?? board.UpdatedAt,
             activeCount,
             board.CreatedAt,
-            bookmarks ?? Array.Empty<string>());
+            bookmarks ?? Array.Empty<string>(),
+            pages ?? Array.Empty<string>());
     }
 
     /// <summary>

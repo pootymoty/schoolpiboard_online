@@ -152,10 +152,13 @@ export function BoardsPage(): ReactElement {
         .map((board) => ({
           board,
           titleHit: board.title.toLowerCase().includes(needle),
+          pageHits: board.pages.filter((text) => text.toLowerCase().includes(needle)),
           bookmarkHits: board.bookmarks.filter((text) => text.toLowerCase().includes(needle)),
         }))
-        .filter((row) => row.titleHit || row.bookmarkHits.length > 0)
-      : boards.map((board) => ({ board, titleHit: false, bookmarkHits: [] as string[] }));
+        .filter((row) => row.titleHit || row.pageHits.length > 0 || row.bookmarkHits.length > 0)
+      : boards.map((board) => ({
+        board, titleHit: false, pageHits: [] as string[], bookmarkHits: [] as string[],
+      }));
 
     return [...matched].sort((a, b) => compare(a.board, b.board, sort));
   }, [boards, needle, sort]);
@@ -181,9 +184,9 @@ export function BoardsPage(): ReactElement {
           className="input boards-search"
           type="search"
           value={query}
-          placeholder="Найти доску по названию или закладке"
+          placeholder="Найти доску по названию, странице или закладке"
           onChange={(event) => search(event.target.value)}
-          aria-label="Найти доску по названию или закладке"
+          aria-label="Найти доску по названию, странице или закладке"
         />
       ) : null}
 
@@ -225,7 +228,7 @@ export function BoardsPage(): ReactElement {
             </div>
 
             <ul className="board-list__rows">
-              {visible.map(({ board, bookmarkHits }) => (
+              {visible.map(({ board, pageHits, bookmarkHits }) => (
                 <li className="board-item" key={board.id}>
                   <span className="people__icon board-item__icon" title={roleTitle(board.role)}>
                     <RoleIcon role={board.role} />
@@ -237,8 +240,14 @@ export function BoardsPage(): ReactElement {
                       {board.locked ? <span className="badge badge-warning">закрыта</span> : null}
                     </div>
 
-                    {/* Нашлась по закладке — показываем по какой: иначе
-                        непонятно, почему доска с другим названием в выдаче. */}
+                    {/* Нашлась по странице или закладке — показываем по
+                        какой: иначе непонятно, почему доска с другим
+                        названием в выдаче. */}
+                    {pageHits.length > 0 ? (
+                      <p className="board-item__hits">
+                        Страницы: {pageHits.join(', ')}
+                      </p>
+                    ) : null}
                     {bookmarkHits.length > 0 ? (
                       <p className="board-item__hits">
                         Закладки: {bookmarkHits.join(', ')}

@@ -616,7 +616,7 @@ body.no-scroll {
 
 /* --- Список досок --------------------------------------------------------- */
 
-/* Поиск — одна строка над списком: и по названию, и по закладкам. */
+/* Поиск — одна строка над списком: по названию, страницам и закладкам. */
 .boards-search {
     width: 100%;
     margin: 0 0 var(--sp-4);
@@ -3055,6 +3055,15 @@ html.board-locked body {
     font-size: var(--fs-xs);
     color: var(--text-muted);
     white-space: nowrap;
+}
+
+/* Название и карандаш «переименовать» — одной строкой, во всю ширину. */
+.pages__head {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 1 1 100%;
+    min-width: 0;
 }
 
 .pages__tools {

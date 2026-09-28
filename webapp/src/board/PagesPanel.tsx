@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import type { ReactElement } from 'react';
 import type { BoardPageInfo, PageVisibility, Participant } from './protocol';
-import { IconArrowDown, IconArrowUp, IconCheck, IconEye, IconTrash } from '../components/Icons';
+import {
+  IconArrowDown, IconArrowUp, IconCheck, IconEditor, IconEye, IconEyeClosed, IconEyeHalf, IconTrash,
+} from '../components/Icons';
 
 interface Props {
   pages: BoardPageInfo[];
@@ -67,6 +69,7 @@ export function PagesPanel({
               <input
                 className="input pages__name"
                 value={draft}
+                maxLength={60}
                 autoFocus
                 onChange={(event) => setDraft(event.target.value)}
                 onBlur={() => {
@@ -79,23 +82,38 @@ export function PagesPanel({
                 }}
               />
             ) : (
-              <button
-                className="btn-quiet pages__name"
-                type="button"
-                onClick={() => onOpen(page.id)}
-                onDoubleClick={() => {
-                  if (!canManage) return;
-                  setEditing(page.id);
-                  setDraft(page.title);
-                }}
-              >
-                {page.title}
-                {page.visibility !== 'all' ? (
-                  <span className="pages__mark">
-                    {page.visibility === 'owner' ? 'только я' : 'выборочно'}
-                  </span>
+              <span className="pages__head">
+                <button
+                  className="btn-quiet pages__name"
+                  type="button"
+                  onClick={() => onOpen(page.id)}
+                  onDoubleClick={() => {
+                    if (!canManage) return;
+                    setEditing(page.id);
+                    setDraft(page.title);
+                  }}
+                >
+                  {page.title}
+                  {page.visibility !== 'all' ? (
+                    <span className="pages__mark">
+                      {page.visibility === 'owner' ? 'только я' : 'выборочно'}
+                    </span>
+                  ) : null}
+                </button>
+
+                {/* Переименовать — карандашом сразу после названия: двойной
+                    щелчок по нему на телефоне не срабатывает, да и
+                    догадаться о нём было нельзя. */}
+                {canManage ? (
+                  <button
+                    className="btn-tool btn-tool--tiny" type="button" title="Переименовать"
+                    aria-label={`Переименовать «${page.title}»`}
+                    onClick={() => { setEditing(page.id); setDraft(page.title); }}
+                  >
+                    <IconEditor size={14} />
+                  </button>
                 ) : null}
-              </button>
+              </span>
             )}
 
             {canManage ? (
@@ -120,7 +138,11 @@ export function PagesPanel({
                   aria-label="Кому видна" aria-pressed={tuning === page.id}
                   onClick={() => setTuning(tuning === page.id ? null : page.id)}
                 >
-                  <IconEye size={14} />
+                  {/* Глаз показывает, кому страница видна: всем — открыт,
+                      выбранным — прищурен, только владельцу — закрыт. */}
+                  {page.visibility === 'owner'
+                    ? <IconEyeClosed size={14} />
+                    : page.visibility === 'selected' ? <IconEyeHalf size={14} /> : <IconEye size={14} />}
                 </button>
                 <button
                   className="btn-tool btn-tool--tiny" type="button" title="Удалить страницу"

@@ -392,8 +392,27 @@ const IconMail = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* 
   /* @__PURE__ */ jsx("path", { d: "M3 7l9 6 9-6" })
 ] }) });
 const IconEye = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
-  /* @__PURE__ */ jsx("path", { d: "M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" }),
-  /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "2.5" })
+  /* @__PURE__ */ jsx("path", { d: "M2 13.5s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" }),
+  /* @__PURE__ */ jsx("circle", { cx: "12", cy: "13.5", r: "2.5" }),
+  /* @__PURE__ */ jsx("path", { d: "M6 9.3 4.8 7.3" }),
+  /* @__PURE__ */ jsx("path", { d: "M9.5 7.9 9 5.7" }),
+  /* @__PURE__ */ jsx("path", { d: "M14.5 7.9 15 5.7" }),
+  /* @__PURE__ */ jsx("path", { d: "M18 9.3l1.2-2" })
+] }) });
+const IconEyeHalf = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M2 13s3.5-4 10-4 10 4 10 4-3.5 3.5-10 3.5S2 13 2 13z" }),
+  /* @__PURE__ */ jsx("circle", { cx: "12", cy: "13", r: "1.8" }),
+  /* @__PURE__ */ jsx("path", { d: "M6 9.6 4.8 7.6" }),
+  /* @__PURE__ */ jsx("path", { d: "M9.5 8.4 9 6.2" }),
+  /* @__PURE__ */ jsx("path", { d: "M14.5 8.4 15 6.2" }),
+  /* @__PURE__ */ jsx("path", { d: "M18 9.6l1.2-2" })
+] }) });
+const IconEyeClosed = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M2 10c3 3.6 6.4 5.4 10 5.4S19 13.6 22 10" }),
+  /* @__PURE__ */ jsx("path", { d: "M5.4 13.3 4 15.4" }),
+  /* @__PURE__ */ jsx("path", { d: "M9.4 15 8.8 17.5" }),
+  /* @__PURE__ */ jsx("path", { d: "M14.6 15l.6 2.5" }),
+  /* @__PURE__ */ jsx("path", { d: "M18.6 13.3l1.4 2.1" })
 ] }) });
 const IconArrowUp = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("path", { d: "M12 20V5" }),
@@ -2235,8 +2254,14 @@ function BoardsPage() {
     const matched = needle ? boards.map((board) => ({
       board,
       titleHit: board.title.toLowerCase().includes(needle),
+      pageHits: board.pages.filter((text) => text.toLowerCase().includes(needle)),
       bookmarkHits: board.bookmarks.filter((text) => text.toLowerCase().includes(needle))
-    })).filter((row) => row.titleHit || row.bookmarkHits.length > 0) : boards.map((board) => ({ board, titleHit: false, bookmarkHits: [] }));
+    })).filter((row) => row.titleHit || row.pageHits.length > 0 || row.bookmarkHits.length > 0) : boards.map((board) => ({
+      board,
+      titleHit: false,
+      pageHits: [],
+      bookmarkHits: []
+    }));
     return [...matched].sort((a, b) => compare(a.board, b.board, sort));
   }, [boards, needle, sort]);
   const pageCount = Math.max(1, Math.ceil(found.length / PAGE_SIZE$1));
@@ -2254,9 +2279,9 @@ function BoardsPage() {
         className: "input boards-search",
         type: "search",
         value: query,
-        placeholder: "Найти доску по названию или закладке",
+        placeholder: "Найти доску по названию, странице или закладке",
         onChange: (event) => search(event.target.value),
-        "aria-label": "Найти доску по названию или закладке"
+        "aria-label": "Найти доску по названию, странице или закладке"
       }
     ) : null,
     loading2 ? null : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty", children: "Досок пока нет." }) : found.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "empty", children: [
@@ -2288,13 +2313,17 @@ function BoardsPage() {
           }),
           /* @__PURE__ */ jsx("span", { className: "board-list__tail-col", "aria-hidden": "true" })
         ] }),
-        /* @__PURE__ */ jsx("ul", { className: "board-list__rows", children: visible.map(({ board, bookmarkHits }) => /* @__PURE__ */ jsxs("li", { className: "board-item", children: [
+        /* @__PURE__ */ jsx("ul", { className: "board-list__rows", children: visible.map(({ board, pageHits, bookmarkHits }) => /* @__PURE__ */ jsxs("li", { className: "board-item", children: [
           /* @__PURE__ */ jsx("span", { className: "people__icon board-item__icon", title: roleTitle$1(board.role), children: /* @__PURE__ */ jsx(RoleIcon$1, { role: board.role }) }),
           /* @__PURE__ */ jsxs("div", { className: "board-item__main", children: [
             /* @__PURE__ */ jsxs("div", { className: "board-item__name", children: [
               /* @__PURE__ */ jsx(Link, { className: "board-item__title", to: `/boards/${board.id}`, children: board.title }),
               board.locked ? /* @__PURE__ */ jsx("span", { className: "badge badge-warning", children: "закрыта" }) : null
             ] }),
+            pageHits.length > 0 ? /* @__PURE__ */ jsxs("p", { className: "board-item__hits", children: [
+              "Страницы: ",
+              pageHits.join(", ")
+            ] }) : null,
             bookmarkHits.length > 0 ? /* @__PURE__ */ jsxs("p", { className: "board-item__hits", children: [
               "Закладки: ",
               bookmarkHits.join(", ")
@@ -6821,6 +6850,7 @@ function PagesPanel({
           {
             className: "input pages__name",
             value: draft,
+            maxLength: 60,
             autoFocus: true,
             onChange: (event) => setDraft(event.target.value),
             onBlur: () => {
@@ -6832,23 +6862,39 @@ function PagesPanel({
               if (event.key === "Escape") setEditing(null);
             }
           }
-        ) : /* @__PURE__ */ jsxs(
-          "button",
-          {
-            className: "btn-quiet pages__name",
-            type: "button",
-            onClick: () => onOpen(page.id),
-            onDoubleClick: () => {
-              if (!canManage) return;
-              setEditing(page.id);
-              setDraft(page.title);
-            },
-            children: [
-              page.title,
-              page.visibility !== "all" ? /* @__PURE__ */ jsx("span", { className: "pages__mark", children: page.visibility === "owner" ? "только я" : "выборочно" }) : null
-            ]
-          }
-        ),
+        ) : /* @__PURE__ */ jsxs("span", { className: "pages__head", children: [
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: "btn-quiet pages__name",
+              type: "button",
+              onClick: () => onOpen(page.id),
+              onDoubleClick: () => {
+                if (!canManage) return;
+                setEditing(page.id);
+                setDraft(page.title);
+              },
+              children: [
+                page.title,
+                page.visibility !== "all" ? /* @__PURE__ */ jsx("span", { className: "pages__mark", children: page.visibility === "owner" ? "только я" : "выборочно" }) : null
+              ]
+            }
+          ),
+          canManage ? /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool btn-tool--tiny",
+              type: "button",
+              title: "Переименовать",
+              "aria-label": `Переименовать «${page.title}»`,
+              onClick: () => {
+                setEditing(page.id);
+                setDraft(page.title);
+              },
+              children: /* @__PURE__ */ jsx(IconEditor, { size: 14 })
+            }
+          ) : null
+        ] }),
         canManage ? /* @__PURE__ */ jsxs("span", { className: "pages__tools", children: [
           /* @__PURE__ */ jsx(
             "button",
@@ -6883,7 +6929,7 @@ function PagesPanel({
               "aria-label": "Кому видна",
               "aria-pressed": tuning === page.id,
               onClick: () => setTuning(tuning === page.id ? null : page.id),
-              children: /* @__PURE__ */ jsx(IconEye, { size: 14 })
+              children: page.visibility === "owner" ? /* @__PURE__ */ jsx(IconEyeClosed, { size: 14 }) : page.visibility === "selected" ? /* @__PURE__ */ jsx(IconEyeHalf, { size: 14 }) : /* @__PURE__ */ jsx(IconEye, { size: 14 })
             }
           ),
           /* @__PURE__ */ jsx(
