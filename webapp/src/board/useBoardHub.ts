@@ -48,6 +48,8 @@ export interface BroughtToMe {
 export interface BoardHub {
   status: HubStatus;
   error: string | null;
+  /** Убрать показанную ошибку — её прочли, или она провисела достаточно. */
+  clearError: () => void;
   role: BoardRole | null;
   canEdit: boolean;
   canManage: boolean;
@@ -571,6 +573,7 @@ export function useBoardHub(boardId: number): BoardHub {
 
   return {
     status, error, role, canEdit, canManage, removed, broughtToMe, recording,
+    clearError: useCallback(() => setError(null), []),
     items, live, participants, cursors, me, commits, background,
     pages, pageId,
     sendCursor: useCallback((x: number, y: number) => call('Cursor', x, y), [call]),

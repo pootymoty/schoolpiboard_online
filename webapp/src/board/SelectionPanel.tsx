@@ -2,7 +2,9 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import type { BoardItem, ItemData } from './protocol';
 import type { Bounds } from './geometry';
-import { LINE_STYLES, PALETTE, SIZES } from './tools';
+import { LINE_STYLES, SIZES } from './tools';
+import { ColorPick } from './ColorPick';
+import { segmentsOf } from './strokes';
 import { LineStyleIcon } from './ShapeIcons';
 import { DEFAULT_COLS, DEFAULT_ROWS, MAX_COLS, MAX_ROWS, clampCols, clampRows } from './tables';
 import { toScreen } from './viewport';
@@ -80,8 +82,6 @@ const NARROW = 720;
  */
 const SHORT = 460;
 
-/** Кружок «цвета разные» — у группы разноцветного выделенного. */
-const MIXED = 'conic-gradient(#C62828, #FFB300, #2E7D32, #1565C0, #6A1B9A, #C62828)';
 
 /**
  * Действия над выделенным — над самим выделением.
@@ -97,12 +97,6 @@ export function SelectionPanel({
   items, bounds, viewport, canvas, onColor, onPatch, onDuplicate, onDelete, onReorder, onCopyText, onDone,
   onTable, onLock, onCopy, canKeep,
 }: Props): ReactElement {
-  /**
-   * Свой цвет. Держим его отдельно, а красим по закрытию окна выбора:
-   * пока цвет тянут по кругу, браузер сообщает о каждом оттенке, и
-   * каждый уходил бы на сервер отдельной правкой.
-   */
-  const [custom, setCustom] = useState('#2A211C');
   // Надпись и закладка — единственное, что имеет смысл забрать с доски
   // текстом. На телефоне выделить его иначе нечем: холст рисованный,
   // а не вёрстка.
@@ -152,6 +146,19 @@ export function SelectionPanel({
    */
   const kind = items.length > 0 && items.every((item) => item.type === items[0].type) ? items[0].type : null;
 
+  /**
+   * Прямая, проведённая пером (с Shift или задержкой руки), — такой же
+   * отрезок, как фигура «Линия», только лежит штрихом из двух точек.
+   * Тип линии ей нужен ровно так же: как бы прямую ни построили, править
+   * её можно одинаково.
+   */
+  const straight = kind === 'stroke' && items.every((item) => {
+    // После ластика прямая лежит несколькими отрезками по две точки —
+    // это всё ещё прямая.
+    const pieces = segmentsOf(item.data);
+    return pieces.length > 0 && pieces.every((piece) => piece.length === 2);
+  });
+
   /** Заливка имеет смысл только у замкнутых фигур. */
   const fillable = items.every((item) => item.data.shape !== 'line' && item.data.shape !== 'arrow');
 
@@ -164,8 +171,6 @@ export function SelectionPanel({
   const color = common((item) => item.data.color);
   const fill = common((item) => item.data.fill ?? '');
 
-  /** Какая палитра развёрнута — цвета или заливки; свёрнуты обе по умолчанию. */
-  const [palette, setPalette] = useState<'color' | 'fill' | null>(null);
 
   /**
    * Подпись под значком — только в узкой панели.
@@ -232,46 +237,10 @@ export function SelectionPanel({
           Палитра та же, что у инструментов: перекрасить выбранное и
           нарисовать новое — одно и то же действие, и цвета в них должны
           совпадать, иначе подобранный оттенок не повторить. */}
-      <div className="selection-panel__section">
-        {/* Палитра свёрнута в один кружок текущего цвета: развёрнутые
-            сразу цвет и заливка — это три десятка кружков, и на телефоне
-            кнопки действий уезжали далеко вниз. */}
-        <button
-          className="selection-panel__pick"
-          type="button"
-          aria-expanded={palette === 'color'}
-          onClick={() => setPalette((current) => (current === 'color' ? null : 'color'))}
-        >
-          <span className="selection-panel__label">Цвет</span>
-          <span className="swatch swatch--sm" style={{ background: color ?? MIXED }} aria-hidden="true" />
-        </button>
-
-        {palette === 'color' ? (
-        <div className="selection-panel__colors">
-          {PALETTE.map((value) => (
-            <button
-              key={value}
-              className="swatch swatch--sm"
-              type="button"
-              aria-label={`Цвет ${value}`}
-              aria-pressed={color === value}
-              style={{ background: value }}
-              onClick={() => onColor(value)}
-            />
-          ))}
-
-          <label className="swatch swatch--sm swatch--custom" title="Свой цвет">
-            <input
-              type="color"
-              value={custom}
-              onChange={(event) => setCustom(event.target.value)}
-              onBlur={() => onColor(custom)}
-              aria-label="Свой цвет"
-            />
-          </label>
-        </div>
-        ) : null}
-      </div>
+      {/* Палитра свёрнута в один кружок текущего цвета: развёрнутые
+          сразу цвет и заливка — это три десятка кружков, и на телефоне
+          кнопки действий уезжали далеко вниз. */}
+      <ColorPick label="Цвет" value={color} onChange={onColor} commitOnClose small />
 
       {kind === 'stroke' || kind === 'shape' ? (
         <div className="selection-panel__section">
@@ -294,7 +263,7 @@ export function SelectionPanel({
         </div>
       ) : null}
 
-      {kind === 'shape' ? (
+      {kind === 'shape' || straight ? (
         <div className="selection-panel__section">
           <span className="selection-panel__label">Линия</span>
           <div className="selection-panel__options">
@@ -316,45 +285,7 @@ export function SelectionPanel({
       ) : null}
 
       {kind === 'shape' && fillable ? (
-        <div className="selection-panel__section">
-          <button
-            className="selection-panel__pick"
-            type="button"
-            aria-expanded={palette === 'fill'}
-            onClick={() => setPalette((current) => (current === 'fill' ? null : 'fill'))}
-          >
-            <span className="selection-panel__label">Заливка</span>
-            <span
-              className={fill ? 'swatch swatch--sm' : 'swatch swatch--sm swatch--none'}
-              style={fill ? { background: fill } : undefined}
-              aria-hidden="true"
-            />
-          </button>
-
-          {palette === 'fill' ? (
-          <div className="selection-panel__colors">
-            <button
-              className="swatch swatch--sm swatch--none"
-              type="button"
-              aria-label="Без заливки"
-              title="Без заливки"
-              aria-pressed={!common((item) => item.data.fill ?? '')}
-              onClick={() => onPatch({ fill: '' })}
-            />
-            {PALETTE.map((value) => (
-              <button
-                key={value}
-                className="swatch swatch--sm"
-                type="button"
-                aria-label={`Заливка ${value}`}
-                aria-pressed={common((item) => item.data.fill ?? '') === value}
-                style={{ background: value }}
-                onClick={() => onPatch({ fill: value })}
-              />
-            ))}
-          </div>
-          ) : null}
-        </div>
+        <ColorPick label="Заливка" value={fill} none onChange={(value) => onPatch({ fill: value })} commitOnClose small />
       ) : null}
 
       {kind === 'text' || kind === 'table' ? (

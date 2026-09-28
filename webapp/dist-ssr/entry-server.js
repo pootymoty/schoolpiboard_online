@@ -4136,11 +4136,14 @@ function anchorOf(box, handle) {
     y: handle.startsWith("n") ? box.y + box.height : box.y
   };
 }
+const MIN_PIECE = 0.5;
 function erase(item, at, radius) {
-  if (item.type !== "stroke" || item.data.locked) return { kind: "keep" };
+  if (item.data.locked) return { kind: "keep" };
+  const line = item.type === "shape" && item.data.shape === "line";
+  if (item.type !== "stroke" && !line) return { kind: "keep" };
   const reach = radius + item.data.width / 2;
-  const before = segmentsOf(item.data);
-  if (before.length === 0) return { kind: "keep" };
+  const before = line ? [pointsOf(item.data)] : segmentsOf(item.data);
+  if (before.length === 0 || before[0].length === 0) return { kind: "keep" };
   const after = [];
   let touched = false;
   for (const segment2 of before) {
@@ -4150,33 +4153,72 @@ function erase(item, at, radius) {
       continue;
     }
     touched = true;
-    for (const piece of pieces) if (piece.length > 1) after.push(piece);
+    for (const piece of pieces) if (lengthOf(piece) >= MIN_PIECE) after.push(piece);
   }
   if (!touched) return { kind: "keep" };
   if (after.length === 0) return { kind: "delete" };
-  return { kind: "split", parts: [withSegments(item.data, after)] };
+  const base = line ? {
+    color: item.data.color,
+    width: item.data.width,
+    opacity: item.data.opacity,
+    lineStyle: item.data.lineStyle
+  } : item.data;
+  return { kind: "split", type: "stroke", parts: [withSegments(base, after)] };
 }
 function eraseSegment(points, at, reach) {
-  const survives = points.map((point) => Math.hypot(point.x - at.x, point.y - at.y) > reach);
-  if (survives.every(Boolean)) {
-    for (let index = 1; index < points.length; index += 1) {
-      if (distanceToSegment(at, points[index - 1], points[index]) > reach) continue;
-      return [points.slice(0, index), points.slice(index)];
-    }
-    return null;
-  }
+  const inside2 = (point) => Math.hypot(point.x - at.x, point.y - at.y) <= reach;
+  if (points.length === 1) return inside2(points[0]) ? [] : null;
   const parts = [];
-  let run = [];
-  for (let index = 0; index < points.length; index += 1) {
-    if (survives[index]) {
-      run.push(points[index]);
-    } else if (run.length > 0) {
-      parts.push(run);
-      run = [];
+  let run = inside2(points[0]) ? [] : [points[0]];
+  let touched = false;
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1];
+    const to = points[index];
+    const hit = circleSpan(from, to, at, reach);
+    if (hit === null) {
+      run.push(to);
+      continue;
     }
+    touched = true;
+    const [enter, leave] = hit;
+    if (enter > 0) run.push(lerp(from, to, enter));
+    if (run.length > 1) parts.push(run);
+    run = leave < 1 ? [lerp(from, to, leave), to] : [];
   }
-  if (run.length > 0) parts.push(run);
+  if (!touched) return null;
+  if (run.length > 1) parts.push(run);
   return parts;
+}
+function circleSpan(from, to, center, radius) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const fx = from.x - center.x;
+  const fy = from.y - center.y;
+  const a = dx * dx + dy * dy;
+  const c = fx * fx + fy * fy - radius * radius;
+  if (a === 0) return c <= 0 ? [0, 1] : null;
+  const b = 2 * (fx * dx + fy * dy);
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant <= 0) return null;
+  const root = Math.sqrt(discriminant);
+  const enter = (-b - root) / (2 * a);
+  const leave = (-b + root) / (2 * a);
+  if (leave < 0 || enter > 1) return null;
+  return [Math.max(0, enter), Math.min(1, leave)];
+}
+function lerp(from, to, t) {
+  return {
+    x: from.x + (to.x - from.x) * t,
+    y: from.y + (to.y - from.y) * t,
+    p: from.p + (to.p - from.p) * t
+  };
+}
+function lengthOf(points) {
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    total += Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y);
+  }
+  return total;
 }
 const CURSOR_INTERVAL_MS = 50;
 const POINT_BATCH_MS = 50;
@@ -4346,7 +4388,7 @@ function BoardCanvas({
       if (vanishing.current.has(item.id)) continue;
       if (eraseEdits.current.has(item.id)) {
         const rest = eraseEdits.current.get(item.id);
-        if (rest) drawItem(context, item.type, rest, item.imageRef);
+        if (rest) drawItem(context, "stroke", rest);
         continue;
       }
       const grip = resizing.current;
@@ -4567,9 +4609,10 @@ function BoardCanvas({
     for (const item of latest.current.items) {
       if (vanishing.current.has(item.id)) continue;
       const edits = eraseEdits.current;
-      const current = edits.has(item.id) ? edits.get(item.id) : item.data;
+      const edited = edits.has(item.id);
+      const current = edited ? edits.get(item.id) : item.data;
       if (!current) continue;
-      const result = erase({ ...item, data: current }, at, radius);
+      const result = erase({ ...item, type: edited ? "stroke" : item.type, data: current }, at, radius);
       if (result.kind === "keep") continue;
       edits.set(item.id, result.kind === "delete" ? null : result.parts[0]);
       changed = true;
@@ -5897,6 +5940,86 @@ function LineStyleIcon({ kind }) {
     }
   );
 }
+const MIXED = "conic-gradient(#C62828, #FFB300, #2E7D32, #1565C0, #6A1B9A, #C62828)";
+function ColorPick({ label, value, onChange, none, commitOnClose, small }) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState(value && !PALETTE.includes(value) ? value : "#2A211C");
+  const size = small ? " swatch--sm" : "";
+  const own = value !== void 0 && value !== "" && !PALETTE.includes(value);
+  const check = /* @__PURE__ */ jsx("span", { className: "swatch__check", children: /* @__PURE__ */ jsx(IconCheck, { size: small ? 12 : 14 }) });
+  return /* @__PURE__ */ jsxs("div", { className: "color-pick", children: [
+    /* @__PURE__ */ jsxs(
+      "button",
+      {
+        className: "color-pick__head",
+        type: "button",
+        "aria-expanded": open,
+        onClick: () => setOpen((current) => !current),
+        children: [
+          /* @__PURE__ */ jsx("span", { className: "color-pick__label", children: label }),
+          /* @__PURE__ */ jsx(
+            "span",
+            {
+              className: value === "" ? `swatch${size} swatch--none` : `swatch${size}`,
+              style: value === "" ? void 0 : { background: value ?? MIXED },
+              "aria-hidden": "true"
+            }
+          )
+        ]
+      }
+    ),
+    open ? /* @__PURE__ */ jsxs("div", { className: small ? "color-pick__grid color-pick__grid--sm" : "color-pick__grid", children: [
+      PALETTE.map((color) => /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: `swatch${size}`,
+          type: "button",
+          "aria-pressed": value === color,
+          "aria-label": `Цвет ${color}`,
+          style: { background: color },
+          onClick: () => onChange(color),
+          children: value === color ? check : null
+        },
+        color
+      )),
+      /* @__PURE__ */ jsxs(
+        "label",
+        {
+          className: `swatch${size} swatch--custom`,
+          title: "Свой цвет",
+          style: own ? { background: value } : void 0,
+          children: [
+            /* @__PURE__ */ jsx(
+              "input",
+              {
+                type: "color",
+                value: own ? value : custom,
+                onChange: (event) => {
+                  setCustom(event.target.value);
+                  if (!commitOnClose) onChange(event.target.value);
+                },
+                onBlur: commitOnClose ? () => onChange(custom) : void 0,
+                "aria-label": "Свой цвет"
+              }
+            ),
+            own ? check : null
+          ]
+        }
+      ),
+      none ? /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: `swatch${size} swatch--none`,
+          type: "button",
+          "aria-pressed": value === "",
+          "aria-label": "Нет",
+          title: "Нет",
+          onClick: () => onChange("")
+        }
+      ) : null
+    ] }) : null
+  ] });
+}
 function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
   if (tool === "hand") return null;
   const pen = tool === "pen1" || tool === "pen2" || tool === "marker" ? settings[tool] : null;
@@ -5908,41 +6031,6 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
   const patchShape = (patch) => {
     onChange({ ...settings, shapes: { ...settings.shapes, ...patch } });
   };
-  const swatches = (current, apply) => /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
-    PALETTE.map((value) => /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "swatch",
-        type: "button",
-        "aria-pressed": current === value,
-        "aria-label": `Цвет ${value}`,
-        style: { background: value },
-        onClick: () => apply(value),
-        children: current === value ? /* @__PURE__ */ jsx("span", { className: "swatch__check", children: /* @__PURE__ */ jsx(IconCheck, { size: 14 }) }) : null
-      },
-      value
-    )),
-    /* @__PURE__ */ jsxs(
-      "label",
-      {
-        className: "swatch swatch--custom",
-        title: "Свой цвет",
-        style: PALETTE.includes(current) ? void 0 : { background: current },
-        children: [
-          /* @__PURE__ */ jsx(
-            "input",
-            {
-              type: "color",
-              value: current,
-              onChange: (event) => apply(event.target.value),
-              "aria-label": "Свой цвет"
-            }
-          ),
-          PALETTE.includes(current) ? null : /* @__PURE__ */ jsx("span", { className: "swatch__check", children: /* @__PURE__ */ jsx(IconCheck, { size: 14 }) })
-        ]
-      }
-    )
-  ] });
   return /* @__PURE__ */ jsxs("div", { className: "params params--tool", role: "dialog", "aria-label": "Параметры инструмента", children: [
     /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
       /* @__PURE__ */ jsx("span", { className: "params__title", children: titleOf(tool) }),
@@ -5993,8 +6081,7 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
           }
         }
       ) }),
-      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет" }),
-      swatches(pen.color, (color) => patchPen({ color }))
+      /* @__PURE__ */ jsx(ColorPick, { label: "Цвет", value: pen.color, onChange: (color) => patchPen({ color }) })
     ] }) : null,
     shapes ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("p", { className: "params__label", children: "Фигура" }),
@@ -6044,43 +6131,8 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
         },
         item.kind
       )) }),
-      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет контура" }),
-      swatches(shapes.color, (color) => patchShape({ color })),
-      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Заливка" }),
-      /* @__PURE__ */ jsxs("div", { className: "params__row", children: [
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "btn-quiet btn-sm",
-            type: "button",
-            "aria-pressed": shapes.fill === "",
-            onClick: () => patchShape({ fill: "" }),
-            children: "Нет"
-          }
-        ),
-        PALETTE.map((value) => /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "swatch",
-            type: "button",
-            "aria-pressed": shapes.fill === value,
-            "aria-label": `Заливка ${value}`,
-            style: { background: value },
-            onClick: () => patchShape({ fill: value }),
-            children: shapes.fill === value ? /* @__PURE__ */ jsx("span", { className: "swatch__check", children: /* @__PURE__ */ jsx(IconCheck, { size: 14 }) }) : null
-          },
-          value
-        )),
-        /* @__PURE__ */ jsx("label", { className: "swatch swatch--custom", title: "Свой цвет заливки", children: /* @__PURE__ */ jsx(
-          "input",
-          {
-            type: "color",
-            value: shapes.fill || "#ffffff",
-            onChange: (event) => patchShape({ fill: event.target.value }),
-            "aria-label": "Свой цвет заливки"
-          }
-        ) })
-      ] })
+      /* @__PURE__ */ jsx(ColorPick, { label: "Цвет контура", value: shapes.color, onChange: (color) => patchShape({ color }) }),
+      /* @__PURE__ */ jsx(ColorPick, { label: "Заливка", value: shapes.fill, none: true, onChange: (fill) => patchShape({ fill }) })
     ] }) : null,
     tool === "eraser" ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("p", { className: "params__label", children: "Размер" }),
@@ -6116,8 +6168,14 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
         },
         value
       )) }),
-      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет" }),
-      swatches(settings.text.color, (color) => onChange({ ...settings, text: { ...settings.text, color } }))
+      /* @__PURE__ */ jsx(
+        ColorPick,
+        {
+          label: "Цвет",
+          value: settings.text.color,
+          onChange: (color) => onChange({ ...settings, text: { ...settings.text, color } })
+        }
+      )
     ] }) : null,
     tool === "select" ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsxs("div", { className: "check", children: [
@@ -6190,8 +6248,14 @@ function ToolSettingsPanel({ tool, settings, onChange, onClose }) {
         },
         value
       )) }),
-      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Цвет" }),
-      swatches(settings.table.color, (color) => onChange({ ...settings, table: { ...settings.table, color } })),
+      /* @__PURE__ */ jsx(
+        ColorPick,
+        {
+          label: "Цвет",
+          value: settings.table.color,
+          onChange: (color) => onChange({ ...settings, table: { ...settings.table, color } })
+        }
+      ),
       /* @__PURE__ */ jsx("p", { className: "text-muted small", style: { margin: "var(--sp-2) 0 0" }, children: "Растяните рамку. Заполнить ячейку — выбрать таблицу и нажать на ячейку." })
     ] }) : null
   ] });
@@ -6315,7 +6379,6 @@ const LEFT_GUTTER = 72;
 const BOTTOM_GUTTER = 60;
 const NARROW = 720;
 const SHORT = 460;
-const MIXED = "conic-gradient(#C62828, #FFB300, #2E7D32, #1565C0, #6A1B9A, #C62828)";
 function SelectionPanel({
   items,
   bounds,
@@ -6333,7 +6396,6 @@ function SelectionPanel({
   onCopy,
   canKeep
 }) {
-  const [custom, setCustom] = useState("#2A211C");
   const text = items.length === 1 && (items[0].type === "text" || items[0].type === "bookmark") ? items[0].data.text ?? "" : null;
   const keepable = items.filter((item) => item.type !== "image");
   const [naming, setNaming] = useState(false);
@@ -6355,6 +6417,10 @@ function SelectionPanel({
   const cols = table ? clampCols(table.data.cols ?? DEFAULT_COLS) : 0;
   const docked = canvas.width > 0 && (canvas.width < NARROW || canvas.height < SHORT);
   const kind = items.length > 0 && items.every((item) => item.type === items[0].type) ? items[0].type : null;
+  const straight = kind === "stroke" && items.every((item) => {
+    const pieces = segmentsOf(item.data);
+    return pieces.length > 0 && pieces.every((piece) => piece.length === 2);
+  });
   const fillable = items.every((item) => item.data.shape !== "line" && item.data.shape !== "arrow");
   const common = (read) => {
     const first = items[0] ? read(items[0]) : void 0;
@@ -6362,7 +6428,6 @@ function SelectionPanel({
   };
   const color = common((item) => item.data.color);
   const fill = common((item) => item.data.fill ?? "");
-  const [palette, setPalette] = useState(null);
   const cap = (text2) => docked ? /* @__PURE__ */ jsx("span", { className: "btn-tool__cap", children: text2 }) : null;
   const panel = useRef(null);
   const [height, setHeight] = useState(HEIGHT);
@@ -6393,45 +6458,7 @@ function SelectionPanel({
       role: "toolbar",
       "aria-label": "Действия с выделенным",
       children: [
-        /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
-          /* @__PURE__ */ jsxs(
-            "button",
-            {
-              className: "selection-panel__pick",
-              type: "button",
-              "aria-expanded": palette === "color",
-              onClick: () => setPalette((current) => current === "color" ? null : "color"),
-              children: [
-                /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Цвет" }),
-                /* @__PURE__ */ jsx("span", { className: "swatch swatch--sm", style: { background: color ?? MIXED }, "aria-hidden": "true" })
-              ]
-            }
-          ),
-          palette === "color" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__colors", children: [
-            PALETTE.map((value) => /* @__PURE__ */ jsx(
-              "button",
-              {
-                className: "swatch swatch--sm",
-                type: "button",
-                "aria-label": `Цвет ${value}`,
-                "aria-pressed": color === value,
-                style: { background: value },
-                onClick: () => onColor(value)
-              },
-              value
-            )),
-            /* @__PURE__ */ jsx("label", { className: "swatch swatch--sm swatch--custom", title: "Свой цвет", children: /* @__PURE__ */ jsx(
-              "input",
-              {
-                type: "color",
-                value: custom,
-                onChange: (event) => setCustom(event.target.value),
-                onBlur: () => onColor(custom),
-                "aria-label": "Свой цвет"
-              }
-            ) })
-          ] }) : null
-        ] }),
+        /* @__PURE__ */ jsx(ColorPick, { label: "Цвет", value: color, onChange: onColor, commitOnClose: true, small: true }),
         kind === "stroke" || kind === "shape" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
           /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Толщина" }),
           /* @__PURE__ */ jsx("div", { className: "selection-panel__options", children: SIZES.map((value) => /* @__PURE__ */ jsx(
@@ -6448,7 +6475,7 @@ function SelectionPanel({
             value
           )) })
         ] }) : null,
-        kind === "shape" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
+        kind === "shape" || straight ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
           /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Линия" }),
           /* @__PURE__ */ jsx("div", { className: "selection-panel__options", children: LINE_STYLES.map((style) => /* @__PURE__ */ jsx(
             "button",
@@ -6464,53 +6491,7 @@ function SelectionPanel({
             style.kind
           )) })
         ] }) : null,
-        kind === "shape" && fillable ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
-          /* @__PURE__ */ jsxs(
-            "button",
-            {
-              className: "selection-panel__pick",
-              type: "button",
-              "aria-expanded": palette === "fill",
-              onClick: () => setPalette((current) => current === "fill" ? null : "fill"),
-              children: [
-                /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Заливка" }),
-                /* @__PURE__ */ jsx(
-                  "span",
-                  {
-                    className: fill ? "swatch swatch--sm" : "swatch swatch--sm swatch--none",
-                    style: fill ? { background: fill } : void 0,
-                    "aria-hidden": "true"
-                  }
-                )
-              ]
-            }
-          ),
-          palette === "fill" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__colors", children: [
-            /* @__PURE__ */ jsx(
-              "button",
-              {
-                className: "swatch swatch--sm swatch--none",
-                type: "button",
-                "aria-label": "Без заливки",
-                title: "Без заливки",
-                "aria-pressed": !common((item) => item.data.fill ?? ""),
-                onClick: () => onPatch({ fill: "" })
-              }
-            ),
-            PALETTE.map((value) => /* @__PURE__ */ jsx(
-              "button",
-              {
-                className: "swatch swatch--sm",
-                type: "button",
-                "aria-label": `Заливка ${value}`,
-                "aria-pressed": common((item) => item.data.fill ?? "") === value,
-                style: { background: value },
-                onClick: () => onPatch({ fill: value })
-              },
-              value
-            ))
-          ] }) : null
-        ] }) : null,
+        kind === "shape" && fillable ? /* @__PURE__ */ jsx(ColorPick, { label: "Заливка", value: fill, none: true, onChange: (value) => onPatch({ fill: value }), commitOnClose: true, small: true }) : null,
         kind === "text" || kind === "table" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
           /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Шрифт" }),
           /* @__PURE__ */ jsx("div", { className: "selection-panel__options", children: (kind === "text" ? [16, 20, 24, 32, 48, 64] : [14, 16, 20, 24, 32]).map((value) => /* @__PURE__ */ jsx(
@@ -8611,6 +8592,7 @@ function useBoardHub(boardId) {
     removed,
     broughtToMe,
     recording,
+    clearError: useCallback(() => setError(null), []),
     items,
     live,
     participants,
@@ -8922,7 +8904,7 @@ function BoardPage() {
       removed.push({ ref: refOf(item.id), type: item.type, data: item.data, imageRef: item.imageRef });
       if (change.rest && change.tempId) {
         const ref = `e${change.tempId}`;
-        added.push({ ref, type: item.type, data: change.rest });
+        added.push({ ref, type: "stroke", data: change.rest });
         pending.current.set(change.tempId, { ref });
       }
     }
@@ -9511,6 +9493,17 @@ function BoardPage() {
       navigate("/", { replace: true });
     }
   };
+  const shownError = error ?? hub.error;
+  const { clearError } = hub;
+  const dismissError = useCallback(() => {
+    setError(null);
+    clearError();
+  }, [clearError]);
+  useEffect(() => {
+    if (!shownError || !state) return void 0;
+    const timer2 = window.setTimeout(dismissError, 1e4);
+    return () => window.clearTimeout(timer2);
+  }, [shownError, state, dismissError]);
   if (error && !state) {
     return /* @__PURE__ */ jsx(BoardShell, { children: /* @__PURE__ */ jsxs("div", { className: "card", children: [
       /* @__PURE__ */ jsx("h1", { children: "Доска" }),
@@ -9597,7 +9590,21 @@ function BoardPage() {
         ] }) : null
       ] }),
       board.locked && board.canManage ? /* @__PURE__ */ jsx("p", { className: "note note-warning board-page__locked-note", children: "Доска закрыта для новых участников." }) : null,
-      error ?? hub.error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error ?? hub.error }) : null,
+      shownError ? (
+        // Предупреждение — не навсегда: гаснет само через десять секунд
+        // или по нажатию. Висящее оно сдвигает холст вниз и закрывает
+        // то, ради чего человек пришёл.
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            className: "note note-danger note--dismiss",
+            onClick: dismissError,
+            title: "Скрыть",
+            children: shownError
+          }
+        )
+      ) : null,
       /* @__PURE__ */ jsx(
         "section",
         {

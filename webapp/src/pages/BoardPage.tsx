@@ -344,7 +344,7 @@ export function BoardPage(): ReactElement {
 
       if (change.rest && change.tempId) {
         const ref = `e${change.tempId}`;
-        added.push({ ref, type: item.type, data: change.rest });
+        added.push({ ref, type: 'stroke', data: change.rest });
         pending.current.set(change.tempId, { ref });
       }
     }
@@ -1262,6 +1262,22 @@ export function BoardPage(): ReactElement {
     }
   };
 
+  const shownError = error ?? hub.error;
+  const { clearError } = hub;
+
+  const dismissError = useCallback(() => {
+    setError(null);
+    clearError();
+  }, [clearError]);
+
+  // Через десять секунд предупреждение уходит само. Пока доска не
+  // загрузилась, ошибка — это вся страница, её не прячем.
+  useEffect(() => {
+    if (!shownError || !state) return undefined;
+    const timer = window.setTimeout(dismissError, 10_000);
+    return () => window.clearTimeout(timer);
+  }, [shownError, state, dismissError]);
+
   if (error && !state) {
     return (
       <BoardShell>
@@ -1378,7 +1394,19 @@ export function BoardPage(): ReactElement {
           <p className="note note-warning board-page__locked-note">Доска закрыта для новых участников.</p>
         ) : null}
 
-        {error ?? hub.error ? <p className="note note-danger">{error ?? hub.error}</p> : null}
+        {shownError ? (
+          // Предупреждение — не навсегда: гаснет само через десять секунд
+          // или по нажатию. Висящее оно сдвигает холст вниз и закрывает
+          // то, ради чего человек пришёл.
+          <button
+            type="button"
+            className="note note-danger note--dismiss"
+            onClick={dismissError}
+            title="Скрыть"
+          >
+            {shownError}
+          </button>
+        ) : null}
 
         <section
           className="board-page__canvas"

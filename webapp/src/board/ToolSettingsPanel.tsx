@@ -1,10 +1,10 @@
 import type { ReactElement } from 'react';
 import {
-  ERASER_SIZES, LINE_STYLES, OPACITIES, PALETTE, SHAPES, SIZES,
+  ERASER_SIZES, LINE_STYLES, OPACITIES, SHAPES, SIZES,
 } from './tools';
 import type { PenSettings, ShapeSettings, Tool, ToolSettings } from './tools';
 import { LineStyleIcon, ShapeIcon } from './ShapeIcons';
-import { IconCheck } from '../components/Icons';
+import { ColorPick } from './ColorPick';
 
 interface Props {
   tool: Tool;
@@ -36,45 +36,6 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
   const patchShape = (patch: Partial<ShapeSettings>) => {
     onChange({ ...settings, shapes: { ...settings.shapes, ...patch } });
   };
-
-  const swatches = (current: string, apply: (color: string) => void) => (
-    <div className="params__row">
-      {PALETTE.map((value) => (
-        <button
-          key={value}
-          className="swatch"
-          type="button"
-          aria-pressed={current === value}
-          aria-label={`Цвет ${value}`}
-          style={{ background: value }}
-          onClick={() => apply(value)}
-        >
-          {current === value ? <span className="swatch__check"><IconCheck size={14} /></span> : null}
-        </button>
-      ))}
-
-      {/* Произвольный цвет: палитра закрывает обычные случаи, но
-          «тот самый зелёный из учебника» в ней не окажется никогда.
-          Берём готовое окно браузера — своё было бы хуже и тяжелее.
-          Пока текущий цвет — не из палитры (например, значение по
-          умолчанию), кружок показывает именно его, а не радужную
-          заглушку — иначе непонятно, какой цвет выбран, до первого
-          клика по палитре. */}
-      <label
-        className="swatch swatch--custom"
-        title="Свой цвет"
-        style={PALETTE.includes(current) ? undefined : { background: current }}
-      >
-        <input
-          type="color"
-          value={current}
-          onChange={(event) => apply(event.target.value)}
-          aria-label="Свой цвет"
-        />
-        {PALETTE.includes(current) ? null : <span className="swatch__check"><IconCheck size={14} /></span>}
-      </label>
-    </div>
-  );
 
   return (
     <div className="params params--tool" role="dialog" aria-label="Параметры инструмента">
@@ -130,8 +91,7 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
             />
           </div>
 
-          <p className="params__label">Цвет</p>
-          {swatches(pen.color, (color) => patchPen({ color }))}
+          <ColorPick label="Цвет" value={pen.color} onChange={(color) => patchPen({ color })} />
         </>
       ) : null}
 
@@ -190,45 +150,9 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
             ))}
           </div>
 
-          <p className="params__label">Цвет контура</p>
-          {swatches(shapes.color, (color) => patchShape({ color }))}
+          <ColorPick label="Цвет контура" value={shapes.color} onChange={(color) => patchShape({ color })} />
 
-          <p className="params__label">Заливка</p>
-          <div className="params__row">
-            {/* «Без заливки» — первым: у фигуры на доске это обычное
-                состояние, а заливка нужна, когда что-то выделяют. */}
-            <button
-              className="btn-quiet btn-sm"
-              type="button"
-              aria-pressed={shapes.fill === ''}
-              onClick={() => patchShape({ fill: '' })}
-            >
-              Нет
-            </button>
-
-            {PALETTE.map((value) => (
-              <button
-                key={value}
-                className="swatch"
-                type="button"
-                aria-pressed={shapes.fill === value}
-                aria-label={`Заливка ${value}`}
-                style={{ background: value }}
-                onClick={() => patchShape({ fill: value })}
-              >
-                {shapes.fill === value ? <span className="swatch__check"><IconCheck size={14} /></span> : null}
-              </button>
-            ))}
-
-            <label className="swatch swatch--custom" title="Свой цвет заливки">
-              <input
-                type="color"
-                value={shapes.fill || '#ffffff'}
-                onChange={(event) => patchShape({ fill: event.target.value })}
-                aria-label="Свой цвет заливки"
-              />
-            </label>
-          </div>
+          <ColorPick label="Заливка" value={shapes.fill} none onChange={(fill) => patchShape({ fill })} />
         </>
       ) : null}
 
@@ -272,10 +196,11 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
             ))}
           </div>
 
-          <p className="params__label">Цвет</p>
-          {swatches(settings.text.color, (color) => (
-            onChange({ ...settings, text: { ...settings.text, color } })
-          ))}
+          <ColorPick
+            label="Цвет"
+            value={settings.text.color}
+            onChange={(color) => onChange({ ...settings, text: { ...settings.text, color } })}
+          />
         </>
       ) : null}
 
@@ -364,10 +289,11 @@ export function ToolSettingsPanel({ tool, settings, onChange, onClose }: Props):
             ))}
           </div>
 
-          <p className="params__label">Цвет</p>
-          {swatches(settings.table.color, (color) => (
-            onChange({ ...settings, table: { ...settings.table, color } })
-          ))}
+          <ColorPick
+            label="Цвет"
+            value={settings.table.color}
+            onChange={(color) => onChange({ ...settings, table: { ...settings.table, color } })}
+          />
 
           <p className="text-muted small" style={{ margin: 'var(--sp-2) 0 0' }}>
             Растяните рамку. Заполнить ячейку — выбрать таблицу и нажать на ячейку.

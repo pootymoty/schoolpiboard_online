@@ -51,7 +51,7 @@ interface Props {
 /** Штрих, задетый проходом ластика. */
 export interface ErasedStroke {
   itemId: number;
-  /** Что осталось; `null` — ничего. */
+  /** Что осталось — всегда штрих (от «Линии» тоже); `null` — ничего. */
   rest: ItemData | null;
   /** Черновой ключ оставшегося — есть, только если что-то осталось. */
   tempId: string | null;
@@ -428,7 +428,7 @@ export function BoardCanvas({
       // Под ластиком — то, что от штриха осталось сейчас, а не на сервере.
       if (eraseEdits.current.has(item.id)) {
         const rest = eraseEdits.current.get(item.id);
-        if (rest) drawItem(context, item.type, rest, item.imageRef);
+        if (rest) drawItem(context, 'stroke', rest);
         continue;
       }
 
@@ -791,10 +791,13 @@ export function BoardCanvas({
       if (vanishing.current.has(item.id)) continue;
 
       const edits = eraseEdits.current;
-      const current = edits.has(item.id) ? edits.get(item.id) : item.data;
+      const edited = edits.has(item.id);
+      const current = edited ? edits.get(item.id) : item.data;
       if (!current) continue;
 
-      const result = erase({ ...item, data: current }, at, radius);
+      // Уже задетое за этот проход — всегда штрих, даже если было
+      // фигурой «Линия» (см. erase).
+      const result = erase({ ...item, type: edited ? 'stroke' : item.type, data: current }, at, radius);
       if (result.kind === 'keep') continue;
 
       edits.set(item.id, result.kind === 'delete' ? null : result.parts[0]);

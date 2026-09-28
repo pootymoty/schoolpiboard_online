@@ -1938,23 +1938,63 @@ body.no-scroll {
 .selection-panel__options .btn-tool--tiny { width: 28px; min-width: 28px; }
 .selection-panel__options .btn-tool--line { width: 40px; }
 
-/* Подпись параметра и кружок его значения — одной строкой; по нажатию
-   под ней раскрывается палитра. */
-.selection-panel__pick {
+/* --- Выбор цвета: подпись и кружок текущего, по нажатию — палитра --------- */
+
+.color-pick {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.color-pick__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--sp-2);
-    min-height: 28px;
-    padding: 2px 4px;
+    width: 100%;
+    min-height: 32px;
+    padding: 2px 0;
     background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
+    border: none;
+    color: inherit;
+    font: inherit;
 }
 
-.selection-panel__pick:hover { background: var(--surface-2); }
-.selection-panel__pick:active { transform: none; }
-.selection-panel__pick[aria-expanded="true"] { border-color: var(--line); }
+.color-pick__head:hover { background: transparent; }
+.color-pick__head:active { transform: none; }
+
+.color-pick__label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+/* Раскрытая — кружок текущего цвета в рамке: видно, что она открыта. */
+.color-pick__head[aria-expanded="true"] .swatch {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--text-muted);
+}
+
+.color-pick__grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    justify-items: center;
+    gap: 4px;
+}
+
+.color-pick__grid--sm { gap: 3px; }
+
+.selection-panel--docked .color-pick__grid { grid-template-columns: repeat(4, 1fr); }
+
+/* В окне параметров инструмента — с тем же отступом, что и остальные
+   подписи; в панели выделенного — теми же буквами, что соседние. */
+.params .color-pick { margin-top: var(--sp-2); }
+
+.selection-panel .color-pick__label {
+    text-transform: none;
+    letter-spacing: 0;
+}
 
 .selection-panel__actions {
     display: flex;
@@ -2904,6 +2944,10 @@ body.no-scroll {
     position: relative;
     overflow: hidden;
     display: inline-flex;
+    /* Галочка своего цвета — по центру кружка, как у остальных, а не в
+       его левом верхнем углу. */
+    align-items: center;
+    justify-content: center;
     background:
         conic-gradient(from 0deg, #e74c3c, #f1c40f, #2ecc71, #3498db, #9b59b6, #e74c3c);
 }
@@ -3384,3 +3428,16 @@ body.no-scroll {
 
     .params { max-height: calc(100% - 2 * var(--sp-3)); }
 }
+
+/* Предупреждение на доске — кнопкой: по нажатию скрывается. */
+.note--dismiss {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.note--dismiss:hover { background: var(--danger-soft); }
+.note--dismiss:active { transform: none; }
