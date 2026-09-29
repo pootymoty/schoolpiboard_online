@@ -259,7 +259,7 @@ export function ViewToolbar({
       {/* Отсчёт перед записью — на месте кнопки, уже зелёным: запись
           вот-вот пойдёт, и рисовать стоит начинать, когда он кончится. */}
       {canRecordings && canManage && recordingCountdown !== null ? (
-        <span className="rec-group rec-group--recording" role="status" aria-label={`Запись начнётся через ${recordingCountdown}`}>
+        <span className="rec-group rec-group--recording rec-group--countdown" role="status" aria-label={`Запись начнётся через ${recordingCountdown}`}>
           <span className="btn-tool rec-countdown" aria-hidden="true">{recordingCountdown}</span>
         </span>
       ) : canRecordings && canManage && recordingStatus !== null ? (

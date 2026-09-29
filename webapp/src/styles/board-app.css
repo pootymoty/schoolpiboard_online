@@ -3466,6 +3466,13 @@ html.board-locked body {
 .note--dismiss:hover { background: var(--danger-soft); }
 .note--dismiss:active { transform: none; }
 
+/* Во время отсчёта блок уже зелёный, но ровный: мерцание — знак, что
+   запись реально идёт, а она пойдёт только по концу отсчёта. */
+.rec-group--countdown {
+    animation: none;
+    background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+
 /* Цифра отсчёта перед записью — на месте кнопки, её размера. */
 .rec-countdown {
     font-weight: 800;
