@@ -43,9 +43,21 @@ public sealed class BoardRecordingService
         _subscriptions = subscriptions;
     }
 
-    /// <summary>Начинает запись — если на доске уже нет одной и лимит тарифа не исчерпан.</summary>
+    /// <summary>
+    /// Заводит запись — если на доске нет уже одной и лимит тарифа не
+    /// исчерпан.
+    ///
+    /// Запись создаётся на паузе: пока у ведущего идёт отсчёт «3, 2, 1»,
+    /// время не идёт и ничего не пишется; снимает паузу сам клиент по
+    /// концу отсчёта (<see cref="ResumeAsync"/>). <paramref name="seed"/> —
+    /// стартовое состояние (вид ведущего, фон, уже нарисованное): оно
+    /// кладётся одним разом в нулевую миллисекунду, а не шагами по одному
+    /// с растущей отметкой — иначе при просмотре оно «дорисовывалось» в
+    /// первые секунды, пока вид ещё не встал на место.
+    /// </summary>
     public async Task<(RecordingOutcome Outcome, BoardRecording? Recording)> StartAsync(
-        long boardId, long userId, string? title, CancellationToken cancellationToken)
+        long boardId, long userId, string? title,
+        IReadOnlyList<(string Name, object Payload)> seed, CancellationToken cancellationToken)
     {
         if (await ActiveAsync(boardId, cancellationToken) is not null)
             return (RecordingOutcome.AlreadyActive, null);
@@ -70,13 +82,25 @@ public sealed class BoardRecordingService
             BoardId = boardId,
             StartedByUserId = userId,
             Title = string.IsNullOrWhiteSpace(title) ? null : title.Trim(),
-            Status = BoardRecording.StatusRecording,
+            Status = BoardRecording.StatusPaused,
             StartedAt = now,
-            LastResumedAt = now,
+            LastResumedAt = null,
             MaxDurationMs = maxDurationMs,
         };
 
         _db.BoardRecordings.Add(recording);
+
+        foreach (var (name, payload) in seed)
+        {
+            _db.BoardRecordingSteps.Add(new BoardRecordingStep
+            {
+                Recording = recording,
+                OffsetMs = 0,
+                Name = name,
+                Payload = JsonSerializer.Serialize(payload, PayloadOptions),
+            });
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
 
         return (RecordingOutcome.Ok, recording);

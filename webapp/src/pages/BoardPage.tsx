@@ -514,6 +514,56 @@ export function BoardPage(): ReactElement {
    */
   const lastViewportReport = useRef(0);
 
+  /**
+   * Отсчёт «3, 2, 1» перед записью — `null`, пока его нет.
+   *
+   * Запись заводится сразу по нажатию, но на паузе (см. StartRecording на
+   * сервере): прежде кнопка менялась только после ответа сервера, и то,
+   * что рисовали в эту долю секунды, в запись не попадало, хотя человек
+   * уже считал её идущей. Теперь на месте кнопки идёт отсчёт — видно,
+   * когда начинать, — а его конец снимает паузу, и с этого мгновения
+   * пишется всё.
+   */
+  const [countdown, setCountdown] = useState<number | null>(null);
+
+  /** Отсчёт кончился — снять паузу, как только сервер подтвердит запись. */
+  const resumeWhenReady = useRef(false);
+
+  const startRecording = (title: string | undefined, seedExisting: boolean) => {
+    const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
+    hub.startRecording(title, seedExisting, { x: center.x, y: center.y, scale: viewport.scale });
+    setCountdown(3);
+  };
+
+  useEffect(() => {
+    if (countdown === null) return undefined;
+
+    if (countdown === 0) {
+      setCountdown(null);
+      resumeWhenReady.current = true;
+      // Сервер так и не подтвердил запись (например, исчерпан лимит
+      // тарифа) — ждать дальше незачем.
+      const giveUp = window.setTimeout(() => { resumeWhenReady.current = false; }, 5000);
+      return () => window.clearTimeout(giveUp);
+    }
+
+    const timer = window.setTimeout(() => setCountdown((current) => (current === null ? null : current - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [countdown]);
+
+  useEffect(() => {
+    if (!resumeWhenReady.current || countdown !== null) return;
+    if (hub.recording?.status !== 'paused') return;
+
+    resumeWhenReady.current = false;
+    hub.resumeRecording();
+  }, [countdown, hub.recording, hub.resumeRecording]);
+
+  // Сервер отказал (лимит записей и т. п.) — отсчитывать нечего.
+  useEffect(() => {
+    if (countdown !== null && hub.error && !hub.recording) setCountdown(null);
+  }, [countdown, hub.error, hub.recording]);
+
   useEffect(() => {
     if (!hub.canManage || hub.recording?.status !== 'recording' || hub.pageId === null) return;
 
@@ -1468,6 +1518,7 @@ export function BoardPage(): ReactElement {
             onResumeRecording={hub.resumeRecording}
             onStopRecording={hub.stopRecording}
             recordingStatus={hub.recording?.status ?? null}
+            recordingCountdown={countdown}
             pageLabel={
               hub.pages.length === 0
                 ? '—'
@@ -1620,7 +1671,7 @@ export function BoardPage(): ReactElement {
               canManage={hub.canManage}
               live={hub.recording}
               onStart={(title, seedExisting) => {
-                hub.startRecording(title, seedExisting);
+                startRecording(title, seedExisting ?? false);
                 // Дальше записью управляют прямо с панели инструментов
                 // (пауза/стоп) — этой панели, с формой запуска, тут уже
                 // нечего показывать.

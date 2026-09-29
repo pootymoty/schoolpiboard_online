@@ -122,8 +122,12 @@ export interface BoardHub {
   bringEveryone: (pageId: number, x: number, y: number, scale: number) => void;
 
   /** Запись занятия — доступно только владельцу, сервер сам это проверит. */
-  /** seedExisting — положить в запись то, что уже нарисовано на открытой странице. */
-  startRecording: (title?: string, seedExisting?: boolean) => void;
+  /**
+   * seedExisting — положить в запись то, что уже нарисовано на открытой
+   * странице; view — вид ведущего (центр и масштаб), с которого запись
+   * начнётся. Запись заводится на паузе — снимает её конец отсчёта.
+   */
+  startRecording: (title: string | undefined, seedExisting: boolean, view: { x: number; y: number; scale: number }) => void;
   pauseRecording: () => void;
   resumeRecording: () => void;
   stopRecording: () => void;
@@ -466,8 +470,10 @@ export function useBoardHub(boardId: number): BoardHub {
     ));
 
     // Запись занятия — знать нужно любому на доске, не только тому, кто её ведёт.
-    hub.on('RecordingStarted', (payload: { id: number; title: string | null; startedAt: string }) => (
-      setRecording({ id: payload.id, title: payload.title, status: 'recording' })
+    // Запись заводится на паузе (ведущий досчитывает «3, 2, 1») — статус
+    // берём из события, а не считаем сразу идущей.
+    hub.on('RecordingStarted', (payload: { id: number; title: string | null; startedAt: string; status?: 'recording' | 'paused' }) => (
+      setRecording({ id: payload.id, title: payload.title, status: payload.status ?? 'recording' })
     ));
     hub.on('RecordingPaused', () => setRecording((current) => (current ? { ...current, status: 'paused' } : current)));
     hub.on('RecordingResumed', () => (
@@ -636,7 +642,9 @@ export function useBoardHub(boardId: number): BoardHub {
     ),
 
     startRecording: useCallback(
-      (title?: string, seedExisting?: boolean) => call('StartRecording', title ?? null, seedExisting ?? false, page()),
+      (title: string | undefined, seedExisting: boolean, view: { x: number; y: number; scale: number }) => (
+        call('StartRecording', title ?? null, seedExisting, page(), view.x, view.y, view.scale)
+      ),
       [call],
     ),
     pauseRecording: useCallback(() => call('PauseRecording'), [call]),

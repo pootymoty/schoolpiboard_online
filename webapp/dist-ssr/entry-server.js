@@ -5813,6 +5813,7 @@ function ViewToolbar({
   onResumeRecording,
   onStopRecording,
   recordingStatus,
+  recordingCountdown,
   open,
   onToggleOpen
 }) {
@@ -5864,7 +5865,7 @@ function ViewToolbar({
             }
           ) : null,
           /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", "data-tip": "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
-          canRecordings && canManage && recordingStatus !== null ? /* @__PURE__ */ jsxs("span", { className: `rec-group rec-group--${recordingStatus}`, role: "group", "aria-label": recordingStatus === "recording" ? "Идёт запись" : "Запись на паузе", children: [
+          canRecordings && canManage && recordingCountdown !== null ? /* @__PURE__ */ jsx("span", { className: "rec-group rec-group--recording", role: "status", "aria-label": `Запись начнётся через ${recordingCountdown}`, children: /* @__PURE__ */ jsx("span", { className: "btn-tool rec-countdown", "aria-hidden": "true", children: recordingCountdown }) }) : canRecordings && canManage && recordingStatus !== null ? /* @__PURE__ */ jsxs("span", { className: `rec-group rec-group--${recordingStatus}`, role: "group", "aria-label": recordingStatus === "recording" ? "Идёт запись" : "Запись на паузе", children: [
             recordingStatus === "recording" ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPauseRecording, title: "Пауза", "data-tip": "Пауза", children: /* @__PURE__ */ jsx(IconPause, {}) }) : /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onResumeRecording, title: "Продолжить", "data-tip": "Продолжить", children: /* @__PURE__ */ jsx(IconPlay, {}) }),
             /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onStopRecording, title: "Стоп", "data-tip": "Стоп", children: /* @__PURE__ */ jsx(IconStop, {}) })
           ] }) : canRecordings ? (
@@ -8571,7 +8572,7 @@ function useBoardHub(boardId) {
     });
     hub.on("Removed", (payload) => setRemoved(payload));
     hub.on("BroughtToMe", (payload) => setBroughtToMe({ ...payload, at: Date.now() }));
-    hub.on("RecordingStarted", (payload) => setRecording({ id: payload.id, title: payload.title, status: "recording" }));
+    hub.on("RecordingStarted", (payload) => setRecording({ id: payload.id, title: payload.title, status: payload.status ?? "recording" }));
     hub.on("RecordingPaused", () => setRecording((current2) => current2 ? { ...current2, status: "paused" } : current2));
     hub.on("RecordingResumed", () => setRecording((current2) => current2 ? { ...current2, status: "recording" } : current2));
     hub.on("RecordingStopped", () => setRecording(null));
@@ -8697,7 +8698,7 @@ function useBoardHub(boardId) {
       [call]
     ),
     startRecording: useCallback(
-      (title, seedExisting) => call("StartRecording", title ?? null, seedExisting ?? false, page()),
+      (title, seedExisting, view) => call("StartRecording", title ?? null, seedExisting, page(), view.x, view.y, view.scale),
       [call]
     ),
     pauseRecording: useCallback(() => call("PauseRecording"), [call]),
@@ -9049,6 +9050,36 @@ function BoardPage() {
     hub.bringEveryone(hub.pageId, center.x, center.y, viewport.scale);
   }, [hub.pageId, hub.bringEveryone, viewport, canvasSize.width, canvasSize.height]);
   const lastViewportReport = useRef(0);
+  const [countdown, setCountdown] = useState(null);
+  const resumeWhenReady = useRef(false);
+  const startRecording = (title, seedExisting) => {
+    const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
+    hub.startRecording(title, seedExisting, { x: center.x, y: center.y, scale: viewport.scale });
+    setCountdown(3);
+  };
+  useEffect(() => {
+    if (countdown === null) return void 0;
+    if (countdown === 0) {
+      setCountdown(null);
+      resumeWhenReady.current = true;
+      const giveUp = window.setTimeout(() => {
+        resumeWhenReady.current = false;
+      }, 5e3);
+      return () => window.clearTimeout(giveUp);
+    }
+    const timer2 = window.setTimeout(() => setCountdown((current) => current === null ? null : current - 1), 1e3);
+    return () => window.clearTimeout(timer2);
+  }, [countdown]);
+  useEffect(() => {
+    var _a2;
+    if (!resumeWhenReady.current || countdown !== null) return;
+    if (((_a2 = hub.recording) == null ? void 0 : _a2.status) !== "paused") return;
+    resumeWhenReady.current = false;
+    hub.resumeRecording();
+  }, [countdown, hub.recording, hub.resumeRecording]);
+  useEffect(() => {
+    if (countdown !== null && hub.error && !hub.recording) setCountdown(null);
+  }, [countdown, hub.error, hub.recording]);
   useEffect(() => {
     var _a2;
     if (!hub.canManage || ((_a2 = hub.recording) == null ? void 0 : _a2.status) !== "recording" || hub.pageId === null) return;
@@ -9704,6 +9735,7 @@ function BoardPage() {
                 onResumeRecording: hub.resumeRecording,
                 onStopRecording: hub.stopRecording,
                 recordingStatus: ((_c = hub.recording) == null ? void 0 : _c.status) ?? null,
+                recordingCountdown: countdown,
                 pageLabel: hub.pages.length === 0 ? "—" : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`,
                 onSummary: () => setShowSummary((current) => !current),
                 summaryCount: summaries.requests.length,
@@ -9844,7 +9876,7 @@ function BoardPage() {
                 canManage: hub.canManage,
                 live: hub.recording,
                 onStart: (title, seedExisting) => {
-                  hub.startRecording(title, seedExisting);
+                  startRecording(title, seedExisting ?? false);
                   setShowRecordings(false);
                 },
                 onWatch: setWatching,

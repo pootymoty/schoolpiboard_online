@@ -3465,3 +3465,14 @@ html.board-locked body {
 
 .note--dismiss:hover { background: var(--danger-soft); }
 .note--dismiss:active { transform: none; }
+
+/* Цифра отсчёта перед записью — на месте кнопки, её размера. */
+.rec-countdown {
+    font-weight: 800;
+    font-size: var(--fs-lg, 1.25rem);
+    font-variant-numeric: tabular-nums;
+    color: var(--success);
+    cursor: default;
+}
+
+.rec-countdown:hover { background: transparent; }

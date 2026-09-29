@@ -172,6 +172,8 @@ interface ViewProps {
   onStopRecording: () => void;
   /** Значок кнопки сам меняется по состоянию — playстоп, пауза, идёт запись. */
   recordingStatus: 'recording' | 'paused' | null;
+  /** Идёт отсчёт «3, 2, 1» перед записью — число на месте кнопок записи. */
+  recordingCountdown: number | null;
   /** Убрать с экрана на телефоне — на счету каждый пиксель холста. */
   open: boolean;
   onToggleOpen: () => void;
@@ -183,7 +185,7 @@ export function ViewToolbar({
   onBackground, onSummary, summaryCount, onTimer, onHelp, onExport, onClear,
   canPaste, onPaste, onPages, pageLabel, onBookmarks, onBringEveryone,
   canRecordings, onRecordings, onPauseRecording, onResumeRecording, onStopRecording, recordingStatus,
-  open, onToggleOpen,
+  recordingCountdown, open, onToggleOpen,
 }: ViewProps): ReactElement {
   return (
     <div className={open ? 'toolbar-slot--view' : 'toolbar-slot--view toolbar-slot--collapsed'}>
@@ -254,7 +256,13 @@ export function ViewToolbar({
           прямое управление: пауза/продолжить и стоп, без лишнего клика в
           панель. Наблюдателю панель ничего не даст (управляет только
           владелец), поэтому ему оставлена только метка «идёт запись». */}
-      {canRecordings && canManage && recordingStatus !== null ? (
+      {/* Отсчёт перед записью — на месте кнопки, уже зелёным: запись
+          вот-вот пойдёт, и рисовать стоит начинать, когда он кончится. */}
+      {canRecordings && canManage && recordingCountdown !== null ? (
+        <span className="rec-group rec-group--recording" role="status" aria-label={`Запись начнётся через ${recordingCountdown}`}>
+          <span className="btn-tool rec-countdown" aria-hidden="true">{recordingCountdown}</span>
+        </span>
+      ) : canRecordings && canManage && recordingStatus !== null ? (
         <span className={`rec-group rec-group--${recordingStatus}`} role="group" aria-label={recordingStatus === 'recording' ? 'Идёт запись' : 'Запись на паузе'}>
           {recordingStatus === 'recording' ? (
             <button className="btn-tool" type="button" onClick={onPauseRecording} title="Пауза" data-tip="Пауза">

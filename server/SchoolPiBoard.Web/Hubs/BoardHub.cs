@@ -560,19 +560,47 @@ public sealed class BoardHub : Hub
 
     /// <summary>
     /// Начать запись — только владелец, и только если на доске нет уже
-    /// идущей. <paramref name="seedExisting"/> — положить в запись
-    /// снимок того, что уже нарисовано на <paramref name="pageId"/>, раньше
-    /// самой записи: прошлое так не показать (тайминга у него нет), но
-    /// начать не с пустого холста — можно, это обычное стартовое условие,
-    /// а не попытка изобразить историю.
+    /// идущей.
+    ///
+    /// Запись заводится на паузе (см. <see cref="BoardRecordingService.StartAsync"/>):
+    /// у ведущего идёт отсчёт «3, 2, 1», и паузу снимает он сам его концом.
+    /// В нулевую миллисекунду кладётся стартовое состояние: вид ведущего
+    /// (<paramref name="pageId"/>, центр <paramref name="x"/>/<paramref name="y"/>,
+    /// <paramref name="scale"/>) — чтобы запись с первого кадра смотрела
+    /// его глазами, — и, если <paramref name="seedExisting"/>, фон и то, что
+    /// уже нарисовано на странице: прошлое так не показать (тайминга у него
+    /// нет), но начать не с пустого холста — можно.
     /// </summary>
-    public async Task StartRecording(string? title, bool seedExisting, long pageId)
+    public async Task StartRecording(
+        string? title, bool seedExisting, long pageId, double x, double y, double scale)
     {
         var presence = await RequireOwnerAsync();
         if (presence is null) return;
 
+        var seed = new List<(string Name, object Payload)>
+        {
+            ("ViewportChanged", new { pageId, x, y, scale }),
+        };
+
+        if (seedExisting)
+        {
+            seed.Add(("BackgroundChanged", await BackgroundOf(presence.BoardId)));
+
+            var items = await _items.ListAsync(pageId, Context.ConnectionAborted);
+            foreach (var item in items)
+            {
+                seed.Add(("ItemCommitted", new
+                {
+                    tempId = $"seed-{item.Id}",
+                    pageId,
+                    by = "seed",
+                    item = ToDto(item),
+                }));
+            }
+        }
+
         var (outcome, recording) = await _recordings.StartAsync(
-            presence.BoardId, presence.UserId!.Value, title, Context.ConnectionAborted);
+            presence.BoardId, presence.UserId!.Value, title, seed, Context.ConnectionAborted);
 
         if (outcome != RecordingOutcome.Ok || recording is null)
         {
@@ -580,38 +608,13 @@ public sealed class BoardHub : Hub
             return;
         }
 
-        if (seedExisting) await SeedRecordingAsync(presence.BoardId, pageId);
-
         await Clients.Group(GroupOf(presence.BoardId)).SendAsync("RecordingStarted", new
         {
             id = recording.Id,
             title = recording.Title,
             startedAt = recording.StartedAt,
+            status = recording.Status,
         });
-    }
-
-    /// <summary>
-    /// Снимок уже нарисованного — первыми шагами только что начавшейся
-    /// записи. Тот же путь, что и у обычных шагов (AppendStepAsync),
-    /// поэтому воспроизводится тем же кодом, который читает и живые события.
-    /// </summary>
-    private async Task SeedRecordingAsync(long boardId, long pageId)
-    {
-        await _recordings.AppendStepAsync(
-            boardId, "BackgroundChanged", await BackgroundOf(boardId), Context.ConnectionAborted);
-
-        var items = await _items.ListAsync(pageId, Context.ConnectionAborted);
-
-        foreach (var item in items)
-        {
-            await _recordings.AppendStepAsync(boardId, "ItemCommitted", new
-            {
-                tempId = $"seed-{item.Id}",
-                pageId,
-                by = "seed",
-                item = ToDto(item),
-            }, Context.ConnectionAborted);
-        }
     }
 
     public async Task PauseRecording()
