@@ -965,6 +965,12 @@ html.board-locked body {
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+    /* Выделять на странице доски нечего — и самой странице тоже, а не
+       только её содержимому: иначе iOS всё равно находил «текст» под
+       пальцем и показывал лупу выделения. */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 html.board-locked body {

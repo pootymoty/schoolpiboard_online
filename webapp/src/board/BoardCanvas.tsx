@@ -695,6 +695,29 @@ export function BoardCanvas({
     return () => element.removeEventListener('wheel', onWheel);
   }, [onViewport]);
 
+  // Касание холста — только наше. Safari на iOS при удержании пальца
+  // показывает поверх рисунка лупу выделения текста (и меню «Скопировать»),
+  // даже когда выделять нечего: ни user-select, ни отмена pointer-событий
+  // её не убирают — только отмена самих touch-событий. Рисование от этого
+  // не страдает: оно целиком на pointer-событиях, а прокрутку и
+  // масштабирование страницы пальцами холст и так не допускает.
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element) return undefined;
+
+    const keep = (event: TouchEvent) => {
+      if (event.cancelable) event.preventDefault();
+    };
+
+    element.addEventListener('touchstart', keep, { passive: false });
+    element.addEventListener('touchmove', keep, { passive: false });
+
+    return () => {
+      element.removeEventListener('touchstart', keep);
+      element.removeEventListener('touchmove', keep);
+    };
+  }, []);
+
   const screenPoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };

@@ -4616,6 +4616,19 @@ function BoardCanvas({
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => element.removeEventListener("wheel", onWheel);
   }, [onViewport]);
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element) return void 0;
+    const keep = (event) => {
+      if (event.cancelable) event.preventDefault();
+    };
+    element.addEventListener("touchstart", keep, { passive: false });
+    element.addEventListener("touchmove", keep, { passive: false });
+    return () => {
+      element.removeEventListener("touchstart", keep);
+      element.removeEventListener("touchmove", keep);
+    };
+  }, []);
   const screenPoint = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
