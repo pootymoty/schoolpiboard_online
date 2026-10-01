@@ -7612,7 +7612,7 @@ function LibraryPanel({
       /* @__PURE__ */ jsx("span", { className: "params__title", children: "Шаблоны" }),
       /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: onClose, children: "Готово" })
     ] }),
-    /* @__PURE__ */ jsx("div", { className: "params__row library__tabs", children: GROUP_TABS.map((one) => /* @__PURE__ */ jsx(
+    /* @__PURE__ */ jsx("div", { className: "params__row library__tabs", children: [...GROUP_TABS, ...EXTRA_TABS].map((one) => /* @__PURE__ */ jsx(
       "button",
       {
         className: "btn-quiet btn-sm",
@@ -7628,21 +7628,6 @@ function LibraryPanel({
       one.kind
     )) }),
     /* @__PURE__ */ jsx("div", { className: "library__tabs-split", "aria-hidden": "true" }),
-    /* @__PURE__ */ jsx("div", { className: "params__row library__tabs", children: EXTRA_TABS.map((one) => /* @__PURE__ */ jsx(
-      "button",
-      {
-        className: "btn-quiet btn-sm",
-        type: "button",
-        "aria-pressed": tab === one.kind,
-        onClick: () => {
-          setTab(one.kind);
-          setChosen(null);
-          setNote(null);
-        },
-        children: one.title
-      },
-      one.kind
-    )) }),
     templates.length > 0 ? /* @__PURE__ */ jsx("div", { className: "library__list", children: templates.map((template) => /* @__PURE__ */ jsxs("div", { className: "library__item", children: [
       /* @__PURE__ */ jsx(
         "button",

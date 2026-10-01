@@ -160,8 +160,11 @@ export function LibraryPanel({
         <button className="btn-quiet btn-sm" type="button" onClick={onClose}>Готово</button>
       </div>
 
+      {/* Все разделы — одним рядом вкладок, а линия под ними отделяет
+          вкладки от содержимого выбранной: что выше черты — куда смотреть,
+          что ниже — что именно вставить. */}
       <div className="params__row library__tabs">
-        {GROUP_TABS.map((one) => (
+        {[...GROUP_TABS, ...EXTRA_TABS].map((one) => (
           <button
             key={one.kind}
             className="btn-quiet btn-sm"
@@ -178,28 +181,7 @@ export function LibraryPanel({
         ))}
       </div>
 
-      {/* Ниже — не чертежи, а другое содержимое библиотеки: линия
-          отделяет их от разделов с чертежами выше, чтобы не читались
-          одним и тем же рядом вкладок. */}
       <div className="library__tabs-split" aria-hidden="true" />
-
-      <div className="params__row library__tabs">
-        {EXTRA_TABS.map((one) => (
-          <button
-            key={one.kind}
-            className="btn-quiet btn-sm"
-            type="button"
-            aria-pressed={tab === one.kind}
-            onClick={() => {
-              setTab(one.kind);
-              setChosen(null);
-              setNote(null);
-            }}
-          >
-            {one.title}
-          </button>
-        ))}
-      </div>
 
       {templates.length > 0 ? (
         <div className="library__list">
