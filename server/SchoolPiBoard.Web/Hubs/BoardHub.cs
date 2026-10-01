@@ -736,6 +736,18 @@ public sealed class BoardHub : Hub
 
         var items = await _items.ListAsync(page.Id, Context.ConnectionAborted);
 
+        // Запись смотрят глазами ведущего: перешёл он на другую страницу —
+        // в запись ложится её содержимое целиком. Без этого проигрыватель
+        // показывал бы на новой странице объекты старой, а то, что на новой
+        // нарисовано раньше, не показывал бы вовсе. Молча, если записи нет.
+        if (presence.CanManage)
+        {
+            await _recordings.AppendStepAsync(
+                presence.BoardId, "PageShown",
+                new { pageId = page.Id, items = items.Select(ToDto) },
+                CancellationToken.None);
+        }
+
         await Clients.Caller.SendAsync(
             "PageOpened",
             new { pageId = page.Id, items = items.Select(ToDto) },

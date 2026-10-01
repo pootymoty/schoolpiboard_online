@@ -117,6 +117,23 @@ export function RecordingPlayer({ boardId, recordingId, onClose }: Props): React
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
 
+  // Размер окна проигрывателя: поворот телефона или изменение окна
+  // должны перерисовать кадр сразу, а не растянуть старую картинку до
+  // следующего шага записи (на паузе его можно ждать сколько угодно).
+  const [boxSize, setBoxSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return undefined;
+
+    const observer = new ResizeObserver(() => {
+      setBoxSize({ width: box.clientWidth, height: box.clientHeight });
+    });
+
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const box = boxRef.current;
@@ -156,7 +173,9 @@ export function RecordingPlayer({ boardId, recordingId, onClose }: Props): React
     // Окно проигрывателя обычно меньше экрана ведущего (сверху заголовок,
     // снизу перемотка), и в его масштабе низ и края того, что он видел,
     // уходили за край. Поэтому видимая им область вписывается целиком —
-    // в окне меньше его экрана уменьшается, в окне больше — растягивается.
+    // в окне меньше его экрана уменьшается, в окне больше — растягивается,
+    // а вокруг неё — поля (ниже). Повернул ведущий телефон посреди записи —
+    // кадр в этот момент меняет форму, как видео, снятое с поворотом.
     const recorded = content.viewport;
     const fit = recorded?.width && recorded?.height
       ? Math.min(width / recorded.width, height / recorded.height)
@@ -175,7 +194,29 @@ export function RecordingPlayer({ boardId, recordingId, onClose }: Props): React
     context.scale(viewport.scale, viewport.scale);
     for (const item of all) drawItem(context, item.type, item.data, item.imageRef);
     context.restore();
-  }, [content]);
+
+    // Кадр ведущего с полями, как у видео: показываем ровно то, что видел
+    // он, а остальное закрашиваем нейтральным фоном. Иначе на экране
+    // другой формы (телефон повернули, окно шире) по краям была видна
+    // доска, которой у ведущего в этот момент на экране не было.
+    if (recorded?.width && recorded?.height) {
+      const frameWidth = recorded.width * fit;
+      const frameHeight = recorded.height * fit;
+      const left = (width - frameWidth) / 2;
+      const top = (height - frameHeight) / 2;
+
+      const styles = getComputedStyle(box);
+      context.fillStyle = styles.getPropertyValue('--surface-2').trim() || '#EDE7DC';
+      context.fillRect(0, 0, width, top);
+      context.fillRect(0, top + frameHeight, width, height - top - frameHeight);
+      context.fillRect(0, top, left, frameHeight);
+      context.fillRect(left + frameWidth, top, width - left - frameWidth, frameHeight);
+
+      context.strokeStyle = styles.getPropertyValue('--line').trim() || '#D9CFC0';
+      context.lineWidth = 1;
+      context.strokeRect(left - 0.5, top - 0.5, frameWidth + 1, frameHeight + 1);
+    }
+  }, [content, boxSize]);
 
   return (
     <div className="player" role="dialog" aria-label="Воспроизведение записи">

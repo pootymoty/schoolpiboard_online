@@ -98,6 +98,17 @@ export function applyRecordedStep(state: PlaybackState, name: string, payload: a
       return { ...state, items };
     }
 
+    // Ведущий открыл другую страницу: холст — ровно её содержимое на
+    // этот момент, а вид — уже на ней (точный центр и масштаб придут
+    // следующим ViewportChanged).
+    case 'PageShown':
+      return {
+        ...state,
+        items: [...(payload.items as BoardItem[])].sort((a, b) => a.z - b.z || a.id - b.id),
+        live: new Map(),
+        viewport: state.viewport ? { ...state.viewport, pageId: payload.pageId } : state.viewport,
+      };
+
     case 'BackgroundChanged':
       return { ...state, background: payload as Background };
 

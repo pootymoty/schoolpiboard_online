@@ -6,6 +6,10 @@ import { ApiError } from '../api/client';
 import type { RecordingStatus } from './protocol';
 import { Modal } from '../components/Modal';
 import { IconEditor, IconTrash } from '../components/Icons';
+import { Pagination } from '../components/Pagination';
+
+/** Записей на одной странице списка. */
+const PAGE_SIZE = 10;
 
 interface Props {
   boardId: number;
@@ -38,9 +42,9 @@ function formatDate(iso: string): string {
 /**
  * Записи занятий: старт и список сохранённых для просмотра.
  *
- * Начинать может только владелец. Пауза и стоп — уже не здесь, а прямо
- * на панели инструментов (см. `BoardToolbar`): начал запись — эта форма
- * не нужна, дальше управление одним кликом, без захода в панель. Метку
+ * Начинать может только владелец. Пауза и стоп — уже не здесь, а в
+ * блоке у кнопки «Участники» (см. `RecordingControls`): начал запись —
+ * эта форма не нужна, дальше управление одним кликом, без захода в панель. Метку
  * «идёт запись» видят все: участник должен знать, что его сейчас
  * записывают, а не выяснять это по слухам.
  */
@@ -86,6 +90,15 @@ export function RecordingsPanel({
     }
   };
 
+  // Готовые записи, новые сверху (так их отдаёт сервер), — постранично.
+  // Номер страницы зажимаем: удалили последнюю запись на последней
+  // странице — остаёмся на той, что теперь последняя.
+  const [page, setPage] = useState(1);
+  const stopped = (rows ?? []).filter((x) => x.status === 'stopped');
+  const pageCount = Math.max(1, Math.ceil(stopped.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const shown = stopped.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+
   return (
     <div className="params params--right params--tall" role="dialog" aria-label="Записи занятий">
       <div className="params__head">
@@ -124,7 +137,7 @@ export function RecordingsPanel({
       ) : live ? (
         <p className="library__hint">
           {canManage
-            ? (live.status === 'recording' ? 'Идёт запись — пауза и стоп на панели инструментов.' : 'Запись на паузе — продолжить и стоп на панели инструментов.')
+            ? (live.status === 'recording' ? 'Идёт запись — пауза и стоп у кнопки «Участники».' : 'Запись на паузе — продолжить и стоп у кнопки «Участники».')
             : (live.status === 'recording' ? 'Владелец сейчас записывает занятие.' : 'Запись занятия на паузе.')}
         </p>
       ) : null}
@@ -135,11 +148,12 @@ export function RecordingsPanel({
 
       {rows === null ? (
         <p className="library__hint">Читаем…</p>
-      ) : rows.filter((x) => x.status === 'stopped').length === 0 ? (
+      ) : stopped.length === 0 ? (
         <p className="library__hint">Пока ни одной.</p>
       ) : (
+        <>
         <div className="library__list">
-          {rows.filter((x) => x.status === 'stopped').map((row) => (
+          {shown.map((row) => (
             <div className="library__mine" key={row.id}>
               <button
                 className="btn-quiet library__pick"
@@ -177,6 +191,13 @@ export function RecordingsPanel({
             </div>
           ))}
         </div>
+
+        {/* Записей на доске бывает до полусотни (по тарифу) — по десять
+            на страницу, та же листалка, что в «Моих досках». */}
+        {pageCount > 1 ? (
+          <Pagination page={current} count={pageCount} onPage={setPage} label="Страницы списка записей" />
+        ) : null}
+        </>
       )}
 
       {renaming ? (

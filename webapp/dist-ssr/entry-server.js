@@ -2168,7 +2168,7 @@ const BOARD_TITLE_HINT = `Буквы (русские или английские
 function cleanBoardTitle(value) {
   return value.replace(/[^A-Za-zА-Яа-яЁё0-9 ]/g, "").replace(/ {2,}/g, " ").slice(0, BOARD_TITLE_MAX);
 }
-const PAGE_SIZE$1 = 10;
+const PAGE_SIZE$2 = 10;
 const DEFAULT_SORT = { key: "updatedAt", direction: "natural" };
 const COLUMNS = [
   { key: "title", label: "Название" },
@@ -2264,9 +2264,9 @@ function BoardsPage() {
     }));
     return [...matched].sort((a, b) => compare(a.board, b.board, sort));
   }, [boards, needle, sort]);
-  const pageCount = Math.max(1, Math.ceil(found.length / PAGE_SIZE$1));
+  const pageCount = Math.max(1, Math.ceil(found.length / PAGE_SIZE$2));
   const current = Math.min(page, pageCount);
-  const visible = found.slice((current - 1) * PAGE_SIZE$1, current * PAGE_SIZE$1);
+  const visible = found.slice((current - 1) * PAGE_SIZE$2, current * PAGE_SIZE$2);
   return /* @__PURE__ */ jsxs(Page, { children: [
     /* @__PURE__ */ jsxs("div", { className: "page-header", children: [
       /* @__PURE__ */ jsx("h1", { children: "Мои доски" }),
@@ -2368,7 +2368,7 @@ function BoardsPage() {
           ] })
         ] }, board.id)) })
       ] }),
-      found.length > PAGE_SIZE$1 ? /* @__PURE__ */ jsx(Pagination, { page: current, count: pageCount, onPage: setPage, label: "Страницы списка досок" }) : null
+      found.length > PAGE_SIZE$2 ? /* @__PURE__ */ jsx(Pagination, { page: current, count: pageCount, onPage: setPage, label: "Страницы списка досок" }) : null
     ] }),
     creating ? /* @__PURE__ */ jsx(Modal, { title: "Новая доска", onClose: () => setCreating(false), children: /* @__PURE__ */ jsxs("form", { onSubmit: create, children: [
       /* @__PURE__ */ jsxs("div", { className: "field", children: [
@@ -3187,6 +3187,13 @@ function applyRecordedStep(state, name, payload) {
       const items = state.items.map((item) => fresh.get(item.id) ?? item).sort((a, b) => a.z - b.z || a.id - b.id);
       return { ...state, items };
     }
+    case "PageShown":
+      return {
+        ...state,
+        items: [...payload.items].sort((a, b) => a.z - b.z || a.id - b.id),
+        live: /* @__PURE__ */ new Map(),
+        viewport: state.viewport ? { ...state.viewport, pageId: payload.pageId } : state.viewport
+      };
     case "BackgroundChanged":
       return { ...state, background: payload };
     case "ItemUpdated":
@@ -3320,6 +3327,16 @@ function RecordingPlayer({ boardId, recordingId, onClose }) {
   const content = cache2.current.state;
   const canvasRef = useRef(null);
   const boxRef = useRef(null);
+  const [boxSize, setBoxSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return void 0;
+    const observer = new ResizeObserver(() => {
+      setBoxSize({ width: box.clientWidth, height: box.clientHeight });
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     const canvas = canvasRef.current;
     const box = boxRef.current;
@@ -3362,7 +3379,22 @@ function RecordingPlayer({ boardId, recordingId, onClose }) {
     context.scale(viewport.scale, viewport.scale);
     for (const item of all) drawItem(context, item.type, item.data, item.imageRef);
     context.restore();
-  }, [content]);
+    if ((recorded == null ? void 0 : recorded.width) && (recorded == null ? void 0 : recorded.height)) {
+      const frameWidth = recorded.width * fit;
+      const frameHeight = recorded.height * fit;
+      const left = (width - frameWidth) / 2;
+      const top = (height - frameHeight) / 2;
+      const styles = getComputedStyle(box);
+      context.fillStyle = styles.getPropertyValue("--surface-2").trim() || "#EDE7DC";
+      context.fillRect(0, 0, width, top);
+      context.fillRect(0, top + frameHeight, width, height - top - frameHeight);
+      context.fillRect(0, top, left, frameHeight);
+      context.fillRect(left + frameWidth, top, width - left - frameWidth, frameHeight);
+      context.strokeStyle = styles.getPropertyValue("--line").trim() || "#D9CFC0";
+      context.lineWidth = 1;
+      context.strokeRect(left - 0.5, top - 0.5, frameWidth + 1, frameHeight + 1);
+    }
+  }, [content, boxSize]);
   return /* @__PURE__ */ jsxs("div", { className: "player", role: "dialog", "aria-label": "Воспроизведение записи", children: [
     /* @__PURE__ */ jsxs("div", { className: "player__head", children: [
       /* @__PURE__ */ jsx("span", { className: "params__title", children: (recording == null ? void 0 : recording.title) || "Запись занятия" }),
@@ -3701,7 +3733,7 @@ function reportBoard(boardId, comment) {
     guestToken: readGuestToken(boardId)
   });
 }
-const PAGE_SIZE = 5;
+const PAGE_SIZE$1 = 5;
 function PeoplePanel({
   boardId,
   canManage,
@@ -3865,9 +3897,9 @@ function PeoplePanel({
   const others = present.filter((person) => person.connectionId !== meConnectionId);
   const cursorOf = (connectionId) => cursors.find((cursor) => cursor.id === connectionId);
   const allRows = [...memberRows, ...guestRows, ...selfRow ? [selfRow] : []];
-  const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE$1));
   const currentPage = Math.min(page, totalPages - 1);
-  const pageRows = allRows.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
+  const pageRows = allRows.slice(currentPage * PAGE_SIZE$1, currentPage * PAGE_SIZE$1 + PAGE_SIZE$1);
   return /* @__PURE__ */ jsxs("div", { children: [
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     others.length > 0 ? /* @__PURE__ */ jsxs(Fragment, { children: [
@@ -7968,6 +8000,7 @@ function SummaryPanel({
     done && !busy && !note ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: canManage ? "Письмо ушло." : "Просьба передана учителю." }) : null
   ] });
 }
+const PAGE_SIZE = 10;
 function formatDuration(ms) {
   const total = Math.round(ms / 1e3);
   const minutes = Math.floor(total / 60);
@@ -7997,7 +8030,7 @@ function RecordingsPanel({
   useEffect(load, [boardId, live == null ? void 0 : live.status]);
   const drop = (recording) => {
     if (!window.confirm(`Удалить запись «${recording.title || formatDate(recording.startedAt)}»?`)) return;
-    deleteRecording(boardId, recording.id).then(() => setRows((current) => (current ?? []).filter((x) => x.id !== recording.id))).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось удалить."));
+    deleteRecording(boardId, recording.id).then(() => setRows((current2) => (current2 ?? []).filter((x) => x.id !== recording.id))).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось удалить."));
   };
   const rename = async (event) => {
     event.preventDefault();
@@ -8010,6 +8043,11 @@ function RecordingsPanel({
       setError(reason instanceof ApiError ? reason.message : "Не удалось переименовать.");
     }
   };
+  const [page, setPage] = useState(1);
+  const stopped = (rows ?? []).filter((x) => x.status === "stopped");
+  const pageCount = Math.max(1, Math.ceil(stopped.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const shown = stopped.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
   return /* @__PURE__ */ jsxs("div", { className: "params params--right params--tall", role: "dialog", "aria-label": "Записи занятий", children: [
     /* @__PURE__ */ jsxs("div", { className: "params__head", children: [
       /* @__PURE__ */ jsx("span", { className: "params__title", children: "Записи занятия" }),
@@ -8050,51 +8088,54 @@ function RecordingsPanel({
           children: "Начать запись"
         }
       )
-    ] }) : live ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: canManage ? live.status === "recording" ? "Идёт запись — пауза и стоп на панели инструментов." : "Запись на паузе — продолжить и стоп на панели инструментов." : live.status === "recording" ? "Владелец сейчас записывает занятие." : "Запись занятия на паузе." }) : null,
+    ] }) : live ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: canManage ? live.status === "recording" ? "Идёт запись — пауза и стоп у кнопки «Участники»." : "Запись на паузе — продолжить и стоп у кнопки «Участники»." : live.status === "recording" ? "Владелец сейчас записывает занятие." : "Запись занятия на паузе." }) : null,
     /* @__PURE__ */ jsx("p", { className: "params__label", children: "Сохранённые записи" }),
     error ? /* @__PURE__ */ jsx("p", { className: "library__hint library__note", children: error }) : null,
-    rows === null ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Читаем…" }) : rows.filter((x) => x.status === "stopped").length === 0 ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Пока ни одной." }) : /* @__PURE__ */ jsx("div", { className: "library__list", children: rows.filter((x) => x.status === "stopped").map((row) => /* @__PURE__ */ jsxs("div", { className: "library__mine", children: [
-      /* @__PURE__ */ jsxs(
-        "button",
-        {
-          className: "btn-quiet library__pick",
-          type: "button",
-          onClick: () => onWatch(row.id),
-          title: "Смотреть",
-          children: [
-            row.title || formatDate(row.startedAt),
-            /* @__PURE__ */ jsx("span", { className: "library__count", children: formatDuration(row.durationMs) })
-          ]
-        }
-      ),
-      canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx(
+    rows === null ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Читаем…" }) : stopped.length === 0 ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Пока ни одной." }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("div", { className: "library__list", children: shown.map((row) => /* @__PURE__ */ jsxs("div", { className: "library__mine", children: [
+        /* @__PURE__ */ jsxs(
           "button",
           {
-            className: "btn-quiet btn-sm",
+            className: "btn-quiet library__pick",
             type: "button",
-            onClick: () => {
-              setRenaming(row);
-              setNewTitle(row.title ?? "");
-            },
-            "aria-label": `Переименовать запись ${row.title || formatDate(row.startedAt)}`,
-            title: "Переименовать",
-            children: /* @__PURE__ */ jsx(IconEditor, {})
+            onClick: () => onWatch(row.id),
+            title: "Смотреть",
+            children: [
+              row.title || formatDate(row.startedAt),
+              /* @__PURE__ */ jsx("span", { className: "library__count", children: formatDuration(row.durationMs) })
+            ]
           }
         ),
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "btn-quiet btn-sm",
-            type: "button",
-            onClick: () => drop(row),
-            "aria-label": `Удалить запись ${row.title || formatDate(row.startedAt)}`,
-            title: "Удалить запись",
-            children: /* @__PURE__ */ jsx(IconTrash, {})
-          }
-        )
-      ] }) : null
-    ] }, row.id)) }),
+        canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-quiet btn-sm",
+              type: "button",
+              onClick: () => {
+                setRenaming(row);
+                setNewTitle(row.title ?? "");
+              },
+              "aria-label": `Переименовать запись ${row.title || formatDate(row.startedAt)}`,
+              title: "Переименовать",
+              children: /* @__PURE__ */ jsx(IconEditor, {})
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-quiet btn-sm",
+              type: "button",
+              onClick: () => drop(row),
+              "aria-label": `Удалить запись ${row.title || formatDate(row.startedAt)}`,
+              title: "Удалить запись",
+              children: /* @__PURE__ */ jsx(IconTrash, {})
+            }
+          )
+        ] }) : null
+      ] }, row.id)) }),
+      pageCount > 1 ? /* @__PURE__ */ jsx(Pagination, { page: current, count: pageCount, onPage: setPage, label: "Страницы списка записей" }) : null
+    ] }),
     renaming ? /* @__PURE__ */ jsx(Modal, { title: "Переименовать запись", onClose: () => setRenaming(null), children: /* @__PURE__ */ jsxs("form", { onSubmit: rename, children: [
       /* @__PURE__ */ jsxs("div", { className: "field", children: [
         /* @__PURE__ */ jsx("label", { htmlFor: "recordingTitle", children: "Название" }),
