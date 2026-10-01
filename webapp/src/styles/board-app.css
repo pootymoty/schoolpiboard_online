@@ -973,6 +973,27 @@ html.board-locked body {
     width: 100%;
 }
 
+/*
+ * На доске пальцем рисуют, а не выделяют текст. Долгое касание на iOS
+ * иначе выделяло подписи кнопок, название доски и прочий текст вокруг
+ * холста и показывало системное меню «Скопировать / Перевести» поверх
+ * рисунка. Поля ввода (название, надписи, ячейки) — исключение: в них
+ * выделять и вставлять нужно.
+ */
+.app--board {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.app--board input,
+.app--board textarea,
+.app--board [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+}
+
 .app--board {
     position: relative;
     box-sizing: border-box;
@@ -3473,13 +3494,49 @@ html.board-locked body {
     background: color-mix(in srgb, var(--success) 14%, transparent);
 }
 
-/* Цифра отсчёта перед записью — на месте кнопки, её размера. */
+/* Цифра отсчёта перед записью — в квадрате размера кнопки, ровно по его
+   центру (прежде она жила в чужом для неё стиле кнопки и съезжала вбок). */
 .rec-countdown {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
     font-weight: 800;
-    font-size: var(--fs-lg, 1.25rem);
+    font-size: 1.25rem;
+    line-height: 1;
     font-variant-numeric: tabular-nums;
     color: var(--success);
-    cursor: default;
 }
 
-.rec-countdown:hover { background: transparent; }
+/* Блок записи у «Участников» — непрозрачный: под ним рисунок доски, и
+   полупрозрачная подложка на пёстром фоне читалась бы плохо. Те же
+   оттенки, только смешанные с цветом панели, а не с прозрачностью. */
+.rec-group--corner {
+    box-shadow: var(--shadow-sm);
+    /* Вне потока, слева от «Участников»: кнопка участников стоит на
+       месте, появился ли блок записи и сколько в нём кнопок. */
+    position: absolute;
+    right: calc(100% + var(--sp-2));
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.rec-group--corner.rec-group--recording {
+    background: color-mix(in srgb, var(--success) 14%, var(--surface));
+    animation-name: rec-group-pulse-solid;
+}
+
+.rec-group--corner.rec-group--countdown {
+    background: color-mix(in srgb, var(--success) 14%, var(--surface));
+    animation: none;
+}
+
+.rec-group--corner.rec-group--paused {
+    background: color-mix(in srgb, var(--info) 20%, var(--surface));
+}
+
+@keyframes rec-group-pulse-solid {
+    0%, 100% { background: color-mix(in srgb, var(--success) 8%, var(--surface)); }
+    50% { background: color-mix(in srgb, var(--success) 30%, var(--surface)); }
+}

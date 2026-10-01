@@ -143,21 +143,41 @@ public sealed class BoardRecordingService
     }
 
     /// <summary>
-    /// Дописывает шаг в идущую запись — молча, если её нет или она на
-    /// паузе: не у всякого события есть что записывать.
+    /// События «в процессе» — штрих рисуется, но ещё не закреплён. На
+    /// паузе они не пишутся: показывать, как рисовали на паузе, незачем,
+    /// в запись попадает только результат.
+    /// </summary>
+    private static readonly HashSet<string> LiveSteps = new() { "ItemBegan", "ItemPoints", "ItemCancelled" };
+
+    /// <summary>
+    /// Дописывает шаг в незавершённую запись — молча, если её нет.
+    ///
+    /// Пауза — только вырезка времени, а не «не смотреть»: то, что сделали
+    /// на паузе (нарисовали, сдвинули, стёрли, сменили фон или вид),
+    /// попадает в запись в ту же отметку, на которой она встала, — при
+    /// просмотре появляется разом в момент продолжения. Без этого после
+    /// паузы запись расходилась бы с доской: нарисованное на паузе в ней
+    /// просто отсутствовало бы.
     /// </summary>
     public async Task AppendStepAsync(long boardId, string name, object payload, CancellationToken cancellationToken)
     {
         var recording = await _db.BoardRecordings.FirstOrDefaultAsync(
-            x => x.BoardId == boardId && x.Status == BoardRecording.StatusRecording, cancellationToken);
+            x => x.BoardId == boardId
+                && (x.Status == BoardRecording.StatusRecording || x.Status == BoardRecording.StatusPaused),
+            cancellationToken);
 
         if (recording is null) return;
 
+        var paused = recording.Status == BoardRecording.StatusPaused;
+        if (paused && LiveSteps.Contains(name)) return;
+
+        // На паузе время стоит: DurationMs — ровно та отметка, где запись
+        // встала (ElapsedSinceResume на паузе — ноль).
         var offsetMs = recording.DurationMs + ElapsedSinceResume(recording);
 
         // Потолок тарифа достигнут — записи не сохраняем, а запись
         // останавливаем: платить за лишние минуты не должен никто.
-        if (offsetMs >= recording.MaxDurationMs)
+        if (!paused && offsetMs >= recording.MaxDurationMs)
         {
             await FinishAsync(recording, cancellationToken);
             return;

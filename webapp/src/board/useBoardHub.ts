@@ -127,12 +127,17 @@ export interface BoardHub {
    * странице; view — вид ведущего (центр и масштаб), с которого запись
    * начнётся. Запись заводится на паузе — снимает её конец отсчёта.
    */
-  startRecording: (title: string | undefined, seedExisting: boolean, view: { x: number; y: number; scale: number }) => void;
+  startRecording: (
+    title: string | undefined,
+    seedExisting: boolean,
+    view: { x: number; y: number; scale: number; width: number; height: number },
+  ) => void;
   pauseRecording: () => void;
   resumeRecording: () => void;
   stopRecording: () => void;
   /** Свой вид — в активную запись, если она идёт. Больше никуда не уходит. */
-  reportViewport: (pageId: number, x: number, y: number, scale: number) => void;
+  /** width/height — размер видимой части холста: по нему проигрыватель вписывает вид целиком. */
+  reportViewport: (pageId: number, x: number, y: number, scale: number, width: number, height: number) => void;
 }
 
 /**
@@ -642,16 +647,20 @@ export function useBoardHub(boardId: number): BoardHub {
     ),
 
     startRecording: useCallback(
-      (title: string | undefined, seedExisting: boolean, view: { x: number; y: number; scale: number }) => (
-        call('StartRecording', title ?? null, seedExisting, page(), view.x, view.y, view.scale)
-      ),
+      (
+        title: string | undefined,
+        seedExisting: boolean,
+        view: { x: number; y: number; scale: number; width: number; height: number },
+      ) => call('StartRecording', title ?? null, seedExisting, page(), view.x, view.y, view.scale, view.width, view.height),
       [call],
     ),
     pauseRecording: useCallback(() => call('PauseRecording'), [call]),
     resumeRecording: useCallback(() => call('ResumeRecording'), [call]),
     stopRecording: useCallback(() => call('StopRecording'), [call]),
     reportViewport: useCallback(
-      (id: number, x: number, y: number, scale: number) => call('ReportViewport', id, x, y, scale),
+      (id: number, x: number, y: number, scale: number, width: number, height: number) => (
+        call('ReportViewport', id, x, y, scale, width, height)
+      ),
       [call],
     ),
   };

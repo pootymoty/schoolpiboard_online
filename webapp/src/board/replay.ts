@@ -8,6 +8,9 @@ export interface PlaybackViewport {
   x: number;
   y: number;
   scale: number;
+  /** Размер видимой части холста ведущего; нет у записей до сентября 2026. */
+  width?: number;
+  height?: number;
 }
 
 export interface PlaybackState {

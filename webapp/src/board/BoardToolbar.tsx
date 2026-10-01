@@ -3,7 +3,7 @@ import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
   IconTrash, IconUndo, IconPaste, IconPages, IconLibrary, IconMail, IconBookmark, IconBookmarkAdd, IconTarget,
-  IconRecord, IconPlay, IconPause, IconStop, IconChevronLeft, IconChevronDown,
+  IconRecord, IconChevronLeft, IconChevronDown,
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
@@ -167,13 +167,6 @@ interface ViewProps {
   /** Гостю записи не показываем: у него нет учётной записи для доступа к ним. */
   canRecordings: boolean;
   onRecordings: () => void;
-  onPauseRecording: () => void;
-  onResumeRecording: () => void;
-  onStopRecording: () => void;
-  /** Значок кнопки сам меняется по состоянию — playстоп, пауза, идёт запись. */
-  recordingStatus: 'recording' | 'paused' | null;
-  /** Идёт отсчёт «3, 2, 1» перед записью — число на месте кнопок записи. */
-  recordingCountdown: number | null;
   /** Убрать с экрана на телефоне — на счету каждый пиксель холста. */
   open: boolean;
   onToggleOpen: () => void;
@@ -184,8 +177,7 @@ export function ViewToolbar({
   canManage, canEdit, tool, onTool, scale, onZoom, onResetZoom, onFit,
   onBackground, onSummary, summaryCount, onTimer, onHelp, onExport, onClear,
   canPaste, onPaste, onPages, pageLabel, onBookmarks, onBringEveryone,
-  canRecordings, onRecordings, onPauseRecording, onResumeRecording, onStopRecording, recordingStatus,
-  recordingCountdown, open, onToggleOpen,
+  canRecordings, onRecordings, open, onToggleOpen,
 }: ViewProps): ReactElement {
   return (
     <div className={open ? 'toolbar-slot--view' : 'toolbar-slot--view toolbar-slot--collapsed'}>
@@ -251,50 +243,17 @@ export function ViewToolbar({
         <IconTimer />
       </button>
 
-      {/* Пока не записывают — одна кнопка на панель записей. Как только
-          запись пошла, для владельца это уже не кнопка открытия панели, а
-          прямое управление: пауза/продолжить и стоп, без лишнего клика в
-          панель. Наблюдателю панель ничего не даст (управляет только
-          владелец), поэтому ему оставлена только метка «идёт запись». */}
-      {/* Отсчёт перед записью — на месте кнопки, уже зелёным: запись
-          вот-вот пойдёт, и рисовать стоит начинать, когда он кончится. */}
-      {canRecordings && canManage && recordingCountdown !== null ? (
-        <span className="rec-group rec-group--recording rec-group--countdown" role="status" aria-label={`Запись начнётся через ${recordingCountdown}`}>
-          <span className="btn-tool rec-countdown" aria-hidden="true">{recordingCountdown}</span>
-        </span>
-      ) : canRecordings && canManage && recordingStatus !== null ? (
-        <span className={`rec-group rec-group--${recordingStatus}`} role="group" aria-label={recordingStatus === 'recording' ? 'Идёт запись' : 'Запись на паузе'}>
-          {recordingStatus === 'recording' ? (
-            <button className="btn-tool" type="button" onClick={onPauseRecording} title="Пауза" data-tip="Пауза">
-              <IconPause />
-            </button>
-          ) : (
-            <button className="btn-tool" type="button" onClick={onResumeRecording} title="Продолжить" data-tip="Продолжить">
-              <IconPlay />
-            </button>
-          )}
-          <button className="btn-tool" type="button" onClick={onStopRecording} title="Стоп" data-tip="Стоп">
-            <IconStop />
-          </button>
-        </span>
-      ) : canRecordings ? (
-        // Одна кнопка — открыть панель записей. У того, кто запись не
-        // ведёт, вокруг неё та же подсветка идущей записи или паузы; пока
-        // записи нет — кнопка обычная, без подложки.
-        <span className={recordingStatus ? `rec-group rec-group--${recordingStatus}` : 'rec-group'}>
-          <button
-            className="btn-tool" type="button" onClick={onRecordings}
-            title="Записи занятия" data-tip="Записи занятия"
-          >
-            {recordingStatus === 'paused' ? <IconPause /> : <IconRecord />}
-          </button>
-        </span>
-      ) : null}
-
-      {/* Вставка отдельной кнопкой: на планшете Ctrl+V нажать нечем. */}
-      {canPaste ? (
-        <button className="btn-tool" type="button" onClick={onPaste} title="Вставить из буфера доски (Ctrl+V)" data-tip="Вставить из буфера доски (Ctrl+V)">
-          <IconPaste />
+      {/* Кнопка записей — всегда одна и та же, она открывает панель
+          записей. Управление идущей записью (отсчёт, пауза, стоп) и её
+          подсветка — не здесь, а у кнопки «Участники» (RecordingControls):
+          верхнюю панель на телефоне листают и прячут, а идущую запись
+          должно быть видно всегда. */}
+      {canRecordings ? (
+        <button
+          className="btn-tool" type="button" onClick={onRecordings}
+          title="Записи занятия" data-tip="Записи занятия"
+        >
+          <IconRecord />
         </button>
       ) : null}
 
@@ -305,6 +264,15 @@ export function ViewToolbar({
       ) : null}
 
       <span className="toolbar__divider" aria-hidden="true" />
+
+      {/* Вставка отдельной кнопкой: на планшете Ctrl+V нажать нечем.
+          Открывает последний раздел — «забрать и принести»: вставить,
+          отправить, сохранить. */}
+      {canPaste ? (
+        <button className="btn-tool" type="button" onClick={onPaste} title="Вставить из буфера доски (Ctrl+V)" data-tip="Вставить из буфера доски (Ctrl+V)">
+          <IconPaste />
+        </button>
+      ) : null}
 
       {/* Конспект рядом с сохранением: и то и другое — «забрать занятие
           с собой», разница только в том, себе на диск или письмом. */}

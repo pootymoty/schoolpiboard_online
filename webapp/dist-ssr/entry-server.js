@@ -3327,10 +3327,12 @@ function RecordingPlayer({ boardId, recordingId, onClose }) {
     const width = box.clientWidth;
     const height = box.clientHeight;
     if (width === 0 || height === 0) return;
-    canvas.width = width;
-    canvas.height = height;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
     const context = canvas.getContext("2d");
     if (!context) return;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.fillStyle = content.background.background;
     context.fillRect(0, 0, width, height);
     const liveItems = Array.from(content.live.values()).map((stroke) => ({
@@ -3343,7 +3345,8 @@ function RecordingPlayer({ boardId, recordingId, onClose }) {
     }));
     const all = [...content.items, ...liveItems];
     const recorded = content.viewport;
-    const viewport = recorded ? centerOn({ scale: recorded.scale }, recorded.x, recorded.y, width, height, recorded.scale) : fitToContent(all.flatMap((item) => pointsOf(item.data)), width, height) ?? { x: width / 2, y: height / 2, scale: 1 };
+    const fit = (recorded == null ? void 0 : recorded.width) && (recorded == null ? void 0 : recorded.height) ? Math.min(width / recorded.width, height / recorded.height) : 1;
+    const viewport = recorded ? centerOn({ scale: recorded.scale * fit }, recorded.x, recorded.y, width, height, recorded.scale * fit) : fitToContent(all.flatMap((item) => pointsOf(item.data)), width, height) ?? { x: width / 2, y: height / 2, scale: 1 };
     drawGrid(
       context,
       content.background.gridStyle,
@@ -5809,11 +5812,6 @@ function ViewToolbar({
   onBringEveryone,
   canRecordings,
   onRecordings,
-  onPauseRecording,
-  onResumeRecording,
-  onStopRecording,
-  recordingStatus,
-  recordingCountdown,
   open,
   onToggleOpen
 }) {
@@ -5865,28 +5863,20 @@ function ViewToolbar({
             }
           ) : null,
           /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onTimer, title: "Таймер", "data-tip": "Таймер", children: /* @__PURE__ */ jsx(IconTimer, {}) }),
-          canRecordings && canManage && recordingCountdown !== null ? /* @__PURE__ */ jsx("span", { className: "rec-group rec-group--recording rec-group--countdown", role: "status", "aria-label": `Запись начнётся через ${recordingCountdown}`, children: /* @__PURE__ */ jsx("span", { className: "btn-tool rec-countdown", "aria-hidden": "true", children: recordingCountdown }) }) : canRecordings && canManage && recordingStatus !== null ? /* @__PURE__ */ jsxs("span", { className: `rec-group rec-group--${recordingStatus}`, role: "group", "aria-label": recordingStatus === "recording" ? "Идёт запись" : "Запись на паузе", children: [
-            recordingStatus === "recording" ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPauseRecording, title: "Пауза", "data-tip": "Пауза", children: /* @__PURE__ */ jsx(IconPause, {}) }) : /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onResumeRecording, title: "Продолжить", "data-tip": "Продолжить", children: /* @__PURE__ */ jsx(IconPlay, {}) }),
-            /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onStopRecording, title: "Стоп", "data-tip": "Стоп", children: /* @__PURE__ */ jsx(IconStop, {}) })
-          ] }) : canRecordings ? (
-            // Одна кнопка — открыть панель записей. У того, кто запись не
-            // ведёт, вокруг неё та же подсветка идущей записи или паузы; пока
-            // записи нет — кнопка обычная, без подложки.
-            /* @__PURE__ */ jsx("span", { className: recordingStatus ? `rec-group rec-group--${recordingStatus}` : "rec-group", children: /* @__PURE__ */ jsx(
-              "button",
-              {
-                className: "btn-tool",
-                type: "button",
-                onClick: onRecordings,
-                title: "Записи занятия",
-                "data-tip": "Записи занятия",
-                children: recordingStatus === "paused" ? /* @__PURE__ */ jsx(IconPause, {}) : /* @__PURE__ */ jsx(IconRecord, {})
-              }
-            ) })
+          canRecordings ? /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool",
+              type: "button",
+              onClick: onRecordings,
+              title: "Записи занятия",
+              "data-tip": "Записи занятия",
+              children: /* @__PURE__ */ jsx(IconRecord, {})
+            }
           ) : null,
-          canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
           canManage ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onBackground, title: "Фон и разлиновка", "data-tip": "Фон и разлиновка", children: /* @__PURE__ */ jsx(IconGrid, {}) }) : null,
           /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
+          canPaste ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPaste, title: "Вставить из буфера доски (Ctrl+V)", "data-tip": "Вставить из буфера доски (Ctrl+V)", children: /* @__PURE__ */ jsx(IconPaste, {}) }) : null,
           /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onSummary, title: "Конспект занятия по почте", "data-tip": "Конспект занятия по почте", children: [
             /* @__PURE__ */ jsx(IconMail, {}),
             summaryCount > 0 ? /* @__PURE__ */ jsx("span", { className: "badge-dot", children: summaryCount }) : null
@@ -8125,6 +8115,52 @@ function RecordingsPanel({
     ] }) }) : null
   ] });
 }
+function RecordingControls({
+  canManage,
+  status,
+  countdown,
+  onPause,
+  onResume,
+  onStop,
+  onOpen
+}) {
+  if (canManage && countdown !== null) {
+    return /* @__PURE__ */ jsx(
+      "span",
+      {
+        className: "rec-group rec-group--recording rec-group--countdown rec-group--corner",
+        role: "status",
+        "aria-label": `Запись начнётся через ${countdown}`,
+        children: /* @__PURE__ */ jsx("span", { className: "rec-countdown", "aria-hidden": "true", children: countdown })
+      }
+    );
+  }
+  if (status === null) return null;
+  if (!canManage) {
+    return /* @__PURE__ */ jsx("span", { className: `rec-group rec-group--${status} rec-group--corner`, children: /* @__PURE__ */ jsx(
+      "button",
+      {
+        className: "btn-tool",
+        type: "button",
+        onClick: onOpen,
+        title: status === "recording" ? "Идёт запись" : "Запись на паузе",
+        children: status === "paused" ? /* @__PURE__ */ jsx(IconPause, {}) : /* @__PURE__ */ jsx(IconRecord, {})
+      }
+    ) });
+  }
+  return /* @__PURE__ */ jsxs(
+    "span",
+    {
+      className: `rec-group rec-group--${status} rec-group--corner`,
+      role: "group",
+      "aria-label": status === "recording" ? "Идёт запись" : "Запись на паузе",
+      children: [
+        status === "recording" ? /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onPause, title: "Пауза", children: /* @__PURE__ */ jsx(IconPause, {}) }) : /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onResume, title: "Продолжить", children: /* @__PURE__ */ jsx(IconPlay, {}) }),
+        /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onStop, title: "Стоп", children: /* @__PURE__ */ jsx(IconStop, {}) })
+      ]
+    }
+  );
+}
 const POLL_MS$2 = 2e4;
 function useSummaryRequests(boardId, canManage) {
   const [requests, setRequests] = useState([]);
@@ -8698,14 +8734,14 @@ function useBoardHub(boardId) {
       [call]
     ),
     startRecording: useCallback(
-      (title, seedExisting, view) => call("StartRecording", title ?? null, seedExisting, page(), view.x, view.y, view.scale),
+      (title, seedExisting, view) => call("StartRecording", title ?? null, seedExisting, page(), view.x, view.y, view.scale, view.width, view.height),
       [call]
     ),
     pauseRecording: useCallback(() => call("PauseRecording"), [call]),
     resumeRecording: useCallback(() => call("ResumeRecording"), [call]),
     stopRecording: useCallback(() => call("StopRecording"), [call]),
     reportViewport: useCallback(
-      (id, x, y, scale) => call("ReportViewport", id, x, y, scale),
+      (id, x, y, scale, width, height) => call("ReportViewport", id, x, y, scale, width, height),
       [call]
     )
   };
@@ -9054,7 +9090,13 @@ function BoardPage() {
   const resumeWhenReady = useRef(false);
   const startRecording = (title, seedExisting) => {
     const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
-    hub.startRecording(title, seedExisting, { x: center.x, y: center.y, scale: viewport.scale });
+    hub.startRecording(title, seedExisting, {
+      x: center.x,
+      y: center.y,
+      scale: viewport.scale,
+      width: canvasSize.width,
+      height: canvasSize.height
+    });
     setCountdown(3);
   };
   useEffect(() => {
@@ -9087,7 +9129,7 @@ function BoardPage() {
     if (now - lastViewportReport.current < 300) return;
     lastViewportReport.current = now;
     const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
-    hub.reportViewport(hub.pageId, center.x, center.y, viewport.scale);
+    hub.reportViewport(hub.pageId, center.x, center.y, viewport.scale, canvasSize.width, canvasSize.height);
   }, [viewport, hub.canManage, (_b = hub.recording) == null ? void 0 : _b.status, hub.pageId, hub.reportViewport, canvasSize.width, canvasSize.height]);
   const jumpToBookmark = (bookmark) => {
     const x1 = bookmark.data.x1 ?? 0;
@@ -9731,11 +9773,6 @@ function BoardPage() {
                 onBringEveryone: bringEveryoneToMe,
                 canRecordings: !me.isGuest,
                 onRecordings: () => setShowRecordings((current) => !current),
-                onPauseRecording: hub.pauseRecording,
-                onResumeRecording: hub.resumeRecording,
-                onStopRecording: hub.stopRecording,
-                recordingStatus: ((_c = hub.recording) == null ? void 0 : _c.status) ?? null,
-                recordingCountdown: countdown,
                 pageLabel: hub.pages.length === 0 ? "—" : `${Math.max(1, hub.pages.findIndex((page) => page.id === hub.pageId) + 1)}/${hub.pages.length}`,
                 onSummary: () => setShowSummary((current) => !current),
                 summaryCount: summaries.requests.length,
@@ -9834,7 +9871,7 @@ function BoardPage() {
                 pages: hub.pages,
                 pageId: hub.pageId,
                 participants: hub.participants,
-                meKey: ((_d = hub.participants.find((one) => one.connectionId === hub.me)) == null ? void 0 : _d.key) ?? null,
+                meKey: ((_c = hub.participants.find((one) => one.connectionId === hub.me)) == null ? void 0 : _c.key) ?? null,
                 canManage: hub.canManage,
                 onOpen: (pageId) => {
                   setSelection([]);
@@ -9982,6 +10019,18 @@ function BoardPage() {
               }
             ) }),
             /* @__PURE__ */ jsxs("div", { className: "board-page__people-corner", children: [
+              me.isGuest ? null : /* @__PURE__ */ jsx(
+                RecordingControls,
+                {
+                  canManage: hub.canManage,
+                  status: ((_d = hub.recording) == null ? void 0 : _d.status) ?? null,
+                  countdown,
+                  onPause: hub.pauseRecording,
+                  onResume: hub.resumeRecording,
+                  onStop: hub.stopRecording,
+                  onOpen: () => setShowRecordings(true)
+                }
+              ),
               me.isGuest ? /* @__PURE__ */ jsxs("p", { className: "guest-hint", children: [
                 "Вы гость. ",
                 /* @__PURE__ */ jsx(Link, { to: "/login", children: "Войти?" })

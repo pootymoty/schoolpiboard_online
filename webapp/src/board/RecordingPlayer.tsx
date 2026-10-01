@@ -126,11 +126,16 @@ export function RecordingPlayer({ boardId, recordingId, onClose }: Props): React
     const height = box.clientHeight;
     if (width === 0 || height === 0) return;
 
-    canvas.width = width;
-    canvas.height = height;
+    // Холст — в настоящих пикселях экрана: иначе на телефоне запись
+    // выглядела мутнее самой доски.
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
 
     const context = canvas.getContext('2d');
     if (!context) return;
+
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
 
     context.fillStyle = content.background.background;
     context.fillRect(0, 0, width, height);
@@ -147,9 +152,17 @@ export function RecordingPlayer({ boardId, recordingId, onClose }: Props): React
     // Вид ведущего, а не подгонка под содержимое: запись — это то, что
     // он видел сам, с его масштабом, а не автоматически прижатый кадр.
     // Подгонка — только запасной случай, для записи без этого шага.
+    //
+    // Окно проигрывателя обычно меньше экрана ведущего (сверху заголовок,
+    // снизу перемотка), и в его масштабе низ и края того, что он видел,
+    // уходили за край. Поэтому видимая им область вписывается целиком —
+    // в окне меньше его экрана уменьшается, в окне больше — растягивается.
     const recorded = content.viewport;
+    const fit = recorded?.width && recorded?.height
+      ? Math.min(width / recorded.width, height / recorded.height)
+      : 1;
     const viewport = recorded
-      ? centerOn({ x: 0, y: 0, scale: recorded.scale }, recorded.x, recorded.y, width, height, recorded.scale)
+      ? centerOn({ x: 0, y: 0, scale: recorded.scale * fit }, recorded.x, recorded.y, width, height, recorded.scale * fit)
       : fitToContent(all.flatMap((item) => pointsOf(item.data)), width, height) ?? { x: width / 2, y: height / 2, scale: 1 };
 
     drawGrid(

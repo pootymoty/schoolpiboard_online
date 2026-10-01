@@ -34,6 +34,7 @@ import { LibraryPanel } from '../board/LibraryPanel';
 import { MAX_SHEETS, SummaryPanel } from '../board/SummaryPanel';
 import { RecordingsPanel } from '../board/RecordingsPanel';
 import { RecordingPlayer } from '../board/RecordingPlayer';
+import { RecordingControls } from '../board/RecordingControls';
 import { useSummaryRequests } from '../board/useSummaryRequests';
 import type { Template } from '../board/library';
 import type { TemplateItem } from '../api/templates';
@@ -531,7 +532,9 @@ export function BoardPage(): ReactElement {
 
   const startRecording = (title: string | undefined, seedExisting: boolean) => {
     const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
-    hub.startRecording(title, seedExisting, { x: center.x, y: center.y, scale: viewport.scale });
+    hub.startRecording(title, seedExisting, {
+      x: center.x, y: center.y, scale: viewport.scale, width: canvasSize.width, height: canvasSize.height,
+    });
     setCountdown(3);
   };
 
@@ -572,7 +575,7 @@ export function BoardPage(): ReactElement {
     lastViewportReport.current = now;
 
     const center = toWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
-    hub.reportViewport(hub.pageId, center.x, center.y, viewport.scale);
+    hub.reportViewport(hub.pageId, center.x, center.y, viewport.scale, canvasSize.width, canvasSize.height);
   }, [viewport, hub.canManage, hub.recording?.status, hub.pageId, hub.reportViewport, canvasSize.width, canvasSize.height]);
 
   /**
@@ -1514,11 +1517,6 @@ export function BoardPage(): ReactElement {
             onBringEveryone={bringEveryoneToMe}
             canRecordings={!me.isGuest}
             onRecordings={() => setShowRecordings((current) => !current)}
-            onPauseRecording={hub.pauseRecording}
-            onResumeRecording={hub.resumeRecording}
-            onStopRecording={hub.stopRecording}
-            recordingStatus={hub.recording?.status ?? null}
-            recordingCountdown={countdown}
             pageLabel={
               hub.pages.length === 0
                 ? '—'
@@ -1800,6 +1798,20 @@ export function BoardPage(): ReactElement {
           </CanvasPanel>
 
           <div className="board-page__people-corner">
+            {/* Идущая запись — слева от «Участников»: видна всегда, даже
+                когда верхняя панель пролистана или спрятана. */}
+            {me.isGuest ? null : (
+              <RecordingControls
+                canManage={hub.canManage}
+                status={hub.recording?.status ?? null}
+                countdown={countdown}
+                onPause={hub.pauseRecording}
+                onResume={hub.resumeRecording}
+                onStop={hub.stopRecording}
+                onOpen={() => setShowRecordings(true)}
+              />
+            )}
+
             {me.isGuest ? (
               <p className="guest-hint">Вы гость. <Link to="/login">Войти?</Link></p>
             ) : null}

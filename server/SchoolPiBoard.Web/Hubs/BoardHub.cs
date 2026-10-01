@@ -383,13 +383,19 @@ public sealed class BoardHub : Hub
     /// если она идёт (молча, если нет). Владелец шлёт это сам, пока
     /// ведёт занятие: свой вид, кроме него, никто не знает.
     /// </summary>
-    public async Task ReportViewport(long pageId, double x, double y, double scale)
+    /// <summary>
+    /// Вид ведущего — в идущую запись. <paramref name="width"/> и
+    /// <paramref name="height"/> — размер видимой части его холста в
+    /// экранных точках: по нему проигрыватель вписывает в своё окно ровно
+    /// ту область, что видел ведущий, а не обрезает её, если окно меньше.
+    /// </summary>
+    public async Task ReportViewport(long pageId, double x, double y, double scale, double width, double height)
     {
         var presence = await RequireOwnerAsync();
         if (presence is null) return;
 
         await _recordings.AppendStepAsync(
-            presence.BoardId, "ViewportChanged", new { pageId, x, y, scale }, Context.ConnectionAborted);
+            presence.BoardId, "ViewportChanged", new { pageId, x, y, scale, width, height }, Context.ConnectionAborted);
     }
 
     // ---------- Правка ----------
@@ -566,26 +572,28 @@ public sealed class BoardHub : Hub
     /// у ведущего идёт отсчёт «3, 2, 1», и паузу снимает он сам его концом.
     /// В нулевую миллисекунду кладётся стартовое состояние: вид ведущего
     /// (<paramref name="pageId"/>, центр <paramref name="x"/>/<paramref name="y"/>,
-    /// <paramref name="scale"/>) — чтобы запись с первого кадра смотрела
-    /// его глазами, — и, если <paramref name="seedExisting"/>, фон и то, что
-    /// уже нарисовано на странице: прошлое так не показать (тайминга у него
+    /// <paramref name="scale"/>, размер видимой части <paramref name="width"/>×<paramref name="height"/>)
+    /// — чтобы запись с первого кадра смотрела его глазами, — фон с
+    /// разлиновкой и, если <paramref name="seedExisting"/>, то, что уже
+    /// нарисовано на странице: прошлое так не показать (тайминга у него
     /// нет), но начать не с пустого холста — можно.
     /// </summary>
     public async Task StartRecording(
-        string? title, bool seedExisting, long pageId, double x, double y, double scale)
+        string? title, bool seedExisting, long pageId, double x, double y, double scale, double width, double height)
     {
         var presence = await RequireOwnerAsync();
         if (presence is null) return;
 
+        // Вид и фон с разлиновкой — всегда: запись с первого кадра должна
+        // выглядеть как доска ведущего, даже если начата с чистого листа.
         var seed = new List<(string Name, object Payload)>
         {
-            ("ViewportChanged", new { pageId, x, y, scale }),
+            ("ViewportChanged", new { pageId, x, y, scale, width, height }),
+            ("BackgroundChanged", await BackgroundOf(presence.BoardId)),
         };
 
         if (seedExisting)
         {
-            seed.Add(("BackgroundChanged", await BackgroundOf(presence.BoardId)));
-
             var items = await _items.ListAsync(pageId, Context.ConnectionAborted);
             foreach (var item in items)
             {
