@@ -42,6 +42,7 @@ builder.Services.AddScoped<RoleChangeService>();
 builder.Services.AddScoped<SubscriptionService>();
 builder.Services.AddScoped<BoardRecordingService>();
 builder.Services.AddScoped<KeyServerClient>();
+builder.Services.AddScoped<SchoolPiAuthService>();
 
 // Оплата идёт через сервер ключей: паролей Робокассы у доски нет
 // и не будет. Продление запрашивает фоновая служба — сроки знает
@@ -155,6 +156,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapAuthEndpoints();
+app.MapSchoolPiEndpoints();
 app.MapBoardEndpoints();
 app.MapFileEndpoints();
 app.MapTemplateEndpoints();

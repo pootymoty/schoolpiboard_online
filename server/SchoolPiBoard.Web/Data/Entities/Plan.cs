@@ -18,6 +18,9 @@ public class Plan
     /// <summary>С него начинается пробный период — на нём же он и заканчивается.</summary>
     public const string CodeStandard = "standard";
 
+    /// <summary>На уровень выше стандартного: его неделю дарят за вход через «Школу π».</summary>
+    public const string CodeExtended = "extended";
+
     public int Id { get; set; }
 
     public string Code { get; set; } = string.Empty;

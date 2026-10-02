@@ -25,6 +25,9 @@ public class Subscription
     /// <summary>Пробный период при подтверждении почты.</summary>
     public const string SourceTrial = "trial";
 
+    /// <summary>Бонус за вход через «Школу π».</summary>
+    public const string SourceSchoolPi = "schoolpi";
+
     public long Id { get; set; }
 
     public long UserId { get; set; }

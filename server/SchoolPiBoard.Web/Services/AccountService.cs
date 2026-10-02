@@ -131,7 +131,7 @@ public sealed class AccountService
     /// Сверяется при каждом входе, а не однажды при создании: адрес могли
     /// добавить в список уже после того, как человек завёл учётную запись.
     /// </summary>
-    private async Task SyncRoleAsync(User user, CancellationToken cancellationToken)
+    public async Task SyncRoleAsync(User user, CancellationToken cancellationToken)
     {
         // Список только выдаёт роль, но не снимает: снятое отсюда
         // отбирало бы права у тех, кому их выдали в панели, при первом же
@@ -292,6 +292,10 @@ public sealed class AccountService
 
         // Все входы удалённой учётной записи — недействительны сразу.
         user.SessionsValidAfter = AuthTokenService.NowForRevocation();
+
+        // Аккаунт школы отвязывается: войдя через школу снова, человек
+        // заведёт новую учётную запись, а не попадёт в удалённую.
+        user.ExternalId = null;
 
         // Непогашенные письма гасим: ссылка восстановления пароля из
         // старого письма иначе продолжала бы вести к удалённой записи.

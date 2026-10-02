@@ -5,6 +5,26 @@ export interface User {
   displayName: string;
   /** Администратор. Показывает пункт меню; доступ решает сервер. */
   isAdmin: boolean;
+  /** Привязан ли аккаунт «Школы π». */
+  schoolPiLinked: boolean;
+}
+
+/** Бонус за вход через «Школу π». */
+export interface SchoolBonus {
+  /** started — подписки не было; paused — тариф пониже на паузе; extended — к «Расширенному» добавлены дни. */
+  kind: 'started' | 'paused' | 'extended';
+  planName: string;
+  days: number;
+  /** До какого момента действует «Расширенный». */
+  until: string;
+  /** Когда продолжится тариф, поставленный на паузу. */
+  resumesAt: string | null;
+  pausedPlan: string | null;
+}
+
+/** Вход через «Школу π» после подтверждения склейки. */
+export interface SchoolPiAuthResponse extends AuthResponse {
+  bonus: SchoolBonus | null;
 }
 
 export interface AuthResponse {

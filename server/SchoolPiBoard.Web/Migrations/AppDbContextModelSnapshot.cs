@@ -127,7 +127,47 @@ namespace SchoolPiBoard.Web.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
+                    b.HasIndex("ExternalId")
+                        .IsUnique();
+
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.SchoolPiBonus", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("external_id");
+
+                    b.Property<long?>("SubscriptionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("subscription_id");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("school_pi_bonuses", (string)null);
                 });
 
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.Board", b =>

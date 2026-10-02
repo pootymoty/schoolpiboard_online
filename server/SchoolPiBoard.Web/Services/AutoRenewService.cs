@@ -87,9 +87,9 @@ public sealed class AutoRenewService : BackgroundService
                 continue;
             }
 
-            // Продлеваем на тот же срок, что и покупали. Сколько дней это
-            // было, видно по самой подписке — отдельного поля не нужно.
-            var days = (int)Math.Round((due.EndsAt - due.StartsAt).TotalDays);
+            // Продлеваем на тот же срок, что и покупали — по заказу, а не
+            // по длине строки: пауза на бонус её укорачивает.
+            var days = await subscriptions.PeriodDaysAsync(due, cancellationToken);
             var price = plan.PriceFor(days);
 
             if (price is null or <= 0)
@@ -146,7 +146,7 @@ public sealed class AutoRenewService : BackgroundService
             var plan = due.Plan;
             if (plan is null) continue;
 
-            var days = (int)Math.Round((due.EndsAt - due.StartsAt).TotalDays);
+            var days = await subscriptions.PeriodDaysAsync(due, cancellationToken);
             var price = plan.PriceFor(days);
             if (price is null or <= 0) continue;
 

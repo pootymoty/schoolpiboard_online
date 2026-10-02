@@ -14,6 +14,25 @@ public sealed record Access(Plan Plan, Subscription? Subscription)
 }
 
 /// <summary>
+/// Что вышло с бонусом за вход через «Школу π».
+///
+/// <c>Until</c> — до какого момента человек на «Расширенном» (с учётом
+/// бонуса). <c>ResumesAt</c> и <c>PausedPlan</c> — если на время бонуса
+/// встал на паузу тариф пониже: когда и какой продолжится.
+/// </summary>
+public sealed record SchoolBonus(string Kind, string PlanName, DateTime Until, DateTime? ResumesAt, string? PausedPlan)
+{
+    /// <summary>Бонус начался с нуля: подписки не было.</summary>
+    public const string KindStarted = "started";
+
+    /// <summary>Тариф пониже поставлен на паузу и продолжится после бонуса.</summary>
+    public const string KindPaused = "paused";
+
+    /// <summary>Уже был «Расширенный» — к нему прибавилась неделя.</summary>
+    public const string KindExtended = "extended";
+}
+
+/// <summary>
 /// Тарифы и сроки.
 ///
 /// Бесплатный уровень — не подписка, а её отсутствие: строка с датой
@@ -186,6 +205,143 @@ public sealed class SubscriptionService
 
         return await ExtendAsync(
             userId, plan, days, Subscription.KindTrial, Subscription.SourceTrial, null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Бонус за вход через «Школу π»: неделя «Расширенного».
+    ///
+    /// Один раз на учётную запись доски и один раз на аккаунт школы.
+    /// Если уже действует тариф выше «Расширенного» — бонус не выдаётся
+    /// (и больше не предлагается: отметка пишется всё равно).
+    ///
+    /// Иначе бонус начинается сразу, а всё, что действовало, ставится на
+    /// паузу: оставшиеся дни переезжают за конец бонуса, и всё, что стоит
+    /// в очереди, сдвигается на ту же неделю. Для «Расширенного» это и
+    /// есть «плюс семь дней» — тариф тот же, срок на неделю длиннее.
+    ///
+    /// Пауза сделана сдвигом, а не новой строкой с остатком: на строке
+    /// лежат номер счёта и автопродление, по ним сервер ключей списывает
+    /// следующий платёж, и переносить их было бы хрупко. Уже прожитая часть
+    /// срока остаётся в истории отдельной строкой.
+    /// </summary>
+    public async Task<SchoolBonus?> GrantSchoolBonusAsync(
+        long userId, string externalId, int days, CancellationToken cancellationToken)
+    {
+        if (days <= 0) return null;
+
+        var given = await _db.SchoolPiBonuses
+            .AnyAsync(x => x.UserId == userId || x.ExternalId == externalId, cancellationToken);
+        if (given) return null;
+
+        var plan = await FindPlanAsync(Plan.CodeExtended, cancellationToken);
+        if (plan is null) return null;
+
+        // Одной транзакцией: два одновременных входа (двойной щелчок,
+        // повтор от браузера) иначе сдвинули бы сроки дважды. Второй
+        // споткнётся об уникальный индекс отметки и откатится целиком.
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var record = new SchoolPiBonus { ExternalId = externalId, UserId = userId, CreatedAt = now };
+
+        var running = await _db.Subscriptions
+            .Include(x => x.Plan)
+            .Where(x => x.UserId == userId && x.StartsAt <= now && x.EndsAt > now)
+            .ToListAsync(cancellationToken);
+
+        if (running.Any(x => x.Plan is not null && x.Plan.Sort > plan.Sort))
+        {
+            _db.SchoolPiBonuses.Add(record);
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return null;
+        }
+
+        var shift = TimeSpan.FromDays(days);
+
+        // Что было «на ходу» до бонуса — для рассказа человеку, что встало
+        // на паузу. Берётся та же, что решает тариф сейчас: кончается позже.
+        var current = running.OrderByDescending(x => x.EndsAt).FirstOrDefault();
+
+        var queued = await _db.Subscriptions
+            .Where(x => x.UserId == userId && x.StartsAt > now)
+            .ToListAsync(cancellationToken);
+
+        foreach (var subscription in running)
+        {
+            // Прожитая часть — в историю. Без счёта и без автопродления:
+            // они остаются на основной строке, которая продолжится позже.
+            _db.Subscriptions.Add(new Subscription
+            {
+                UserId = userId,
+                PlanId = subscription.PlanId,
+                Kind = subscription.Kind,
+                StartsAt = subscription.StartsAt,
+                EndsAt = now,
+                Source = subscription.Source,
+                CreatedAt = subscription.CreatedAt
+            });
+
+            subscription.StartsAt = now + shift;
+            subscription.EndsAt += shift;
+            subscription.RenewalNoticeAt = null;
+        }
+
+        foreach (var subscription in queued)
+        {
+            subscription.StartsAt += shift;
+            subscription.EndsAt += shift;
+            subscription.RenewalNoticeAt = null;
+        }
+
+        var bonus = new Subscription
+        {
+            UserId = userId,
+            PlanId = plan.Id,
+            Kind = Subscription.KindTrial,
+            StartsAt = now,
+            EndsAt = now + shift,
+            Source = Subscription.SourceSchoolPi,
+            CreatedAt = now
+        };
+
+        _db.Subscriptions.Add(bonus);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        record.SubscriptionId = bonus.Id;
+        _db.SchoolPiBonuses.Add(record);
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        if (current?.Plan is null)
+            return new SchoolBonus(SchoolBonus.KindStarted, plan.Name, bonus.EndsAt, null, null);
+
+        if (current.Plan.Sort == plan.Sort)
+            return new SchoolBonus(SchoolBonus.KindExtended, plan.Name, current.EndsAt, null, null);
+
+        return new SchoolBonus(SchoolBonus.KindPaused, plan.Name, bonus.EndsAt, current.StartsAt, current.Plan.Name);
+    }
+
+    /// <summary>
+    /// На сколько дней покупался срок — по нему продлевают.
+    ///
+    /// Берётся из заказа, а не из длины строки: строку бонус за вход через
+    /// «Школу π» сдвигает и укорачивает (прожитая часть уходит в историю),
+    /// и по длине вышло бы «23 дня» — срок, который не продаётся.
+    /// </summary>
+    public async Task<int> PeriodDaysAsync(Subscription subscription, CancellationToken cancellationToken)
+    {
+        if (subscription.InvoiceId is not null)
+        {
+            var ordered = await _db.BillingOrders
+                .Where(x => x.InvoiceId == subscription.InvoiceId)
+                .Select(x => (int?)x.Days)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (ordered is > 0) return ordered.Value;
+        }
+
+        return (int)Math.Round((subscription.EndsAt - subscription.StartsAt).TotalDays);
     }
 
     /// <summary>

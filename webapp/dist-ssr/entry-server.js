@@ -1716,6 +1716,45 @@ function PlanPage() {
     ] }) : null
   ] });
 }
+async function startSchoolPi(mode) {
+  const { url } = await api("/auth/schoolpi/start", { method: "POST", body: { mode } });
+  window.location.assign(url);
+}
+function day$1(value) {
+  return new Date(value).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+}
+function bonusText(bonus) {
+  switch (bonus.kind) {
+    case "extended":
+      return `К вашему тарифу «${bonus.planName}» добавлено ${bonus.days} дн. — теперь он действует до ${day$1(bonus.until)}.`;
+    case "paused":
+      return `Вам начислено ${bonus.days} дн. тарифа «${bonus.planName}» — до ${day$1(bonus.until)}. Тариф «${bonus.pausedPlan ?? ""}» на это время на паузе и продолжится ${day$1(bonus.resumesAt ?? bonus.until)} — оставшиеся дни не пропадут.`;
+    default:
+      return `Вам начислено ${bonus.days} дн. тарифа «${bonus.planName}» — до ${day$1(bonus.until)}.`;
+  }
+}
+function SchoolPiButton({ label = "Войти через Школу π" }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const go = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await startSchoolPi("login");
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось перейти в Школу π.");
+      setBusy(false);
+    }
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "schoolpi-login", children: [
+    /* @__PURE__ */ jsxs("button", { className: "btn-outline schoolpi-login__button", type: "button", onClick: go, disabled: busy, children: [
+      /* @__PURE__ */ jsx("span", { className: "schoolpi-login__mark", "aria-hidden": "true", children: "π" }),
+      busy ? "Переходим…" : label
+    ] }),
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    /* @__PURE__ */ jsx("div", { className: "schoolpi-login__or", children: /* @__PURE__ */ jsx("span", { children: "или" }) })
+  ] });
+}
 function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -1775,6 +1814,7 @@ function LoginPage() {
     ] }) }),
     /* @__PURE__ */ jsxs("form", { className: "card auth-split__form", onSubmit: submit, children: [
       /* @__PURE__ */ jsx("h1", { children: "Вход" }),
+      /* @__PURE__ */ jsx(SchoolPiButton, {}),
       /* @__PURE__ */ jsx("label", { htmlFor: "email", children: "Почта" }),
       /* @__PURE__ */ jsx(
         "input",
@@ -1860,12 +1900,14 @@ function RegisterPage() {
       /* @__PURE__ */ jsxs("ul", { children: [
         /* @__PURE__ */ jsx("li", { children: "Участник заходит по ссылке и называет имя — без пароля и почты." }),
         /* @__PURE__ */ jsx("li", { children: "Бесплатный тариф — без срока и без карты." }),
-        /* @__PURE__ */ jsx("li", { children: "Первые семь дней открыт «Стандартный» целиком, попробовать всё." })
+        /* @__PURE__ */ jsx("li", { children: "Первые семь дней открыт «Стандартный» целиком, попробовать всё." }),
+        /* @__PURE__ */ jsx("li", { children: "Учитесь в Школе π — войдите её аккаунтом и получите неделю «Расширенного»." })
       ] })
     ] }) }),
     /* @__PURE__ */ jsxs("form", { className: "card auth-split__form", onSubmit: submit, children: [
       /* @__PURE__ */ jsx("h1", { children: "Регистрация" }),
       /* @__PURE__ */ jsx("p", { className: "text-muted small auth-split__note", children: "Учётная запись нужна тому, кто создаёт доски. Участнику регистрироваться не нужно: он заходит по ссылке." }),
+      /* @__PURE__ */ jsx(SchoolPiButton, { label: "Через аккаунт Школы π" }),
       /* @__PURE__ */ jsx("label", { htmlFor: "displayName", children: "Как вас называть" }),
       /* @__PURE__ */ jsx(
         "input",
@@ -2075,6 +2117,148 @@ function ResetPasswordPage() {
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Сохраняем…" : "Задать пароль" })
   ] }) });
+}
+function parseBonus(raw) {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+function SchoolPiPage() {
+  const { accept, refresh } = useAuth();
+  const navigate = useNavigate();
+  const [view, setView] = useState({ kind: "working" });
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const query = new URLSearchParams(window.location.search);
+    window.history.replaceState(null, "", window.location.pathname);
+    const mail = query.get("confirm");
+    if (mail) {
+      api("/auth/schoolpi/confirm-mail", { method: "POST", body: { ticket: mail } }).then((result2) => {
+        accept(result2);
+        setView({ kind: "done", title: "Учётные записи связаны, вы вошли.", bonus: result2.bonus, next: "/boards", nextLabel: "К доскам" });
+      }).catch((reason) => {
+        setView({ kind: "error", message: reason instanceof ApiError ? reason.message : "Не удалось связать учётные записи." });
+      });
+      return;
+    }
+    const result = hash.get("result");
+    const bonus = parseBonus(hash.get("bonus"));
+    if (result === "signed_in" && hash.get("token")) {
+      writeToken(hash.get("token"));
+      refresh().then(() => {
+        if (!bonus) navigate("/boards", { replace: true });
+        else setView({ kind: "done", title: "Вы вошли через Школу π.", bonus, next: "/boards", nextLabel: "К доскам" });
+      }).catch(() => setView({ kind: "error", message: "Не удалось войти. Попробуйте ещё раз." }));
+      return;
+    }
+    if (result === "linked") {
+      refresh().catch(() => void 0).finally(() => setView({ kind: "done", title: "Аккаунт Школы π привязан.", bonus, next: "/profile", nextLabel: "В профиль" }));
+      return;
+    }
+    if (result === "confirm" && hash.get("ticket")) {
+      setView({ kind: "confirm", ticket: hash.get("ticket") ?? "", email: hash.get("email") ?? "" });
+      return;
+    }
+    setView({ kind: "error", message: hash.get("message") ?? "Вход через Школу π не завершён. Попробуйте ещё раз." });
+  }, [accept, refresh, navigate]);
+  return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("div", { className: "card", children: [
+    /* @__PURE__ */ jsx("h1", { children: "Вход через Школу π" }),
+    view.kind === "working" ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Минуту…" }) : null,
+    view.kind === "done" ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { children: view.title }),
+      view.bonus ? /* @__PURE__ */ jsxs("p", { className: "note note-success", children: [
+        /* @__PURE__ */ jsx("strong", { children: "Подарок за вход через Школу π." }),
+        " ",
+        bonusText(view.bonus)
+      ] }) : null,
+      /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: view.next, children: view.nextLabel })
+    ] }) : null,
+    view.kind === "confirm" ? /* @__PURE__ */ jsx(
+      ConfirmLink,
+      {
+        ticket: view.ticket,
+        email: view.email,
+        onDone: (answer) => {
+          accept(answer);
+          setView({ kind: "done", title: "Учётные записи связаны, вы вошли.", bonus: answer.bonus, next: "/boards", nextLabel: "К доскам" });
+        }
+      }
+    ) : null,
+    view.kind === "error" ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { className: "note note-danger", children: view.message }),
+      /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/login", children: "На страницу входа" })
+    ] }) : null
+  ] }) });
+}
+function ConfirmLink({ ticket, email, onDone }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [sent, setSent] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      onDone(await api("/auth/schoolpi/confirm-password", {
+        method: "POST",
+        body: { ticket, password }
+      }));
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось связать учётные записи.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const sendMail = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const answer = await api("/auth/schoolpi/send-confirmation", {
+        method: "POST",
+        body: { ticket }
+      });
+      setSent(answer.message);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось отправить письмо.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return /* @__PURE__ */ jsxs("form", { onSubmit: submit, children: [
+    /* @__PURE__ */ jsxs("p", { children: [
+      "На доске уже есть учётная запись с почтой ",
+      /* @__PURE__ */ jsx("strong", { children: email }),
+      ". Подтвердите, что она ваша, — и она будет связана с аккаунтом Школы π. Доски, подписка и всё остальное останутся на месте."
+    ] }),
+    /* @__PURE__ */ jsx("label", { htmlFor: "schoolpi-password", children: "Пароль от доски" }),
+    /* @__PURE__ */ jsx(
+      "input",
+      {
+        id: "schoolpi-password",
+        type: "password",
+        required: true,
+        autoComplete: "current-password",
+        value: password,
+        onChange: (event) => setPassword(event.target.value)
+      }
+    ),
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    sent ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: sent }) : null,
+    /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Связываем…" : "Связать и войти" }),
+    /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
+      "Не помните пароль? Пришлём ссылку на ",
+      email,
+      "."
+    ] }),
+    /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: sendMail, disabled: busy, children: "Прислать ссылку" })
+  ] });
 }
 function Menu({ label, children, trigger, triggerClassName = "btn-tool" }) {
   const [open, setOpen] = useState(false);
@@ -3600,6 +3784,7 @@ function ProfilePage() {
   return /* @__PURE__ */ jsxs(Page, { narrow: true, children: [
     /* @__PURE__ */ jsx("h1", { children: "Профиль" }),
     /* @__PURE__ */ jsx(NameCard, { user, onSaved: refresh }),
+    /* @__PURE__ */ jsx(SchoolPiCard, { linked: user.schoolPiLinked }),
     /* @__PURE__ */ jsx(PasswordCard, { email: user.email }),
     /* @__PURE__ */ jsx(SessionsCard, {}),
     /* @__PURE__ */ jsx(DangerCard, { onDeleted: () => {
@@ -3669,6 +3854,28 @@ function PasswordCard({ email }) {
       " ссылку для смены. После смены пароля входы на всех других устройствах завершатся."
     ] }),
     sent ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: "Письмо отправлено — проверьте почту." }) : /* @__PURE__ */ jsx("button", { className: "btn-outline", type: "button", onClick: request, disabled: busy, children: busy ? "Отправляем…" : "Сменить пароль" })
+  ] });
+}
+function SchoolPiCard({ linked }) {
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const link = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await startSchoolPi("link");
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось перейти в Школу π.");
+      setBusy(false);
+    }
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "card", children: [
+    /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Школа π" }),
+    linked ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Аккаунт Школы π привязан: входить можно и через него, и по почте с паролем. Если пароля у вас нет — задайте его кнопкой «Сменить пароль» ниже." }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Привяжите аккаунт Школы π — и входите на доску в одно касание. За привязку дарим неделю тарифа «Расширенный»; если сейчас действует тариф попроще, он встанет на паузу и продолжится после подарка." }),
+      error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+      /* @__PURE__ */ jsx("button", { className: "btn-outline", type: "button", onClick: link, disabled: busy, children: busy ? "Переходим…" : "Привязать аккаунт Школы π" })
+    ] })
   ] });
 }
 function SessionsCard() {
@@ -11487,6 +11694,7 @@ function App() {
       /* @__PURE__ */ jsx(Route, { path: "/faq", element: /* @__PURE__ */ jsx(FaqPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/confirm", element: /* @__PURE__ */ jsx(ConfirmPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/reset-password", element: /* @__PURE__ */ jsx(ResetPasswordPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/auth/schoolpi", element: /* @__PURE__ */ jsx(SchoolPiPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/join/:token", element: /* @__PURE__ */ jsx(JoinPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/boards/:boardId", element: /* @__PURE__ */ jsx(BoardPage, {}) }),
       user ? /* @__PURE__ */ jsxs(Fragment, { children: [

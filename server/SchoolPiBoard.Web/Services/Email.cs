@@ -262,6 +262,65 @@ public static class EmailTemplates
              """);
     }
 
+    /// <summary>
+    /// Ссылка, подтверждающая, что учётная запись доски и аккаунт «Школы π»
+    /// принадлежат одному человеку. Уходит на почту учётной записи доски.
+    /// </summary>
+    public static (string Subject, string Html, string Text) SchoolPiLink(string link, int minutes)
+        => (
+            "Вход через Школу π — Доска Пи",
+            $"""
+             <p>Здравствуйте!</p>
+             <p>Вы входите на «Доску Пи» через Школу π, а на доске уже есть учётная запись с этой почтой.
+             Чтобы связать их, перейдите по ссылке — доски, подписка и всё остальное останутся на месте:</p>
+             <p><a href="{link}">Связать и войти</a></p>
+             <p>Ссылка действует {minutes} мин. Если это были не вы, письмо можно не читать: без ссылки ничего не свяжется.</p>
+             """,
+            $"""
+             Здравствуйте!
+
+             Вы входите на «Доску Пи» через Школу π, а на доске уже есть учётная запись с этой почтой.
+             Чтобы связать их, откройте ссылку — доски, подписка и всё остальное останутся на месте:
+             {link}
+
+             Ссылка действует {minutes} мин. Если это были не вы, письмо можно не читать: без ссылки ничего не свяжется.
+             """);
+
+    /// <summary>Бонус за вход через «Школу π»: что выдано и что стало с прежней подпиской.</summary>
+    public static (string Subject, string Html, string Text) SchoolPiBonus(
+        SchoolPiBoard.Web.Services.SchoolBonus bonus, int days, string planUrl)
+    {
+        var what = bonus.Kind switch
+        {
+            SchoolPiBoard.Web.Services.SchoolBonus.KindExtended =>
+                $"К вашему тарифу «{bonus.PlanName}» добавлено {days} дн. — теперь он действует до {Day(bonus.Until)}.",
+            SchoolPiBoard.Web.Services.SchoolBonus.KindPaused =>
+                $"Вам начислено {days} дн. тарифа «{bonus.PlanName}» — до {Day(bonus.Until)}. "
+                + $"Ваш тариф «{bonus.PausedPlan}» на это время поставлен на паузу и продолжится "
+                + $"{Day(bonus.ResumesAt ?? bonus.Until)} — оставшиеся дни не пропадут.",
+            _ =>
+                $"Вам начислено {days} дн. тарифа «{bonus.PlanName}» — до {Day(bonus.Until)}."
+        };
+
+        return (
+            $"Подарок за вход через Школу π: {days} дн. тарифа «{bonus.PlanName}» — Доска Пи",
+            $"""
+             <p>Здравствуйте!</p>
+             <p>Спасибо, что вошли на «Доску Пи» через Школу π.</p>
+             <p>{what}</p>
+             <p>Подробности — на странице <a href="{planUrl}">«Мой тариф»</a>.</p>
+             """,
+            $"""
+             Здравствуйте!
+
+             Спасибо, что вошли на «Доску Пи» через Школу π.
+
+             {what}
+
+             Подробности — на странице «Мой тариф»: {planUrl}
+             """);
+    }
+
     /// <summary>Дата по-русски: в письме её читают глазами, а не разбирают кодом.</summary>
     private static string Day(DateTime moment)
         => moment.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("ru-RU"));

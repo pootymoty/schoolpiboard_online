@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError, writeToken } from '../api/client';
 import type { User } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
+import { startSchoolPi } from '../auth/schoolPi';
 import { Page } from '../components/Layout';
 
 /**
@@ -24,6 +25,7 @@ export function ProfilePage(): ReactElement {
       <h1>Профиль</h1>
 
       <NameCard user={user} onSaved={refresh} />
+      <SchoolPiCard linked={user.schoolPiLinked} />
       <PasswordCard email={user.email} />
       <SessionsCard />
       <DangerCard onDeleted={() => { logout(); navigate('/', { replace: true }); }} />
@@ -115,6 +117,56 @@ function PasswordCard({ email }: { email: string }): ReactElement {
  * браузер получает новый и остаётся внутри. Смена пароля по ссылке из
  * письма делает то же самое.
  */
+/**
+ * Аккаунт «Школы π». Нужен тем, у кого почта на доске и в школе разная:
+ * сами учётные записи друг друга не найдут. Отвязки нет: бонус за
+ * привязку выдаётся один раз, и отвязка с привязкой к другой учётной
+ * записи была бы способом получать его снова.
+ */
+function SchoolPiCard({ linked }: { linked: boolean }): ReactElement {
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const link = async () => {
+    setBusy(true);
+    setError(null);
+
+    try {
+      await startSchoolPi('link');
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось перейти в Школу π.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card">
+      <h2 className="card-title">Школа π</h2>
+
+      {linked ? (
+        <p className="text-muted small">
+          Аккаунт Школы π привязан: входить можно и через него, и по почте с паролем.
+          Если пароля у вас нет — задайте его кнопкой «Сменить пароль» ниже.
+        </p>
+      ) : (
+        <>
+          <p className="text-muted small">
+            Привяжите аккаунт Школы π — и входите на доску в одно касание. За привязку дарим
+            неделю тарифа «Расширенный»; если сейчас действует тариф попроще, он встанет на паузу
+            и продолжится после подарка.
+          </p>
+
+          {error ? <p className="note note-danger">{error}</p> : null}
+
+          <button className="btn-outline" type="button" onClick={link} disabled={busy}>
+            {busy ? 'Переходим…' : 'Привязать аккаунт Школы π'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SessionsCard(): ReactElement {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);

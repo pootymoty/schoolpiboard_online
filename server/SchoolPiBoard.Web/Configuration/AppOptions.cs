@@ -60,6 +60,9 @@ public sealed class AppOptions
     /// </summary>
     public required string[] AdminEmails { get; init; }
 
+    /// <summary>Вход через «Школу π». Необязателен: без него кнопка входа отвечает «не настроено».</summary>
+    public required SchoolPiOptions SchoolPi { get; init; }
+
     public required int TrialDays { get; init; }
     public required int GraceDays { get; init; }
 
@@ -121,6 +124,16 @@ public sealed class AppOptions
                 .Distinct()
                 .ToArray(),
 
+            SchoolPi = new SchoolPiOptions
+            {
+                BaseUrl = configuration["SCHOOLPI_OAUTH_URL"]?.Trim() is { Length: > 0 } url
+                    ? url.TrimEnd('/')
+                    : "https://school-pi.online",
+                ClientId = configuration["SCHOOLPI_OAUTH_CLIENT_ID"]?.Trim() ?? string.Empty,
+                ClientSecret = configuration["SCHOOLPI_OAUTH_CLIENT_SECRET"]?.Trim() ?? string.Empty,
+                BonusDays = Number("SCHOOLPI_BONUS_DAYS", 7)
+            },
+
             TrialDays = Number("TRIAL_DAYS", 7),
             GraceDays = Number("GRACE_DAYS", 60)
         };
@@ -173,6 +186,26 @@ public sealed class MailOptions
     public required string Username { get; init; }
     public required string Password { get; init; }
     public required string From { get; init; }
+}
+
+/// <summary>
+/// Вход через «Школу π» (OAuth 2.0, код авторизации).
+///
+/// Номер приложения и секрет выдаёт основной сайт командой
+/// <c>flask oauth-create-client</c>; адрес возврата там зарегистрирован
+/// как {PUBLIC_URL}/api/auth/schoolpi/callback.
+/// </summary>
+public sealed class SchoolPiOptions
+{
+    public required string BaseUrl { get; init; }
+    public required string ClientId { get; init; }
+    public required string ClientSecret { get; init; }
+
+    /// <summary>Сколько дней «Расширенного» дарится за вход через школу.</summary>
+    public required int BonusDays { get; init; }
+
+    public bool IsConfigured =>
+        !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret);
 }
 
 /// <summary>

@@ -14,6 +14,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { ConfirmPage } from './pages/ConfirmPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { SchoolPiPage } from './pages/SchoolPiPage';
 import { BoardsPage } from './pages/BoardsPage';
 import { RecordingsLibraryPage } from './pages/RecordingsLibraryPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -69,6 +70,7 @@ export function App(): ReactElement {
         <Route path="/faq" element={<FaqPage />} />
         <Route path="/confirm" element={<ConfirmPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/auth/schoolpi" element={<SchoolPiPage />} />
         <Route path="/join/:token" element={<JoinPage />} />
         <Route path="/boards/:boardId" element={<BoardPage />} />
 

@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client';
 import type { RegisterResponse } from '../api/types';
 import { Page } from '../components/Layout';
 import { NoOrphans } from '../components/NoOrphans';
+import { SchoolPiButton } from '../components/SchoolPiButton';
 import { reachGoal } from '../components/Analytics';
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -77,6 +78,7 @@ export function RegisterPage(): ReactElement {
             <li>Участник заходит по ссылке и называет имя — без пароля и почты.</li>
             <li>Бесплатный тариф — без срока и без карты.</li>
             <li>Первые семь дней открыт «Стандартный» целиком, попробовать всё.</li>
+            <li>Учитесь в Школе π — войдите её аккаунтом и получите неделю «Расширенного».</li>
           </ul>
         </div>
         </NoOrphans>
@@ -87,6 +89,8 @@ export function RegisterPage(): ReactElement {
             Учётная запись нужна тому, кто создаёт доски. Участнику
             регистрироваться не нужно: он заходит по ссылке.
           </p>
+
+          <SchoolPiButton label="Через аккаунт Школы π" />
 
           <label htmlFor="displayName">Как вас называть</label>
           <input id="displayName" type="text" required maxLength={100} autoComplete="name"

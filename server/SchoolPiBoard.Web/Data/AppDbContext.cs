@@ -43,6 +43,8 @@ public class AppDbContext : DbContext
 
     public DbSet<BoardRecordingStep> BoardRecordingSteps => Set<BoardRecordingStep>();
 
+    public DbSet<SchoolPiBonus> SchoolPiBonuses => Set<SchoolPiBonus>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<User>(entity =>
@@ -63,6 +65,28 @@ public class AppDbContext : DbContext
             entity.Property(x => x.SessionsValidAfter).HasColumnName("sessions_valid_after");
 
             entity.HasIndex(x => x.Email).IsUnique();
+
+            // Один аккаунт «Школы π» — одна учётная запись доски. Пустых
+            // значений может быть сколько угодно: PostgreSQL не считает
+            // NULL совпадающими.
+            entity.HasIndex(x => x.ExternalId).IsUnique();
+        });
+
+        model.Entity<SchoolPiBonus>(entity =>
+        {
+            entity.ToTable("school_pi_bonuses");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.ExternalId).HasColumnName("external_id").IsRequired();
+            entity.Property(x => x.UserId).HasColumnName("user_id");
+            entity.Property(x => x.SubscriptionId).HasColumnName("subscription_id");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+
+            // Оба уникальны: бонус один на аккаунт школы и один на учётную
+            // запись доски.
+            entity.HasIndex(x => x.ExternalId).IsUnique();
+            entity.HasIndex(x => x.UserId).IsUnique();
         });
 
         model.Entity<EmailToken>(entity =>
