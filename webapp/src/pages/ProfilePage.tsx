@@ -91,7 +91,10 @@ function PasswordCard({ email }: { email: string }): ReactElement {
   return (
     <div className="card">
       <h2 className="card-title">Пароль</h2>
-      <p className="text-muted small">Пришлём на {email} ссылку для смены.</p>
+      <p className="text-muted small">
+        Пришлём на {email} ссылку для смены. После смены пароля входы на всех
+        других устройствах завершатся.
+      </p>
 
       {sent ? (
         <p className="note note-success">Письмо отправлено — проверьте почту.</p>

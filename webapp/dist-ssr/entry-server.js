@@ -3666,7 +3666,7 @@ function PasswordCard({ email }) {
     /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
       "Пришлём на ",
       email,
-      " ссылку для смены."
+      " ссылку для смены. После смены пароля входы на всех других устройствах завершатся."
     ] }),
     sent ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: "Письмо отправлено — проверьте почту." }) : /* @__PURE__ */ jsx("button", { className: "btn-outline", type: "button", onClick: request, disabled: busy, children: busy ? "Отправляем…" : "Сменить пароль" })
   ] });
