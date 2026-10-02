@@ -70,12 +70,30 @@ const ERASE_RADIUS = 8;
 const STRAIGHTEN_HOLD_MS = 600;
 
 /**
- * Насколько нарисованное уже должно быть похоже на прямую, чтобы задержка
- * руки его выпрямила, в экранных пикселях. Задержка на вершине настоящей
- * кривой (например, наверху дуги) не должна срезать её в прямую линию —
- * только пауза на линии, которая и без того почти прямая.
+ * Насколько рука может «гулять» на месте, всё ещё считаясь неподвижной,
+ * в экранных пикселях. Перо графического планшета и палец дрожат на
+ * пару точек и без всякого намерения — это не движение.
  */
-const STRAIGHTEN_MAX_BOW_PX = 6;
+const STRAIGHTEN_STILL_PX = 6;
+
+/**
+ * Насколько нарисованное уже должно быть похоже на прямую, чтобы задержка
+ * руки его выпрямила. Задержка на вершине настоящей кривой (например,
+ * наверху дуги) не должна срезать её в прямую линию — только пауза на
+ * линии, которая и без того почти прямая.
+ *
+ * Допуск — доля длины линии, а не одно число на все случаи: длинная
+ * линия от руки отклоняется сильнее короткой, и с постоянным допуском
+ * в 6 точек она почти никогда не выпрямлялась. Снизу и сверху — пределы:
+ * у короткой линии и мелкая дуга заметна, у длинной — и большой
+ * прогиб уже явно не случайность.
+ */
+const STRAIGHTEN_BOW_RATIO = 0.06;
+const STRAIGHTEN_MIN_BOW_PX = 8;
+const STRAIGHTEN_MAX_BOW_PX = 28;
+
+/** Короче этого (в экранных пикселях) выпрямлять нечего — это точка, а не линия. */
+const STRAIGHTEN_MIN_LENGTH_PX = 16;
 
 /** Сколько живёт след указки после того, как руку убрали. */
 const POINTER_FADE_MS = 2200;
@@ -128,8 +146,8 @@ export function BoardCanvas({
      * нажать нечем, а провести идеально прямую от руки нельзя.
      */
     straight: boolean;
-    /** Когда рука в последний раз заметно сдвинулась — для той задержки. */
-    movedAt: number;
+    /** Где рука остановилась — от этой точки считается, сдвинулась ли она. */
+    restAt: Point;
     /** Часть геометрии для предпросмотра и для закрепления. */
     preview: () => Partial<ItemData>;
   } | null>(null);
@@ -900,12 +918,57 @@ export function BoardCanvas({
     };
   };
 
+  /**
+   * Таймер удержания: рука остановилась — через STRAIGHTEN_HOLD_MS
+   * проверяем, не выпрямить ли штрих.
+   *
+   * Именно таймер, а не проверка на следующем движении: неподвижная мышь
+   * или перо не присылают ни одного события, и прежде выпрямление
+   * срабатывало только от случайного дрожания руки, а при честно
+   * неподвижной — не срабатывало вовсе.
+   */
+  const holdTimer = useRef<number | null>(null);
+
+  const clearHold = () => {
+    if (holdTimer.current !== null) window.clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+  };
+
+  useEffect(() => clearHold, []);
+
+  /** Выпрямить штрих, если он и так почти прямой (см. STRAIGHTEN_*). */
+  const tryStraighten = (stroke: NonNullable<typeof drawing.current>) => {
+    if (drawing.current !== stroke || stroke.straight || stroke.points.length < 2) return;
+
+    const scale = latest.current.viewport.scale;
+    const start = stroke.points[0];
+    const end = stroke.points[stroke.points.length - 1];
+
+    const length = Math.hypot(end.x - start.x, end.y - start.y) * scale;
+    if (length < STRAIGHTEN_MIN_LENGTH_PX) return;
+
+    const bow = stroke.points.reduce(
+      (max, p) => Math.max(max, distanceToSegment(p, start, end) * scale),
+      0,
+    );
+    const allowed = Math.min(
+      STRAIGHTEN_MAX_BOW_PX,
+      Math.max(STRAIGHTEN_MIN_BOW_PX, length * STRAIGHTEN_BOW_RATIO),
+    );
+
+    if (bow <= allowed) {
+      stroke.straight = true;
+      schedule(false);
+    }
+  };
+
   /** Бросить начатый штрих: он оказался не линией, а началом жеста. */
   const cancelStroke = () => {
     const stroke = drawing.current;
     if (!stroke) return;
 
     drawing.current = null;
+    clearHold();
     hub.cancelItem(stroke.tempId);
     schedule();
   };
@@ -1139,7 +1202,7 @@ export function BoardCanvas({
       from: start,
       to: start,
       straight: false,
-      movedAt: Date.now(),
+      restAt: point,
       preview: (): Partial<ItemData> => {
         if (brush.type === 'shape' || brush.type === 'table') {
           return { x1: record.from.x, y1: record.from.y, x2: record.to.x, y2: record.to.y };
@@ -1308,21 +1371,15 @@ export function BoardCanvas({
     }
 
     // Задержка руки на месте выпрямляет уже проведённое: приём с
-    // планшета, где Shift нажать нечем.
-    const previous = stroke.points[stroke.points.length - 1];
-    if (Math.hypot(point.x - previous.x, point.y - previous.y) * latest.current.viewport.scale > 4) {
-      stroke.movedAt = now;
-    } else if (now - stroke.movedAt > STRAIGHTEN_HOLD_MS) {
-      // Задержка руки — только сигнал «может, хотели прямую». Настоящую
-      // кривую (задержались на вершине дуги, а не на прямом участке) так
-      // не срезать: сверяем, что уже нарисованное само по себе почти не
-      // отклоняется от прямой между началом штриха и текущей точкой.
-      const scale = latest.current.viewport.scale;
-      const bow = stroke.points.reduce(
-        (max, p) => Math.max(max, distanceToSegment(p, stroke.points[0], point) * scale),
-        0,
-      );
-      if (bow <= STRAIGHTEN_MAX_BOW_PX) stroke.straight = true;
+    // планшета, где Shift нажать нечем. Сдвинулась рука дальше дрожания
+    // — удержание начинается заново от нового места; таймер же дотикает
+    // и без единого движения (см. holdTimer).
+    const rest = stroke.restAt;
+    if (!stroke.straight
+        && Math.hypot(point.x - rest.x, point.y - rest.y) * latest.current.viewport.scale > STRAIGHTEN_STILL_PX) {
+      stroke.restAt = point;
+      clearHold();
+      holdTimer.current = window.setTimeout(() => tryStraighten(stroke), STRAIGHTEN_HOLD_MS);
     }
 
     if (event.shiftKey) stroke.straight = true;
@@ -1451,6 +1508,7 @@ export function BoardCanvas({
     if (!stroke || stroke.pointerId !== event.pointerId) return;
 
     drawing.current = null;
+    clearHold();
 
     const brush = drawnBy();
     const geometry = stroke.preview();

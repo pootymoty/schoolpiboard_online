@@ -423,8 +423,15 @@ export function BoardPage(): ReactElement {
         return;
       }
 
-      // Esc возвращает к курсору и снимает выделение — как в десктопной версии.
-      if (event.code === 'Escape') setSelection([]);
+      // Esc возвращает к курсору и снимает выделение — как в десктопной
+      // версии: из любого инструмента одним нажатием обратно в «ничего не
+      // рисую». В поле ввода Esc сюда не доходит (см. начало обработчика)
+      // — там он отменяет ввод.
+      if (event.code === 'Escape') {
+        setSelection([]);
+        setToolRaw('select');
+        setShowParams(false);
+      }
     };
 
     window.addEventListener('keydown', onKey);

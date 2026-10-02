@@ -3553,3 +3553,14 @@ html.board-locked body {
     min-width: 30px;
     min-height: 30px;
 }
+
+/* Полосу инструментов тянут, прокручивая (useDragScroll): пока тянут,
+   курсор — «рука», а кнопки под ним не подсвечиваются. */
+.toolbar.is-drag-scrolling,
+.toolbar.is-drag-scrolling * {
+    cursor: grabbing;
+}
+
+.toolbar.is-drag-scrolling .btn-tool {
+    pointer-events: none;
+}

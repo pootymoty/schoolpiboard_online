@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { ReactElement } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
@@ -7,6 +8,7 @@ import {
 } from '../components/Icons';
 import type { Tool, ToolSettings } from './tools';
 import { toolColor } from './tools';
+import { useDragScroll } from './useDragScroll';
 
 interface ToolProps {
   tool: Tool;
@@ -38,6 +40,11 @@ export function DrawToolbar({
   tool, settings, canEdit, canUndo, canRedo, onTool, onUndo, onRedo, canUpload, onFiles, onLibrary,
   open, onToggleOpen,
 }: ToolProps): ReactElement {
+  // Кнопок больше, чем помещается в невысоком окне: полосу можно
+  // прокрутить, потянув её мышью или пером (см. useDragScroll).
+  const drawRef = useRef<HTMLDivElement | null>(null);
+  useDragScroll(drawRef);
+
   const pick = (which: Tool, icon: ReactElement, title: string, needsEdit = true) => {
     const dot = toolColor(which, settings);
 
@@ -64,6 +71,7 @@ export function DrawToolbar({
   return (
     <div className={open ? 'toolbar-slot--vertical' : 'toolbar-slot--vertical toolbar-slot--collapsed'}>
     <div
+      ref={drawRef}
       className="toolbar toolbar--vertical"
       role="toolbar" aria-label="Инструменты рисования"
     >
@@ -179,9 +187,13 @@ export function ViewToolbar({
   canPaste, onPaste, onPages, pageLabel, onBookmarks, onBringEveryone,
   canRecordings, onRecordings, open, onToggleOpen,
 }: ViewProps): ReactElement {
+  const viewRef = useRef<HTMLDivElement | null>(null);
+  useDragScroll(viewRef);
+
   return (
     <div className={open ? 'toolbar-slot--view' : 'toolbar-slot--view toolbar-slot--collapsed'}>
     <div
+      ref={viewRef}
       className="toolbar toolbar--view"
       role="toolbar" aria-label="Масштаб и вид"
     >

@@ -4290,7 +4290,11 @@ const CURSOR_INTERVAL_MS = 50;
 const POINT_BATCH_MS = 50;
 const ERASE_RADIUS = 8;
 const STRAIGHTEN_HOLD_MS = 600;
-const STRAIGHTEN_MAX_BOW_PX = 6;
+const STRAIGHTEN_STILL_PX = 6;
+const STRAIGHTEN_BOW_RATIO = 0.06;
+const STRAIGHTEN_MIN_BOW_PX = 8;
+const STRAIGHTEN_MAX_BOW_PX = 28;
+const STRAIGHTEN_MIN_LENGTH_PX = 16;
 const POINTER_FADE_MS = 2200;
 const POINTER_STYLE = { color: "#FF2222", width: 6, opacity: 0.9 };
 const AUTO_PAN_MARGIN = 56;
@@ -4741,10 +4745,37 @@ function BoardCanvas({
       p: event.pointerType === "pen" ? event.pressure || 0.5 : 1
     };
   };
+  const holdTimer = useRef(null);
+  const clearHold = () => {
+    if (holdTimer.current !== null) window.clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+  };
+  useEffect(() => clearHold, []);
+  const tryStraighten = (stroke) => {
+    if (drawing.current !== stroke || stroke.straight || stroke.points.length < 2) return;
+    const scale = latest.current.viewport.scale;
+    const start = stroke.points[0];
+    const end = stroke.points[stroke.points.length - 1];
+    const length = Math.hypot(end.x - start.x, end.y - start.y) * scale;
+    if (length < STRAIGHTEN_MIN_LENGTH_PX) return;
+    const bow = stroke.points.reduce(
+      (max, p2) => Math.max(max, distanceToSegment(p2, start, end) * scale),
+      0
+    );
+    const allowed = Math.min(
+      STRAIGHTEN_MAX_BOW_PX,
+      Math.max(STRAIGHTEN_MIN_BOW_PX, length * STRAIGHTEN_BOW_RATIO)
+    );
+    if (bow <= allowed) {
+      stroke.straight = true;
+      schedule(false);
+    }
+  };
   const cancelStroke = () => {
     const stroke = drawing.current;
     if (!stroke) return;
     drawing.current = null;
+    clearHold();
     hub.cancelItem(stroke.tempId);
     schedule();
   };
@@ -4900,7 +4931,7 @@ function BoardCanvas({
       from: start,
       to: start,
       straight: false,
-      movedAt: Date.now(),
+      restAt: point,
       preview: () => {
         if (brush.type === "shape" || brush.type === "table") {
           return { x1: record.from.x, y1: record.from.y, x2: record.to.x, y2: record.to.y };
@@ -5022,16 +5053,11 @@ function BoardCanvas({
       schedule(false);
       return;
     }
-    const previous = stroke.points[stroke.points.length - 1];
-    if (Math.hypot(point.x - previous.x, point.y - previous.y) * latest.current.viewport.scale > 4) {
-      stroke.movedAt = now;
-    } else if (now - stroke.movedAt > STRAIGHTEN_HOLD_MS) {
-      const scale = latest.current.viewport.scale;
-      const bow = stroke.points.reduce(
-        (max, p2) => Math.max(max, distanceToSegment(p2, stroke.points[0], point) * scale),
-        0
-      );
-      if (bow <= STRAIGHTEN_MAX_BOW_PX) stroke.straight = true;
+    const rest = stroke.restAt;
+    if (!stroke.straight && Math.hypot(point.x - rest.x, point.y - rest.y) * latest.current.viewport.scale > STRAIGHTEN_STILL_PX) {
+      stroke.restAt = point;
+      clearHold();
+      holdTimer.current = window.setTimeout(() => tryStraighten(stroke), STRAIGHTEN_HOLD_MS);
     }
     if (event.shiftKey) stroke.straight = true;
     const coalesced = typeof event.nativeEvent.getCoalescedEvents === "function" ? event.nativeEvent.getCoalescedEvents() : [];
@@ -5118,6 +5144,7 @@ function BoardCanvas({
     const stroke = drawing.current;
     if (!stroke || stroke.pointerId !== event.pointerId) return;
     drawing.current = null;
+    clearHold();
     const brush = drawnBy();
     const geometry = stroke.preview();
     const meaningful = brush.type === "shape" || brush.type === "table" ? Math.hypot(stroke.to.x - stroke.from.x, stroke.to.y - stroke.from.y) > 2 : stroke.points.length > 0;
@@ -5713,6 +5740,63 @@ function toolColor(tool, settings) {
   if (tool === "table") return settings.table.color;
   return null;
 }
+const DRAG_THRESHOLD_PX = 6;
+function useDragScroll(ref) {
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return void 0;
+    let drag = null;
+    const scrollable = () => element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1;
+    const onDown = (event) => {
+      if (event.pointerType === "touch" || event.button !== 0 || !scrollable()) return;
+      drag = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        left: element.scrollLeft,
+        top: element.scrollTop,
+        moving: false
+      };
+    };
+    const onMove = (event) => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      if (!drag.moving) {
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+        drag.moving = true;
+        element.setPointerCapture(event.pointerId);
+        element.classList.add("is-drag-scrolling");
+      }
+      element.scrollLeft = drag.left - dx;
+      element.scrollTop = drag.top - dy;
+    };
+    const onUp = (event) => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const moved = drag.moving;
+      drag = null;
+      element.classList.remove("is-drag-scrolling");
+      if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
+      if (!moved) return;
+      const swallow = (click) => {
+        click.stopPropagation();
+        click.preventDefault();
+      };
+      element.addEventListener("click", swallow, { capture: true, once: true });
+      window.setTimeout(() => element.removeEventListener("click", swallow, { capture: true }), 0);
+    };
+    element.addEventListener("pointerdown", onDown);
+    element.addEventListener("pointermove", onMove);
+    element.addEventListener("pointerup", onUp);
+    element.addEventListener("pointercancel", onUp);
+    return () => {
+      element.removeEventListener("pointerdown", onDown);
+      element.removeEventListener("pointermove", onMove);
+      element.removeEventListener("pointerup", onUp);
+      element.removeEventListener("pointercancel", onUp);
+    };
+  }, [ref]);
+}
 function DrawToolbar({
   tool,
   settings,
@@ -5728,6 +5812,8 @@ function DrawToolbar({
   open,
   onToggleOpen
 }) {
+  const drawRef = useRef(null);
+  useDragScroll(drawRef);
   const pick = (which, icon, title, needsEdit = true) => {
     const dot = toolColor(which, settings);
     const label = needsEdit && !canEdit ? "Доступно редактору" : title;
@@ -5752,6 +5838,7 @@ function DrawToolbar({
     /* @__PURE__ */ jsxs(
       "div",
       {
+        ref: drawRef,
         className: "toolbar toolbar--vertical",
         role: "toolbar",
         "aria-label": "Инструменты рисования",
@@ -5860,10 +5947,13 @@ function ViewToolbar({
   open,
   onToggleOpen
 }) {
+  const viewRef = useRef(null);
+  useDragScroll(viewRef);
   return /* @__PURE__ */ jsxs("div", { className: open ? "toolbar-slot--view" : "toolbar-slot--view toolbar-slot--collapsed", children: [
     /* @__PURE__ */ jsxs(
       "div",
       {
+        ref: viewRef,
         className: "toolbar toolbar--view",
         role: "toolbar",
         "aria-label": "Масштаб и вид",
@@ -9085,7 +9175,11 @@ function BoardPage() {
         removeSelection();
         return;
       }
-      if (event.code === "Escape") setSelection([]);
+      if (event.code === "Escape") {
+        setSelection([]);
+        setToolRaw("select");
+        setShowParams(false);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
