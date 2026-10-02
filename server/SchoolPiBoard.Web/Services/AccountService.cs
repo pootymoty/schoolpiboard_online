@@ -222,6 +222,12 @@ public sealed class AccountService
         record.User.PasswordHash = PasswordHasher.Hash(password);
         record.UsedAt = DateTime.UtcNow;
 
+        // Пароль сбрасывают, когда его забыли — или когда заподозрили, что
+        // его знает кто-то ещё. На второй случай все прежние входы, на всех
+        // устройствах, перестают действовать; вход, который выдаётся ниже,
+        // выпускается после этой отметки и действует.
+        record.User.SessionsValidAfter = AuthTokenService.NowForRevocation();
+
         // Смена пароля заодно подтверждает почту: человек только что доказал,
         // что письмо на этот адрес дошло до него.
         record.User.EmailConfirmed = true;
@@ -284,6 +290,9 @@ public sealed class AccountService
         // всего, пользуется где-то ещё.
         user.PasswordHash = PasswordHasher.Hash(Guid.NewGuid().ToString("N"));
 
+        // Все входы удалённой учётной записи — недействительны сразу.
+        user.SessionsValidAfter = AuthTokenService.NowForRevocation();
+
         // Непогашенные письма гасим: ссылка восстановления пароля из
         // старого письма иначе продолжала бы вести к удалённой записи.
         var pending = await _db.EmailTokens
@@ -299,6 +308,25 @@ public sealed class AccountService
     }
 
     public string CreateAuthToken(User user) => _tokens.Create(user);
+
+    /// <summary>
+    /// Продлить вход: новый токен на следующие 12 часов, с тем же временем
+    /// входа — предел в 30 дней от входа не сдвигается.
+    /// </summary>
+    public string RefreshAuthToken(User user, DateTime authTime) => _tokens.Create(user, authTime);
+
+    /// <summary>
+    /// «Выйти на всех устройствах»: все входы, начатые до этого момента,
+    /// перестают действовать. Тому, кто нажал, — новый вход, чтобы его
+    /// самого из сайта не выбросило.
+    /// </summary>
+    public async Task<string> RevokeSessionsAsync(User user, CancellationToken cancellationToken)
+    {
+        var now = AuthTokenService.NowForRevocation();
+        user.SessionsValidAfter = now;
+        await _db.SaveChangesAsync(cancellationToken);
+        return _tokens.Create(user, now);
+    }
 
     private async Task<bool> IssueEmailTokenAsync(User user, string kind, string path, CancellationToken cancellationToken)
     {

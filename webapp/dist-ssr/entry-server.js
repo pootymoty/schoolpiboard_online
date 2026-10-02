@@ -4,11 +4,22 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
 import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server.mjs";
-import { createContext, useState, useCallback, useEffect, useMemo, useContext, useRef, Children, isValidElement, cloneElement, useLayoutEffect, Fragment as Fragment$1 } from "react";
+import { createContext, useState, useCallback, useEffect, useRef, useMemo, useContext, Children, isValidElement, cloneElement, useLayoutEffect, Fragment as Fragment$1 } from "react";
 import { useLocation, Link, NavLink, useNavigate, useSearchParams, useParams, Navigate, Routes, Route } from "react-router-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 const API_URL = "http://localhost:5000";
 const TOKEN_KEY = "schoolpiboard.token";
+const AUTH_EXPIRED_EVENT = "auth-expired";
+function tokenTimes(token) {
+  try {
+    const part = token.split(".")[1];
+    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(json);
+    return typeof payload.exp === "number" ? { iat: payload.iat ?? 0, exp: payload.exp } : null;
+  } catch {
+    return null;
+  }
+}
 function readToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -30,6 +41,7 @@ class ApiError extends Error {
   }
 }
 async function api(path, options = {}) {
+  var _a;
   const token = readToken();
   const headers = {};
   if (options.body !== void 0) {
@@ -57,6 +69,9 @@ async function api(path, options = {}) {
   }
   const text = await response.text();
   const payload = text ? safeParse(text) : null;
+  if (response.status === 401 && token && ((_a = response.headers.get("WWW-Authenticate")) == null ? void 0 : _a.startsWith("Bearer"))) {
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
   if (!response.ok) {
     const details = payload ?? {};
     throw new ApiError(
@@ -81,6 +96,8 @@ function defaultMessage(status) {
   if (status === 429) return "Слишком много попыток. Подождите минуту.";
   return "Что-то пошло не так. Попробуйте ещё раз.";
 }
+const REFRESH_EVERY_MS = 15 * 60 * 1e3;
+const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel"];
 const AuthContext = createContext(null);
 function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -117,6 +134,35 @@ function AuthProvider({ children }) {
     writeToken(null);
     setUser(null);
   }, []);
+  useEffect(() => {
+    const expired = () => logout();
+    window.addEventListener(AUTH_EXPIRED_EVENT, expired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, expired);
+  }, [logout]);
+  const refreshing = useRef(false);
+  useEffect(() => {
+    if (!user) return void 0;
+    const onActivity = () => {
+      const token = readToken();
+      if (!token || refreshing.current) return;
+      const times = tokenTimes(token);
+      const now = Date.now();
+      if (times && times.exp * 1e3 <= now) {
+        logout();
+        return;
+      }
+      if (times && now - times.iat * 1e3 < REFRESH_EVERY_MS) return;
+      refreshing.current = true;
+      api("/auth/refresh", { method: "POST" }).then((answer) => writeToken(answer.token)).catch(() => void 0).finally(() => {
+        refreshing.current = false;
+      });
+    };
+    for (const name of ACTIVITY_EVENTS) window.addEventListener(name, onActivity, { passive: true, capture: true });
+    onActivity();
+    return () => {
+      for (const name of ACTIVITY_EVENTS) window.removeEventListener(name, onActivity, { capture: true });
+    };
+  }, [user, logout]);
   const value = useMemo(
     () => ({ user, loading: loading2, login, logout, accept, refresh }),
     [user, loading2, login, logout, accept, refresh]
@@ -3555,6 +3601,7 @@ function ProfilePage() {
     /* @__PURE__ */ jsx("h1", { children: "Профиль" }),
     /* @__PURE__ */ jsx(NameCard, { user, onSaved: refresh }),
     /* @__PURE__ */ jsx(PasswordCard, { email: user.email }),
+    /* @__PURE__ */ jsx(SessionsCard, {}),
     /* @__PURE__ */ jsx(DangerCard, { onDeleted: () => {
       logout();
       navigate("/", { replace: true });
@@ -3622,6 +3669,31 @@ function PasswordCard({ email }) {
       " ссылку для смены."
     ] }),
     sent ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: "Письмо отправлено — проверьте почту." }) : /* @__PURE__ */ jsx("button", { className: "btn-outline", type: "button", onClick: request, disabled: busy, children: busy ? "Отправляем…" : "Сменить пароль" })
+  ] });
+}
+function SessionsCard() {
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const revoke = async () => {
+    if (!window.confirm("Выйти на всех остальных устройствах? Там придётся войти заново.")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const answer = await api("/auth/logout-all", { method: "POST" });
+      writeToken(answer.token);
+      setDone(true);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось выйти на других устройствах.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return /* @__PURE__ */ jsxs("div", { className: "card", children: [
+    /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Входы" }),
+    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Вход сам заканчивается после 12 часов без действий и в любом случае через 30 дней. Если вы вошли на чужом устройстве и не вышли — завершите все входы, кроме этого." }),
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    done ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: "Готово: на всех других устройствах вход завершён." }) : /* @__PURE__ */ jsx("button", { className: "btn-outline", type: "button", onClick: revoke, disabled: busy, children: busy ? "Завершаем…" : "Выйти на всех устройствах" })
   ] });
 }
 function DangerCard({ onDeleted }) {
@@ -8632,8 +8704,7 @@ function useBoardHub(boardId) {
   }, []);
   useEffect(() => {
     if (!Number.isFinite(boardId)) return;
-    const token = readToken();
-    const hub = new HubConnectionBuilder().withUrl(`${API_URL}/hub/board${token ? `?access_token=${encodeURIComponent(token)}` : ""}`).withAutomaticReconnect([0, 1e3, 2e3, 5e3, 1e4, 15e3]).configureLogging(LogLevel.Warning).build();
+    const hub = new HubConnectionBuilder().withUrl(`${API_URL}/hub/board`, { accessTokenFactory: () => readToken() ?? "" }).withAutomaticReconnect([0, 1e3, 2e3, 5e3, 1e4, 15e3]).configureLogging(LogLevel.Warning).build();
     connection.current = hub;
     const join = async () => {
       await hub.invoke("JoinBoard", boardId, readGuestToken(boardId), seq.current);

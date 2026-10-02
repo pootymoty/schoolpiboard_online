@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import type { FormEvent, ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../api/client';
+import { api, ApiError, writeToken } from '../api/client';
 import type { User } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { Page } from '../components/Layout';
 
 /**
- * Профиль: имя, смена пароля, удаление аккаунта.
+ * Профиль: имя, смена пароля, входы на других устройствах, удаление аккаунта.
  *
  * Пароль меняется через ту же ссылку на почту, что и восстановление —
  * отдельная форма с текущим паролем не добавила бы защиты, только лишний
@@ -25,6 +25,7 @@ export function ProfilePage(): ReactElement {
 
       <NameCard user={user} onSaved={refresh} />
       <PasswordCard email={user.email} />
+      <SessionsCard />
       <DangerCard onDeleted={() => { logout(); navigate('/', { replace: true }); }} />
     </Page>
   );
@@ -97,6 +98,57 @@ function PasswordCard({ email }: { email: string }): ReactElement {
       ) : (
         <button className="btn-outline" type="button" onClick={request} disabled={busy}>
           {busy ? 'Отправляем…' : 'Сменить пароль'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Выход на всех устройствах.
+ *
+ * Для случая «вошёл на чужом компьютере и забыл выйти» или «кажется,
+ * вход увели»: все прочие входы перестают действовать сразу, а этот
+ * браузер получает новый и остаётся внутри. Смена пароля по ссылке из
+ * письма делает то же самое.
+ */
+function SessionsCard(): ReactElement {
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const revoke = async () => {
+    if (!window.confirm('Выйти на всех остальных устройствах? Там придётся войти заново.')) return;
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      const answer = await api<{ token: string }>('/auth/logout-all', { method: 'POST' });
+      writeToken(answer.token);
+      setDone(true);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось выйти на других устройствах.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card">
+      <h2 className="card-title">Входы</h2>
+      <p className="text-muted small">
+        Вход сам заканчивается после 12 часов без действий и в любом случае через 30 дней.
+        Если вы вошли на чужом устройстве и не вышли — завершите все входы, кроме этого.
+      </p>
+
+      {error ? <p className="note note-danger">{error}</p> : null}
+
+      {done ? (
+        <p className="note note-success">Готово: на всех других устройствах вход завершён.</p>
+      ) : (
+        <button className="btn-outline" type="button" onClick={revoke} disabled={busy}>
+          {busy ? 'Завершаем…' : 'Выйти на всех устройствах'}
         </button>
       )}
     </div>

@@ -60,6 +60,7 @@ public class AppDbContext : DbContext
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.LastSeenAt).HasColumnName("last_seen_at");
             entity.Property(x => x.DeletedAt).HasColumnName("deleted_at");
+            entity.Property(x => x.SessionsValidAfter).HasColumnName("sessions_valid_after");
 
             entity.HasIndex(x => x.Email).IsUnique();
         });

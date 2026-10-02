@@ -2,6 +2,25 @@ export const API_URL: string = (import.meta.env.VITE_API_URL as string | undefin
 
 const TOKEN_KEY = 'schoolpiboard.token';
 
+/** Событие окна: вход истёк или отозван — пора забыть токен. */
+export const AUTH_EXPIRED_EVENT = 'auth-expired';
+
+/**
+ * Поля токена, нужные браузеру: когда выпущен и до когда действует
+ * (секунды Unix). Подпись тут не проверяется — это делает сервер; браузеру
+ * только решить, пора ли продлить и не истёк ли он уже.
+ */
+export function tokenTimes(token: string): { iat: number; exp: number } | null {
+  try {
+    const part = token.split('.')[1];
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    const payload = JSON.parse(json) as { iat?: number; exp?: number };
+    return typeof payload.exp === 'number' ? { iat: payload.iat ?? 0, exp: payload.exp } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function readToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -76,6 +95,15 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 
   const text = await response.text();
   const payload: unknown = text ? safeParse(text) : null;
+
+  // Вход больше не действует (истёк за 12 часов простоя, отозван,
+  // старше 30 дней) — сервер отвечает 401 с заголовком WWW-Authenticate.
+  // Сообщаем приложению: оно забудет токен и покажет, что нужно войти.
+  // По заголовку, а не по одному статусу: 401 бывает и у «неверный
+  // пароль» при удалении аккаунта — это не повод выходить.
+  if (response.status === 401 && token && response.headers.get('WWW-Authenticate')?.startsWith('Bearer')) {
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
 
   if (!response.ok) {
     const details = (payload ?? {}) as { error?: string; message?: string };

@@ -122,6 +122,30 @@ public static class AuthEndpoints
             return user is null ? Results.Unauthorized() : Results.Ok(ToDto(user));
         }).RequireAuthorization();
 
+        // Продление входа. Браузер просит его сам, пока человек пользуется
+        // сайтом (см. AuthContext), — не чаще раза в четверть часа. Вне
+        // группы с ограничением частоты: то ограничение — против подбора
+        // пароля, а здесь пароль не участвует.
+        app.MapPost("/api/auth/refresh", async (
+            ClaimsPrincipal principal, AppDbContext db, AccountService accounts, CancellationToken ct) =>
+        {
+            var user = await CurrentUser(principal, db, ct);
+            var authTime = AuthTokenService.AuthTimeOf(principal);
+            if (user is null || authTime is null) return Results.Unauthorized();
+
+            return Results.Ok(new { token = accounts.RefreshAuthToken(user, authTime.Value) });
+        }).RequireAuthorization();
+
+        // «Выйти на всех устройствах»: все прочие входы отзываются.
+        app.MapPost("/api/auth/logout-all", async (
+            ClaimsPrincipal principal, AppDbContext db, AccountService accounts, CancellationToken ct) =>
+        {
+            var user = await CurrentUser(principal, db, ct);
+            if (user is null) return Results.Unauthorized();
+
+            return Results.Ok(new { token = await accounts.RevokeSessionsAsync(user, ct) });
+        }).RequireAuthorization();
+
         app.MapPatch("/api/auth/me", async (
             [FromBody] UpdateProfileRequest request,
             ClaimsPrincipal principal, AppDbContext db, AccountService accounts, CancellationToken ct) =>
@@ -161,7 +185,7 @@ public static class AuthEndpoints
 
         return long.TryParse(raw, out var id)
             // Удалённый аккаунт не должен проходить по ещё живому токену:
-            // без этого условия десятичасовой JWT продолжал бы работать
+            // без этого условия JWT продолжал бы работать до своего срока
             // после того, как человек нажал «Удалить».
             ? await db.Users.FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, cancellationToken)
             : null;

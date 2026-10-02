@@ -1,6 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { api, readToken, writeToken } from '../api/client';
+import { AUTH_EXPIRED_EVENT, api, readToken, tokenTimes, writeToken } from '../api/client';
+
+/**
+ * Не чаще этого просить продление входа: вход и так живёт 12 часов, а
+ * просить на каждый щелчок — значит лишний запрос на каждое действие.
+ */
+const REFRESH_EVERY_MS = 15 * 60 * 1000;
+
+/** Действия, которые значат «человек здесь и пользуется сайтом». */
+const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel'] as const;
 import type { AuthResponse, User } from '../api/types';
 
 interface AuthState {
@@ -68,6 +77,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     writeToken(null);
     setUser(null);
   }, []);
+
+  // Вход истёк или отозван (сервер ответил 401 на запрос с токеном):
+  // забываем токен — страница сама покажет, что нужно войти.
+  useEffect(() => {
+    const expired = () => logout();
+    window.addEventListener(AUTH_EXPIRED_EVENT, expired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, expired);
+  }, [logout]);
+
+  /**
+   * Продление входа, пока человек пользуется сайтом.
+   *
+   * Вход живёт 12 часов. Любое действие — касание, щелчок, клавиша,
+   * прокрутка — после 15 минут с выпуска токена тихо просит новый, и так
+   * весь день, в том числе посреди урока на доске. Не трогали сайт 12
+   * часов — продлевать было нечем, токен истёк, и при следующем действии
+   * человек выходит (а открыв сайт заново — видит форму входа).
+   */
+  const refreshing = useRef(false);
+
+  useEffect(() => {
+    if (!user) return undefined;
+
+    const onActivity = () => {
+      const token = readToken();
+      if (!token || refreshing.current) return;
+
+      const times = tokenTimes(token);
+      const now = Date.now();
+
+      // Истёк, пока вкладка стояла без дела, — продлевать нечего.
+      if (times && times.exp * 1000 <= now) {
+        logout();
+        return;
+      }
+
+      if (times && now - times.iat * 1000 < REFRESH_EVERY_MS) return;
+
+      refreshing.current = true;
+      api<{ token: string }>('/auth/refresh', { method: 'POST' })
+        .then((answer) => writeToken(answer.token))
+        // Не вышло (сеть) — попробуем на следующем действии; отозванный
+        // вход закроет событие AUTH_EXPIRED_EVENT из api().
+        .catch(() => undefined)
+        .finally(() => { refreshing.current = false; });
+    };
+
+    for (const name of ACTIVITY_EVENTS) window.addEventListener(name, onActivity, { passive: true, capture: true });
+    // Сразу при открытии — тоже действие: человек только что пришёл.
+    onActivity();
+
+    return () => {
+      for (const name of ACTIVITY_EVENTS) window.removeEventListener(name, onActivity, { capture: true });
+    };
+  }, [user, logout]);
 
   const value = useMemo<AuthState>(
     () => ({ user, loading, login, logout, accept, refresh }),

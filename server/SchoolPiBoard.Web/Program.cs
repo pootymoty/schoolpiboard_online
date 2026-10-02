@@ -91,6 +91,32 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 }
 
                 return Task.CompletedTask;
+            },
+
+            // Подпись и срок токена проверены — осталось убедиться, что сам
+            // вход не отозван (сброс пароля, «Выйти на всех устройствах») и
+            // что от входа не прошло больше 30 дней. Токены старого образца,
+            // без времени входа, не принимаются: после обновления каждый
+            // войдёт заново один раз.
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                var raw = principal?.FindFirst("sub")?.Value;
+
+                if (principal is null || !long.TryParse(raw, out var userId))
+                {
+                    context.Fail("Нет учётной записи в токене.");
+                    return;
+                }
+
+                var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                var validAfter = await db.Users
+                    .Where(x => x.Id == userId)
+                    .Select(x => x.SessionsValidAfter)
+                    .FirstOrDefaultAsync(context.HttpContext.RequestAborted);
+
+                if (!AuthTokenService.IsSessionAlive(AuthTokenService.AuthTimeOf(principal), validAfter))
+                    context.Fail("Вход отозван или устарел.");
             }
         };
     });

@@ -326,10 +326,12 @@ export function useBoardHub(boardId: number): BoardHub {
   useEffect(() => {
     if (!Number.isFinite(boardId)) return;
 
-    const token = readToken();
-
+    // Токен — при каждом (пере)подключении заново, а не один раз при
+    // открытии доски: вход продлевается, пока им пользуются, и через
+    // несколько часов первоначальный токен уже истёк бы — переподключение
+    // после обрыва связи с ним не прошло бы.
     const hub = new HubConnectionBuilder()
-      .withUrl(`${API_URL}/hub/board${token ? `?access_token=${encodeURIComponent(token)}` : ''}`)
+      .withUrl(`${API_URL}/hub/board`, { accessTokenFactory: () => readToken() ?? '' })
       // Паузы нарастают, но остаются короткими: требование — пережить
       // обрыв в тридцать секунд, а не подождать минуту до первой попытки.
       .withAutomaticReconnect([0, 1000, 2000, 5000, 10000, 15000])

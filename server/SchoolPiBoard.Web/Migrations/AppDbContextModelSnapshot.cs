@@ -118,6 +118,10 @@ namespace SchoolPiBoard.Web.Migrations
                         .HasColumnType("text")
                         .HasColumnName("password_hash");
 
+                    b.Property<DateTime?>("SessionsValidAfter")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sessions_valid_after");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
