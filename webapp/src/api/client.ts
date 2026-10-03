@@ -106,10 +106,12 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
 
   if (!response.ok) {
-    const details = (payload ?? {}) as { error?: string; message?: string };
+    // Сервер кладёт код ошибки в `code` («email_not_confirmed» и т. п.);
+    // `error` — запасной вариант для ответов, собранных не нами.
+    const details = (payload ?? {}) as { code?: string; error?: string; message?: string };
     throw new ApiError(
       response.status,
-      details.error ?? 'error',
+      details.code ?? details.error ?? 'error',
       details.message ?? defaultMessage(response.status),
     );
   }

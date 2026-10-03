@@ -262,7 +262,12 @@ public sealed class SchoolPiAuthService
         if (linked is not null)
         {
             await SyncEmailAsync(linked, profile, cancellationToken);
-            return await SignedInAsync(linked, null, cancellationToken);
+
+            // Обычно бонус уже выдан при привязке, и служба просто
+            // откажет. Но если тогда что-то сорвалось — выдаём сейчас:
+            // отметка о бонусе одна, дважды он не выдастся.
+            var bonus = await GrantBonusAsync(linked, cancellationToken);
+            return await SignedInAsync(linked, bonus, cancellationToken);
         }
 
         // Дальше учётная запись ищется по почте — и только по почте,
@@ -376,14 +381,17 @@ public sealed class SchoolPiAuthService
     public async Task<SchoolPiResult> ConfirmByPasswordAsync(
         string? ticket, string? password, CancellationToken cancellationToken)
     {
-        var note = Read(ticket, SchoolPiTicket.PurposeLink);
-        if (note is null) return Expired();
+        var note = Read(ticket, SchoolPiTicket.PurposeLink, out var expired);
+        if (note is null) return expired ? TimedOut(LinkLifetime) : Broken();
 
         var user = await PendingUserAsync(note, cancellationToken);
-        if (user is null) return Expired();
+        if (user is null) return Changed();
 
         if (!PasswordHasher.Verify(password ?? string.Empty, user.PasswordHash))
-            return SchoolPiResult.Fail("bad_password", "Пароль не подошёл.");
+        {
+            return SchoolPiResult.Fail("bad_password",
+                "Пароль не подошёл. Попробуйте ещё раз — или пришлите ссылку на почту.");
+        }
 
         return await LinkAndSignInAsync(user, note, cancellationToken);
     }
@@ -395,11 +403,11 @@ public sealed class SchoolPiAuthService
     /// </summary>
     public async Task<SchoolPiResult> SendConfirmationAsync(string? ticket, CancellationToken cancellationToken)
     {
-        var note = Read(ticket, SchoolPiTicket.PurposeLink);
-        if (note is null) return Expired();
+        var note = Read(ticket, SchoolPiTicket.PurposeLink, out var expired);
+        if (note is null) return expired ? TimedOut(LinkLifetime) : Broken();
 
         var user = await PendingUserAsync(note, cancellationToken);
-        if (user is null) return Expired();
+        if (user is null) return Changed();
 
         var mail = Sign(new SchoolPiTicket
         {
@@ -424,13 +432,11 @@ public sealed class SchoolPiAuthService
     /// <summary>Склейка по ссылке из письма.</summary>
     public async Task<SchoolPiResult> ConfirmByMailAsync(string? ticket, CancellationToken cancellationToken)
     {
-        var note = Read(ticket, SchoolPiTicket.PurposeMail);
-        if (note is null) return Expired();
+        var note = Read(ticket, SchoolPiTicket.PurposeMail, out var expired);
+        if (note is null) return expired ? TimedOut(MailLifetime) : Broken();
 
-        // Ссылка работает один раз: после склейки у учётной записи уже
-        // есть номер школы, и PendingUserAsync её не найдёт.
         var user = await PendingUserAsync(note, cancellationToken);
-        if (user is null) return Expired();
+        if (user is null) return Changed();
 
         return await LinkAndSignInAsync(user, note, cancellationToken);
     }
@@ -484,18 +490,25 @@ public sealed class SchoolPiAuthService
                 "Этот аккаунт Школы π уже привязан к другой учётной записи доски.");
         }
 
-        user.ExternalId = note.ExternalId;
-        await _db.SaveChangesAsync(cancellationToken);
+        if (user.ExternalId != note.ExternalId)
+        {
+            user.ExternalId = note.ExternalId;
+            await _db.SaveChangesAsync(cancellationToken);
 
-        _log.LogInformation("Учётная запись {UserId} связана с аккаунтом Школы π.", user.Id);
+            _log.LogInformation("Учётная запись {UserId} связана с аккаунтом Школы π.", user.Id);
+        }
 
         var bonus = await GrantBonusAsync(user, cancellationToken);
         return await SignedInAsync(user, bonus, cancellationToken);
     }
 
     /// <summary>
-    /// Учётная запись из записки о склейке — если она всё ещё ждёт склейки:
-    /// жива, почта та же и номер школы к ней ещё не привязан.
+    /// Учётная запись из записки о склейке — если склейка с ней всё ещё
+    /// возможна: жива, почта та же, и к ней не привязан другой аккаунт
+    /// школы. Привязан этот же — тоже годится: это повтор (второе нажатие,
+    /// повторная отправка формы после сбоя связи), и отвечать на него
+    /// «ссылка устарела» значило бы пугать человека, у которого всё
+    /// получилось.
     /// </summary>
     private async Task<User?> PendingUserAsync(SchoolPiTicket note, CancellationToken cancellationToken)
     {
@@ -504,7 +517,11 @@ public sealed class SchoolPiAuthService
         var user = await _db.Users.FirstOrDefaultAsync(
             x => x.Id == note.UserId && x.DeletedAt == null, cancellationToken);
 
-        return user is not null && user.ExternalId is null && user.Email == note.Email ? user : null;
+        return user is not null
+            && (user.ExternalId is null || user.ExternalId == note.ExternalId)
+            && user.Email == note.Email
+            ? user
+            : null;
     }
 
     private async Task<SchoolPiResult> SignedInAsync(User user, SchoolBonus? bonus, CancellationToken cancellationToken)
@@ -526,13 +543,18 @@ public sealed class SchoolPiAuthService
             bonus = await _subscriptions.GrantSchoolBonusAsync(
                 user.Id, user.ExternalId, _options.SchoolPi.BonusDays, cancellationToken);
         }
-        catch (DbUpdateException ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Параллельный вход успел выдать его первым. Транзакция
-            // откатилась, но несохранённые строки ещё висят в контексте —
-            // их сбрасываем, иначе следующее сохранение попробовало бы
-            // записать их снова.
-            _log.LogInformation(ex, "Бонус Школы π для {UserId} уже выдан.", user.Id);
+            // Чаще всего — параллельный вход успел выдать его первым
+            // (уникальный индекс отметки). Транзакция откатилась, но
+            // несохранённые строки ещё висят в контексте — их сбрасываем,
+            // иначе следующее сохранение попробовало бы записать их снова.
+            //
+            // Что бы ни случилось с бонусом, вход от этого ломаться не
+            // должен: учётные записи уже связаны, и ошибка здесь показала бы
+            // человеку «не получилось» на самом деле удачном входе. Бонус
+            // не записан — значит, его выдаст следующий вход через школу.
+            _log.LogWarning(ex, "Бонус Школы π для {UserId} не выдан.", user.Id);
             _db.ChangeTracker.Clear();
             _db.Users.Attach(user);
             return null;
@@ -540,8 +562,17 @@ public sealed class SchoolPiAuthService
 
         if (bonus is null) return null;
 
-        var letter = EmailTemplates.SchoolPiBonus(bonus, _options.SchoolPi.BonusDays, _options.PublicUrl + "/plan");
-        await _email.SendAsync(user.Email, letter.Subject, letter.Html, letter.Text, cancellationToken);
+        // Письмо — тоже не повод сорвать вход: бонус уже выдан, а увидеть
+        // его человек может и на сайте.
+        try
+        {
+            var letter = EmailTemplates.SchoolPiBonus(bonus, _options.SchoolPi.BonusDays, _options.PublicUrl + "/plan");
+            await _email.SendAsync(user.Email, letter.Subject, letter.Html, letter.Text, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.LogError(ex, "Письмо о бонусе Школы π для {UserId} не отправлено.", user.Id);
+        }
 
         return bonus;
     }
@@ -581,8 +612,20 @@ public sealed class SchoolPiAuthService
         return name.Length > 100 ? name[..100] : name;
     }
 
-    private static SchoolPiResult Expired()
-        => SchoolPiResult.Fail("expired", "Ссылка устарела или уже использована. Войдите через Школу π ещё раз.");
+    private static SchoolPiResult TimedOut(TimeSpan lifetime)
+        => SchoolPiResult.Fail("expired",
+            $"На подтверждение даётся {Minutes(lifetime)}, и это время вышло. Войдите через Школу π ещё раз.");
+
+    private static SchoolPiResult Broken()
+        => SchoolPiResult.Fail("invalid", "Ссылка неполная или повреждена. Войдите через Школу π ещё раз.");
+
+    private static SchoolPiResult Changed()
+        => SchoolPiResult.Fail("changed",
+            "Пока шло подтверждение, учётная запись изменилась (сменилась почта или привязан другой аккаунт Школы π). "
+            + "Войдите через Школу π ещё раз.");
+
+    private static string Minutes(TimeSpan lifetime)
+        => lifetime.TotalMinutes >= 60 ? $"{(int)lifetime.TotalHours} ч." : $"{(int)lifetime.TotalMinutes} мин.";
 
     private static long Expiry(TimeSpan lifetime) => DateTimeOffset.UtcNow.Add(lifetime).ToUnixTimeSeconds();
 
@@ -600,8 +643,12 @@ public sealed class SchoolPiAuthService
         return body + "." + signature;
     }
 
-    public SchoolPiTicket? Read(string? value, string purpose)
+    public SchoolPiTicket? Read(string? value, string purpose) => Read(value, purpose, out _);
+
+    /// <summary>Читает записку. <paramref name="expired"/> — подпись верна, но срок вышел.</summary>
+    public SchoolPiTicket? Read(string? value, string purpose, out bool expired)
     {
+        expired = false;
         if (string.IsNullOrWhiteSpace(value)) return null;
 
         var dot = value.IndexOf('.');
@@ -620,7 +667,12 @@ public sealed class SchoolPiAuthService
         {
             var ticket = JsonSerializer.Deserialize<SchoolPiTicket>(FromBase64Url(body), Json);
             if (ticket is null || ticket.Purpose != purpose) return null;
-            if (ticket.Expires < DateTimeOffset.UtcNow.ToUnixTimeSeconds()) return null;
+            if (ticket.Expires < DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+            {
+                expired = true;
+                return null;
+            }
+
             return ticket;
         }
         catch (Exception ex) when (ex is JsonException or FormatException)

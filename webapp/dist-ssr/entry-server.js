@@ -76,7 +76,7 @@ async function api(path, options = {}) {
     const details = payload ?? {};
     throw new ApiError(
       response.status,
-      details.error ?? "error",
+      details.code ?? details.error ?? "error",
       details.message ?? defaultMessage(response.status)
     );
   }
@@ -1733,7 +1733,7 @@ function bonusText(bonus) {
       return `Вам начислено ${bonus.days} дн. тарифа «${bonus.planName}» — до ${day$1(bonus.until)}.`;
   }
 }
-function SchoolPiButton({ label = "Войти через Школу π" }) {
+function SchoolPiButton({ label = "Войти через Школу π", divider = true }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const go = async () => {
@@ -1752,7 +1752,7 @@ function SchoolPiButton({ label = "Войти через Школу π" }) {
       busy ? "Переходим…" : label
     ] }),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    /* @__PURE__ */ jsx("div", { className: "schoolpi-login__or", children: /* @__PURE__ */ jsx("span", { children: "или" }) })
+    divider ? /* @__PURE__ */ jsx("div", { className: "schoolpi-login__or", children: /* @__PURE__ */ jsx("span", { children: "или" }) }) : null
   ] });
 }
 function LoginPage() {
@@ -2192,7 +2192,8 @@ function SchoolPiPage() {
     ) : null,
     view.kind === "error" ? /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("p", { className: "note note-danger", children: view.message }),
-      /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/login", children: "На страницу входа" })
+      /* @__PURE__ */ jsx(SchoolPiButton, { label: "Войти через Школу π ещё раз", divider: false }),
+      /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet", to: "/login", children: "На страницу входа" })
     ] }) : null
   ] }) });
 }
@@ -2201,6 +2202,15 @@ function ConfirmLink({ ticket, email, onDone }) {
   const [error, setError] = useState(null);
   const [sent, setSent] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [stale, setStale] = useState(false);
+  const fail = (reason, fallback) => {
+    if (reason instanceof ApiError) {
+      setError(reason.message);
+      if (["expired", "invalid", "changed"].includes(reason.code)) setStale(true);
+    } else {
+      setError(fallback);
+    }
+  };
   const submit = async (event) => {
     event.preventDefault();
     setBusy(true);
@@ -2211,7 +2221,7 @@ function ConfirmLink({ ticket, email, onDone }) {
         body: { ticket, password }
       }));
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось связать учётные записи.");
+      fail(reason, "Не удалось связать учётные записи.");
     } finally {
       setBusy(false);
     }
@@ -2226,11 +2236,17 @@ function ConfirmLink({ ticket, email, onDone }) {
       });
       setSent(answer.message);
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось отправить письмо.");
+      fail(reason, "Не удалось отправить письмо.");
     } finally {
       setBusy(false);
     }
   };
+  if (stale) {
+    return /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }),
+      /* @__PURE__ */ jsx(SchoolPiButton, { label: "Войти через Школу π ещё раз", divider: false })
+    ] });
+  }
   return /* @__PURE__ */ jsxs("form", { onSubmit: submit, children: [
     /* @__PURE__ */ jsxs("p", { children: [
       "На доске уже есть учётная запись с почтой ",

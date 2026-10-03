@@ -321,7 +321,29 @@ public static class EmailTemplates
              """);
     }
 
-    /// <summary>Дата по-русски: в письме её читают глазами, а не разбирают кодом.</summary>
+    private static readonly string[] Months =
+    {
+        "января", "февраля", "марта", "апреля", "мая", "июня",
+        "июля", "августа", "сентября", "октября", "ноября", "декабря"
+    };
+
+    /// <summary>Сдвиг московского времени от UTC. Летнего времени в России нет.</summary>
+    private static readonly TimeSpan Moscow = TimeSpan.FromHours(3);
+
+    /// <summary>
+    /// Дата по-русски: в письме её читают глазами, а не разбирают кодом.
+    ///
+    /// Месяцы — своим списком, а не через CultureInfo("ru-RU"): служба
+    /// собирается без языковых данных (InvariantGlobalization в .csproj),
+    /// и там такая культура не создаётся вовсе — бросает исключение. Из-за
+    /// этого падали все письма с датой: об оплате, о скором списании, о
+    /// подарке за вход через Школу π. Дата — по Москве: сроки в базе в
+    /// UTC, и срок, кончающийся в 23:00 UTC, по-московски кончается уже
+    /// на следующий день.
+    /// </summary>
     private static string Day(DateTime moment)
-        => moment.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("ru-RU"));
+    {
+        var local = (moment.Kind == DateTimeKind.Local ? moment.ToUniversalTime() : moment) + Moscow;
+        return $"{local.Day} {Months[local.Month - 1]} {local.Year}";
+    }
 }

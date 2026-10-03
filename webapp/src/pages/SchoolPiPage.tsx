@@ -5,6 +5,7 @@ import { api, ApiError, writeToken } from '../api/client';
 import type { SchoolBonus, SchoolPiAuthResponse } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { bonusText } from '../auth/schoolPi';
+import { SchoolPiButton } from '../components/SchoolPiButton';
 import { Page } from '../components/Layout';
 
 type View =
@@ -125,7 +126,8 @@ export function SchoolPiPage(): ReactElement {
         {view.kind === 'error' ? (
           <>
             <p className="note note-danger">{view.message}</p>
-            <Link className="btn btn-primary" to="/login">На страницу входа</Link>
+            <SchoolPiButton label="Войти через Школу π ещё раз" divider={false} />
+            <Link className="btn btn-quiet" to="/login">На страницу входа</Link>
           </>
         ) : null}
       </div>
@@ -147,6 +149,19 @@ function ConfirmLink({ ticket, email, onDone }: {
   const [sent, setSent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Записка о склейке больше не годится (вышло время, учётная запись
+  // изменилась) — повторять ту же форму бессмысленно, нужен новый вход.
+  const [stale, setStale] = useState(false);
+
+  const fail = (reason: unknown, fallback: string) => {
+    if (reason instanceof ApiError) {
+      setError(reason.message);
+      if (['expired', 'invalid', 'changed'].includes(reason.code)) setStale(true);
+    } else {
+      setError(fallback);
+    }
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -158,7 +173,7 @@ function ConfirmLink({ ticket, email, onDone }: {
         body: { ticket, password },
       }));
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось связать учётные записи.');
+      fail(reason, 'Не удалось связать учётные записи.');
     } finally {
       setBusy(false);
     }
@@ -175,11 +190,20 @@ function ConfirmLink({ ticket, email, onDone }: {
       });
       setSent(answer.message);
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось отправить письмо.');
+      fail(reason, 'Не удалось отправить письмо.');
     } finally {
       setBusy(false);
     }
   };
+
+  if (stale) {
+    return (
+      <>
+        <p className="note note-danger">{error}</p>
+        <SchoolPiButton label="Войти через Школу π ещё раз" divider={false} />
+      </>
+    );
+  }
 
   return (
     <form onSubmit={submit}>
