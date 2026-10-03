@@ -2915,6 +2915,38 @@ html.board-locked body {
     border-top: 1px solid var(--line);
 }
 
+/* Подарок за вход через Школу π — на главной, под призывом
+   зарегистрироваться. Выделен цветом успеха: это выгода, а не оговорка. */
+.hero__bonus {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    max-width: 640px;
+    margin: var(--sp-4) auto 0;
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--success);
+    border-radius: var(--radius-lg);
+    background: var(--success-soft);
+    text-align: left;
+}
+
+.hero__bonus p { margin: 0; }
+
+.hero__bonus-mark {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--success);
+    color: #fff;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
 /* --- О сервисе: текст и контакты рядом, а не друг под другом ----------- */
 
 .about-grid {

@@ -922,7 +922,28 @@ function LandingPage() {
         /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-lg", to: "/register", children: "Начать бесплатно" }),
         /* @__PURE__ */ jsx(Link, { className: "btn btn-outline btn-lg", to: "/pricing", children: "Тарифы" })
       ] }) }),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small hero__note", children: "Бесплатный тариф без срока и без карты. Первые семь дней — тариф «Стандартный»." })
+      /* @__PURE__ */ jsx("p", { className: "text-muted small hero__note", children: "Бесплатный тариф без срока и без карты. Первые семь дней — тариф «Стандартный»." }),
+      (user == null ? void 0 : user.schoolPiLinked) ? null : /* @__PURE__ */ jsxs("div", { className: "hero__bonus", children: [
+        /* @__PURE__ */ jsx("span", { className: "hero__bonus-mark", "aria-hidden": "true", children: "π" }),
+        /* @__PURE__ */ jsxs("p", { children: [
+          /* @__PURE__ */ jsx("strong", { children: "7 дней тарифа «Расширенный» бесплатно" }),
+          " — для аккаунтов Школы π.",
+          " ",
+          user ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            "Привяжите аккаунт Школы π в ",
+            /* @__PURE__ */ jsx(Link, { to: "/profile", children: "профиле" }),
+            "."
+          ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+            "Зарегистрируйтесь на",
+            " ",
+            /* @__PURE__ */ jsx("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: "school-pi.online" }),
+            " ",
+            "и войдите на доску кнопкой ",
+            /* @__PURE__ */ jsx(Link, { to: "/login", children: "«Войти через Школу π»" }),
+            "."
+          ] })
+        ] })
+      ] })
     ] }),
     /* @__PURE__ */ jsx("div", { className: "feature-grid", children: TILES.map((tile) => /* @__PURE__ */ jsxs("article", { className: "feature-tile", children: [
       /* @__PURE__ */ jsx("span", { className: "feature-tile__icon", children: tile.icon }),
@@ -946,7 +967,7 @@ function LandingPage() {
     /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Как начать" }),
       /* @__PURE__ */ jsxs("ol", { className: "steps", children: [
-        /* @__PURE__ */ jsx("li", { children: "Зарегистрируйтесь и подтвердите почту — одна минута." }),
+        /* @__PURE__ */ jsx("li", { children: "Зарегистрируйтесь и подтвердите почту — одна минута. Или войдите аккаунтом Школы π — и получите неделю «Расширенного» в подарок." }),
         /* @__PURE__ */ jsx("li", { children: "Создайте доску: ссылка появится сразу." }),
         /* @__PURE__ */ jsx("li", { children: "Отправьте её участнику и впустите его." })
       ] }),

@@ -78,6 +78,27 @@ export function LandingPage(): ReactElement {
         <p className="text-muted small hero__note">
           Бесплатный тариф без срока и без карты. Первые семь дней — тариф «Стандартный».
         </p>
+
+        {/* Подарок за вход через Школу π — рядом с призывом
+            зарегистрироваться, иначе о нём узнают уже после регистрации.
+            Тому, кто вошёл и аккаунт школы уже привязал, показывать нечего. */}
+        {user?.schoolPiLinked ? null : (
+          <div className="hero__bonus">
+            <span className="hero__bonus-mark" aria-hidden="true">π</span>
+            <p>
+              <strong>7 дней тарифа «Расширенный» бесплатно</strong> — для аккаунтов Школы π.{' '}
+              {user ? (
+                <>Привяжите аккаунт Школы π в <Link to="/profile">профиле</Link>.</>
+              ) : (
+                <>
+                  Зарегистрируйтесь на{' '}
+                  <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer">school-pi.online</a>{' '}
+                  и войдите на доску кнопкой <Link to="/login">«Войти через Школу π»</Link>.
+                </>
+              )}
+            </p>
+          </div>
+        )}
       </section>
 
       <div className="feature-grid">
@@ -103,7 +124,10 @@ export function LandingPage(): ReactElement {
       <section className="card">
         <h2 className="card-title">Как начать</h2>
         <ol className="steps">
-          <li>Зарегистрируйтесь и подтвердите почту — одна минута.</li>
+          <li>
+            Зарегистрируйтесь и подтвердите почту — одна минута. Или войдите аккаунтом
+            Школы π — и получите неделю «Расширенного» в подарок.
+          </li>
           <li>Создайте доску: ссылка появится сразу.</li>
           <li>Отправьте её участнику и впустите его.</li>
         </ol>
