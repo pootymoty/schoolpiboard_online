@@ -6890,16 +6890,16 @@ function SelectionPanel({
   });
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
-  const GAP = 10;
-  const above = corner.y - GAP - height >= 8;
+  const GAP2 = 10;
+  const above = corner.y - GAP2 - height >= 8;
   const left = Math.max(
     LEFT_GUTTER + WIDTH / 2,
     Math.min(corner.x + width / 2, canvas.width - WIDTH / 2 - 8)
   );
-  const below = corner.y + bounds.height * viewport.scale + GAP;
+  const below = corner.y + bounds.height * viewport.scale + GAP2;
   const top = Math.max(
     8,
-    Math.min(above ? corner.y - GAP - height : below, canvas.height - BOTTOM_GUTTER - height)
+    Math.min(above ? corner.y - GAP2 - height : below, canvas.height - BOTTOM_GUTTER - height)
   );
   return /* @__PURE__ */ jsxs(
     "div",
@@ -11685,6 +11685,111 @@ function CookieBanner() {
     ] })
   ] });
 }
+const SHOW_DELAY_MS = 350;
+const GAP = 8;
+function TooltipLayer() {
+  const [tip, setTip] = useState(null);
+  const box = useRef(null);
+  useEffect(() => {
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return void 0;
+    let timer = 0;
+    let current = null;
+    const muteTitle = (target) => {
+      const title = target.getAttribute("title");
+      if (title === null) return;
+      target.dataset.tipTitle = title;
+      target.removeAttribute("title");
+      if (!target.hasAttribute("aria-label")) target.setAttribute("aria-label", title);
+    };
+    const restoreTitle = (target) => {
+      const title = target == null ? void 0 : target.dataset.tipTitle;
+      if (!target || title === void 0) return;
+      target.setAttribute("title", title);
+      delete target.dataset.tipTitle;
+    };
+    const hide = () => {
+      window.clearTimeout(timer);
+      restoreTitle(current);
+      current = null;
+      setTip(null);
+    };
+    const dismiss = () => {
+      window.clearTimeout(timer);
+      setTip(null);
+    };
+    const show = (target) => {
+      const text = target.dataset.tip;
+      if (!text || !target.isConnected) return;
+      setTip({
+        text,
+        side: target.closest(".toolbar--vertical") ? "right" : "below",
+        rect: target.getBoundingClientRect()
+      });
+    };
+    const schedule = (target) => {
+      if (target === current) return;
+      hide();
+      if (!target) return;
+      current = target;
+      muteTitle(target);
+      timer = window.setTimeout(() => show(target), SHOW_DELAY_MS);
+    };
+    const onOver = (event) => {
+      var _a;
+      if (event.pointerType === "touch") return;
+      schedule(((_a = event.target) == null ? void 0 : _a.closest("[data-tip]")) ?? null);
+    };
+    const onFocus = (event) => {
+      var _a;
+      const target = ((_a = event.target) == null ? void 0 : _a.closest("[data-tip]")) ?? null;
+      if (target == null ? void 0 : target.matches(":focus-visible")) schedule(target);
+    };
+    const onLeaveWindow = (event) => {
+      if (!event.relatedTarget) hide();
+    };
+    document.addEventListener("pointerover", onOver);
+    document.addEventListener("pointerout", onLeaveWindow);
+    document.addEventListener("focusin", onFocus);
+    document.addEventListener("focusout", hide);
+    document.addEventListener("pointerdown", dismiss, true);
+    document.addEventListener("scroll", dismiss, true);
+    document.addEventListener("wheel", dismiss, { capture: true, passive: true });
+    window.addEventListener("resize", hide);
+    return () => {
+      window.clearTimeout(timer);
+      restoreTitle(current);
+      document.removeEventListener("pointerover", onOver);
+      document.removeEventListener("pointerout", onLeaveWindow);
+      document.removeEventListener("focusin", onFocus);
+      document.removeEventListener("focusout", hide);
+      document.removeEventListener("pointerdown", dismiss, true);
+      document.removeEventListener("scroll", dismiss, true);
+      document.removeEventListener("wheel", dismiss, { capture: true });
+      window.removeEventListener("resize", hide);
+    };
+  }, []);
+  useLayoutEffect(() => {
+    const element = box.current;
+    if (!tip || !element) return;
+    const { width, height } = element.getBoundingClientRect();
+    const maxLeft = window.innerWidth - width - GAP;
+    const maxTop = window.innerHeight - height - GAP;
+    let left;
+    let top;
+    if (tip.side === "right") {
+      left = tip.rect.right + GAP;
+      top = tip.rect.top + tip.rect.height / 2 - height / 2;
+    } else {
+      left = tip.rect.right - width;
+      top = tip.rect.bottom + GAP;
+    }
+    element.style.left = `${Math.max(GAP, Math.min(left, maxLeft))}px`;
+    element.style.top = `${Math.max(GAP, Math.min(top, maxTop))}px`;
+    element.classList.add("tip-layer--shown");
+  }, [tip]);
+  if (!tip) return null;
+  return /* @__PURE__ */ jsx("div", { ref: box, className: "tip-layer", role: "tooltip", children: tip.text });
+}
 function useDocumentMeta() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -11700,6 +11805,7 @@ function App() {
   if (loading2) return /* @__PURE__ */ jsx(Fragment, {});
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsx(CookieBanner, {}),
+    /* @__PURE__ */ jsx(TooltipLayer, {}),
     /* @__PURE__ */ jsx(Analytics, {}),
     /* @__PURE__ */ jsxs(Routes, { children: [
       /* @__PURE__ */ jsx(Route, { path: "/legal/:page", element: /* @__PURE__ */ jsx(LegalPage, {}) }),

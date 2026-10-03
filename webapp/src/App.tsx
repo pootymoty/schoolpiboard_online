@@ -23,6 +23,7 @@ import { JoinPage } from './pages/JoinPage';
 import { LegalPage } from './pages/LegalPage';
 import { AdminPage } from './pages/AdminPage';
 import { CookieBanner } from './components/CookieBanner';
+import { TooltipLayer } from './components/TooltipLayer';
 import { Analytics } from './components/Analytics';
 
 /**
@@ -55,6 +56,7 @@ export function App(): ReactElement {
       {/* Один на всё приложение, а не на каждую страницу: баннер не должен
           пересоздаваться и мигать заново при переходе между разделами. */}
       <CookieBanner />
+      <TooltipLayer />
       <Analytics />
 
       <Routes>
