@@ -106,6 +106,8 @@ export interface AdminBoard {
   ownerName: string | null;
   items: number;
   createdAt: string;
+  /** Последняя правка — по рисованию на холсте, как в «Моих досках». */
+  updatedAt: string;
 }
 
 export interface AdminBoardPage {

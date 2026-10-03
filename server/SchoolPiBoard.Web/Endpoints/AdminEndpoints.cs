@@ -51,7 +51,8 @@ public sealed record AdminBoardDto(
     string? OwnerEmail,
     string? OwnerName,
     int Items,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    DateTime UpdatedAt);
 
 /// <summary>Текст, написанный на доске инструментом «текст» — по одной надписи.</summary>
 public sealed record AdminBoardTextDto(
@@ -351,13 +352,21 @@ public static class AdminEndpoints
             var counts = await db.BoardItems
                 .Where(x => ids.Contains(x.BoardId))
                 .GroupBy(x => x.BoardId)
-                .Select(g => new { BoardId = g.Key, Count = g.Count() })
+                // «Изменена» — как в «Моих досках»: по последней правке на
+                // холсте, а не по самой доске. Board.UpdatedAt трогают только
+                // переименование, замок и перевыпуск ссылки.
+                .Select(g => new { BoardId = g.Key, Count = g.Count(), Last = g.Max(x => x.UpdatedAt) })
                 .ToListAsync(ct);
 
-            var result = rows.Select(x => new AdminBoardDto(
-                x.Board.Id, x.Board.Title, x.Owner.Email, x.Owner.DisplayName,
-                counts.FirstOrDefault(c => c.BoardId == x.Board.Id)?.Count ?? 0,
-                x.Board.CreatedAt));
+            var result = rows.Select(x =>
+            {
+                var items = counts.FirstOrDefault(c => c.BoardId == x.Board.Id);
+                var updated = items is not null && items.Last > x.Board.UpdatedAt ? items.Last : x.Board.UpdatedAt;
+
+                return new AdminBoardDto(
+                    x.Board.Id, x.Board.Title, x.Owner.Email, x.Owner.DisplayName,
+                    items?.Count ?? 0, x.Board.CreatedAt, updated);
+            });
 
             return Results.Ok(new { boards = result, total, page = skip / take + 1, size = take });
         });

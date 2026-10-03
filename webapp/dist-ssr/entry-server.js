@@ -11203,6 +11203,15 @@ const TYPING_MS = 250;
 function day(value) {
   return value ? new Date(value).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "2-digit" }) : "—";
 }
+function dayTime(value) {
+  return value ? new Date(value).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }) : "—";
+}
 function Tile({ title, value }) {
   return /* @__PURE__ */ jsxs("div", { className: "admin__tile", children: [
     /* @__PURE__ */ jsx("span", { className: "admin__tile-value", children: value }),
@@ -11470,6 +11479,7 @@ function AdminPage() {
           /* @__PURE__ */ jsx("th", { children: "Владелец" }),
           /* @__PURE__ */ jsx("th", { children: "Объектов" }),
           /* @__PURE__ */ jsx("th", { children: "Создана" }),
+          /* @__PURE__ */ jsx("th", { children: "Изменена" }),
           /* @__PURE__ */ jsx("th", {})
         ] }) }),
         /* @__PURE__ */ jsxs("tbody", { children: [
@@ -11483,6 +11493,7 @@ function AdminPage() {
               ] }),
               /* @__PURE__ */ jsx("td", { children: b.items }),
               /* @__PURE__ */ jsx("td", { children: day(b.createdAt) }),
+              /* @__PURE__ */ jsx("td", { children: dayTime(b.updatedAt) }),
               /* @__PURE__ */ jsx("td", { children: /* @__PURE__ */ jsxs("div", { className: "admin__actions", children: [
                 /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => showText(b.id), children: textFor === b.id ? "Скрыть текст" : "Текст" }),
                 /* @__PURE__ */ jsx(
@@ -11496,9 +11507,9 @@ function AdminPage() {
                 )
               ] }) })
             ] }),
-            textFor === b.id ? /* @__PURE__ */ jsx("tr", { className: "admin__open", children: /* @__PURE__ */ jsx("td", { colSpan: 5, children: /* @__PURE__ */ jsx(BoardTextView, { rows: textRows }) }) }) : null
+            textFor === b.id ? /* @__PURE__ */ jsx("tr", { className: "admin__open", children: /* @__PURE__ */ jsx("td", { colSpan: 6, children: /* @__PURE__ */ jsx(BoardTextView, { rows: textRows }) }) }) : null
           ] }, b.id)),
-          boards.length === 0 && !boardsBusy ? /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsx("td", { colSpan: 5, children: /* @__PURE__ */ jsx("span", { className: "text-muted", children: "Ничего не нашлось." }) }) }) : null
+          boards.length === 0 && !boardsBusy ? /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsx("td", { colSpan: 6, children: /* @__PURE__ */ jsx("span", { className: "text-muted", children: "Ничего не нашлось." }) }) }) : null
         ] })
       ] }) }),
       boardsPages > 1 ? /* @__PURE__ */ jsx(Pagination, { page: boardsPage, count: boardsPages, onPage: setBoardsPage, label: "Страницы списка досок" }) : null

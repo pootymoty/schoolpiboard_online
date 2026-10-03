@@ -29,6 +29,15 @@ function day(value: string | null): string {
   return value ? new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
 }
 
+/** С временем — для «Изменена»: за один день доску правят не раз. */
+function dayTime(value: string | null): string {
+  return value
+    ? new Date(value).toLocaleDateString('ru-RU', {
+      day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit',
+    })
+    : '—';
+}
+
 function Tile({ title, value }: { title: string; value: string }): ReactElement {
   return (
     <div className="admin__tile">
@@ -409,6 +418,7 @@ export function AdminPage(): ReactElement {
                 <th>Владелец</th>
                 <th>Объектов</th>
                 <th>Создана</th>
+                <th>Изменена</th>
                 <th />
               </tr>
             </thead>
@@ -424,6 +434,7 @@ export function AdminPage(): ReactElement {
                     </td>
                     <td>{b.items}</td>
                     <td>{day(b.createdAt)}</td>
+                    <td>{dayTime(b.updatedAt)}</td>
                     <td>
                       <div className="admin__actions">
                         <button className="btn-quiet btn-sm" type="button" onClick={() => showText(b.id)}>
@@ -442,14 +453,14 @@ export function AdminPage(): ReactElement {
 
                   {textFor === b.id ? (
                     <tr className="admin__open">
-                      <td colSpan={5}><BoardTextView rows={textRows} /></td>
+                      <td colSpan={6}><BoardTextView rows={textRows} /></td>
                     </tr>
                   ) : null}
                 </Fragment>
               ))}
 
               {boards.length === 0 && !boardsBusy ? (
-                <tr><td colSpan={5}><span className="text-muted">Ничего не нашлось.</span></td></tr>
+                <tr><td colSpan={6}><span className="text-muted">Ничего не нашлось.</span></td></tr>
               ) : null}
             </tbody>
           </table>
