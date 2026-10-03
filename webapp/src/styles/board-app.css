@@ -2934,17 +2934,9 @@ html.board-locked body {
 
 .hero__bonus-mark {
     flex: none;
-    display: grid;
-    place-items: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--success);
-    color: #fff;
-    font-family: Georgia, 'Times New Roman', serif;
-    font-size: 1.4rem;
-    font-weight: 700;
-    line-height: 1;
+    width: auto;
+    height: 56px;
+    max-width: none;
 }
 
 /* --- О сервисе: текст и контакты рядом, а не друг под другом ----------- */

@@ -84,16 +84,16 @@ export function LandingPage(): ReactElement {
             Тому, кто вошёл и аккаунт школы уже привязал, показывать нечего. */}
         {user?.schoolPiLinked ? null : (
           <div className="hero__bonus">
-            <span className="hero__bonus-mark" aria-hidden="true">π</span>
+            <img className="hero__bonus-mark" src="/pi-mark.png" alt="" aria-hidden="true" />
             <p>
-              <strong>7 дней тарифа «Расширенный» бесплатно</strong> — для аккаунтов Школы π.{' '}
+              <strong>7 дней тарифа «Расширенный» бесплатно</strong> — для аккаунтов <span className="no-wrap">Школы π</span>.{' '}
               {user ? (
                 <>Привяжите аккаунт Школы π в <Link to="/profile">профиле</Link>.</>
               ) : (
                 <>
                   Зарегистрируйтесь на{' '}
-                  <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer">school-pi.online</a>{' '}
-                  и войдите на доску кнопкой <Link to="/login">«Войти через Школу π»</Link>.
+                  <a className="no-wrap" href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer">school-pi.online</a>{' '}
+                  и войдите на доску кнопкой <Link to="/login">«Войти через <span className="no-wrap">Школу π»</span></Link>.
                 </>
               )}
             </p>

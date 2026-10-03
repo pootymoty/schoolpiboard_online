@@ -924,10 +924,12 @@ function LandingPage() {
       ] }) }),
       /* @__PURE__ */ jsx("p", { className: "text-muted small hero__note", children: "Бесплатный тариф без срока и без карты. Первые семь дней — тариф «Стандартный»." }),
       (user == null ? void 0 : user.schoolPiLinked) ? null : /* @__PURE__ */ jsxs("div", { className: "hero__bonus", children: [
-        /* @__PURE__ */ jsx("span", { className: "hero__bonus-mark", "aria-hidden": "true", children: "π" }),
+        /* @__PURE__ */ jsx("img", { className: "hero__bonus-mark", src: "/pi-mark.png", alt: "", "aria-hidden": "true" }),
         /* @__PURE__ */ jsxs("p", { children: [
           /* @__PURE__ */ jsx("strong", { children: "7 дней тарифа «Расширенный» бесплатно" }),
-          " — для аккаунтов Школы π.",
+          " — для аккаунтов ",
+          /* @__PURE__ */ jsx("span", { className: "no-wrap", children: "Школы π" }),
+          ".",
           " ",
           user ? /* @__PURE__ */ jsxs(Fragment, { children: [
             "Привяжите аккаунт Школы π в ",
@@ -936,10 +938,13 @@ function LandingPage() {
           ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
             "Зарегистрируйтесь на",
             " ",
-            /* @__PURE__ */ jsx("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: "school-pi.online" }),
+            /* @__PURE__ */ jsx("a", { className: "no-wrap", href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: "school-pi.online" }),
             " ",
             "и войдите на доску кнопкой ",
-            /* @__PURE__ */ jsx(Link, { to: "/login", children: "«Войти через Школу π»" }),
+            /* @__PURE__ */ jsxs(Link, { to: "/login", children: [
+              "«Войти через ",
+              /* @__PURE__ */ jsx("span", { className: "no-wrap", children: "Школу π»" })
+            ] }),
             "."
           ] })
         ] })
