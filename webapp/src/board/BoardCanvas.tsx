@@ -29,6 +29,8 @@ interface Props {
   onSize: (size: { width: number; height: number }) => void;
   onSelection: (itemIds: number[]) => void;
   onMoved: (itemIds: number[], dx: number, dy: number) => void;
+  /** Текущий сдвиг перетаскиваемого выделения — чтобы за ним ехала его панель. */
+  onDragShift?: (dx: number, dy: number) => void;
   /** Объект дорисован. Отправляет его страница — она же ведёт историю. */
   onCommit: (type: ItemType, data: ItemData, tempId: string) => void;
   /** Начали рисовать — панель параметров должна уйти с дороги. */
@@ -124,7 +126,7 @@ const AUTO_PAN_MAX_SPEED = 18;
  */
 export function BoardCanvas({
   hub, tool, settings, viewport, background, selection,
-  onViewport, onSize, onSelection, onMoved, onCommit, onDrawStart, onTextAt, onBookmarkAt, onCellAt,
+  onViewport, onSize, onSelection, onMoved, onDragShift, onCommit, onDrawStart, onTextAt, onBookmarkAt, onCellAt,
   onErased,
 }: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -795,6 +797,7 @@ export function BoardCanvas({
       const snap = latest.current.settings.select.snap;
       drag.dx = snapValue(world.x - drag.from.x, snap);
       drag.dy = snapValue(world.y - drag.from.y, snap);
+      onDragShift?.(drag.dx, drag.dy);
       schedule();
 
       autoPanFrame.current = requestAnimationFrame(stepAutoPan);
@@ -1315,6 +1318,7 @@ export function BoardCanvas({
       const snap = latest.current.settings.select.snap;
       drag.dx = snapValue(point.x - drag.from.x, snap);
       drag.dy = snapValue(point.y - drag.from.y, snap);
+      onDragShift?.(drag.dx, drag.dy);
       schedule();
       scheduleAutoPan();
       return;
@@ -1486,6 +1490,7 @@ export function BoardCanvas({
     const drag = moving.current;
     if (drag?.pointerId === event.pointerId) {
       moving.current = null;
+      onDragShift?.(0, 0);
 
       if (autoPanFrame.current !== null) {
         cancelAnimationFrame(autoPanFrame.current);

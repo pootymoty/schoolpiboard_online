@@ -4,7 +4,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
 import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server.mjs";
-import { createContext, useState, useCallback, useEffect, useRef, useMemo, useContext, Children, isValidElement, cloneElement, useLayoutEffect, Fragment as Fragment$1 } from "react";
+import { createContext, useState, useCallback, useEffect, useRef, useMemo, useContext, Children, isValidElement, cloneElement, useLayoutEffect, useSyncExternalStore, Fragment as Fragment$1 } from "react";
 import { useLocation, Link, NavLink, useNavigate, useSearchParams, useParams, Navigate, Routes, Route } from "react-router-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 const API_URL = "http://localhost:5000";
@@ -4631,6 +4631,7 @@ function BoardCanvas({
   onSize,
   onSelection,
   onMoved,
+  onDragShift,
   onCommit,
   onDrawStart,
   onTextAt,
@@ -4992,6 +4993,7 @@ function BoardCanvas({
       const snap = latest.current.settings.select.snap;
       drag.dx = snapValue(world.x - drag.from.x, snap);
       drag.dy = snapValue(world.y - drag.from.y, snap);
+      onDragShift == null ? void 0 : onDragShift(drag.dx, drag.dy);
       schedule();
       autoPanFrame.current = requestAnimationFrame(stepAutoPan);
     }
@@ -5339,6 +5341,7 @@ function BoardCanvas({
       const snap = latest.current.settings.select.snap;
       drag.dx = snapValue(point.x - drag.from.x, snap);
       drag.dy = snapValue(point.y - drag.from.y, snap);
+      onDragShift == null ? void 0 : onDragShift(drag.dx, drag.dy);
       schedule();
       scheduleAutoPan();
       return;
@@ -5450,6 +5453,7 @@ function BoardCanvas({
     const drag = moving.current;
     if ((drag == null ? void 0 : drag.pointerId) === event.pointerId) {
       moving.current = null;
+      onDragShift == null ? void 0 : onDragShift(0, 0);
       if (autoPanFrame.current !== null) {
         cancelAnimationFrame(autoPanFrame.current);
         autoPanFrame.current = null;
@@ -6419,7 +6423,7 @@ function LineStyleIcon({ kind }) {
   );
 }
 const MIXED = "conic-gradient(#C62828, #FFB300, #2E7D32, #1565C0, #6A1B9A, #C62828)";
-function ColorPick({ label, value, onChange, none, commitOnClose, small }) {
+function ColorPick({ label, value, onChange, none: none2, commitOnClose, small }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState(value && !PALETTE.includes(value) ? value : "#2A211C");
   const size = small ? " swatch--sm" : "";
@@ -6484,7 +6488,7 @@ function ColorPick({ label, value, onChange, none, commitOnClose, small }) {
           ]
         }
       ),
-      none ? /* @__PURE__ */ jsx(
+      none2 ? /* @__PURE__ */ jsx(
         "button",
         {
           className: `swatch${size} swatch--none`,
@@ -6851,6 +6855,34 @@ function itemsOf(template) {
     return [];
   }
 }
+const NONE = { dx: 0, dy: 0 };
+function createDragShift() {
+  let current = NONE;
+  const listeners2 = /* @__PURE__ */ new Set();
+  return {
+    set(dx, dy) {
+      if (dx === current.dx && dy === current.dy) return;
+      current = dx === 0 && dy === 0 ? NONE : { dx, dy };
+      listeners2.forEach((listener) => listener());
+    },
+    get: () => current,
+    subscribe(listener) {
+      listeners2.add(listener);
+      return () => {
+        listeners2.delete(listener);
+      };
+    }
+  };
+}
+function useDragShift(store) {
+  return useSyncExternalStore(
+    (store == null ? void 0 : store.subscribe) ?? noopSubscribe,
+    (store == null ? void 0 : store.get) ?? none,
+    none
+  );
+}
+const none = () => NONE;
+const noopSubscribe = () => () => void 0;
 const WIDTH = 340;
 const HEIGHT = 150;
 const LEFT_GUTTER = 72;
@@ -6859,7 +6891,8 @@ const NARROW = 720;
 const SHORT = 460;
 function SelectionPanel({
   items,
-  bounds,
+  bounds: rest,
+  dragShift,
   viewport,
   canvas,
   onColor,
@@ -6914,6 +6947,8 @@ function SelectionPanel({
     const measured = (_a = panel.current) == null ? void 0 : _a.offsetHeight;
     if (measured && Math.abs(measured - height) > 1) setHeight(measured);
   });
+  const shift = useDragShift(dragShift);
+  const bounds = shift.dx === 0 && shift.dy === 0 ? rest : { ...rest, x: rest.x + shift.dx, y: rest.y + shift.dy };
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
   const GAP2 = 10;
@@ -9692,6 +9727,7 @@ function BoardPage() {
     hub.updateItem(item.id, withCell(item.data, edit.row, edit.col, text));
   };
   const selectedItems = hub.items.filter((item) => selection.includes(item.id));
+  const dragShift = useRef(createDragShift()).current;
   const tableItem = cellEdit ? hub.items.find((item) => item.id === cellEdit.itemId) ?? null : null;
   const selectionBounds = selectedItems.length > 0 ? boundsOf(selectedItems) : null;
   const docked = Boolean(
@@ -10269,6 +10305,7 @@ function BoardPage() {
                 onViewport: setViewport,
                 onSize: setCanvasSize,
                 onSelection: setSelection,
+                onDragShift: dragShift.set,
                 onMoved: (itemIds, dx, dy) => {
                   const movable = itemIds.filter((itemId) => {
                     var _a2;
@@ -10395,6 +10432,7 @@ function BoardPage() {
               {
                 items: selectedItems,
                 bounds: selectionBounds,
+                dragShift,
                 viewport,
                 canvas: canvasSize,
                 onColor: recolorSelection,

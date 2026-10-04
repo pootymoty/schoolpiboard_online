@@ -15,10 +15,14 @@ import {
 } from '../components/Icons';
 import { saveTemplate } from '../api/templates';
 import { ApiError } from '../api/client';
+import { useDragShift } from './dragShift';
+import type { DragShift } from './dragShift';
 
 interface Props {
   items: BoardItem[];
   bounds: Bounds;
+  /** Сдвиг, пока выделение тащат: панель едет вместе с ним. */
+  dragShift?: DragShift;
   viewport: Viewport;
   /** Габариты холста: панель не должна уезжать за его край. */
   canvas: { width: number; height: number };
@@ -94,7 +98,7 @@ const SHORT = 460;
  * его приходится дольше, чем подпись.
  */
 export function SelectionPanel({
-  items, bounds, viewport, canvas, onColor, onPatch, onDuplicate, onDelete, onReorder, onCopyText, onDone,
+  items, bounds: rest, dragShift, viewport, canvas, onColor, onPatch, onDuplicate, onDelete, onReorder, onCopyText, onDone,
   onTable, onLock, onCopy, canKeep,
 }: Props): ReactElement {
   // Надпись и закладка — единственное, что имеет смысл забрать с доски
@@ -196,6 +200,9 @@ export function SelectionPanel({
     const measured = panel.current?.offsetHeight;
     if (measured && Math.abs(measured - height) > 1) setHeight(measured);
   });
+
+  const shift = useDragShift(dragShift);
+  const bounds = shift.dx === 0 && shift.dy === 0 ? rest : { ...rest, x: rest.x + shift.dx, y: rest.y + shift.dy };
 
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;

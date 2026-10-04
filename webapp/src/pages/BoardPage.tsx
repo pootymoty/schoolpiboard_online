@@ -26,6 +26,7 @@ import { fontOf } from '../board/render';
 import { boundsOf, pointsOf, translate } from '../board/geometry';
 import { measureText } from '../board/handles';
 import { SelectionPanel } from '../board/SelectionPanel';
+import { createDragShift } from '../board/dragShift';
 import { BackgroundPanel } from '../board/BackgroundPanel';
 import { PagesPanel } from '../board/PagesPanel';
 import { BookmarksPanel } from '../board/BookmarksPanel';
@@ -738,6 +739,9 @@ export function BoardPage(): ReactElement {
   };
 
   const selectedItems = hub.items.filter((item) => selection.includes(item.id));
+
+  // Сдвиг выделения, пока его тащат: по нему едет панель над выделенным.
+  const dragShift = useRef(createDragShift()).current;
 
   /** Таблица, ячейку которой правят: из неё берутся цвет и размер шрифта. */
   const tableItem = cellEdit
@@ -1570,6 +1574,7 @@ export function BoardPage(): ReactElement {
             onViewport={setViewport}
             onSize={setCanvasSize}
             onSelection={setSelection}
+            onDragShift={dragShift.set}
             onMoved={(itemIds, dx, dy) => {
               // Запертое стоит на месте, даже если попало в общее выделение.
               const movable = itemIds.filter((itemId) => (
@@ -1704,12 +1709,13 @@ export function BoardPage(): ReactElement {
             />
           ) : null}
 
-          {/* Панель над выделением прячется, пока его тащат: она бы
-              прыгала следом и мешала целиться. */}
+          {/* Панель над выделением едет вместе с ним, пока его тащат:
+              оставшись на месте, она закрывала бы пустоту, а не объект. */}
           {selectionBounds && hub.canEdit ? (
             <SelectionPanel
               items={selectedItems}
               bounds={selectionBounds}
+              dragShift={dragShift}
               viewport={viewport}
               canvas={canvasSize}
               onColor={recolorSelection}
