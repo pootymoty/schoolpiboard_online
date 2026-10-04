@@ -125,6 +125,15 @@ export function hits(item: BoardItem, point: Point, radius: number): boolean {
       && point.y >= box!.y - radius && point.y <= box!.y + box!.height + radius;
   }
 
+  // Замкнутая фигура ловится и по контуру, и всей площадью внутри — с
+  // заливкой и без: прозрачный прямоугольник выбирают, ткнув в середину,
+  // а не целясь в его сторону. Линия и стрелка — не замкнутые, у них
+  // площади нет.
+  if (item.type === 'shape' && item.data.shape !== 'line' && item.data.shape !== 'arrow'
+      && points.length >= 3 && inside(points, point)) {
+    return true;
+  }
+
   // Куски штриха проверяются раздельно: сплошным списком отрезок
   // протянулся бы через дыру, которую ластик как раз и вырезал.
   const runs = item.type === 'stroke' ? segmentsOf(item.data) : [points];

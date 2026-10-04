@@ -3366,6 +3366,9 @@ function hits(item, point, radius) {
     const box = boundsOf([item]);
     return Boolean(box) && point.x >= box.x - radius && point.x <= box.x + box.width + radius && point.y >= box.y - radius && point.y <= box.y + box.height + radius;
   }
+  if (item.type === "shape" && item.data.shape !== "line" && item.data.shape !== "arrow" && points.length >= 3 && inside(points, point)) {
+    return true;
+  }
   const runs = item.type === "stroke" ? segmentsOf(item.data) : [points];
   for (const run of runs) {
     if (run.length === 1 && distanceToSegment(point, run[0], run[0]) <= reach) return true;
@@ -5204,6 +5207,16 @@ function BoardCanvas({
         }
       }
       const hit = topmostAt(hub.items, point, reach);
+      if (chosen.length > 0 && !event.ctrlKey && !event.metaKey && !(hit && chosen.includes(hit.id))) {
+        const picked = hub.items.filter((item) => chosen.includes(item.id));
+        const frame2 = boundsOf(picked);
+        const inFrame = frame2 !== null && point.x >= frame2.x - reach && point.x <= frame2.x + frame2.width + reach && point.y >= frame2.y - reach && point.y <= frame2.y + frame2.height + reach;
+        if (inFrame) {
+          if (picked.every((item) => item.data.locked)) return;
+          moving.current = { pointerId: event.pointerId, from: point, dx: 0, dy: 0, edit: null };
+          return;
+        }
+      }
       if (!hit) {
         if (!event.ctrlKey && !event.metaKey) onSelection([]);
         if (latest.current.settings.select.pointer) {

@@ -1131,6 +1131,27 @@ export function BoardCanvas({
 
       const hit = topmostAt(hub.items, point, reach);
 
+      // Уже выделенное берут за любую точку внутри его рамки, а не только
+      // за сам нарисованный штрих: целиться в линию толщиной в пару
+      // пикселей, чтобы просто передвинуть то, что и так выбрано, — лишняя
+      // точность. Тычок в сам выделенный объект идёт обычным путём ниже:
+      // там второй тычок в таблицу или фигуру открывает её для текста.
+      if (chosen.length > 0 && !event.ctrlKey && !event.metaKey && !(hit && chosen.includes(hit.id))) {
+        const picked = hub.items.filter((item) => chosen.includes(item.id));
+        const frame = boundsOf(picked);
+        const inFrame = frame !== null
+          && point.x >= frame.x - reach && point.x <= frame.x + frame.width + reach
+          && point.y >= frame.y - reach && point.y <= frame.y + frame.height + reach;
+
+        if (inFrame) {
+          // Запертое с места не двигается — если заперто всё, тащить нечего.
+          if (picked.every((item) => item.data.locked)) return;
+
+          moving.current = { pointerId: event.pointerId, from: point, dx: 0, dy: 0, edit: null };
+          return;
+        }
+      }
+
       if (!hit) {
         if (!event.ctrlKey && !event.metaKey) onSelection([]);
 
