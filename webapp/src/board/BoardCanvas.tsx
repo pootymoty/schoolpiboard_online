@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import type { BoardHub } from './useBoardHub';
-import type { Background, ItemData, ItemType, Point } from './protocol';
+import type { Background, BoardItem, ItemData, ItemType, Point } from './protocol';
 import { cursorColor } from './cursorColors';
 import { boundsOf, distanceToSegment, rectFrom, topmostAt, translate, within } from './geometry';
 import { centerOf } from './rotate';
@@ -29,8 +29,11 @@ interface Props {
   onSize: (size: { width: number; height: number }) => void;
   onSelection: (itemIds: number[]) => void;
   onMoved: (itemIds: number[], dx: number, dy: number) => void;
-  /** Текущий сдвиг перетаскиваемого выделения — чтобы за ним ехала его панель. */
-  onDragShift?: (dx: number, dy: number) => void;
+  /**
+   * Габариты выделенного, пока его тащат, растягивают или поворачивают
+   * (пусто — жеста нет): по ним за объектом едет его панель.
+   */
+  onLiveBounds?: (bounds: Bounds | null) => void;
   /** Объект дорисован. Отправляет его страница — она же ведёт историю. */
   onCommit: (type: ItemType, data: ItemData, tempId: string) => void;
   /** Начали рисовать — панель параметров должна уйти с дороги. */
@@ -126,7 +129,7 @@ const AUTO_PAN_MAX_SPEED = 18;
  */
 export function BoardCanvas({
   hub, tool, settings, viewport, background, selection,
-  onViewport, onSize, onSelection, onMoved, onDragShift, onCommit, onDrawStart, onTextAt, onBookmarkAt, onCellAt,
+  onViewport, onSize, onSelection, onMoved, onLiveBounds, onCommit, onDrawStart, onTextAt, onBookmarkAt, onCellAt,
   onErased,
 }: Props): ReactElement {
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -595,10 +598,23 @@ export function BoardCanvas({
     // на экране, поэтому делим на масштаб.
     const hair = 1 / view.scale;
 
+    // Рамка — по тому, что сейчас на экране, а не по последнему
+    // сохранённому: пока объект тащат, растягивают или поворачивают, она
+    // идёт за ним, а не ждёт отпускания.
+    const grip = resizing.current;
+    const spin = rotating.current;
+    const live = (item: BoardItem): BoardItem => {
+      if (grip?.itemId === item.id) return { ...item, data: grip.data };
+      if (spin?.itemId === item.id) return { ...item, data: spin.data };
+      return drag ? { ...item, data: translate(item.data, drag.dx, drag.dy) } : item;
+    };
+
     const selected = hub.items.filter((item) => chosen.has(item.id));
-    const box = boundsOf(selected.map((item) => (
-      drag ? { ...item, data: translate(item.data, drag.dx, drag.dy) } : item
-    )));
+    const box = boundsOf(selected.map(live));
+
+    // Панель над выделенным — туда же, куда рамка. Вне жеста — пусто:
+    // тогда панель стоит по сохранённому.
+    onLiveBounds?.(box && (drag || grip || spin) ? box : null);
 
     if (box) outline(context, box, '#2E5FA3', hair, [6 * hair, 4 * hair]);
 
@@ -609,9 +625,8 @@ export function BoardCanvas({
     // Ручки — только при одном выбранном объекте: у группы неясно, что
     // именно тянут, и в десктопной версии их там тоже нет.
     if (selected.length === 1 && !drag) {
-      const single = selected[0];
-      const preview = resizing.current?.itemId === single.id ? resizing.current.data : single.data;
-      const grips = handlesFor(single, boundsOf([{ ...single, data: preview }])!);
+      const single = live(selected[0]);
+      const grips = handlesFor(single, boundsOf([single])!);
 
       for (const grip of grips) {
         const half = (HANDLE_SIZE / 2) / view.scale;
@@ -627,7 +642,7 @@ export function BoardCanvas({
         context.restore();
       }
     }
-  }, [hub.items, hub.live, hub.me, paintBase]);
+  }, [hub.items, hub.live, hub.me, paintBase, onLiveBounds]);
 
   /**
    * Просит перерисовку к следующему кадру.
@@ -797,7 +812,6 @@ export function BoardCanvas({
       const snap = latest.current.settings.select.snap;
       drag.dx = snapValue(world.x - drag.from.x, snap);
       drag.dy = snapValue(world.y - drag.from.y, snap);
-      onDragShift?.(drag.dx, drag.dy);
       schedule();
 
       autoPanFrame.current = requestAnimationFrame(stepAutoPan);
@@ -1339,7 +1353,6 @@ export function BoardCanvas({
       const snap = latest.current.settings.select.snap;
       drag.dx = snapValue(point.x - drag.from.x, snap);
       drag.dy = snapValue(point.y - drag.from.y, snap);
-      onDragShift?.(drag.dx, drag.dy);
       schedule();
       scheduleAutoPan();
       return;
@@ -1511,7 +1524,6 @@ export function BoardCanvas({
     const drag = moving.current;
     if (drag?.pointerId === event.pointerId) {
       moving.current = null;
-      onDragShift?.(0, 0);
 
       if (autoPanFrame.current !== null) {
         cancelAnimationFrame(autoPanFrame.current);

@@ -26,7 +26,7 @@ import { fontOf } from '../board/render';
 import { boundsOf, pointsOf, translate } from '../board/geometry';
 import { measureText } from '../board/handles';
 import { SelectionPanel } from '../board/SelectionPanel';
-import { createDragShift } from '../board/dragShift';
+import { createLiveBounds } from '../board/liveBounds';
 import { BackgroundPanel } from '../board/BackgroundPanel';
 import { PagesPanel } from '../board/PagesPanel';
 import { BookmarksPanel } from '../board/BookmarksPanel';
@@ -740,8 +740,9 @@ export function BoardPage(): ReactElement {
 
   const selectedItems = hub.items.filter((item) => selection.includes(item.id));
 
-  // Сдвиг выделения, пока его тащат: по нему едет панель над выделенным.
-  const dragShift = useRef(createDragShift()).current;
+  // Габариты выделения, пока его тащат, растягивают или поворачивают:
+  // по ним едет панель над выделенным.
+  const liveBounds = useRef(createLiveBounds()).current;
 
   /** Таблица, ячейку которой правят: из неё берутся цвет и размер шрифта. */
   const tableItem = cellEdit
@@ -1574,7 +1575,7 @@ export function BoardPage(): ReactElement {
             onViewport={setViewport}
             onSize={setCanvasSize}
             onSelection={setSelection}
-            onDragShift={dragShift.set}
+            onLiveBounds={liveBounds.set}
             onMoved={(itemIds, dx, dy) => {
               // Запертое стоит на месте, даже если попало в общее выделение.
               const movable = itemIds.filter((itemId) => (
@@ -1715,7 +1716,7 @@ export function BoardPage(): ReactElement {
             <SelectionPanel
               items={selectedItems}
               bounds={selectionBounds}
-              dragShift={dragShift}
+              liveBounds={liveBounds}
               viewport={viewport}
               canvas={canvasSize}
               onColor={recolorSelection}

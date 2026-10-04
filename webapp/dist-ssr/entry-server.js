@@ -4634,7 +4634,7 @@ function BoardCanvas({
   onSize,
   onSelection,
   onMoved,
-  onDragShift,
+  onLiveBounds,
   onCommit,
   onDrawStart,
   onTextAt,
@@ -4809,7 +4809,6 @@ function BoardCanvas({
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${Math.round(half)} ${Math.round(half)}, crosshair`;
   }, [tool, spaceHeld, hub.canEdit, settings, viewport.scale]);
   const redraw = useCallback(() => {
-    var _a;
     const element = canvas.current;
     const context = element == null ? void 0 : element.getContext("2d");
     if (!element || !context) return;
@@ -4870,17 +4869,24 @@ function BoardCanvas({
       context.restore();
     }
     const hair = 1 / view.scale;
+    const grip = resizing.current;
+    const spin = rotating.current;
+    const live = (item) => {
+      if ((grip == null ? void 0 : grip.itemId) === item.id) return { ...item, data: grip.data };
+      if ((spin == null ? void 0 : spin.itemId) === item.id) return { ...item, data: spin.data };
+      return drag ? { ...item, data: translate(item.data, drag.dx, drag.dy) } : item;
+    };
     const selected = hub.items.filter((item) => chosen.has(item.id));
-    const box2 = boundsOf(selected.map((item) => drag ? { ...item, data: translate(item.data, drag.dx, drag.dy) } : item));
+    const box2 = boundsOf(selected.map(live));
+    onLiveBounds == null ? void 0 : onLiveBounds(box2 && (drag || grip || spin) ? box2 : null);
     if (box2) outline(context, box2, "#2E5FA3", hair, [6 * hair, 4 * hair]);
     if (marquee.current) {
       outline(context, rectFrom(marquee.current.from, marquee.current.to), "#2E5FA3", hair, [4 * hair, 3 * hair]);
     }
     if (selected.length === 1 && !drag) {
-      const single = selected[0];
-      const preview = ((_a = resizing.current) == null ? void 0 : _a.itemId) === single.id ? resizing.current.data : single.data;
-      const grips = handlesFor(single, boundsOf([{ ...single, data: preview }]));
-      for (const grip of grips) {
+      const single = live(selected[0]);
+      const grips = handlesFor(single, boundsOf([single]));
+      for (const grip2 of grips) {
         const half = HANDLE_SIZE / 2 / view.scale;
         context.save();
         context.setLineDash([]);
@@ -4888,13 +4894,13 @@ function BoardCanvas({
         context.strokeStyle = "#2E5FA3";
         context.lineWidth = hair * 1.5;
         context.beginPath();
-        context.rect(grip.x - half, grip.y - half, half * 2, half * 2);
+        context.rect(grip2.x - half, grip2.y - half, half * 2, half * 2);
         context.fill();
         context.stroke();
         context.restore();
       }
     }
-  }, [hub.items, hub.live, hub.me, paintBase]);
+  }, [hub.items, hub.live, hub.me, paintBase, onLiveBounds]);
   const schedule = useCallback((fresh = true) => {
     if (fresh) baseStale.current = true;
     cancelAnimationFrame(frame.current);
@@ -4996,7 +5002,6 @@ function BoardCanvas({
       const snap = latest.current.settings.select.snap;
       drag.dx = snapValue(world.x - drag.from.x, snap);
       drag.dy = snapValue(world.y - drag.from.y, snap);
-      onDragShift == null ? void 0 : onDragShift(drag.dx, drag.dy);
       schedule();
       autoPanFrame.current = requestAnimationFrame(stepAutoPan);
     }
@@ -5354,7 +5359,6 @@ function BoardCanvas({
       const snap = latest.current.settings.select.snap;
       drag.dx = snapValue(point.x - drag.from.x, snap);
       drag.dy = snapValue(point.y - drag.from.y, snap);
-      onDragShift == null ? void 0 : onDragShift(drag.dx, drag.dy);
       schedule();
       scheduleAutoPan();
       return;
@@ -5466,7 +5470,6 @@ function BoardCanvas({
     const drag = moving.current;
     if ((drag == null ? void 0 : drag.pointerId) === event.pointerId) {
       moving.current = null;
-      onDragShift == null ? void 0 : onDragShift(0, 0);
       if (autoPanFrame.current !== null) {
         cancelAnimationFrame(autoPanFrame.current);
         autoPanFrame.current = null;
@@ -6436,7 +6439,7 @@ function LineStyleIcon({ kind }) {
   );
 }
 const MIXED = "conic-gradient(#C62828, #FFB300, #2E7D32, #1565C0, #6A1B9A, #C62828)";
-function ColorPick({ label, value, onChange, none: none2, commitOnClose, small }) {
+function ColorPick({ label, value, onChange, none, commitOnClose, small }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState(value && !PALETTE.includes(value) ? value : "#2A211C");
   const size = small ? " swatch--sm" : "";
@@ -6501,7 +6504,7 @@ function ColorPick({ label, value, onChange, none: none2, commitOnClose, small }
           ]
         }
       ),
-      none2 ? /* @__PURE__ */ jsx(
+      none ? /* @__PURE__ */ jsx(
         "button",
         {
           className: `swatch${size} swatch--none`,
@@ -6868,14 +6871,14 @@ function itemsOf(template) {
     return [];
   }
 }
-const NONE = { dx: 0, dy: 0 };
-function createDragShift() {
-  let current = NONE;
+function createLiveBounds() {
+  let current = null;
   const listeners2 = /* @__PURE__ */ new Set();
+  const same = (a, b) => a === b || a !== null && b !== null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
   return {
-    set(dx, dy) {
-      if (dx === current.dx && dy === current.dy) return;
-      current = dx === 0 && dy === 0 ? NONE : { dx, dy };
+    set(next) {
+      if (same(current, next)) return;
+      current = next;
       listeners2.forEach((listener) => listener());
     },
     get: () => current,
@@ -6887,14 +6890,10 @@ function createDragShift() {
     }
   };
 }
-function useDragShift(store) {
-  return useSyncExternalStore(
-    (store == null ? void 0 : store.subscribe) ?? noopSubscribe,
-    (store == null ? void 0 : store.get) ?? none,
-    none
-  );
+function useLiveBounds(store) {
+  return useSyncExternalStore((store == null ? void 0 : store.subscribe) ?? noopSubscribe, (store == null ? void 0 : store.get) ?? nothing, nothing);
 }
-const none = () => NONE;
+const nothing = () => null;
 const noopSubscribe = () => () => void 0;
 const WIDTH = 340;
 const HEIGHT = 150;
@@ -6904,8 +6903,8 @@ const NARROW = 720;
 const SHORT = 460;
 function SelectionPanel({
   items,
-  bounds: rest,
-  dragShift,
+  bounds: saved,
+  liveBounds,
   viewport,
   canvas,
   onColor,
@@ -6960,8 +6959,7 @@ function SelectionPanel({
     const measured = (_a = panel.current) == null ? void 0 : _a.offsetHeight;
     if (measured && Math.abs(measured - height) > 1) setHeight(measured);
   });
-  const shift = useDragShift(dragShift);
-  const bounds = shift.dx === 0 && shift.dy === 0 ? rest : { ...rest, x: rest.x + shift.dx, y: rest.y + shift.dy };
+  const bounds = useLiveBounds(liveBounds) ?? saved;
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
   const GAP2 = 10;
@@ -9740,7 +9738,7 @@ function BoardPage() {
     hub.updateItem(item.id, withCell(item.data, edit.row, edit.col, text));
   };
   const selectedItems = hub.items.filter((item) => selection.includes(item.id));
-  const dragShift = useRef(createDragShift()).current;
+  const liveBounds = useRef(createLiveBounds()).current;
   const tableItem = cellEdit ? hub.items.find((item) => item.id === cellEdit.itemId) ?? null : null;
   const selectionBounds = selectedItems.length > 0 ? boundsOf(selectedItems) : null;
   const docked = Boolean(
@@ -10318,7 +10316,7 @@ function BoardPage() {
                 onViewport: setViewport,
                 onSize: setCanvasSize,
                 onSelection: setSelection,
-                onDragShift: dragShift.set,
+                onLiveBounds: liveBounds.set,
                 onMoved: (itemIds, dx, dy) => {
                   const movable = itemIds.filter((itemId) => {
                     var _a2;
@@ -10445,7 +10443,7 @@ function BoardPage() {
               {
                 items: selectedItems,
                 bounds: selectionBounds,
-                dragShift,
+                liveBounds,
                 viewport,
                 canvas: canvasSize,
                 onColor: recolorSelection,
