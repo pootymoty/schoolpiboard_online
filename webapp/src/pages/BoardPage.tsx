@@ -1518,7 +1518,13 @@ export function BoardPage(): ReactElement {
             onResetZoom={() => setViewport((current) => {
               // С выделением сотня означает «покажи вот это в натуральную
               // величину», а не «верни масштаб и потеряй объект из виду».
-              if (!selectionBounds) return { ...current, scale: 1 };
+              // Без выделения — от середины холста, как «+» и «−»: то, что
+              // было в центре экрана, там и остаётся. Раньше менялся один
+              // масштаб, и вид увеличивался от левого верхнего угла — всё
+              // из середины улетало за край.
+              if (!selectionBounds) {
+                return zoomAt(current, canvasSize.width / 2, canvasSize.height / 2, 1 / current.scale);
+              }
 
               return centerOn(
                 current,

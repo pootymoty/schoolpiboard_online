@@ -10289,7 +10289,9 @@ function BoardPage() {
                 },
                 onZoom: zoomBy,
                 onResetZoom: () => setViewport((current) => {
-                  if (!selectionBounds) return { ...current, scale: 1 };
+                  if (!selectionBounds) {
+                    return zoomAt(current, canvasSize.width / 2, canvasSize.height / 2, 1 / current.scale);
+                  }
                   return centerOn(
                     current,
                     selectionBounds.x + selectionBounds.width / 2,
