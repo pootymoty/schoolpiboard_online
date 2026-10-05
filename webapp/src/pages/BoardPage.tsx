@@ -1765,9 +1765,6 @@ export function BoardPage(): ReactElement {
             </p>
           ) : null}
 
-          {hub.status === 'ready' && !hub.canEdit ? (
-            <p className="canvas-status">Вы наблюдаете: доступны только просмотр и масштаб.</p>
-          ) : null}
 
           <CanvasPanel
             open={showPeople}
@@ -1837,25 +1834,33 @@ export function BoardPage(): ReactElement {
               <p className="guest-hint">Вы гость. <Link to="/login">Войти?</Link></p>
             ) : null}
 
-            <button
-              className={board.locked && board.canManage ? 'btn-tool btn-tool--wide btn-tool--locked' : 'btn-tool btn-tool--wide'}
-              type="button"
-              onClick={() => setShowPeople((current) => !current)}
-              aria-pressed={showPeople}
-              title={board.locked && board.canManage ? 'Участники · доска закрыта для новых участников' : 'Участники'}
-            >
-              {/* Закрытую доску видно сразу, не открывая панель: замок и
-                  красный фон на самой кнопке. */}
-              {board.locked && board.canManage ? <IconLockClosed /> : <IconPeople />}
-              {/* Считаем подключённых сейчас, а не записанных в участники:
-                  на занятии важно, кто здесь, а не кто когда-то заходил. */}
-              <span>Участники{presentCount ? ` · ${presentCount}` : ''}</span>
-              {queue.waiting.length > 0 ? (
-                <span className="badge-dot" aria-label={`Ждут допуска: ${queue.waiting.length}`}>
-                  {queue.waiting.length}
-                </span>
+            {/* Роль «только смотреть» — коротко, над кнопкой участников: там
+                её видно, но она не висит посреди холста. */}
+            <div className="people-stack">
+              {hub.status === 'ready' && !hub.canEdit ? (
+                <span className="observer-chip" title="Доступны только просмотр и масштаб">Наблюдатель</span>
               ) : null}
-            </button>
+
+              <button
+                className={board.locked && board.canManage ? 'btn-tool btn-tool--wide btn-tool--locked' : 'btn-tool btn-tool--wide'}
+                type="button"
+                onClick={() => setShowPeople((current) => !current)}
+                aria-pressed={showPeople}
+                title={board.locked && board.canManage ? 'Участники · доска закрыта для новых участников' : 'Участники'}
+              >
+                {/* Закрытую доску видно сразу, не открывая панель: замок и
+                    красный фон на самой кнопке. */}
+                {board.locked && board.canManage ? <IconLockClosed /> : <IconPeople />}
+                {/* Считаем подключённых сейчас, а не записанных в участники:
+                    на занятии важно, кто здесь, а не кто когда-то заходил. */}
+                <span>Участники{presentCount ? ` · ${presentCount}` : ''}</span>
+                {queue.waiting.length > 0 ? (
+                  <span className="badge-dot" aria-label={`Ждут допуска: ${queue.waiting.length}`}>
+                    {queue.waiting.length}
+                  </span>
+                ) : null}
+              </button>
+            </div>
           </div>
             </>
           )}

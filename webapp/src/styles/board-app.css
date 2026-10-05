@@ -1252,8 +1252,29 @@ html.board-locked body {
     bottom: var(--sp-3);
     z-index: 9;
     display: flex;
-    align-items: center;
+    /* По нижнему краю: над кнопкой участников может стоять пометка
+       «Наблюдатель», и соседи не должны из-за неё подниматься. */
+    align-items: flex-end;
     gap: var(--sp-2);
+}
+
+/* Кнопка участников и пометка «Наблюдатель» над ней — столбиком. */
+.people-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--sp-1);
+}
+
+.observer-chip {
+    padding: 2px var(--sp-3);
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
 }
 
 /* Своим фоном и рамкой — иначе на пёстром фоне доски надпись сливается. */

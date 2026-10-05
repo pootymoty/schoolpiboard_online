@@ -10506,7 +10506,6 @@ function BoardPage() {
               }
             ) : null,
             hub.status !== "ready" ? /* @__PURE__ */ jsx("p", { className: "canvas-status", children: hub.status === "failed" ? "Связь с доской потеряна. Нарисованное сохранится, когда связь вернётся." : hub.status === "reconnecting" ? "Связь прервалась — восстанавливаем…" : "Подключаемся к доске…" }) : null,
-            hub.status === "ready" && !hub.canEdit ? /* @__PURE__ */ jsx("p", { className: "canvas-status", children: "Вы наблюдаете: доступны только просмотр и масштаб." }) : null,
             /* @__PURE__ */ jsx(
               CanvasPanel,
               {
@@ -10578,24 +10577,27 @@ function BoardPage() {
                 "Вы гость. ",
                 /* @__PURE__ */ jsx(Link, { to: "/login", children: "Войти?" })
               ] }) : null,
-              /* @__PURE__ */ jsxs(
-                "button",
-                {
-                  className: board.locked && board.canManage ? "btn-tool btn-tool--wide btn-tool--locked" : "btn-tool btn-tool--wide",
-                  type: "button",
-                  onClick: () => setShowPeople((current) => !current),
-                  "aria-pressed": showPeople,
-                  title: board.locked && board.canManage ? "Участники · доска закрыта для новых участников" : "Участники",
-                  children: [
-                    board.locked && board.canManage ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconPeople, {}),
-                    /* @__PURE__ */ jsxs("span", { children: [
-                      "Участники",
-                      presentCount ? ` · ${presentCount}` : ""
-                    ] }),
-                    queue.waiting.length > 0 ? /* @__PURE__ */ jsx("span", { className: "badge-dot", "aria-label": `Ждут допуска: ${queue.waiting.length}`, children: queue.waiting.length }) : null
-                  ]
-                }
-              )
+              /* @__PURE__ */ jsxs("div", { className: "people-stack", children: [
+                hub.status === "ready" && !hub.canEdit ? /* @__PURE__ */ jsx("span", { className: "observer-chip", title: "Доступны только просмотр и масштаб", children: "Наблюдатель" }) : null,
+                /* @__PURE__ */ jsxs(
+                  "button",
+                  {
+                    className: board.locked && board.canManage ? "btn-tool btn-tool--wide btn-tool--locked" : "btn-tool btn-tool--wide",
+                    type: "button",
+                    onClick: () => setShowPeople((current) => !current),
+                    "aria-pressed": showPeople,
+                    title: board.locked && board.canManage ? "Участники · доска закрыта для новых участников" : "Участники",
+                    children: [
+                      board.locked && board.canManage ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconPeople, {}),
+                      /* @__PURE__ */ jsxs("span", { children: [
+                        "Участники",
+                        presentCount ? ` · ${presentCount}` : ""
+                      ] }),
+                      queue.waiting.length > 0 ? /* @__PURE__ */ jsx("span", { className: "badge-dot", "aria-label": `Ждут допуска: ${queue.waiting.length}`, children: queue.waiting.length }) : null
+                    ]
+                  }
+                )
+              ] })
             ] })
           ] })
         }
