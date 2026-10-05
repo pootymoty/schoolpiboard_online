@@ -910,6 +910,26 @@ body.no-scroll {
         visibility 0s;
 }
 
+/* Кнопки над заголовком панели — «Ссылка» и замок у «Участников». */
+.canvas-panel__top {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-3) 0 var(--sp-3);
+}
+
+.canvas-panel__top .btn-tool--wide {
+    border: 1px solid var(--line);
+}
+
+/* Доска закрыта — видно по самой кнопке «Участники»: замок и красный фон. */
+.btn-tool--locked,
+.btn-tool--locked:hover {
+    background: var(--danger-soft);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+}
+
 .canvas-panel__head {
     display: flex;
     align-items: center;
@@ -1125,27 +1145,6 @@ html.board-locked body {
     padding: calc(20px + var(--sp-1)) var(--sp-3) var(--sp-2);
 }
 
-/* Всё в одну строку, без переноса: лишняя строка над холстом на
-   телефоне съедала бы его высоту. Сжимается только название — кнопки
-   остаются целыми. */
-.board-page__bar {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-    flex-wrap: nowrap;
-    min-width: 0;
-}
-
-.board-page__bar > .btn-tool { flex: none; }
-
-@media (max-width: 720px) {
-    .board-page__bar { gap: var(--sp-2); }
-
-    /* «Доска закрыта для новых участников» — на телефоне лишняя строка
-       над холстом: то же самое и так видно по кнопке «Закрыта» с замком. */
-    .board-page__locked-note { display: none; }
-}
-
 /* Кнопки на панели доски подписаны текстом: значок без подписи не
    объясняет себя сам, особенно замок — «открыт» и «закрыт» иначе
    различить можно только по форме дужки. */
@@ -1193,16 +1192,17 @@ html.board-locked body {
     border-radius: var(--radius-lg);
 }
 
-/* --- Название доски: слева от кнопки «Ссылка» ------------------------------- */
+/* --- Название доски: первым в верхней полосе ------------------------------- */
 
-/* Ширина — не по тексту, а не больше 200px и сколько останется рядом с
-   кнопками: длинное название иначе растягивало бы строку и сталкивало
-   кнопки за край экрана или на новую строку. */
+/* Ширина — не по тексту, а не больше 200px: длинное название иначе
+   растягивало бы полосу и сталкивало кнопки за край. Не влезло —
+   обрезается многоточием, целиком видно в подсказке и при правке. */
 .board-title {
     display: flex;
     align-items: center;
     gap: var(--sp-1);
-    flex: 0 1 200px;
+    flex: 0 0 200px;
+    width: 200px;
     min-width: 0;
 }
 
@@ -1211,7 +1211,8 @@ html.board-locked body {
        иначе не влезающий текст обрезался с обеих сторон сразу, и
        начала названия видно не было. */
     display: block;
-    flex: 0 1 200px;
+    flex: 0 1 auto;
+    max-width: 200px;
     min-width: 0;
     font-family: var(--font-head);
     font-weight: 700;
@@ -1225,6 +1226,13 @@ html.board-locked body {
     border: none;
     color: var(--text);
     text-align: left;
+}
+
+/* На телефоне полоса узкая — название короче, чтобы рядом поместился
+   масштаб. Целиком оно видно при правке. */
+@media (max-width: 720px) {
+    .board-title__text { max-width: 110px; }
+    .board-title { flex-basis: 160px; width: 160px; }
 }
 
 .board-title__input {
@@ -1253,6 +1261,16 @@ html.board-locked body {
     background: color-mix(in srgb, var(--surface) 85%, transparent);
     border: 1px solid var(--line);
     box-shadow: var(--shadow-sm);
+}
+
+/* Доска закрыта — кнопка «Участники» красная, с замком: видно сразу,
+   не открывая панель, почему никто не может войти по ссылке. */
+.board-page__people-corner .btn-tool--locked,
+.board-page__people-corner .btn-tool--locked:hover,
+.board-page__people-corner .btn-tool--locked[aria-pressed="true"] {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
 }
 
 /* Подсказка гостю: рядом с кнопкой участников, где на неё точно упрётся взгляд. */
@@ -3415,8 +3433,10 @@ html.board-locked body {
  * - «Участники» и окна панелей встают левее правой полосы.
  */
 @media (orientation: landscape) and (max-height: 520px) {
-    .app__main--board:not(.app__main--header-open) .board-page__bar { display: none; }
-    .board-page__locked-note { display: none; }
+    /* Название в вертикальной полосе не помещается — здесь его нет. */
+    .toolbar--view .board-title,
+    .toolbar--view .board-title__text,
+    .toolbar--view .toolbar__divider--title { display: none; }
 
     .board-page { padding-bottom: var(--sp-1); }
 

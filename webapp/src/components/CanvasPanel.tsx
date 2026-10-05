@@ -6,6 +6,8 @@ interface Props {
   open: boolean;
   title: string;
   onClose: () => void;
+  /** Над заголовком — кнопки, относящиеся ко всей панели. */
+  top?: ReactNode;
   children: ReactNode;
 }
 
@@ -21,7 +23,7 @@ interface Props {
  * не прекращая работать. Закрывается крестиком, той же кнопкой на панели
  * инструментов и клавишей Escape.
  */
-export function CanvasPanel({ open, title, onClose, children }: Props): ReactElement {
+export function CanvasPanel({ open, title, onClose, top, children }: Props): ReactElement {
   useEffect(() => {
     if (!open) return;
 
@@ -44,6 +46,8 @@ export function CanvasPanel({ open, title, onClose, children }: Props): ReactEle
       aria-label={title}
       aria-hidden={!open}
     >
+      {top ? <div className="canvas-panel__top">{top}</div> : null}
+
       <div className="canvas-panel__head">
         <h2 className="canvas-panel__title">{title}</h2>
         <button className="btn-tool" type="button" onClick={onClose} aria-label="Закрыть">

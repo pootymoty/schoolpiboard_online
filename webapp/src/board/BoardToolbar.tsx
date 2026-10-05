@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import {
   IconCursor, IconEditor, IconEraser, IconHand, IconMarker,
   IconDownload, IconGrid, IconHelp, IconImage, IconTimer, IconRedo, IconShapes, IconTable, IconText,
@@ -178,6 +178,8 @@ interface ViewProps {
   /** Убрать с экрана на телефоне — на счету каждый пиксель холста. */
   open: boolean;
   onToggleOpen: () => void;
+  /** Название доски — первым в полосе. */
+  lead?: ReactNode;
 }
 
 /** Масштаб и вид — горизонтальной полосой в правом верхнем углу холста. */
@@ -185,7 +187,7 @@ export function ViewToolbar({
   canManage, canEdit, tool, onTool, scale, onZoom, onResetZoom, onFit,
   onBackground, onSummary, summaryCount, onTimer, onHelp, onExport, onClear,
   canPaste, onPaste, onPages, pageLabel, onBookmarks, onBringEveryone,
-  canRecordings, onRecordings, open, onToggleOpen,
+  canRecordings, onRecordings, open, onToggleOpen, lead,
 }: ViewProps): ReactElement {
   const viewRef = useRef<HTMLDivElement | null>(null);
   useDragScroll(viewRef);
@@ -197,6 +199,15 @@ export function ViewToolbar({
       className="toolbar toolbar--view"
       role="toolbar" aria-label="Масштаб и вид"
     >
+      {/* Название — в начале полосы, а не отдельной строкой над холстом:
+          та строка на телефоне съедала высоту холста. */}
+      {lead ? (
+        <>
+          {lead}
+          <span className="toolbar__divider toolbar__divider--title" aria-hidden="true" />
+        </>
+      ) : null}
+
       {/* Масштаб доступен всем: наблюдателю он нужен ровно так же. */}
       <div className="zoom">
         <button className="btn-tool" type="button" onClick={() => onZoom(1 / 1.15)} aria-label="Отдалить" data-tip="Отдалить">−</button>

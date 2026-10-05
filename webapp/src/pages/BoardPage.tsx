@@ -1387,77 +1387,44 @@ export function BoardPage(): ReactElement {
   // и они расходились: впущенный появлялся в списке, а на кнопке нет.
   const presentCount = members.length + otherGuests.length + (me.isGuest ? 1 : 0);
 
+  // Название доски — первым в верхней полосе (см. ViewToolbar): отдельная
+  // строка над холстом на телефоне съедала его высоту. Править может
+  // только владелец, щёлкнув по надписи.
+  const titleNode = editingTitle ? (
+    <div className="board-title">
+      <input
+        className="board-title__input"
+        type="text"
+        autoFocus
+        maxLength={BOARD_TITLE_MAX}
+        title={BOARD_TITLE_HINT}
+        value={titleDraft}
+        onChange={(event) => setTitleDraft(cleanBoardTitle(event.target.value))}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') saveTitle();
+          if (event.key === 'Escape') setEditingTitle(false);
+        }}
+      />
+      <button className="btn-tool" type="button" onClick={saveTitle} aria-label="Сохранить название">
+        <IconCheck />
+      </button>
+    </div>
+  ) : board.canManage ? (
+    <button
+      className="board-title__text"
+      type="button"
+      onClick={() => { setTitleDraft(board.title); setEditingTitle(true); }}
+      title="Переименовать доску"
+    >
+      {board.title}
+    </button>
+  ) : (
+    <p className="board-title__text">{board.title}</p>
+  );
+
   return (
     <BoardShell>
       <div className="board-page">
-        <div className="board-page__bar">
-          {/* Название — слева от «Ссылка»: тут же, в одной строке, а не
-              отдельной плывущей надписью над холстом. Править может
-              только владелец, щёлкнув по надписи. */}
-          {editingTitle ? (
-            <div className="board-title">
-              <input
-                className="board-title__input"
-                type="text"
-                autoFocus
-                maxLength={BOARD_TITLE_MAX}
-                title={BOARD_TITLE_HINT}
-                value={titleDraft}
-                onChange={(event) => setTitleDraft(cleanBoardTitle(event.target.value))}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') saveTitle();
-                  if (event.key === 'Escape') setEditingTitle(false);
-                }}
-              />
-              <button className="btn-tool" type="button" onClick={saveTitle} aria-label="Сохранить название">
-                <IconCheck />
-              </button>
-            </div>
-          ) : board.canManage ? (
-            <button
-              className="board-title__text"
-              type="button"
-              onClick={() => { setTitleDraft(board.title); setEditingTitle(true); }}
-              title="Переименовать доску"
-            >
-              {board.title}
-            </button>
-          ) : (
-            <p className="board-title__text">{board.title}</p>
-          )}
-
-          {board.canManage ? (
-            <>
-              <button
-                className="btn-tool btn-tool--wide"
-                type="button"
-                onClick={() => setShowLink(true)}
-                title="Ссылка на доску"
-              >
-                <IconLink />
-                <span>Ссылка</span>
-              </button>
-
-              <button
-                className="btn-tool btn-tool--wide"
-                type="button"
-                onClick={toggleLock}
-                disabled={busy}
-                aria-pressed={board.locked}
-                title={board.locked
-                  ? 'Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть'
-                  : 'Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть'}
-              >
-                {board.locked ? <IconLockClosed /> : <IconLockOpen />}
-                <span>{board.locked ? 'Закрыта' : 'Открыта'}</span>
-              </button>
-            </>
-          ) : null}
-        </div>
-
-        {board.locked && board.canManage ? (
-          <p className="note note-warning board-page__locked-note">Доска закрыта для новых участников.</p>
-        ) : null}
 
         {shownError ? (
           // Предупреждение — не навсегда: гаснет само через десять секунд
@@ -1516,6 +1483,7 @@ export function BoardPage(): ReactElement {
           )}
 
           <ViewToolbar
+            lead={titleNode}
             canManage={hub.canManage}
             canEdit={hub.canEdit}
             tool={tool}
@@ -1795,7 +1763,40 @@ export function BoardPage(): ReactElement {
             <p className="canvas-status">Вы наблюдаете: доступны только просмотр и масштаб.</p>
           ) : null}
 
-          <CanvasPanel open={showPeople} title="Участники" onClose={() => setShowPeople(false)}>
+          <CanvasPanel
+            open={showPeople}
+            title="Участники"
+            onClose={() => setShowPeople(false)}
+            // Ссылка и замок — над списком: и то и другое про то, кто
+            // попадёт на доску, а не про сам холст.
+            top={board.canManage ? (
+              <>
+                <button
+                  className="btn-tool btn-tool--wide"
+                  type="button"
+                  onClick={() => setShowLink(true)}
+                  title="Ссылка на доску"
+                >
+                  <IconLink />
+                  <span>Ссылка</span>
+                </button>
+
+                <button
+                  className="btn-tool btn-tool--wide"
+                  type="button"
+                  onClick={toggleLock}
+                  disabled={busy}
+                  aria-pressed={board.locked}
+                  title={board.locked
+                    ? 'Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть'
+                    : 'Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть'}
+                >
+                  {board.locked ? <IconLockClosed /> : <IconLockOpen />}
+                  <span>{board.locked ? 'Закрыта' : 'Открыта'}</span>
+                </button>
+              </>
+            ) : null}
+          >
               <PeoplePanel
                 boardId={id}
                 canManage={board.canManage}
@@ -1831,13 +1832,15 @@ export function BoardPage(): ReactElement {
             ) : null}
 
             <button
-              className="btn-tool btn-tool--wide"
+              className={board.locked && board.canManage ? 'btn-tool btn-tool--wide btn-tool--locked' : 'btn-tool btn-tool--wide'}
               type="button"
               onClick={() => setShowPeople((current) => !current)}
               aria-pressed={showPeople}
-              title="Участники"
+              title={board.locked && board.canManage ? 'Участники · доска закрыта для новых участников' : 'Участники'}
             >
-              <IconPeople />
+              {/* Закрытую доску видно сразу, не открывая панель: замок и
+                  красный фон на самой кнопке. */}
+              {board.locked && board.canManage ? <IconLockClosed /> : <IconPeople />}
               {/* Считаем подключённых сейчас, а не записанных в участники:
                   на занятии важно, кто здесь, а не кто когда-то заходил. */}
               <span>Участники{presentCount ? ` · ${presentCount}` : ''}</span>

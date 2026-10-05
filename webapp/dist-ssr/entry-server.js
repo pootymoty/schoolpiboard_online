@@ -4024,7 +4024,7 @@ function writeGuestMarker(marker) {
   } catch {
   }
 }
-function CanvasPanel({ open, title, onClose, children }) {
+function CanvasPanel({ open, title, onClose, top, children }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (event) => {
@@ -4041,6 +4041,7 @@ function CanvasPanel({ open, title, onClose, children }) {
       "aria-label": title,
       "aria-hidden": !open,
       children: [
+        top ? /* @__PURE__ */ jsx("div", { className: "canvas-panel__top", children: top }) : null,
         /* @__PURE__ */ jsxs("div", { className: "canvas-panel__head", children: [
           /* @__PURE__ */ jsx("h2", { className: "canvas-panel__title", children: title }),
           /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: onClose, "aria-label": "Закрыть", children: /* @__PURE__ */ jsx(IconClose, {}) })
@@ -6313,7 +6314,8 @@ function ViewToolbar({
   canRecordings,
   onRecordings,
   open,
-  onToggleOpen
+  onToggleOpen,
+  lead
 }) {
   const viewRef = useRef(null);
   useDragScroll(viewRef);
@@ -6326,6 +6328,10 @@ function ViewToolbar({
         role: "toolbar",
         "aria-label": "Масштаб и вид",
         children: [
+          lead ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            lead,
+            /* @__PURE__ */ jsx("span", { className: "toolbar__divider toolbar__divider--title", "aria-hidden": "true" })
+          ] }) : null,
           /* @__PURE__ */ jsxs("div", { className: "zoom", children: [
             /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: () => onZoom(1 / 1.15), "aria-label": "Отдалить", "data-tip": "Отдалить", children: "−" }),
             /* @__PURE__ */ jsxs("button", { className: "zoom__value", type: "button", onClick: onResetZoom, title: "Вернуть 100 %", "data-tip": "Вернуть 100 %", children: [
@@ -10169,72 +10175,39 @@ function BoardPage() {
   const { board, me, members, guests } = state;
   const otherGuests = guests.filter((guest) => guest.guestId !== me.guestId);
   const presentCount = members.length + otherGuests.length + (me.isGuest ? 1 : 0);
+  const titleNode = editingTitle ? /* @__PURE__ */ jsxs("div", { className: "board-title", children: [
+    /* @__PURE__ */ jsx(
+      "input",
+      {
+        className: "board-title__input",
+        type: "text",
+        autoFocus: true,
+        maxLength: BOARD_TITLE_MAX,
+        title: BOARD_TITLE_HINT,
+        value: titleDraft,
+        onChange: (event) => setTitleDraft(cleanBoardTitle(event.target.value)),
+        onKeyDown: (event) => {
+          if (event.key === "Enter") saveTitle();
+          if (event.key === "Escape") setEditingTitle(false);
+        }
+      }
+    ),
+    /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: saveTitle, "aria-label": "Сохранить название", children: /* @__PURE__ */ jsx(IconCheck, {}) })
+  ] }) : board.canManage ? /* @__PURE__ */ jsx(
+    "button",
+    {
+      className: "board-title__text",
+      type: "button",
+      onClick: () => {
+        setTitleDraft(board.title);
+        setEditingTitle(true);
+      },
+      title: "Переименовать доску",
+      children: board.title
+    }
+  ) : /* @__PURE__ */ jsx("p", { className: "board-title__text", children: board.title });
   return /* @__PURE__ */ jsxs(BoardShell, { children: [
     /* @__PURE__ */ jsxs("div", { className: "board-page", children: [
-      /* @__PURE__ */ jsxs("div", { className: "board-page__bar", children: [
-        editingTitle ? /* @__PURE__ */ jsxs("div", { className: "board-title", children: [
-          /* @__PURE__ */ jsx(
-            "input",
-            {
-              className: "board-title__input",
-              type: "text",
-              autoFocus: true,
-              maxLength: BOARD_TITLE_MAX,
-              title: BOARD_TITLE_HINT,
-              value: titleDraft,
-              onChange: (event) => setTitleDraft(cleanBoardTitle(event.target.value)),
-              onKeyDown: (event) => {
-                if (event.key === "Enter") saveTitle();
-                if (event.key === "Escape") setEditingTitle(false);
-              }
-            }
-          ),
-          /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: saveTitle, "aria-label": "Сохранить название", children: /* @__PURE__ */ jsx(IconCheck, {}) })
-        ] }) : board.canManage ? /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "board-title__text",
-            type: "button",
-            onClick: () => {
-              setTitleDraft(board.title);
-              setEditingTitle(true);
-            },
-            title: "Переименовать доску",
-            children: board.title
-          }
-        ) : /* @__PURE__ */ jsx("p", { className: "board-title__text", children: board.title }),
-        board.canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsxs(
-            "button",
-            {
-              className: "btn-tool btn-tool--wide",
-              type: "button",
-              onClick: () => setShowLink(true),
-              title: "Ссылка на доску",
-              children: [
-                /* @__PURE__ */ jsx(IconLink, {}),
-                /* @__PURE__ */ jsx("span", { children: "Ссылка" })
-              ]
-            }
-          ),
-          /* @__PURE__ */ jsxs(
-            "button",
-            {
-              className: "btn-tool btn-tool--wide",
-              type: "button",
-              onClick: toggleLock,
-              disabled: busy,
-              "aria-pressed": board.locked,
-              title: board.locked ? "Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть" : "Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть",
-              children: [
-                board.locked ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconLockOpen, {}),
-                /* @__PURE__ */ jsx("span", { children: board.locked ? "Закрыта" : "Открыта" })
-              ]
-            }
-          )
-        ] }) : null
-      ] }),
-      board.locked && board.canManage ? /* @__PURE__ */ jsx("p", { className: "note note-warning board-page__locked-note", children: "Доска закрыта для новых участников." }) : null,
       shownError ? (
         // Предупреждение — не навсегда: гаснет само через десять секунд
         // или по нажатию. Висящее оно сдвигает холст вниз и закрывает
@@ -10287,6 +10260,7 @@ function BoardPage() {
             /* @__PURE__ */ jsx(
               ViewToolbar,
               {
+                lead: titleNode,
                 canManage: hub.canManage,
                 canEdit: hub.canEdit,
                 tool,
@@ -10531,22 +10505,60 @@ function BoardPage() {
             ) : null,
             hub.status !== "ready" ? /* @__PURE__ */ jsx("p", { className: "canvas-status", children: hub.status === "failed" ? "Связь с доской потеряна. Нарисованное сохранится, когда связь вернётся." : hub.status === "reconnecting" ? "Связь прервалась — восстанавливаем…" : "Подключаемся к доске…" }) : null,
             hub.status === "ready" && !hub.canEdit ? /* @__PURE__ */ jsx("p", { className: "canvas-status", children: "Вы наблюдаете: доступны только просмотр и масштаб." }) : null,
-            /* @__PURE__ */ jsx(CanvasPanel, { open: showPeople, title: "Участники", onClose: () => setShowPeople(false), children: /* @__PURE__ */ jsx(
-              PeoplePanel,
+            /* @__PURE__ */ jsx(
+              CanvasPanel,
               {
-                boardId: id,
-                canManage: board.canManage,
-                members,
-                guests: otherGuests,
-                guestName: me.isGuest ? me.displayName : null,
-                queue,
-                present: hub.participants,
-                cursors: hub.cursors,
-                onGoTo: goToCursor,
-                meConnectionId: hub.me,
-                onChanged: load
+                open: showPeople,
+                title: "Участники",
+                onClose: () => setShowPeople(false),
+                top: board.canManage ? /* @__PURE__ */ jsxs(Fragment, { children: [
+                  /* @__PURE__ */ jsxs(
+                    "button",
+                    {
+                      className: "btn-tool btn-tool--wide",
+                      type: "button",
+                      onClick: () => setShowLink(true),
+                      title: "Ссылка на доску",
+                      children: [
+                        /* @__PURE__ */ jsx(IconLink, {}),
+                        /* @__PURE__ */ jsx("span", { children: "Ссылка" })
+                      ]
+                    }
+                  ),
+                  /* @__PURE__ */ jsxs(
+                    "button",
+                    {
+                      className: "btn-tool btn-tool--wide",
+                      type: "button",
+                      onClick: toggleLock,
+                      disabled: busy,
+                      "aria-pressed": board.locked,
+                      title: board.locked ? "Доска закрыта: по ссылке не войти. Нажмите, чтобы открыть" : "Доска открыта: по ссылке можно проситься. Нажмите, чтобы закрыть",
+                      children: [
+                        board.locked ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconLockOpen, {}),
+                        /* @__PURE__ */ jsx("span", { children: board.locked ? "Закрыта" : "Открыта" })
+                      ]
+                    }
+                  )
+                ] }) : null,
+                children: /* @__PURE__ */ jsx(
+                  PeoplePanel,
+                  {
+                    boardId: id,
+                    canManage: board.canManage,
+                    members,
+                    guests: otherGuests,
+                    guestName: me.isGuest ? me.displayName : null,
+                    queue,
+                    present: hub.participants,
+                    cursors: hub.cursors,
+                    onGoTo: goToCursor,
+                    meConnectionId: hub.me,
+                    onChanged: load
+                  }
+                )
               }
-            ) }),
+            ),
             /* @__PURE__ */ jsxs("div", { className: "board-page__people-corner", children: [
               me.isGuest ? null : /* @__PURE__ */ jsx(
                 RecordingControls,
@@ -10567,13 +10579,13 @@ function BoardPage() {
               /* @__PURE__ */ jsxs(
                 "button",
                 {
-                  className: "btn-tool btn-tool--wide",
+                  className: board.locked && board.canManage ? "btn-tool btn-tool--wide btn-tool--locked" : "btn-tool btn-tool--wide",
                   type: "button",
                   onClick: () => setShowPeople((current) => !current),
                   "aria-pressed": showPeople,
-                  title: "Участники",
+                  title: board.locked && board.canManage ? "Участники · доска закрыта для новых участников" : "Участники",
                   children: [
-                    /* @__PURE__ */ jsx(IconPeople, {}),
+                    board.locked && board.canManage ? /* @__PURE__ */ jsx(IconLockClosed, {}) : /* @__PURE__ */ jsx(IconPeople, {}),
                     /* @__PURE__ */ jsxs("span", { children: [
                       "Участники",
                       presentCount ? ` · ${presentCount}` : ""
