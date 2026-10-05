@@ -187,6 +187,42 @@ export function BoardCanvas({
   const eraseEdits = useRef<Map<number, ItemData | null>>(new Map());
 
   /**
+   * Итог своего перетаскивания, растягивания или поворота — пока сервер
+   * его не подтвердил.
+   *
+   * Изменение уходит на сервер по отпусканию, а приходит обратно через
+   * долю секунды. Без этой записи объект на это время возвращался на
+   * старое место и потом прыгал на новое. `base` — данные объекта на
+   * момент отпускания: как только они сменились (пришёл ответ сервера
+   * или чужая правка), запись больше не нужна. `until` — на случай, если
+   * ответа не будет вовсе (сервер отказал): тогда объект честно
+   * возвращается туда, где он на самом деле.
+   */
+  const held = useRef<Map<number, { data: ItemData; base: ItemData; until: number }>>(new Map());
+
+  /** Что рисовать вместо объекта, пока его правка в пути; пусто — сам объект. */
+  const heldData = (item: BoardItem): ItemData | null => {
+    const pending = held.current.get(item.id);
+    if (!pending) return null;
+
+    if (item.data !== pending.base || performance.now() > pending.until) {
+      held.current.delete(item.id);
+      return null;
+    }
+
+    return pending.data;
+  };
+
+  /** Сколько ждать ответа сервера, прежде чем поверить, что правки не будет. */
+  const HOLD_MS = 2500;
+
+  const hold = (item: BoardItem, data: ItemData) => {
+    held.current.set(item.id, { data, base: item.data, until: performance.now() + HOLD_MS });
+    // Проверить, не истекло ли ожидание, — кадр сам по себе никто не попросит.
+    window.setTimeout(() => schedule(), HOLD_MS + 50);
+  };
+
+  /**
    * Штрихи, которые ластик уже убрал, но сервер ещё не прислал их
    * удаление, — с моментом ухода. Без этого после отпускания ластика
    * стёртое на долю секунды возвращалось бы на холст.
@@ -464,7 +500,7 @@ export function BoardCanvas({
         ? grip.data
         : spin?.itemId === item.id
           ? spin.data
-          : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
+          : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : heldData(item) ?? item.data;
 
       drawItem(context, item.type, shifted, item.imageRef);
     }
@@ -606,7 +642,9 @@ export function BoardCanvas({
     const live = (item: BoardItem): BoardItem => {
       if (grip?.itemId === item.id) return { ...item, data: grip.data };
       if (spin?.itemId === item.id) return { ...item, data: spin.data };
-      return drag ? { ...item, data: translate(item.data, drag.dx, drag.dy) } : item;
+      if (drag) return { ...item, data: translate(item.data, drag.dx, drag.dy) };
+      const pending = heldData(item);
+      return pending ? { ...item, data: pending } : item;
     };
 
     const selected = hub.items.filter((item) => chosen.has(item.id));
@@ -614,7 +652,8 @@ export function BoardCanvas({
 
     // Панель над выделенным — туда же, куда рамка. Вне жеста — пусто:
     // тогда панель стоит по сохранённому.
-    onLiveBounds?.(box && (drag || grip || spin) ? box : null);
+    const awaiting = selected.some((item) => held.current.has(item.id));
+    onLiveBounds?.(box && (drag || grip || spin || awaiting) ? box : null);
 
     if (box) outline(context, box, '#2E5FA3', hair, [6 * hair, 4 * hair]);
 
@@ -1508,6 +1547,8 @@ export function BoardCanvas({
     const spin = rotating.current;
     if (spin?.pointerId === event.pointerId) {
       rotating.current = null;
+      const source = latest.current.items.find((item) => item.id === spin.itemId);
+      if (source) hold(source, spin.data);
       hub.updateItem(spin.itemId, spin.data);
       schedule();
       return;
@@ -1516,6 +1557,8 @@ export function BoardCanvas({
     const grip = resizing.current;
     if (grip?.pointerId === event.pointerId) {
       resizing.current = null;
+      const source = latest.current.items.find((item) => item.id === grip.itemId);
+      if (source) hold(source, grip.data);
       hub.updateItem(grip.itemId, grip.data);
       schedule();
       return;
@@ -1531,6 +1574,12 @@ export function BoardCanvas({
       }
 
       if (drag.dx !== 0 || drag.dy !== 0) {
+        // Запертое не двигается и на сервере — его и не держим.
+        for (const item of latest.current.items) {
+          if (latest.current.selection.includes(item.id) && !item.data.locked) {
+            hold(item, translate(item.data, drag.dx, drag.dy));
+          }
+        }
         onMoved(latest.current.selection, drag.dx, drag.dy);
       } else if (drag.edit !== null) {
         // Объект уже был выбран и с места не сдвинулся — значит хотели

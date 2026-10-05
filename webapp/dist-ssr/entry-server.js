@@ -4647,6 +4647,21 @@ function BoardCanvas({
   const drawing = useRef(null);
   const settling = useRef(/* @__PURE__ */ new Map());
   const eraseEdits = useRef(/* @__PURE__ */ new Map());
+  const held = useRef(/* @__PURE__ */ new Map());
+  const heldData = (item) => {
+    const pending = held.current.get(item.id);
+    if (!pending) return null;
+    if (item.data !== pending.base || performance.now() > pending.until) {
+      held.current.delete(item.id);
+      return null;
+    }
+    return pending.data;
+  };
+  const HOLD_MS = 2500;
+  const hold = (item, data) => {
+    held.current.set(item.id, { data, base: item.data, until: performance.now() + HOLD_MS });
+    window.setTimeout(() => schedule(), HOLD_MS + 50);
+  };
   const vanishing = useRef(/* @__PURE__ */ new Map());
   const touchCursor = useRef(null);
   const lastErase = useRef(null);
@@ -4788,7 +4803,7 @@ function BoardCanvas({
       }
       const grip = resizing.current;
       const spin = rotating.current;
-      const shifted = (grip == null ? void 0 : grip.itemId) === item.id ? grip.data : (spin == null ? void 0 : spin.itemId) === item.id ? spin.data : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : item.data;
+      const shifted = (grip == null ? void 0 : grip.itemId) === item.id ? grip.data : (spin == null ? void 0 : spin.itemId) === item.id ? spin.data : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : heldData(item) ?? item.data;
       drawItem(context, item.type, shifted, item.imageRef);
     }
     baseStale.current = false;
@@ -4874,11 +4889,14 @@ function BoardCanvas({
     const live = (item) => {
       if ((grip == null ? void 0 : grip.itemId) === item.id) return { ...item, data: grip.data };
       if ((spin == null ? void 0 : spin.itemId) === item.id) return { ...item, data: spin.data };
-      return drag ? { ...item, data: translate(item.data, drag.dx, drag.dy) } : item;
+      if (drag) return { ...item, data: translate(item.data, drag.dx, drag.dy) };
+      const pending = heldData(item);
+      return pending ? { ...item, data: pending } : item;
     };
     const selected = hub.items.filter((item) => chosen.has(item.id));
     const box2 = boundsOf(selected.map(live));
-    onLiveBounds == null ? void 0 : onLiveBounds(box2 && (drag || grip || spin) ? box2 : null);
+    const awaiting = selected.some((item) => held.current.has(item.id));
+    onLiveBounds == null ? void 0 : onLiveBounds(box2 && (drag || grip || spin || awaiting) ? box2 : null);
     if (box2) outline(context, box2, "#2E5FA3", hair, [6 * hair, 4 * hair]);
     if (marquee.current) {
       outline(context, rectFrom(marquee.current.from, marquee.current.to), "#2E5FA3", hair, [4 * hair, 3 * hair]);
@@ -5456,6 +5474,8 @@ function BoardCanvas({
     const spin = rotating.current;
     if ((spin == null ? void 0 : spin.pointerId) === event.pointerId) {
       rotating.current = null;
+      const source = latest.current.items.find((item) => item.id === spin.itemId);
+      if (source) hold(source, spin.data);
       hub.updateItem(spin.itemId, spin.data);
       schedule();
       return;
@@ -5463,6 +5483,8 @@ function BoardCanvas({
     const grip = resizing.current;
     if ((grip == null ? void 0 : grip.pointerId) === event.pointerId) {
       resizing.current = null;
+      const source = latest.current.items.find((item) => item.id === grip.itemId);
+      if (source) hold(source, grip.data);
       hub.updateItem(grip.itemId, grip.data);
       schedule();
       return;
@@ -5475,6 +5497,11 @@ function BoardCanvas({
         autoPanFrame.current = null;
       }
       if (drag.dx !== 0 || drag.dy !== 0) {
+        for (const item of latest.current.items) {
+          if (latest.current.selection.includes(item.id) && !item.data.locked) {
+            hold(item, translate(item.data, drag.dx, drag.dy));
+          }
+        }
         onMoved(latest.current.selection, drag.dx, drag.dy);
       } else if (drag.edit !== null) {
         onCellAt(drag.edit, drag.from);
