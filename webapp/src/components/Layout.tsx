@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { COMPANY, HAS_COMPANY_DETAILS, MAIN_SITE } from '../content/company';
@@ -27,14 +28,40 @@ function useTheme(): { theme: Theme; toggle: () => void } {
 
   const toggle = () => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    try {
-      localStorage.setItem('theme', next);
-    } catch {
-      // В приватном режиме хранилище недоступно — тема продержится до
-      // перезагрузки страницы, и это лучше, чем падение.
+    const root = document.documentElement;
+
+    const apply = () => {
+      root.setAttribute('data-theme', next);
+      try {
+        localStorage.setItem('theme', next);
+      } catch {
+        // В приватном режиме хранилище недоступно — тема продержится до
+        // перезагрузки страницы, и это лучше, чем падение.
+      }
+      // Синхронно: снимок «после» браузер делает сразу по выходе из
+      // этой функции, и переключатель на нём должен уже стоять на месте.
+      flushSync(() => setTheme(next));
+    };
+
+    // Перекрашивание — стрелкой часов из центра экрана: в тёмную — по
+    // часовой, обратно — против. Браузер снимает страницу до и после и
+    // открывает новую секторами (см. .theme-sweep в board-app.css). Где
+    // так не умеют (старые браузеры) или человек просил поменьше
+    // движения — тема меняется сразу, как раньше.
+    const start = (document as Document & {
+      startViewTransition?: (update: () => void) => { finished: Promise<void> };
+    }).startViewTransition;
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (!start || calm) {
+      apply();
+      return;
     }
-    setTheme(next);
+
+    root.dataset.themeSweep = next === 'dark' ? 'cw' : 'ccw';
+    start.call(document, apply).finished.finally(() => {
+      delete root.dataset.themeSweep;
+    });
   };
 
   return { theme, toggle };

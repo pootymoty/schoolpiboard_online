@@ -3674,3 +3674,43 @@ html.board-locked body {
 
 /* Без шапки сайта: отступ сверху, чтобы карточка не прилипала к краю. */
 .error-boundary { padding-top: var(--sp-6); }
+
+/* --- Смена темы: перекрашивание стрелкой часов ------------------------------- */
+
+/*
+ * Новая тема открывается сектором из центра экрана, как стрелка часов
+ * проходит циферблат: в тёмную — по часовой, в светлую — против. Снимки
+ * «до» и «после» делает сам браузер (View Transitions), здесь только маска
+ * по углу. Угол объявлен свойством с типом — иначе браузер не умеет его
+ * плавно менять.
+ */
+@property --theme-sweep {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+}
+
+html[data-theme-sweep]::view-transition-old(root),
+html[data-theme-sweep]::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+}
+
+html[data-theme-sweep="cw"]::view-transition-new(root) {
+    -webkit-mask-image: conic-gradient(from 0deg, #000 var(--theme-sweep), transparent var(--theme-sweep));
+    mask-image: conic-gradient(from 0deg, #000 var(--theme-sweep), transparent var(--theme-sweep));
+    animation: theme-sweep .7s cubic-bezier(.45, 0, .25, 1) both;
+}
+
+/* Против часовой — то же, только открытая часть растёт с другой стороны
+   от полудня. */
+html[data-theme-sweep="ccw"]::view-transition-new(root) {
+    -webkit-mask-image: conic-gradient(from 0deg, transparent calc(360deg - var(--theme-sweep)), #000 calc(360deg - var(--theme-sweep)));
+    mask-image: conic-gradient(from 0deg, transparent calc(360deg - var(--theme-sweep)), #000 calc(360deg - var(--theme-sweep)));
+    animation: theme-sweep .7s cubic-bezier(.45, 0, .25, 1) both;
+}
+
+@keyframes theme-sweep {
+    from { --theme-sweep: 0deg; }
+    to { --theme-sweep: 360deg; }
+}

@@ -6,6 +6,7 @@ import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server.mjs";
 import { createContext, useState, useCallback, useEffect, useRef, useMemo, useContext, Children, isValidElement, cloneElement, useLayoutEffect, useSyncExternalStore, Fragment as Fragment$1 } from "react";
 import { useLocation, Link, NavLink, useNavigate, useSearchParams, useParams, Navigate, Routes, Route } from "react-router-dom";
+import { flushSync } from "react-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 const API_URL = "http://localhost:5000";
 const TOKEN_KEY = "schoolpiboard.token";
@@ -522,12 +523,25 @@ function useTheme() {
   const [theme, setTheme] = useState(() => typeof document === "undefined" ? "light" : document.documentElement.getAttribute("data-theme") || "light");
   const toggle = () => {
     const next = theme === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    try {
-      localStorage.setItem("theme", next);
-    } catch {
+    const root = document.documentElement;
+    const apply = () => {
+      root.setAttribute("data-theme", next);
+      try {
+        localStorage.setItem("theme", next);
+      } catch {
+      }
+      flushSync(() => setTheme(next));
+    };
+    const start = document.startViewTransition;
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!start || calm) {
+      apply();
+      return;
     }
-    setTheme(next);
+    root.dataset.themeSweep = next === "dark" ? "cw" : "ccw";
+    start.call(document, apply).finished.finally(() => {
+      delete root.dataset.themeSweep;
+    });
   };
   return { theme, toggle };
 }
@@ -11814,10 +11828,11 @@ function CookieBanner() {
       const response = await fetch(COOKIE_CONSENT_URL, {
         method: "POST",
         credentials: "same-origin",
+        redirect: "manual",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ choice, next: location2.pathname })
       });
-      if (!response.ok) throw new Error("cookie-consent request failed");
+      if (response.type !== "opaqueredirect" && !response.ok) throw new Error("cookie-consent request failed");
       setConsent(choice);
     } catch {
       form.submit();

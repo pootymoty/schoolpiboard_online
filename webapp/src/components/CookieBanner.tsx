@@ -30,13 +30,20 @@ export function CookieBanner(): ReactElement | null {
     const choice = (submitter?.value ?? 'rejected') as CookieConsent;
 
     try {
+      // Переадресацию сервера не выполняем: она нужна только обычной
+      // форме без скрипта. Раньше fetch шёл за ней на текущую страницу, а
+      // у разделов приложения (доски, «Мои доски») отдельного файла нет —
+      // nginx отвечал 404, это принималось за сбой, и запасная обычная
+      // отправка формы перезагружала страницу. Кука ставится самим
+      // ответом с переадресацией, идти дальше незачем.
       const response = await fetch(COOKIE_CONSENT_URL, {
         method: 'POST',
         credentials: 'same-origin',
+        redirect: 'manual',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ choice, next: location.pathname }),
       });
-      if (!response.ok) throw new Error('cookie-consent request failed');
+      if (response.type !== 'opaqueredirect' && !response.ok) throw new Error('cookie-consent request failed');
       setConsent(choice);
     } catch {
       // Сеть подвела — доверяем обычной отправке формы, той же, что
