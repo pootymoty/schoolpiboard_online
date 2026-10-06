@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ErrorView } from '../components/ErrorView';
+import { canGoBack } from '../components/backNav';
 import { Page } from '../components/Layout';
 
 /**
@@ -14,6 +15,9 @@ import { Page } from '../components/Layout';
  */
 export function NotFoundPage(): ReactElement {
   const { user } = useAuth();
+  const { key } = useLocation();
+  const navigate = useNavigate();
+  const back = canGoBack(key);
 
   return (
     <Page narrow>
@@ -22,12 +26,16 @@ export function NotFoundPage(): ReactElement {
         title="Такой страницы нет"
         actions={(
           <>
-            {user ? (
-              <Link className="btn btn-primary" to="/boards">Мои доски</Link>
-            ) : (
-              <Link className="btn btn-primary" to="/">На главную</Link>
-            )}
-            <Link className="btn btn-quiet" to="/faq">Частые вопросы</Link>
+            {/* Пришли переходом по сайту — назад, туда, откуда пришли.
+                Пришли со стороны (поиск, чужая ссылка) — назад некуда,
+                поэтому главной кнопкой становится «На главную». */}
+            {back ? (
+              <button className="btn btn-primary" type="button" onClick={() => navigate(-1)}>
+                Вернуться назад
+              </button>
+            ) : null}
+            <Link className={back ? 'btn btn-quiet' : 'btn btn-primary'} to="/">На главную страницу</Link>
+            {user ? <Link className="btn btn-quiet" to="/boards">Мои доски</Link> : null}
           </>
         )}
       >

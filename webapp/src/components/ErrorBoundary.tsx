@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { ErrorView } from './ErrorView';
+import { canGoBack } from './backNav';
 
 interface State {
   failed: boolean;
@@ -39,7 +40,14 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
               <button className="btn btn-primary" type="button" onClick={() => window.location.reload()}>
                 Обновить страницу
               </button>
-              <a className="btn btn-quiet" href="/">На главную</a>
+              {/* Роутер здесь уже недоступен — сбой мог случиться в нём
+                  самом, — поэтому назад обычной историей браузера. */}
+              {canGoBack() ? (
+                <button className="btn btn-quiet" type="button" onClick={() => window.history.back()}>
+                  Вернуться назад
+                </button>
+              ) : null}
+              <a className="btn btn-quiet" href="/">На главную страницу</a>
             </>
           )}
         >

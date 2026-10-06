@@ -43,6 +43,11 @@
   }
   h1 { margin: 0 0 12px; font-size: 1.5rem; }
   p { margin: 0 0 20px; color: var(--muted); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .quiet {
+    padding: 10px 20px; border-radius: 10px; text-decoration: none; font-weight: 700;
+    background: var(--line); color: var(--text);
+  }
   button {
     padding: 10px 20px; border: 0; border-radius: 10px; cursor: pointer;
     background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700;
@@ -58,7 +63,23 @@
         Скорее всего, мы как раз обновляем сайт — это занимает меньше минуты.
         Нарисованное на досках не пропало. Страница сама попробует снова через полминуты.
       </p>
-      <button type="button" onclick="location.reload()">Попробовать сейчас</button>
+      <div class="actions">
+        <button type="button" onclick="location.reload()">Попробовать сейчас</button>
+        <!-- Пришли с этого же сайта — «Назад»; со стороны (поиск, чужая
+             ссылка) — «На главную». Без скрипта видна «На главную». -->
+        <a class="quiet" id="back" href="/">На главную страницу</a>
+      </div>
+      <script>
+        (function () {
+          var link = document.getElementById('back');
+          var ours = false;
+          try { ours = document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) {}
+          if (ours && history.length > 1) {
+            link.textContent = 'Вернуться назад';
+            link.addEventListener('click', function (event) { event.preventDefault(); history.back(); });
+          }
+        })();
+      </script>
     </div>
   </main>
 </body>

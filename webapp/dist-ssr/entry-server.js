@@ -11769,16 +11769,29 @@ function ErrorView({ code, title, children, actions }) {
     /* @__PURE__ */ jsx("div", { className: "row error-view__actions", children: actions })
   ] });
 }
+function canGoBack(routerKey) {
+  if (typeof window === "undefined") return false;
+  if (routerKey !== void 0 && routerKey !== "default") return true;
+  try {
+    return document.referrer !== "" && new URL(document.referrer).origin === window.location.origin && window.history.length > 1;
+  } catch {
+    return false;
+  }
+}
 function NotFoundPage() {
   const { user } = useAuth();
+  const { key } = useLocation();
+  const navigate = useNavigate();
+  const back = canGoBack(key);
   return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsx(
     ErrorView,
     {
       code: "404",
       title: "Такой страницы нет",
       actions: /* @__PURE__ */ jsxs(Fragment, { children: [
-        user ? /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/boards", children: "Мои доски" }) : /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/", children: "На главную" }),
-        /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet", to: "/faq", children: "Частые вопросы" })
+        back ? /* @__PURE__ */ jsx("button", { className: "btn btn-primary", type: "button", onClick: () => navigate(-1), children: "Вернуться назад" }) : null,
+        /* @__PURE__ */ jsx(Link, { className: back ? "btn btn-quiet" : "btn btn-primary", to: "/", children: "На главную страницу" }),
+        user ? /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet", to: "/boards", children: "Мои доски" }) : null
       ] }),
       children: /* @__PURE__ */ jsx("p", { children: "Возможно, в адресе опечатка или ссылка устарела. Если вы шли на доску по ссылке — попросите новую у того, кто вас позвал: её могли перевыпустить." })
     }
