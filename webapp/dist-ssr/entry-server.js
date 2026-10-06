@@ -11761,6 +11761,29 @@ function AdminPage() {
     ] })
   ] });
 }
+function ErrorView({ code, title, children, actions }) {
+  return /* @__PURE__ */ jsxs("section", { className: "card error-view", children: [
+    /* @__PURE__ */ jsx("p", { className: "error-view__code", "aria-hidden": "true", children: code }),
+    /* @__PURE__ */ jsx("h1", { children: title }),
+    /* @__PURE__ */ jsx("div", { className: "error-view__text", children }),
+    /* @__PURE__ */ jsx("div", { className: "row error-view__actions", children: actions })
+  ] });
+}
+function NotFoundPage() {
+  const { user } = useAuth();
+  return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsx(
+    ErrorView,
+    {
+      code: "404",
+      title: "Такой страницы нет",
+      actions: /* @__PURE__ */ jsxs(Fragment, { children: [
+        user ? /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/boards", children: "Мои доски" }) : /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/", children: "На главную" }),
+        /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet", to: "/faq", children: "Частые вопросы" })
+      ] }),
+      children: /* @__PURE__ */ jsx("p", { children: "Возможно, в адресе опечатка или ссылка устарела. Если вы шли на доску по ссылке — попросите новую у того, кто вас позвал: её могли перевыпустить." })
+    }
+  ) });
+}
 const COOKIE_CONSENT_URL = `${API_URL}/cookie-consent`;
 function readCookieConsent() {
   return api("/cookie-consent").then((data) => data.consent);
@@ -11934,6 +11957,11 @@ function useDocumentMeta() {
     description == null ? void 0 : description.setAttribute("content", meta.description);
   }, [pathname]);
 }
+const PRIVATE_PATHS = ["/boards", "/recordings", "/profile", "/plan", "/plan/paid", "/plan/failed"];
+function ToLogin() {
+  const { pathname, search } = useLocation();
+  return /* @__PURE__ */ jsx(Navigate, { to: `/login?next=${encodeURIComponent(pathname + search)}`, replace: true });
+}
 function App() {
   const { user, loading: loading2 } = useAuth();
   useDocumentMeta();
@@ -11964,13 +11992,14 @@ function App() {
         /* @__PURE__ */ jsx(Route, { path: "/plan", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/plan/paid", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/plan/failed", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
-        /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true }) })
+        /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(NotFoundPage, {}) })
       ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
         /* @__PURE__ */ jsx(Route, { path: "/", element: /* @__PURE__ */ jsx(LandingPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/login", element: /* @__PURE__ */ jsx(LoginPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/register", element: /* @__PURE__ */ jsx(RegisterPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/forgot-password", element: /* @__PURE__ */ jsx(ForgotPasswordPage, {}) }),
-        /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(Navigate, { to: "/", replace: true }) })
+        PRIVATE_PATHS.map((path) => /* @__PURE__ */ jsx(Route, { path, element: /* @__PURE__ */ jsx(ToLogin, {}) }, path)),
+        /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(NotFoundPage, {}) })
       ] })
     ] })
   ] });

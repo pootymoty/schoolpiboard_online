@@ -3645,3 +3645,32 @@ html.board-locked body {
 .toolbar.is-drag-scrolling .btn-tool {
     pointer-events: none;
 }
+
+/* --- Страницы ошибок: 404 и «что-то пошло не так» --------------------------- */
+
+.error-view {
+    text-align: center;
+    padding: var(--sp-6) var(--sp-5);
+}
+
+/* Крупный код — то, что человек узнаёт с первого взгляда; всё остальное —
+   обычным текстом под ним. */
+.error-view__code {
+    margin: 0 0 var(--sp-2);
+    font-family: var(--font-head);
+    font-size: clamp(3.5rem, 12vw, 6rem);
+    font-weight: 800;
+    line-height: 1;
+    color: var(--accent);
+}
+
+.error-view__text {
+    max-width: 46ch;
+    margin: 0 auto var(--sp-4);
+    color: var(--text-muted);
+}
+
+.error-view__actions { justify-content: center; }
+
+/* Без шапки сайта: отступ сверху, чтобы карточка не прилипала к краю. */
+.error-boundary { padding-top: var(--sp-6); }

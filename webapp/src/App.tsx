@@ -22,6 +22,7 @@ import { BoardPage } from './pages/BoardPage';
 import { JoinPage } from './pages/JoinPage';
 import { LegalPage } from './pages/LegalPage';
 import { AdminPage } from './pages/AdminPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { CookieBanner } from './components/CookieBanner';
 import { TooltipLayer } from './components/TooltipLayer';
 import { Analytics } from './components/Analytics';
@@ -43,6 +44,14 @@ function useDocumentMeta(): void {
     const description = document.querySelector('meta[name="description"]');
     description?.setAttribute('content', meta.description);
   }, [pathname]);
+}
+
+/** Разделы, открытые только вошедшему. Не вошедшему — вход, а не «нет страницы». */
+const PRIVATE_PATHS = ['/boards', '/recordings', '/profile', '/plan', '/plan/paid', '/plan/failed'];
+
+function ToLogin(): ReactElement {
+  const { pathname, search } = useLocation();
+  return <Navigate to={`/login?next=${encodeURIComponent(pathname + search)}`} replace />;
 }
 
 export function App(): ReactElement {
@@ -93,7 +102,7 @@ export function App(): ReactElement {
                 принимает только адрес без параметров. */}
             <Route path="/plan/paid" element={<PlanPage />} />
             <Route path="/plan/failed" element={<PlanPage />} />
-            <Route path="*" element={<Navigate to="/boards" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </>
         ) : (
           <>
@@ -101,7 +110,11 @@ export function App(): ReactElement {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {/* Разделы для вошедших — на вход, и после него обратно сюда. */}
+            {PRIVATE_PATHS.map((path) => (
+              <Route key={path} path={path} element={<ToLogin />} />
+            ))}
+            <Route path="*" element={<NotFoundPage />} />
           </>
         )}
       </Routes>
