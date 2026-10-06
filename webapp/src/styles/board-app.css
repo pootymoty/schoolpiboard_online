@@ -3675,14 +3675,15 @@ html.board-locked body {
 /* Без шапки сайта: отступ сверху, чтобы карточка не прилипала к краю. */
 .error-boundary { padding-top: var(--sp-6); }
 
-/* --- Смена темы: перекрашивание стрелкой часов ------------------------------- */
+/* --- Смена темы: перекрашивание веером от нижнего края ---------------------- */
 
 /*
- * Новая тема открывается сектором из центра экрана, как стрелка часов
- * проходит циферблат: в тёмную — по часовой, в светлую — против. Снимки
- * «до» и «после» делает сам браузер (View Transitions), здесь только маска
- * по углу. Угол объявлен свойством с типом — иначе браузер не умеет его
- * плавно менять.
+ * Новая тема открывается полукругом из середины нижнего края экрана, как
+ * стрелка проходит половину циферблата: в тёмную — по часовой (слева
+ * через верх направо), в светлую — против (справа через верх налево).
+ * Снимки «до» и «после» делает сам браузер (View Transitions), здесь
+ * только маска по углу. Угол объявлен свойством с типом — иначе браузер
+ * не умеет его плавно менять.
  */
 @property --theme-sweep {
     syntax: '<angle>';
@@ -3696,21 +3697,23 @@ html[data-theme-sweep]::view-transition-new(root) {
     mix-blend-mode: normal;
 }
 
+/* По часовой: от «девяти часов» (270°) через полдень к «трём». */
 html[data-theme-sweep="cw"]::view-transition-new(root) {
-    -webkit-mask-image: conic-gradient(from 0deg, #000 var(--theme-sweep), transparent var(--theme-sweep));
-    mask-image: conic-gradient(from 0deg, #000 var(--theme-sweep), transparent var(--theme-sweep));
+    -webkit-mask-image: conic-gradient(from 270deg at 50% 100%, #000 var(--theme-sweep), transparent var(--theme-sweep));
+    mask-image: conic-gradient(from 270deg at 50% 100%, #000 var(--theme-sweep), transparent var(--theme-sweep));
     animation: theme-sweep .7s cubic-bezier(.45, 0, .25, 1) both;
 }
 
-/* Против часовой — то же, только открытая часть растёт с другой стороны
-   от полудня. */
+/* Против часовой: от «трёх часов» (90°) через полдень к «девяти». */
 html[data-theme-sweep="ccw"]::view-transition-new(root) {
-    -webkit-mask-image: conic-gradient(from 0deg, transparent calc(360deg - var(--theme-sweep)), #000 calc(360deg - var(--theme-sweep)));
-    mask-image: conic-gradient(from 0deg, transparent calc(360deg - var(--theme-sweep)), #000 calc(360deg - var(--theme-sweep)));
+    -webkit-mask-image: conic-gradient(from 90deg at 50% 100%, transparent calc(360deg - var(--theme-sweep)), #000 calc(360deg - var(--theme-sweep)));
+    mask-image: conic-gradient(from 90deg at 50% 100%, transparent calc(360deg - var(--theme-sweep)), #000 calc(360deg - var(--theme-sweep)));
     animation: theme-sweep .7s cubic-bezier(.45, 0, .25, 1) both;
 }
 
+/* Чуть больше половины круга: ровно 180° оставили бы на самой нижней
+   строке пикселей старую тему. */
 @keyframes theme-sweep {
     from { --theme-sweep: 0deg; }
-    to { --theme-sweep: 360deg; }
+    to { --theme-sweep: 184deg; }
 }
