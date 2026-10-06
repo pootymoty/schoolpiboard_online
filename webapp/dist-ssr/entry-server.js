@@ -11318,6 +11318,13 @@ function adminDeleteBoard(boardId) {
 }
 const SIZE = 20;
 const TYPING_MS = 250;
+const RETENTION_DAYS = 182;
+function purgeDate(deletedAt) {
+  return new Date(new Date(deletedAt).getTime() + RETENTION_DAYS * 24 * 60 * 60 * 1e3).toISOString();
+}
+function shortDay(value) {
+  return new Date(value).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
 function day(value) {
   return value ? new Date(value).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "2-digit" }) : "—";
 }
@@ -11666,10 +11673,9 @@ function AdminPage() {
                 /* @__PURE__ */ jsxs("span", { className: "admin__who", children: [
                   one.displayName,
                   one.isAdmin ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "админ" }) : null,
-                  one.deletedAt ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "удалён" }) : null,
                   !one.emailConfirmed && !one.deletedAt ? /* @__PURE__ */ jsx("span", { className: "admin__mark", children: "почта не подтверждена" }) : null
                 ] }),
-                /* @__PURE__ */ jsx("span", { className: "text-muted small", children: one.email })
+                /* @__PURE__ */ jsx("span", { className: "text-muted small", children: one.deletedAt ? `удалён ${shortDay(one.deletedAt)}, будет стёрт ${shortDay(purgeDate(one.deletedAt))}` : one.email })
               ] }),
               /* @__PURE__ */ jsx("td", { children: one.planName }),
               /* @__PURE__ */ jsxs("td", { children: [

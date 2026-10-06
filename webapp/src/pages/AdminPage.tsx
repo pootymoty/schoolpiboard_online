@@ -25,6 +25,21 @@ const SIZE = 20;
  */
 const TYPING_MS = 250;
 
+/**
+ * Сколько дней удалённая учётная запись ещё лежит в базе, прежде чем её
+ * сотрёт зачистка. То же число, что в RetentionCleanupService на сервере.
+ */
+const RETENTION_DAYS = 182;
+
+function purgeDate(deletedAt: string): string {
+  return new Date(new Date(deletedAt).getTime() + RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** ДД.ММ.ГГ — коротко, но без путаницы: стирание обычно уже в следующем году. */
+function shortDay(value: string): string {
+  return new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
 function day(value: string | null): string {
   return value ? new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
 }
@@ -509,12 +524,17 @@ export function AdminPage(): ReactElement {
                     <span className="admin__who">
                       {one.displayName}
                       {one.isAdmin ? <span className="admin__mark">админ</span> : null}
-                      {one.deletedAt ? <span className="admin__mark">удалён</span> : null}
                       {!one.emailConfirmed && !one.deletedAt
                         ? <span className="admin__mark">почта не подтверждена</span>
                         : null}
                     </span>
-                    <span className="text-muted small">{one.email}</span>
+                    {/* У удалённого почты уже нет — вместо служебного адреса
+                        пишем, когда удалён и когда будет стёрт насовсем. */}
+                    <span className="text-muted small">
+                      {one.deletedAt
+                        ? `удалён ${shortDay(one.deletedAt)}, будет стёрт ${shortDay(purgeDate(one.deletedAt))}`
+                        : one.email}
+                    </span>
                   </td>
                   <td>{one.planName}</td>
                   <td>

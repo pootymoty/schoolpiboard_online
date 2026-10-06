@@ -3257,7 +3257,9 @@ html.board-locked body {
 }
 
 /* Удалённая запись остаётся в списке: по ней ещё живут чужие доски. */
-.admin__row--gone { opacity: .55; }
+/* Удалённый — бледнее, но только сведения: кнопки в последней ячейке
+   остаются обычными, это всё ещё кнопки. */
+.admin__row--gone > td:not(:last-child) { opacity: .55; }
 
 .admin__mark {
     display: inline-block;
