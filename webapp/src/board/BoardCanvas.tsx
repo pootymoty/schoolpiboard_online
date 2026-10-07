@@ -4,7 +4,7 @@ import type { BoardHub } from './useBoardHub';
 import type { Background, BoardItem, ItemData, ItemType, Point } from './protocol';
 import { cursorColor } from './cursorColors';
 import { boundsOf, distanceToSegment, rectFrom, topmostAt, translate, within } from './geometry';
-import { boxOf, centerOf, rotatePoint, rotated } from './rotate';
+import { boxOf, centerOf, rotated } from './rotate';
 import { snapPoint, snapValue } from './snap';
 import type { Bounds } from './geometry';
 import { HANDLE_SIZE, angleTo, frameHandles, framed, handlesFor, oppositeCorner, resized } from './handles';
@@ -174,6 +174,36 @@ function drawRotateGrip(context: CanvasRenderingContext2D, x: number, y: number,
   context.restore();
 }
 
+/**
+ * Угол поворота рядом с ручкой — пока вертят. Рамки в это время нет, и
+ * без подписи не понять, на сколько уже повернули и где ровно 90°.
+ */
+function drawAngle(context: CanvasRenderingContext2D, x: number, y: number, degrees: number, scale: number): void {
+  const value = ((Math.round(degrees) % 360) + 360) % 360;
+  const text = `${value}°`;
+  const size = 12 / scale;
+
+  context.save();
+  context.setLineDash([]);
+  context.font = `600 ${size}px system-ui, sans-serif`;
+  context.textBaseline = 'middle';
+
+  const width = context.measureText(text).width;
+  const padX = 6 / scale;
+  const height = 20 / scale;
+  const left = x + 16 / scale;
+  const top = y - height / 2;
+
+  context.fillStyle = '#2E5FA3';
+  context.beginPath();
+  context.roundRect(left, top, width + padX * 2, height, height / 2);
+  context.fill();
+
+  context.fillStyle = '#fff';
+  context.fillText(text, left + padX, y);
+  context.restore();
+}
+
 export function BoardCanvas({
   hub, tool, settings, viewport, background, selection,
   onViewport, onSize, onSelection, onMoved, onLiveBounds, onCommit, onDrawStart, onTextAt, onBookmarkAt, onCellAt,
@@ -245,7 +275,7 @@ export function BoardCanvas({
    * ответа не будет вовсе (сервер отказал): тогда объект честно
    * возвращается туда, где он на самом деле.
    */
-  const held = useRef<Map<number, { data: ItemData; base: ItemData; baseKey: string; until: number }>>(new Map());
+  const held = useRef<Map<number, { data: ItemData; base: ItemData; passed: string[]; until: number }>>(new Map());
 
   /** Что рисовать вместо объекта, пока его правка в пути; пусто — сам объект. */
   const heldData = (item: BoardItem): ItemData | null => {
@@ -258,12 +288,12 @@ export function BoardCanvas({
     }
 
     if (item.data !== pending.base) {
-      // Пришли те же данные заново — доска перечитана целиком после
-      // обрыва связи, а наша правка ещё в пути (её отправят, как только
-      // связь вернётся). Это не ответ на правку: держим дальше. Раньше
-      // здесь сравнивался сам объект, и такой перечит выглядел как
-      // ответ — штрих отскакивал на старое место, а потом прыгал обратно.
-      if (JSON.stringify(item.data) === pending.baseKey) {
+      // Пришло то, что уже было: прежние данные заново (доска перечитана
+      // после обрыва связи, а правка ещё в пути) или ответ на одну из
+      // своих же прежних правок, когда за ней уже сделана следующая.
+      // Это не ответ на последнюю правку — держим дальше. Иначе объект
+      // отскакивал на промежуточное место, а потом прыгал на итоговое.
+      if (pending.passed.includes(JSON.stringify(item.data))) {
         pending.base = item.data;
         return pending.data;
       }
@@ -274,6 +304,17 @@ export function BoardCanvas({
 
     return pending.data;
   };
+
+  /**
+   * Объекты такими, какими их видно: с ещё не подтверждённым итогом
+   * своих правок. От них и начинается следующий жест — иначе, взявшись
+   * за объект сразу после прошлого поворота или переноса, его вертели
+   * бы от старого положения, и он отскакивал бы назад.
+   */
+  const visible = (items: BoardItem[]): BoardItem[] => items.map((item) => {
+    const pending = heldData(item);
+    return pending ? { ...item, data: pending } : item;
+  });
 
   /**
    * Сколько ждать ответа сервера, прежде чем поверить, что правки не
@@ -298,8 +339,20 @@ export function BoardCanvas({
   };
 
   const hold = (item: BoardItem, data: ItemData) => {
+    // Сам объект — как он есть у нас от сервера: `item` может оказаться
+    // уже подменённым на ещё не подтверждённый итог прошлой правки.
+    const saved = latest.current.items.find((candidate) => candidate.id === item.id)?.data ?? item.data;
+    const before = held.current.get(item.id);
+
     held.current.set(item.id, {
-      data, base: item.data, baseKey: JSON.stringify(item.data), until: performance.now() + HOLD_MS,
+      data,
+      base: saved,
+      // Всё, что может прийти раньше ответа на эту правку: сохранённое
+      // и итоги прошлых правок, на которые ответ ещё не пришёл.
+      passed: before
+        ? [...before.passed, JSON.stringify(before.data)]
+        : [JSON.stringify(saved)],
+      until: performance.now() + HOLD_MS,
     });
     // Проверить, не истекло ли ожидание, — кадр сам по себе никто не попросит.
     window.setTimeout(() => schedule(), HOLD_MS + 50);
@@ -436,6 +489,8 @@ export function BoardCanvas({
     handle: HandleId;
     origin: Bounds;
     from: Point;
+    /** Объект на начало жеста — от него и растягивают. */
+    start: ItemData;
     data: ItemData;
   } | null>(null);
 
@@ -630,7 +685,7 @@ export function BoardCanvas({
         : spin?.itemId === item.id
           ? spin.data
           : framedData(item)
-            ?? (drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : heldData(item) ?? item.data);
+            ?? (drag && chosen.has(item.id) ? translate(heldData(item) ?? item.data, drag.dx, drag.dy) : heldData(item) ?? item.data);
 
       drawItem(context, item.type, shifted, item.imageRef);
     }
@@ -774,7 +829,7 @@ export function BoardCanvas({
       if (spin?.itemId === item.id) return { ...item, data: spin.data };
       const framedNow = framedData(item);
       if (framedNow) return { ...item, data: framedNow };
-      if (drag) return { ...item, data: translate(item.data, drag.dx, drag.dy) };
+      if (drag) return { ...item, data: translate(heldData(item) ?? item.data, drag.dx, drag.dy) };
       const pending = heldData(item);
       return pending ? { ...item, data: pending } : item;
     };
@@ -791,28 +846,13 @@ export function BoardCanvas({
     const turn = turning.current;
     onLiveBounds?.(turn ? turn.frame : box && (drag || grip || spin || reshaping || awaiting) ? box : null);
 
-    // Рамка при повороте вертится сама, вокруг неподвижной середины, а не
-    // пересчитывается по повёрнутому: та на каждом кадре меняла бы размер
-    // и «каталась» под рукой.
-    if (turn) {
-      const { frame, pivot, degrees } = turn;
-      const corners = [
-        { x: frame.x, y: frame.y, p: 1 },
-        { x: frame.x + frame.width, y: frame.y, p: 1 },
-        { x: frame.x + frame.width, y: frame.y + frame.height, p: 1 },
-        { x: frame.x, y: frame.y + frame.height, p: 1 },
-      ].map((corner) => rotatePoint(corner, pivot, degrees));
-
-      context.save();
-      context.strokeStyle = '#2E5FA3';
-      context.lineWidth = hair;
-      context.setLineDash([6 * hair, 4 * hair]);
-      context.beginPath();
-      context.moveTo(corners[0].x, corners[0].y);
-      for (const corner of corners.slice(1)) context.lineTo(corner.x, corner.y);
-      context.closePath();
-      context.stroke();
-      context.restore();
+    // Пока вертят, рамки нет вовсе: прямая рамка вокруг повёрнутого
+    // на каждом кадре меняла бы размер и «каталась», а повёрнутая вместе
+    // с объектом уезжала бы из-под ручки, которая стоит на месте. Видно
+    // сам объект, ручку и угол; рамка появляется снова по отпусканию —
+    // уже вокруг того, что получилось.
+    if (turn || spin) {
+      // рамки нет
     } else if (box && selected.length === 1 && !framed(selected) && selected[0].data.angle) {
       // Повёрнутая фигура — рамкой по ней самой, повёрнутой, а не по
       // прямоугольнику вокруг: тот при повороте раздувался бы и плавал.
@@ -881,6 +921,7 @@ export function BoardCanvas({
         // ручка не говорит, что за неё вертят.
         if (grip.id === 'rot') {
           drawRotateGrip(context, grip.x, grip.y, view.scale);
+          if (turn || spin) drawAngle(context, grip.x, grip.y, turn ? turn.degrees : spin?.data.angle ?? 0, view.scale);
           continue;
         }
 
@@ -1367,7 +1408,7 @@ export function BoardCanvas({
       // группы. Проверяются первыми: одиночная прямая показывает и свои
       // концы, и ручку поворота рамки, и концы разбирает код ниже.
       {
-        const picked = latest.current.items.filter((item) => chosen.includes(item.id));
+        const picked = visible(latest.current.items).filter((item) => chosen.includes(item.id));
         const frame = framed(picked) && picked.every((item) => !item.data.locked) ? boundsOf(picked) : null;
         const near = HANDLE_SIZE / latest.current.viewport.scale;
 
@@ -1407,7 +1448,7 @@ export function BoardCanvas({
       // попадание по ней должно означать растягивание, а не выделение
       // того, что под ней.
       if (chosen.length === 1) {
-        const single = latest.current.items.find((item) => item.id === chosen[0]);
+        const single = visible(latest.current.items).find((item) => item.id === chosen[0]);
         const bounds = single && !single.data.locked ? boundsOf([single]) : null;
 
         if (single && bounds) {
@@ -1440,6 +1481,7 @@ export function BoardCanvas({
               handle: grip.id,
               origin: rawBounds(single.data, bounds),
               from: point,
+              start: single.data,
               data: single.data,
             };
             return;
@@ -1447,7 +1489,7 @@ export function BoardCanvas({
         }
       }
 
-      const hit = topmostAt(hub.items, point, reach);
+      const hit = topmostAt(visible(hub.items), point, reach);
 
       // Уже выделенное берут за любую точку внутри его рамки, а не только
       // за сам нарисованный штрих: целиться в линию толщиной в пару
@@ -1455,7 +1497,7 @@ export function BoardCanvas({
       // точность. Тычок в сам выделенный объект идёт обычным путём ниже:
       // там второй тычок в таблицу или фигуру открывает её для текста.
       if (chosen.length > 0 && !event.ctrlKey && !event.metaKey && !(hit && chosen.includes(hit.id))) {
-        const picked = hub.items.filter((item) => chosen.includes(item.id));
+        const picked = visible(hub.items).filter((item) => chosen.includes(item.id));
         const frame = boundsOf(picked);
         const inFrame = frame !== null
           && point.x >= frame.x - reach && point.x <= frame.x + frame.width + reach
@@ -1660,16 +1702,13 @@ export function BoardCanvas({
 
     const grip = resizing.current;
     if (grip?.pointerId === event.pointerId) {
-      const source = latest.current.items.find((item) => item.id === grip.itemId);
-      if (source) {
-        const snap = latest.current.settings.select.snap;
+      const snap = latest.current.settings.select.snap;
 
-        grip.data = resized(
-          source.data, grip.origin, grip.handle,
-          snapValue(point.x - grip.from.x, snap),
-          snapValue(point.y - grip.from.y, snap),
-        );
-      }
+      grip.data = resized(
+        grip.start, grip.origin, grip.handle,
+        snapValue(point.x - grip.from.x, snap),
+        snapValue(point.y - grip.from.y, snap),
+      );
       schedule();
       return;
     }
@@ -1899,7 +1938,7 @@ export function BoardCanvas({
 
       if (drag.dx !== 0 || drag.dy !== 0) {
         // Запертое не двигается и на сервере — его и не держим.
-        for (const item of latest.current.items) {
+        for (const item of visible(latest.current.items)) {
           if (latest.current.selection.includes(item.id) && !item.data.locked) {
             hold(item, translate(item.data, drag.dx, drag.dy));
           }

@@ -4900,6 +4900,27 @@ function drawRotateGrip(context, x, y, scale) {
   context.fill();
   context.restore();
 }
+function drawAngle(context, x, y, degrees, scale) {
+  const value = (Math.round(degrees) % 360 + 360) % 360;
+  const text = `${value}°`;
+  const size = 12 / scale;
+  context.save();
+  context.setLineDash([]);
+  context.font = `600 ${size}px system-ui, sans-serif`;
+  context.textBaseline = "middle";
+  const width = context.measureText(text).width;
+  const padX = 6 / scale;
+  const height = 20 / scale;
+  const left = x + 16 / scale;
+  const top = y - height / 2;
+  context.fillStyle = "#2E5FA3";
+  context.beginPath();
+  context.roundRect(left, top, width + padX * 2, height, height / 2);
+  context.fill();
+  context.fillStyle = "#fff";
+  context.fillText(text, left + padX, y);
+  context.restore();
+}
 function BoardCanvas({
   hub,
   tool,
@@ -4933,7 +4954,7 @@ function BoardCanvas({
       return null;
     }
     if (item.data !== pending.base) {
-      if (JSON.stringify(item.data) === pending.baseKey) {
+      if (pending.passed.includes(JSON.stringify(item.data))) {
         pending.base = item.data;
         return pending.data;
       }
@@ -4942,6 +4963,10 @@ function BoardCanvas({
     }
     return pending.data;
   };
+  const visible = (items) => items.map((item) => {
+    const pending = heldData(item);
+    return pending ? { ...item, data: pending } : item;
+  });
   const HOLD_MS = 1e4;
   const framedData = (item) => {
     const turn = turning.current;
@@ -4956,10 +4981,15 @@ function BoardCanvas({
     return null;
   };
   const hold = (item, data) => {
+    var _a;
+    const saved = ((_a = latest.current.items.find((candidate) => candidate.id === item.id)) == null ? void 0 : _a.data) ?? item.data;
+    const before = held.current.get(item.id);
     held.current.set(item.id, {
       data,
-      base: item.data,
-      baseKey: JSON.stringify(item.data),
+      base: saved,
+      // Всё, что может прийти раньше ответа на эту правку: сохранённое
+      // и итоги прошлых правок, на которые ответ ещё не пришёл.
+      passed: before ? [...before.passed, JSON.stringify(before.data)] : [JSON.stringify(saved)],
       until: performance.now() + HOLD_MS
     });
     window.setTimeout(() => schedule(), HOLD_MS + 50);
@@ -5115,7 +5145,7 @@ function BoardCanvas({
       }
       const grip = resizing.current;
       const spin = rotating.current;
-      const shifted = (grip == null ? void 0 : grip.itemId) === item.id ? grip.data : (spin == null ? void 0 : spin.itemId) === item.id ? spin.data : framedData(item) ?? (drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : heldData(item) ?? item.data);
+      const shifted = (grip == null ? void 0 : grip.itemId) === item.id ? grip.data : (spin == null ? void 0 : spin.itemId) === item.id ? spin.data : framedData(item) ?? (drag && chosen.has(item.id) ? translate(heldData(item) ?? item.data, drag.dx, drag.dy) : heldData(item) ?? item.data);
       drawItem(context, item.type, shifted, item.imageRef);
     }
     baseStale.current = false;
@@ -5203,7 +5233,7 @@ function BoardCanvas({
       if ((spin == null ? void 0 : spin.itemId) === item.id) return { ...item, data: spin.data };
       const framedNow = framedData(item);
       if (framedNow) return { ...item, data: framedNow };
-      if (drag) return { ...item, data: translate(item.data, drag.dx, drag.dy) };
+      if (drag) return { ...item, data: translate(heldData(item) ?? item.data, drag.dx, drag.dy) };
       const pending = heldData(item);
       return pending ? { ...item, data: pending } : item;
     };
@@ -5213,25 +5243,8 @@ function BoardCanvas({
     const reshaping = turning.current !== null || scaling.current !== null;
     const turn = turning.current;
     onLiveBounds == null ? void 0 : onLiveBounds(turn ? turn.frame : box2 && (drag || grip || spin || reshaping || awaiting) ? box2 : null);
-    if (turn) {
-      const { frame: frame2, pivot, degrees } = turn;
-      const corners = [
-        { x: frame2.x, y: frame2.y, p: 1 },
-        { x: frame2.x + frame2.width, y: frame2.y, p: 1 },
-        { x: frame2.x + frame2.width, y: frame2.y + frame2.height, p: 1 },
-        { x: frame2.x, y: frame2.y + frame2.height, p: 1 }
-      ].map((corner) => rotatePoint(corner, pivot, degrees));
-      context.save();
-      context.strokeStyle = "#2E5FA3";
-      context.lineWidth = hair;
-      context.setLineDash([6 * hair, 4 * hair]);
-      context.beginPath();
-      context.moveTo(corners[0].x, corners[0].y);
-      for (const corner of corners.slice(1)) context.lineTo(corner.x, corner.y);
-      context.closePath();
-      context.stroke();
-      context.restore();
-    } else if (box2 && selected.length === 1 && !framed(selected) && selected[0].data.angle) {
+    if (turn || spin) ;
+    else if (box2 && selected.length === 1 && !framed(selected) && selected[0].data.angle) {
       const one = live(selected[0]);
       const local = boxOf(one.data);
       const corners = local ? rotated({ ...one.data, flipX: void 0, flipY: void 0 }, [
@@ -5272,6 +5285,7 @@ function BoardCanvas({
         const half = HANDLE_SIZE / 2 / view.scale;
         if (grip2.id === "rot") {
           drawRotateGrip(context, grip2.x, grip2.y, view.scale);
+          if (turn || spin) drawAngle(context, grip2.x, grip2.y, turn ? turn.degrees : (spin == null ? void 0 : spin.data.angle) ?? 0, view.scale);
           continue;
         }
         context.save();
@@ -5572,7 +5586,7 @@ function BoardCanvas({
       event.currentTarget.setPointerCapture(event.pointerId);
       const chosen = latest.current.selection;
       {
-        const picked = latest.current.items.filter((item) => chosen.includes(item.id));
+        const picked = visible(latest.current.items).filter((item) => chosen.includes(item.id));
         const frame2 = framed(picked) && picked.every((item) => !item.data.locked) ? boundsOf(picked) : null;
         const near = HANDLE_SIZE / latest.current.viewport.scale;
         const grip = frame2 ? frameHandles(picked, frame2).find((candidate) => Math.abs(candidate.x - point.x) <= near && Math.abs(candidate.y - point.y) <= near) : void 0;
@@ -5601,7 +5615,7 @@ function BoardCanvas({
         }
       }
       if (chosen.length === 1) {
-        const single = latest.current.items.find((item) => item.id === chosen[0]);
+        const single = visible(latest.current.items).find((item) => item.id === chosen[0]);
         const bounds = single && !single.data.locked ? boundsOf([single]) : null;
         if (single && bounds) {
           const grip = handlesFor(single, bounds).find((candidate) => Math.abs(candidate.x - point.x) <= HANDLE_SIZE / latest.current.viewport.scale && Math.abs(candidate.y - point.y) <= HANDLE_SIZE / latest.current.viewport.scale);
@@ -5627,15 +5641,16 @@ function BoardCanvas({
               handle: grip.id,
               origin: rawBounds(single.data, bounds),
               from: point,
+              start: single.data,
               data: single.data
             };
             return;
           }
         }
       }
-      const hit = topmostAt(hub.items, point, reach);
+      const hit = topmostAt(visible(hub.items), point, reach);
       if (chosen.length > 0 && !event.ctrlKey && !event.metaKey && !(hit && chosen.includes(hit.id))) {
-        const picked = hub.items.filter((item) => chosen.includes(item.id));
+        const picked = visible(hub.items).filter((item) => chosen.includes(item.id));
         const frame2 = boundsOf(picked);
         const inFrame = frame2 !== null && point.x >= frame2.x - reach && point.x <= frame2.x + frame2.width + reach && point.y >= frame2.y - reach && point.y <= frame2.y + frame2.height + reach;
         if (inFrame) {
@@ -5779,17 +5794,14 @@ function BoardCanvas({
     }
     const grip = resizing.current;
     if ((grip == null ? void 0 : grip.pointerId) === event.pointerId) {
-      const source = latest.current.items.find((item) => item.id === grip.itemId);
-      if (source) {
-        const snap = latest.current.settings.select.snap;
-        grip.data = resized(
-          source.data,
-          grip.origin,
-          grip.handle,
-          snapValue(point.x - grip.from.x, snap),
-          snapValue(point.y - grip.from.y, snap)
-        );
-      }
+      const snap = latest.current.settings.select.snap;
+      grip.data = resized(
+        grip.start,
+        grip.origin,
+        grip.handle,
+        snapValue(point.x - grip.from.x, snap),
+        snapValue(point.y - grip.from.y, snap)
+      );
       schedule();
       return;
     }
@@ -5946,7 +5958,7 @@ function BoardCanvas({
         panFlushed.current = true;
       }
       if (drag.dx !== 0 || drag.dy !== 0) {
-        for (const item of latest.current.items) {
+        for (const item of visible(latest.current.items)) {
           if (latest.current.selection.includes(item.id) && !item.data.locked) {
             hold(item, translate(item.data, drag.dx, drag.dy));
           }
