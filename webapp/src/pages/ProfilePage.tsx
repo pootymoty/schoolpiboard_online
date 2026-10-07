@@ -146,7 +146,7 @@ function SchoolPiCard({ linked }: { linked: boolean }): ReactElement {
       {linked ? (
         <p className="text-muted small">
           Аккаунт Школы π привязан: входить можно и через него, и по почте с паролем.
-          Если пароля у вас нет — задайте его кнопкой «Сменить пароль» ниже.
+          Если пароля у вас нет и он нужен — задайте его кнопкой «Сменить пароль» ниже.
         </p>
       ) : (
         <>
@@ -210,21 +210,43 @@ function SessionsCard(): ReactElement {
   );
 }
 
+/**
+ * Удаление аккаунта — кодом из письма, а не паролем: письмо приходит
+ * только хозяину почты, а пароль мог знать и кто-то ещё. И у тех, кто
+ * входит через Школу π, пароля нет вовсе.
+ */
 function DangerCard({ onDeleted }: { onDeleted: () => void }): ReactElement {
-  const [open, setOpen] = useState(false);
-  const [password, setPassword] = useState('');
+  const [sent, setSent] = useState<string | null>(null);
+  const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!window.confirm('Удалить аккаунт? Войти в него станет нельзя.')) return;
+  const requestCode = async () => {
+    if (!sent && !window.confirm('Удалить аккаунт? На почту придёт код для подтверждения.')) return;
 
     setBusy(true);
     setError(null);
 
     try {
-      await api('/auth/me', { method: 'DELETE', body: { password } });
+      const answer = await api<{ message: string }>('/auth/me/delete-code', { method: 'POST' });
+      setSent(answer.message);
+      setCode('');
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось отправить код.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!window.confirm('Удалить аккаунт насовсем? Войти в него станет нельзя.')) return;
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      await api('/auth/me', { method: 'DELETE', body: { code } });
       onDeleted();
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось удалить аккаунт.');
@@ -240,29 +262,38 @@ function DangerCard({ onDeleted }: { onDeleted: () => void }): ReactElement {
         у участников ещё полгода.
       </p>
 
-      {open ? (
+      {sent ? (
         <form onSubmit={submit}>
+          <p className="note note-success">{sent} Код действует 15 минут.</p>
+
           <div className="field">
-            <label htmlFor="deletePassword">Подтвердите паролем</label>
-            <input id="deletePassword" type="password" required autoComplete="current-password"
-                   value={password} onChange={(event) => setPassword(event.target.value)} />
+            <label htmlFor="deleteCode">Код из письма</label>
+            <input id="deleteCode" type="text" inputMode="numeric" autoComplete="one-time-code"
+                   required pattern="[0-9]{6}" placeholder="000000"
+                   value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} />
           </div>
 
           {error ? <p className="note note-danger">{error}</p> : null}
 
           <div className="row">
-            <button className="btn-danger" type="submit" disabled={busy}>
+            <button className="btn-danger" type="submit" disabled={busy || code.length !== 6}>
               {busy ? 'Удаляем…' : 'Удалить аккаунт насовсем'}
             </button>
-            <button className="btn-quiet" type="button" onClick={() => setOpen(false)} disabled={busy}>
+            <button className="btn-quiet" type="button" onClick={requestCode} disabled={busy}>
+              Прислать код ещё раз
+            </button>
+            <button className="btn-quiet" type="button" onClick={() => { setSent(null); setError(null); }} disabled={busy}>
               Отмена
             </button>
           </div>
         </form>
       ) : (
-        <button className="btn-danger" type="button" onClick={() => setOpen(true)}>
-          Удалить аккаунт
-        </button>
+        <>
+          {error ? <p className="note note-danger">{error}</p> : null}
+          <button className="btn-danger" type="button" onClick={requestCode} disabled={busy}>
+            {busy ? 'Отправляем код…' : 'Удалить аккаунт'}
+          </button>
+        </>
       )}
     </div>
   );

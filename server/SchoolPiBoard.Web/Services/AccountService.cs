@@ -255,21 +255,18 @@ public sealed class AccountService
     }
 
     /// <summary>
-    /// Удаление — по паролю, а не по одному нажатию кнопки: последствие
-    /// необратимо для входа, и подтвердить его должен тот, кто знает пароль,
-    /// а не тот, кто просто не закрыл сессию в чужом браузере.
+    /// Удаление. Подтверждение — кодом из письма (DeleteCodeService), его
+    /// проверяет вызывающий: последствие необратимо, и подтвердить его должен
+    /// хозяин почты, а не тот, кто просто не закрыл сессию в чужом браузере.
     ///
     /// Строка не стирается: раздел о хранении данных даёт доскам ещё
     /// полгода жить для остальных участников. Их зачистит фоновая служба.
     /// </summary>
-    public async Task<AccountResult> DeleteAccountAsync(long userId, string? password, CancellationToken cancellationToken)
+    public async Task<AccountResult> DeleteAccountAsync(long userId, CancellationToken cancellationToken)
     {
         var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId && x.DeletedAt == null, cancellationToken);
         if (user is null)
             return Bad("Учётная запись не найдена.");
-
-        if (!PasswordHasher.Verify(password ?? string.Empty, user.PasswordHash))
-            return new AccountResult(AccountOutcome.InvalidCredentials, Message: "Пароль не подошёл.");
 
         var now = DateTime.UtcNow;
 

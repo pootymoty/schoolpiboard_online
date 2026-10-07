@@ -13,7 +13,7 @@ public sealed record TokenRequest(string? Token);
 public sealed record EmailRequest(string? Email);
 public sealed record ResetPasswordRequest(string? Token, string? Password, string? PasswordConfirm);
 public sealed record UpdateProfileRequest(string? DisplayName);
-public sealed record DeleteAccountRequest(string? Password);
+public sealed record DeleteAccountRequest(string? Code);
 
 /// <summary>
 /// Учётная запись в том виде, в каком её видит браузер. <c>IsAdmin</c>
@@ -161,22 +161,52 @@ public static class AuthEndpoints
                 : Results.BadRequest(new { message = result.Message });
         }).RequireAuthorization();
 
-        app.MapDelete("/api/auth/me", async (
-            [FromBody] DeleteAccountRequest request,
-            ClaimsPrincipal principal, AppDbContext db, AccountService accounts, CancellationToken ct) =>
+        // Удаление — в два шага: код на почту, потом удаление по коду.
+        // Ограничение частоты — то же, что у входа: и письма, и попытки
+        // подобрать код не должны идти потоком.
+        app.MapPost("/api/auth/me/delete-code", async (
+            ClaimsPrincipal principal, AppDbContext db, DeleteCodeService codes, IEmailSender email,
+            CancellationToken ct) =>
         {
             var user = await CurrentUser(principal, db, ct);
             if (user is null) return Results.Unauthorized();
 
-            var result = await accounts.DeleteAccountAsync(user.Id, request.Password, ct);
+            var code = await codes.IssueAsync(user.Id);
+            var letter = EmailTemplates.DeleteCode(code, (int)DeleteCodeService.Lifetime.TotalMinutes);
+            var sent = await email.SendAsync(user.Email, letter.Subject, letter.Html, letter.Text, ct);
 
-            return result.Outcome switch
+            return sent
+                ? Results.Ok(new { message = $"Код отправлен на {user.Email}." })
+                : Results.Json(new { message = "Письмо отправить не удалось. Попробуйте чуть позже." }, statusCode: 500);
+        }).RequireAuthorization().RequireRateLimiting(RateLimit);
+
+        app.MapDelete("/api/auth/me", async (
+            [FromBody] DeleteAccountRequest request,
+            ClaimsPrincipal principal, AppDbContext db, AccountService accounts, DeleteCodeService codes,
+            CancellationToken ct) =>
+        {
+            var user = await CurrentUser(principal, db, ct);
+            if (user is null) return Results.Unauthorized();
+
+            var check = await codes.CheckAsync(user.Id, request.Code);
+            if (check == RoleCodeOutcome.Expired)
             {
-                AccountOutcome.Ok => Results.NoContent(),
-                AccountOutcome.InvalidCredentials => Results.Json(new { message = result.Message }, statusCode: 401),
-                _ => Results.BadRequest(new { message = result.Message })
-            };
-        }).RequireAuthorization();
+                return Results.BadRequest(new
+                {
+                    code = "code_expired",
+                    message = "Код устарел или ошибок было слишком много. Запросите новый."
+                });
+            }
+
+            if (check == RoleCodeOutcome.Wrong)
+                return Results.BadRequest(new { code = "code_wrong", message = "Код не подошёл." });
+
+            var result = await accounts.DeleteAccountAsync(user.Id, ct);
+
+            return result.Outcome == AccountOutcome.Ok
+                ? Results.NoContent()
+                : Results.BadRequest(new { message = result.Message });
+        }).RequireAuthorization().RequireRateLimiting(RateLimit);
     }
 
     public static UserDto ToDto(User user)

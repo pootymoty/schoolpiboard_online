@@ -3993,7 +3993,7 @@ function SchoolPiCard({ linked }) {
   };
   return /* @__PURE__ */ jsxs("div", { className: "card", children: [
     /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Школа π" }),
-    linked ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Аккаунт Школы π привязан: входить можно и через него, и по почте с паролем. Если пароля у вас нет — задайте его кнопкой «Сменить пароль» ниже." }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+    linked ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Аккаунт Школы π привязан: входить можно и через него, и по почте с паролем. Если пароля у вас нет и он нужен — задайте его кнопкой «Сменить пароль» ниже." }) : /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Привяжите аккаунт Школы π — и входите на доску в одно касание. За привязку дарим неделю тарифа «Расширенный»; если сейчас действует тариф попроще, он встанет на паузу и продолжится после подарка." }),
       error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
       /* @__PURE__ */ jsx("button", { className: "btn-outline", type: "button", onClick: link, disabled: busy, children: busy ? "Переходим…" : "Привязать аккаунт Школы π" })
@@ -4026,17 +4026,31 @@ function SessionsCard() {
   ] });
 }
 function DangerCard({ onDeleted }) {
-  const [open, setOpen] = useState(false);
-  const [password, setPassword] = useState("");
+  const [sent, setSent] = useState(null);
+  const [code, setCode] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const submit = async (event) => {
-    event.preventDefault();
-    if (!window.confirm("Удалить аккаунт? Войти в него станет нельзя.")) return;
+  const requestCode = async () => {
+    if (!sent && !window.confirm("Удалить аккаунт? На почту придёт код для подтверждения.")) return;
     setBusy(true);
     setError(null);
     try {
-      await api("/auth/me", { method: "DELETE", body: { password } });
+      const answer = await api("/auth/me/delete-code", { method: "POST" });
+      setSent(answer.message);
+      setCode("");
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось отправить код.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!window.confirm("Удалить аккаунт насовсем? Войти в него станет нельзя.")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api("/auth/me", { method: "DELETE", body: { code } });
       onDeleted();
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Не удалось удалить аккаунт.");
@@ -4046,27 +4060,41 @@ function DangerCard({ onDeleted }) {
   return /* @__PURE__ */ jsxs("div", { className: "card", children: [
     /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Удаление аккаунта" }),
     /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Войти станет нельзя. Почта освободится сразу, доски проработают у участников ещё полгода." }),
-    open ? /* @__PURE__ */ jsxs("form", { onSubmit: submit, children: [
+    sent ? /* @__PURE__ */ jsxs("form", { onSubmit: submit, children: [
+      /* @__PURE__ */ jsxs("p", { className: "note note-success", children: [
+        sent,
+        " Код действует 15 минут."
+      ] }),
       /* @__PURE__ */ jsxs("div", { className: "field", children: [
-        /* @__PURE__ */ jsx("label", { htmlFor: "deletePassword", children: "Подтвердите паролем" }),
+        /* @__PURE__ */ jsx("label", { htmlFor: "deleteCode", children: "Код из письма" }),
         /* @__PURE__ */ jsx(
           "input",
           {
-            id: "deletePassword",
-            type: "password",
+            id: "deleteCode",
+            type: "text",
+            inputMode: "numeric",
+            autoComplete: "one-time-code",
             required: true,
-            autoComplete: "current-password",
-            value: password,
-            onChange: (event) => setPassword(event.target.value)
+            pattern: "[0-9]{6}",
+            placeholder: "000000",
+            value: code,
+            onChange: (event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
           }
         )
       ] }),
       error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
       /* @__PURE__ */ jsxs("div", { className: "row", children: [
-        /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "submit", disabled: busy, children: busy ? "Удаляем…" : "Удалить аккаунт насовсем" }),
-        /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: () => setOpen(false), disabled: busy, children: "Отмена" })
+        /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "submit", disabled: busy || code.length !== 6, children: busy ? "Удаляем…" : "Удалить аккаунт насовсем" }),
+        /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: requestCode, disabled: busy, children: "Прислать код ещё раз" }),
+        /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: () => {
+          setSent(null);
+          setError(null);
+        }, disabled: busy, children: "Отмена" })
       ] })
-    ] }) : /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "button", onClick: () => setOpen(true), children: "Удалить аккаунт" })
+    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+      /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "button", onClick: requestCode, disabled: busy, children: busy ? "Отправляем код…" : "Удалить аккаунт" })
+    ] })
   ] });
 }
 const TOKEN_PREFIX = "schoolpiboard.guest.";

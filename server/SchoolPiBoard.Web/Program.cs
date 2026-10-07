@@ -39,6 +39,7 @@ builder.Services.AddScoped<TemplateService>();
 builder.Services.AddScoped<SummaryService>();
 builder.Services.AddScoped<ConsentService>();
 builder.Services.AddScoped<RoleChangeService>();
+builder.Services.AddScoped<DeleteCodeService>();
 builder.Services.AddScoped<SubscriptionService>();
 builder.Services.AddScoped<BoardRecordingService>();
 builder.Services.AddScoped<KeyServerClient>();
