@@ -9410,6 +9410,7 @@ function takeReload() {
     return false;
   }
 }
+const PENDING_MS = 1e4;
 function useBoardHub(boardId) {
   const [status, setStatus] = useState("connecting");
   const [error, setError] = useState(null);
@@ -9430,6 +9431,18 @@ function useBoardHub(boardId) {
   const [pageId, setPageId] = useState(null);
   const connection = useRef(null);
   const seq = useRef(0);
+  const pending = useRef(/* @__PURE__ */ new Map());
+  const [pendingVersion, setPendingVersion] = useState(0);
+  const itemsRef = useRef([]);
+  itemsRef.current = items;
+  const settle = (id, data) => {
+    const entry = pending.current.get(id);
+    if (!entry) return;
+    const key = JSON.stringify(data);
+    if (entry.passed.some((earlier) => JSON.stringify(earlier) === key)) return;
+    pending.current.delete(id);
+    setPendingVersion((version) => version + 1);
+  };
   const current = useRef(null);
   const recordingRef = useRef(null);
   const canManageRef = useRef(false);
@@ -9475,6 +9488,12 @@ function useBoardHub(boardId) {
         }].slice(-500));
         break;
       case "ItemsMoved":
+        for (const id of payload.itemIds) {
+          const entry = pending.current.get(id);
+          if (!entry) continue;
+          entry.data = translate(entry.data, payload.dx, payload.dy);
+          entry.passed = entry.passed.map((earlier) => translate(earlier, payload.dx, payload.dy));
+        }
         setItems((current2) => current2.map((item) => payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item));
         break;
       case "ItemsReordered":
@@ -9489,9 +9508,11 @@ function useBoardHub(boardId) {
         setBackgroundState(payload);
         break;
       case "ItemUpdated":
+        settle(payload.item.id, payload.item.data);
         setItems((current2) => current2.map((x) => x.id === payload.item.id ? payload.item : x));
         break;
       case "ItemsDeleted":
+        for (const id of payload.itemIds) pending.current.delete(id);
         setItems((current2) => current2.filter((x) => !payload.itemIds.includes(x.id)));
         break;
       case "BoardCleared":
@@ -9556,6 +9577,7 @@ function useBoardHub(boardId) {
       setRole(payload.role);
       setCanEdit(payload.canEdit);
       setCanManage(payload.canManage);
+      for (const item of payload.items) settle(item.id, item.data);
       setItems(payload.items);
       setParticipants(payload.participants);
       setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
@@ -9602,6 +9624,7 @@ function useBoardHub(boardId) {
     hub.on("PageOpened", (payload) => {
       current.current = payload.pageId;
       setPageId(payload.pageId);
+      pending.current.clear();
       setItems(payload.items);
       setLive(/* @__PURE__ */ new Map());
     });
@@ -9609,6 +9632,7 @@ function useBoardHub(boardId) {
       seq.current = payload.seq;
       current.current = payload.pageId;
       setPageId(payload.pageId);
+      for (const item of payload.items) settle(item.id, item.data);
       setItems(payload.items);
       setParticipants(payload.participants);
       setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
@@ -9680,6 +9704,32 @@ function useBoardHub(boardId) {
     if (QUEUE_WHILE_OFFLINE.has(method)) queued.current.push({ method, args });
   }, []);
   const page = () => current.current ?? 0;
+  const shown = useMemo(() => {
+    if (pending.current.size === 0) return items;
+    const now = performance.now();
+    return items.map((item) => {
+      const entry = pending.current.get(item.id);
+      if (!entry) return item;
+      if (now > entry.until) {
+        pending.current.delete(item.id);
+        return item;
+      }
+      return { ...item, data: entry.data };
+    });
+  }, [items, pendingVersion]);
+  const updateItem = useCallback((id, data) => {
+    var _a;
+    const before = pending.current.get(id);
+    const saved = (_a = itemsRef.current.find((item) => item.id === id)) == null ? void 0 : _a.data;
+    pending.current.set(id, {
+      data,
+      passed: before ? [...before.passed, before.data] : saved ? [saved] : [],
+      until: performance.now() + PENDING_MS
+    });
+    setPendingVersion((version) => version + 1);
+    window.setTimeout(() => setPendingVersion((version) => version + 1), PENDING_MS + 50);
+    call("UpdateItem", id, page(), data);
+  }, [call]);
   return {
     status,
     error,
@@ -9690,7 +9740,7 @@ function useBoardHub(boardId) {
     broughtToMe,
     recording,
     clearError: useCallback(() => setError(null), []),
-    items,
+    items: shown,
     live,
     participants,
     cursors,
@@ -9712,7 +9762,7 @@ function useBoardHub(boardId) {
       (ids, dx, dy) => call("MoveItems", ids, page(), dx, dy),
       [call]
     ),
-    updateItem: useCallback((id, data) => call("UpdateItem", id, page(), data), [call]),
+    updateItem,
     reorder: useCallback((ids, toFront) => call("Reorder", ids, page(), toFront), [call]),
     deleteItems: useCallback((ids) => call("DeleteItems", ids, page()), [call]),
     clearBoard: useCallback(() => call("ClearBoard", page()), [call]),

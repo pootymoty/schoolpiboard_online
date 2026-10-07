@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import type { HubConnection } from '@microsoft/signalr';
 import { API_URL, readToken } from '../api/client';
@@ -171,6 +171,12 @@ function takeReload(): boolean {
   }
 }
 
+/**
+ * Сколько ждать ответа сервера на свою правку, прежде чем поверить, что
+ * её не будет. С запасом на мобильную связь и переподключение.
+ */
+const PENDING_MS = 10000;
+
 export function useBoardHub(boardId: number): BoardHub {
   const [status, setStatus] = useState<HubStatus>('connecting');
   const [error, setError] = useState<string | null>(null);
@@ -192,6 +198,37 @@ export function useBoardHub(boardId: number): BoardHub {
 
   const connection = useRef<HubConnection | null>(null);
   const seq = useRef(0);
+
+  /**
+   * Свои правки объектов, на которые сервер ещё не ответил.
+   *
+   * Правка уходит на сервер и возвращается через долю секунды, а то и
+   * позже. Пока её нет, объект показываем уже изменённым — и, главное,
+   * следующая правка считается от него, а не от старого. Иначе, нажав
+   * «Отразить» дважды подряд, отражали бы часть выделения уже отражённой,
+   * а часть — ещё нет, и фигура разъезжалась бы на куски.
+   *
+   * `passed` — что может прийти раньше ответа на последнюю правку:
+   * сохранённое до неё и итоги прежних своих правок. Такой ответ правку
+   * не снимает. Пришло ровно то, что отправили, — правка подтверждена;
+   * что-то третье — чужая правка, и верна уже она.
+   */
+  const pending = useRef<Map<number, { data: ItemData; passed: ItemData[]; until: number }>>(new Map());
+  const [pendingVersion, setPendingVersion] = useState(0);
+  const itemsRef = useRef<BoardItem[]>([]);
+  itemsRef.current = items;
+
+  /** Пришли данные объекта от сервера: держать ли дальше свою правку. */
+  const settle = (id: number, data: ItemData) => {
+    const entry = pending.current.get(id);
+    if (!entry) return;
+
+    const key = JSON.stringify(data);
+    if (entry.passed.some((earlier) => JSON.stringify(earlier) === key)) return;
+
+    pending.current.delete(id);
+    setPendingVersion((version) => version + 1);
+  };
 
   /**
    * Открытая страница — ещё и ссылкой: обработчик событий живёт вне
@@ -261,6 +298,14 @@ export function useBoardHub(boardId: number): BoardHub {
         break;
 
       case 'ItemsMoved':
+        // Сдвиг ложится и на ещё не подтверждённую правку: сервер сдвинет
+        // то, что у него окажется к тому моменту, — то есть её итог.
+        for (const id of payload.itemIds as number[]) {
+          const entry = pending.current.get(id);
+          if (!entry) continue;
+          entry.data = translate(entry.data, payload.dx, payload.dy);
+          entry.passed = entry.passed.map((earlier) => translate(earlier, payload.dx, payload.dy));
+        }
         setItems((current) => current.map((item) => (
           payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item
         )));
@@ -285,10 +330,12 @@ export function useBoardHub(boardId: number): BoardHub {
         break;
 
       case 'ItemUpdated':
+        settle(payload.item.id, payload.item.data);
         setItems((current) => current.map((x) => (x.id === payload.item.id ? payload.item : x)));
         break;
 
       case 'ItemsDeleted':
+        for (const id of payload.itemIds as number[]) pending.current.delete(id);
         setItems((current) => current.filter((x) => !payload.itemIds.includes(x.id)));
         break;
 
@@ -372,6 +419,7 @@ export function useBoardHub(boardId: number): BoardHub {
       setRole(payload.role);
       setCanEdit(payload.canEdit);
       setCanManage(payload.canManage);
+      for (const item of payload.items) settle(item.id, item.data);
       setItems(payload.items);
       setParticipants(payload.participants);
       setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
@@ -439,6 +487,7 @@ export function useBoardHub(boardId: number): BoardHub {
     hub.on('PageOpened', (payload: { pageId: number; items: BoardItem[] }) => {
       current.current = payload.pageId;
       setPageId(payload.pageId);
+      pending.current.clear();
       setItems(payload.items);
       setLive(new Map());
     });
@@ -449,6 +498,7 @@ export function useBoardHub(boardId: number): BoardHub {
       seq.current = payload.seq;
       current.current = payload.pageId;
       setPageId(payload.pageId);
+      for (const item of payload.items) settle(item.id, item.data);
       setItems(payload.items);
       setParticipants(payload.participants);
       setBackgroundState(payload.background ?? DEFAULT_BACKGROUND);
@@ -584,10 +634,45 @@ export function useBoardHub(boardId: number): BoardHub {
    */
   const page = () => current.current ?? 0;
 
+  /** Объекты такими, какими их видно: со своими правками в пути. */
+  const shown = useMemo(() => {
+    if (pending.current.size === 0) return items;
+
+    const now = performance.now();
+    return items.map((item) => {
+      const entry = pending.current.get(item.id);
+      if (!entry) return item;
+
+      // Ответа нет слишком долго — сервер правку не принял (объект
+      // заперт другим, нет прав): показываем то, что есть на самом деле.
+      if (now > entry.until) {
+        pending.current.delete(item.id);
+        return item;
+      }
+
+      return { ...item, data: entry.data };
+    });
+  }, [items, pendingVersion]);
+
+  const updateItem = useCallback((id: number, data: ItemData) => {
+    const before = pending.current.get(id);
+    const saved = itemsRef.current.find((item) => item.id === id)?.data;
+
+    pending.current.set(id, {
+      data,
+      passed: before ? [...before.passed, before.data] : saved ? [saved] : [],
+      until: performance.now() + PENDING_MS,
+    });
+    setPendingVersion((version) => version + 1);
+    window.setTimeout(() => setPendingVersion((version) => version + 1), PENDING_MS + 50);
+
+    call('UpdateItem', id, page(), data);
+  }, [call]);
+
   return {
     status, error, role, canEdit, canManage, removed, broughtToMe, recording,
     clearError: useCallback(() => setError(null), []),
-    items, live, participants, cursors, me, commits, background,
+    items: shown, live, participants, cursors, me, commits, background,
     pages, pageId,
     sendCursor: useCallback((x: number, y: number) => call('Cursor', x, y), [call]),
     beginItem: useCallback((id, type, data) => call('BeginItem', id, page(), type, data), [call]),
@@ -605,7 +690,7 @@ export function useBoardHub(boardId: number): BoardHub {
     moveItems: useCallback(
       (ids: number[], dx: number, dy: number) => call('MoveItems', ids, page(), dx, dy), [call],
     ),
-    updateItem: useCallback((id: number, data: ItemData) => call('UpdateItem', id, page(), data), [call]),
+    updateItem,
     reorder: useCallback((ids: number[], toFront: boolean) => call('Reorder', ids, page(), toFront), [call]),
     deleteItems: useCallback((ids: number[]) => call('DeleteItems', ids, page()), [call]),
     clearBoard: useCallback(() => call('ClearBoard', page()), [call]),
