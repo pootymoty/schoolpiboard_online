@@ -54,13 +54,24 @@ export function rotatePoint(point: Point, center: Point, degrees: number): Point
   };
 }
 
-/** Те же точки, но с учётом поворота объекта. */
+/**
+ * Те же точки, но с учётом отражения и поворота объекта: сначала
+ * отражение вокруг середины, потом поворот — в том же порядке, в каком
+ * объект рисуется (см. drawItem).
+ */
 export function rotated(data: ItemData, points: Point[]): Point[] {
   const angle = data.angle ?? 0;
-  if (!angle) return points;
+  if (!angle && !data.flipX && !data.flipY) return points;
 
   const center = centerOf(data);
   if (!center) return points;
 
-  return points.map((point) => rotatePoint(point, center, angle));
+  return points.map((point) => {
+    const flipped = {
+      ...point,
+      x: data.flipX ? 2 * center.x - point.x : point.x,
+      y: data.flipY ? 2 * center.y - point.y : point.y,
+    };
+    return rotatePoint(flipped, center, angle);
+  });
 }

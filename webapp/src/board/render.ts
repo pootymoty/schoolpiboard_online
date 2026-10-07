@@ -565,13 +565,19 @@ export function drawItem(
   data: ItemData,
   imageRef: string | null = null,
 ): void {
+  // Группа своего вида не имеет — это её состав, снизу вверх.
+  if (type === 'group') {
+    for (const child of data.children ?? []) drawItem(context, child.type, child.data, child.imageRef ?? null);
+    return;
+  }
+
   context.save();
 
   // Поворот применяется только здесь: координаты объекта остаются
   // прямыми, и всё остальное — растягивание, габариты, привязки —
   // считается в обычных осях.
-  const center = data.angle ? centerOf(data) : null;
-  if (center) {
+  const center = data.angle || data.flipX || data.flipY ? centerOf(data) : null;
+  if (center && data.angle) {
     context.translate(center.x, center.y);
     context.rotate(radians(data.angle ?? 0));
     context.translate(-center.x, -center.y);
@@ -579,13 +585,29 @@ export function drawItem(
 
   applyStyle(context, data);
 
+  // Отражение — только самого рисунка: подпись внутри фигуры остаётся
+  // читаемой, её рисуют уже без него.
+  const flip = (draw: () => void) => {
+    if (!center || (!data.flipX && !data.flipY)) {
+      draw();
+      return;
+    }
+
+    context.save();
+    context.translate(center.x, center.y);
+    context.scale(data.flipX ? -1 : 1, data.flipY ? -1 : 1);
+    context.translate(-center.x, -center.y);
+    draw();
+    context.restore();
+  };
+
   if (type === 'text') drawText(context, data);
   else if (type === 'table') drawTable(context, data);
   else if (type === 'shape') {
-    drawShape(context, data);
+    flip(() => drawShape(context, data));
     drawLabel(context, data);
   }
-  else if (type === 'image') drawImage(context, data, imageRef);
+  else if (type === 'image') flip(() => drawImage(context, data, imageRef));
   else if (type === 'bookmark') drawBookmark(context, data);
   else drawStroke(context, data);
 

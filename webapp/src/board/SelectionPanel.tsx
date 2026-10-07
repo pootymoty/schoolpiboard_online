@@ -10,10 +10,11 @@ import { DEFAULT_COLS, DEFAULT_ROWS, MAX_COLS, MAX_ROWS, clampCols, clampRows } 
 import { toScreen } from './viewport';
 import type { Viewport } from './viewport';
 import {
-  IconCheck, IconCopy, IconCopyText, IconDuplicate, IconLibrary, IconLockClosed, IconLockOpen,
-  IconToBack, IconToFront, IconTrash,
+  IconCheck, IconCopy, IconCopyText, IconDuplicate, IconGroup, IconLibrary, IconLockClosed, IconLockOpen,
+  IconMirrorX, IconMirrorY, IconToBack, IconToFront, IconTrash, IconUngroup,
 } from '../components/Icons';
 import { saveTemplate } from '../api/templates';
+import { mirrorable } from './transform';
 import { ApiError } from '../api/client';
 import { useLiveBounds } from './liveBounds';
 import type { LiveBounds } from './liveBounds';
@@ -45,6 +46,12 @@ interface Props {
   onLock: (locked: boolean) => void;
   /** Положить выделенное в буфер доски. */
   onCopy: () => void;
+  /** Сложить выделенное в одну группу. */
+  onGroup: () => void;
+  /** Разложить выбранную группу на объекты. */
+  onUngroup: () => void;
+  /** Отразить выделенное: 'x' — слева направо, 'y' — сверху вниз. */
+  onMirror: (axis: 'x' | 'y') => void;
   /** Гостю заготовки недоступны: хранить их было бы не за кем. */
   canKeep: boolean;
 }
@@ -99,7 +106,7 @@ const SHORT = 460;
  */
 export function SelectionPanel({
   items, bounds: saved, liveBounds, viewport, canvas, onColor, onPatch, onDuplicate, onDelete, onReorder, onCopyText, onDone,
-  onTable, onLock, onCopy, canKeep,
+  onTable, onLock, onCopy, onGroup, onUngroup, onMirror, canKeep,
 }: Props): ReactElement {
   // Надпись и закладка — единственное, что имеет смысл забрать с доски
   // текстом. На телефоне выделить его иначе нечем: холст рисованный,
@@ -110,7 +117,11 @@ export function SelectionPanel({
 
   // Картинки в шаблон не идут: файл принадлежит своей доске, а не
   // человеку, — тот же список, что уходит в панель «Шаблоны».
-  const keepable = items.filter((item) => item.type !== 'image');
+  // Группа с картинкой внутри — по той же причине.
+  const hasImage = (item: { type: string; data: ItemData }): boolean => (
+    item.type === 'image' || (item.data.children ?? []).some(hasImage)
+  );
+  const keepable = items.filter((item) => !hasImage(item));
 
   const [naming, setNaming] = useState(false);
   const [templateTitle, setTemplateTitle] = useState('');
@@ -173,6 +184,15 @@ export function SelectionPanel({
   };
 
   const color = common((item) => item.data.color);
+
+  /** Незапертого — то, с чем вообще можно что-то делать. */
+  const free = items.filter((item) => !item.data.locked);
+
+  // Отражать есть что, если выделено несколько (тогда переезжают и
+  // надписи) или хоть один объект, который отражается сам.
+  const canMirror = free.length > 1 || free.some((item) => mirrorable(item.type));
+  const canGroup = free.length > 1;
+  const isGroup = items.length === 1 && items[0].type === 'group' && !locked;
   const fill = common((item) => item.data.fill ?? '');
 
 
@@ -248,7 +268,7 @@ export function SelectionPanel({
           кнопки действий уезжали далеко вниз. */}
       <ColorPick label="Цвет" value={color} onChange={onColor} commitOnClose small />
 
-      {kind === 'stroke' || kind === 'shape' ? (
+      {kind === 'stroke' || kind === 'shape' || kind === 'group' ? (
         <div className="selection-panel__section">
           <span className="selection-panel__label">Толщина</span>
           <div className="selection-panel__options">
@@ -399,6 +419,33 @@ export function SelectionPanel({
           <IconToBack />
           {cap('Назад')}
         </button>
+
+        {canMirror ? (
+          <>
+            <button className="btn-tool" type="button" onClick={() => onMirror('x')} title="Отразить слева направо">
+              <IconMirrorX />
+              {cap('Отразить ↔')}
+            </button>
+            <button className="btn-tool" type="button" onClick={() => onMirror('y')} title="Отразить сверху вниз">
+              <IconMirrorY />
+              {cap('Отразить ↕')}
+            </button>
+          </>
+        ) : null}
+
+        {canGroup ? (
+          <button className="btn-tool" type="button" onClick={onGroup} title="Сгруппировать: сложить в один объект">
+            <IconGroup />
+            {cap('Группа')}
+          </button>
+        ) : null}
+
+        {isGroup ? (
+          <button className="btn-tool" type="button" onClick={onUngroup} title="Разгруппировать">
+            <IconUngroup />
+            {cap('Разгруппировать')}
+          </button>
+        ) : null}
 
         {canKeep && keepable.length > 0 ? (
           <button

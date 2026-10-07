@@ -507,6 +507,26 @@ const IconTarget = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /
   /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "2" }),
   /* @__PURE__ */ jsx("path", { d: "M12 2v3M12 19v3M2 12h3M19 12h3" })
 ] }) });
+const IconMirrorX = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M12 4L12 20L3.5 20Z", fill: "currentColor", stroke: "none", opacity: "0.35" }),
+  /* @__PURE__ */ jsx("path", { d: "M12 4L20.5 20H3.5Z" }),
+  /* @__PURE__ */ jsx("path", { d: "M12 1.5V22.5", strokeDasharray: "2 2" })
+] }) });
+const IconMirrorY = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M4 12L20 12L4 3.5Z", fill: "currentColor", stroke: "none", opacity: "0.35" }),
+  /* @__PURE__ */ jsx("path", { d: "M4 3.5L20 12L4 20.5Z" }),
+  /* @__PURE__ */ jsx("path", { d: "M1.5 12H22.5", strokeDasharray: "2 2" })
+] }) });
+const IconGroup = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("rect", { x: "2", y: "2", width: "20", height: "20", rx: "2", strokeDasharray: "3 2.5" }),
+  /* @__PURE__ */ jsx("rect", { x: "6", y: "6", width: "6", height: "6", rx: "1" }),
+  /* @__PURE__ */ jsx("circle", { cx: "15.5", cy: "15.5", r: "3" })
+] }) });
+const IconUngroup = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("rect", { x: "2.5", y: "2.5", width: "7", height: "7", rx: "1" }),
+  /* @__PURE__ */ jsx("circle", { cx: "17.5", cy: "17.5", r: "3.5" }),
+  /* @__PURE__ */ jsx("path", { d: "M12.5 7.5h4v4M11.5 16.5h-4v-4", strokeDasharray: "2 2" })
+] }) });
 function PiMark() {
   return /* @__PURE__ */ jsx("img", { src: "/pi-mark.png", alt: "Пи", className: "pi-mark" });
 }
@@ -2908,10 +2928,17 @@ function rotatePoint(point, center, degrees) {
 }
 function rotated(data, points) {
   const angle = data.angle ?? 0;
-  if (!angle) return points;
+  if (!angle && !data.flipX && !data.flipY) return points;
   const center = centerOf(data);
   if (!center) return points;
-  return points.map((point) => rotatePoint(point, center, angle));
+  return points.map((point) => {
+    const flipped = {
+      ...point,
+      x: data.flipX ? 2 * center.x - point.x : point.x,
+      y: data.flipY ? 2 * center.y - point.y : point.y
+    };
+    return rotatePoint(flipped, center, angle);
+  });
 }
 function dashOf(style, width) {
   const unit = Math.max(1, width);
@@ -3290,31 +3317,49 @@ function drawLabel(context, data) {
   context.restore();
 }
 function drawItem(context, type, data, imageRef = null) {
+  if (type === "group") {
+    for (const child of data.children ?? []) drawItem(context, child.type, child.data, child.imageRef ?? null);
+    return;
+  }
   context.save();
-  const center = data.angle ? centerOf(data) : null;
-  if (center) {
+  const center = data.angle || data.flipX || data.flipY ? centerOf(data) : null;
+  if (center && data.angle) {
     context.translate(center.x, center.y);
     context.rotate(radians(data.angle ?? 0));
     context.translate(-center.x, -center.y);
   }
   applyStyle(context, data);
+  const flip = (draw) => {
+    if (!center || !data.flipX && !data.flipY) {
+      draw();
+      return;
+    }
+    context.save();
+    context.translate(center.x, center.y);
+    context.scale(data.flipX ? -1 : 1, data.flipY ? -1 : 1);
+    context.translate(-center.x, -center.y);
+    draw();
+    context.restore();
+  };
   if (type === "text") drawText(context, data);
   else if (type === "table") drawTable(context, data);
   else if (type === "shape") {
-    drawShape(context, data);
+    flip(() => drawShape(context, data));
     drawLabel(context, data);
-  } else if (type === "image") drawImage(context, data, imageRef);
+  } else if (type === "image") flip(() => drawImage(context, data, imageRef));
   else if (type === "bookmark") drawBookmark(context, data);
   else drawStroke(context, data);
   context.restore();
 }
 function translate(data, dx, dy) {
-  var _a, _b;
+  var _a, _b, _c;
   const shift = (point) => ({ ...point, x: point.x + dx, y: point.y + dy });
   return {
     ...data,
     points: (_a = data.points) == null ? void 0 : _a.map(shift),
     segments: (_b = data.segments) == null ? void 0 : _b.map((segment2) => segment2.map(shift)),
+    // Группа двигается целиком — каждым своим объектом.
+    children: (_c = data.children) == null ? void 0 : _c.map((child) => ({ ...child, data: translate(child.data, dx, dy) })),
     x1: data.x1 === void 0 ? void 0 : data.x1 + dx,
     y1: data.y1 === void 0 ? void 0 : data.y1 + dy,
     x2: data.x2 === void 0 ? void 0 : data.x2 + dx,
@@ -3326,6 +3371,7 @@ function pointsOf(data) {
 }
 function localPoints(data) {
   var _a, _b;
+  if (data.children) return data.children.flatMap((child) => pointsOf(child.data));
   if (((_a = data.points) == null ? void 0 : _a.length) || ((_b = data.segments) == null ? void 0 : _b.length)) return allPoints(data);
   if (data.x1 === void 0 || data.y1 === void 0) return [];
   if (data.text !== void 0) {
@@ -3354,6 +3400,23 @@ function boundsOf(items) {
   let maxX = -Infinity;
   let maxY = -Infinity;
   for (const item of items) {
+    if (item.data.children) {
+      const inner = boundsOf(item.data.children.map((child, index) => ({
+        id: -1 - index,
+        type: child.type,
+        z: 0,
+        data: child.data,
+        imageRef: child.imageRef ?? null,
+        lockedBy: null
+      })));
+      if (inner) {
+        minX = Math.min(minX, inner.x);
+        minY = Math.min(minY, inner.y);
+        maxX = Math.max(maxX, inner.x + inner.width);
+        maxY = Math.max(maxY, inner.y + inner.height);
+      }
+      continue;
+    }
     const pad = item.data.width / 2;
     for (const point of pointsOf(item.data)) {
       minX = Math.min(minX, point.x - pad);
@@ -3375,7 +3438,7 @@ function distanceToSegment(point, from, to) {
 function hits(item, point, radius) {
   const points = pointsOf(item.data);
   const reach = radius + item.data.width / 2;
-  if (item.type === "text" || item.type === "image" || item.type === "table" || item.type === "bookmark" || item.data.shape === "ellipse" || item.data.shape === "arcUp" || item.data.shape === "arcDown") {
+  if (item.type === "text" || item.type === "image" || item.type === "table" || item.type === "bookmark" || item.type === "group" || item.data.shape === "ellipse" || item.data.shape === "arcUp" || item.data.shape === "arcDown") {
     if (item.data.angle) return inside(points, point);
     const box = boundsOf([item]);
     return Boolean(box) && point.x >= box.x - radius && point.x <= box.x + box.width + radius && point.y >= box.y - radius && point.y <= box.y + box.height + radius;
@@ -4305,7 +4368,7 @@ function PeoplePanel({
       ] }, request.requestId)) })
     ] }) : null,
     /* @__PURE__ */ jsxs("p", { className: "people__group", children: [
-      "На доске · ",
+      "Все участники · ",
       allRows.length
     ] }),
     /* @__PURE__ */ jsx("ul", { className: "people", children: pageRows }),
@@ -4428,7 +4491,7 @@ function measureText(text, fontSize) {
 const HANDLE_SIZE = 9;
 const ROTATE_REACH = 28;
 function handlesFor(item, box) {
-  if (item.type === "stroke" || item.type === "bookmark") return [];
+  if (item.type === "stroke" || item.type === "bookmark" || item.type === "group") return [];
   if (item.data.shape === "line" || item.data.shape === "arrow") {
     return [
       { id: "p1", x: item.data.x1 ?? 0, y: item.data.y1 ?? 0, cursor: "move" },
@@ -4539,6 +4602,140 @@ function anchorOf(box, handle) {
   return {
     x: handle.includes("w") ? box.x + box.width : box.x,
     y: handle.startsWith("n") ? box.y + box.height : box.y
+  };
+}
+function framed(items) {
+  if (items.length > 1) return true;
+  const one = items[0];
+  if (!one) return false;
+  return one.type === "stroke" || one.type === "group" || one.type === "shape" && (one.data.shape === "line" || one.data.shape === "arrow");
+}
+function frameHandles(items, box) {
+  const handles = [
+    { id: "rot", x: box.x + box.width / 2, y: box.y - ROTATE_REACH, cursor: "grab" }
+  ];
+  if (items.length === 1 && items[0].type === "group") {
+    const right = box.x + box.width;
+    const bottom = box.y + box.height;
+    handles.push(
+      { id: "nw", x: box.x, y: box.y, cursor: "nwse-resize" },
+      { id: "ne", x: right, y: box.y, cursor: "nesw-resize" },
+      { id: "se", x: right, y: bottom, cursor: "nwse-resize" },
+      { id: "sw", x: box.x, y: bottom, cursor: "nesw-resize" }
+    );
+  }
+  return handles;
+}
+function oppositeCorner(box, id) {
+  const right = box.x + box.width;
+  const bottom = box.y + box.height;
+  if (id === "nw") return { x: right, y: bottom };
+  if (id === "ne") return { x: box.x, y: bottom };
+  if (id === "se") return { x: box.x, y: box.y };
+  return { x: right, y: box.y };
+}
+const mapStroke = (data, map) => {
+  var _a, _b;
+  return {
+    ...data,
+    points: (_a = data.points) == null ? void 0 : _a.map(map),
+    segments: (_b = data.segments) == null ? void 0 : _b.map((segment2) => segment2.map(map))
+  };
+};
+const isLine = (type, data) => type === "shape" && (data.shape === "line" || data.shape === "arrow");
+const lineEnds = (data, map) => {
+  const [a, b] = pointsOf(data);
+  if (!a || !b) return data;
+  const from = map(a);
+  const to = map(b);
+  return { ...data, x1: from.x, y1: from.y, x2: to.x, y2: to.y, angle: void 0, flipX: void 0, flipY: void 0 };
+};
+const moveCenterTo = (data, target) => {
+  const center = centerOf(data);
+  if (!center) return data;
+  return translate(data, target.x - center.x, target.y - center.y);
+};
+const normalize = (degrees) => {
+  const value = (degrees % 360 + 360) % 360;
+  return value === 0 ? void 0 : value;
+};
+function rotateData(type, data, pivot, degrees) {
+  var _a;
+  if (!degrees) return data;
+  const turn = (point) => rotatePoint(point, pivot, degrees);
+  if (type === "group") {
+    return {
+      ...data,
+      children: (_a = data.children) == null ? void 0 : _a.map((child) => ({ ...child, data: rotateData(child.type, child.data, pivot, degrees) }))
+    };
+  }
+  if (type === "stroke") return mapStroke(data, turn);
+  if (isLine(type, data)) return lineEnds(data, turn);
+  const center = centerOf(data);
+  if (!center) return data;
+  const moved = moveCenterTo(data, turn(center));
+  if (type === "bookmark") return moved;
+  return { ...moved, angle: normalize((data.angle ?? 0) + degrees) };
+}
+function mirrorData(type, data, axis, at) {
+  var _a;
+  const reflect = (point) => axis === "x" ? { ...point, x: 2 * at - point.x } : { ...point, y: 2 * at - point.y };
+  if (type === "group") {
+    return {
+      ...data,
+      children: (_a = data.children) == null ? void 0 : _a.map((child) => ({ ...child, data: mirrorData(child.type, child.data, axis, at) }))
+    };
+  }
+  if (type === "stroke") return mapStroke(data, reflect);
+  if (isLine(type, data)) return lineEnds(data, reflect);
+  const center = centerOf(data);
+  if (!center) return data;
+  const moved = moveCenterTo(data, reflect(center));
+  if (type === "bookmark") return moved;
+  const angle = data.angle ? normalize(-data.angle) : void 0;
+  if (type === "text" || type === "table") return { ...moved, angle };
+  return {
+    ...moved,
+    angle,
+    flipX: axis === "x" ? !data.flipX || void 0 : data.flipX,
+    flipY: axis === "y" ? !data.flipY || void 0 : data.flipY
+  };
+}
+function mirrorable(type) {
+  return type !== "text" && type !== "table" && type !== "bookmark";
+}
+function scaleData(type, data, anchor, factor) {
+  var _a;
+  if (factor === 1) return data;
+  const scale = (point) => ({
+    ...point,
+    x: anchor.x + (point.x - anchor.x) * factor,
+    y: anchor.y + (point.y - anchor.y) * factor
+  });
+  if (type === "group") {
+    return {
+      ...data,
+      children: (_a = data.children) == null ? void 0 : _a.map((child) => ({ ...child, data: scaleData(child.type, child.data, anchor, factor) }))
+    };
+  }
+  if (type === "stroke") return mapStroke(data, scale);
+  if (isLine(type, data)) return lineEnds(data, scale);
+  const box = boxOf(data);
+  const center = centerOf(data);
+  if (!box || !center) return data;
+  const target = scale(center);
+  if (type === "bookmark") return moveCenterTo(data, target);
+  const halfW = box.width / 2 * factor;
+  const halfH = box.height / 2 * factor;
+  const leftFirst = (data.x1 ?? 0) <= (data.x2 ?? data.x1 ?? 0);
+  const topFirst = (data.y1 ?? 0) <= (data.y2 ?? data.y1 ?? 0);
+  return {
+    ...data,
+    x1: leftFirst ? target.x - halfW : target.x + halfW,
+    x2: leftFirst ? target.x + halfW : target.x - halfW,
+    y1: topFirst ? target.y - halfH : target.y + halfH,
+    y2: topFirst ? target.y + halfH : target.y - halfH,
+    fontSize: data.fontSize !== void 0 ? Math.max(6, Math.round(data.fontSize * factor * 10) / 10) : void 0
   };
 }
 const MIN_PIECE = 0.5;
@@ -4673,6 +4870,18 @@ function BoardCanvas({
     return pending.data;
   };
   const HOLD_MS = 2500;
+  const framedData = (item) => {
+    const turn = turning.current;
+    if (turn) {
+      const source = turn.origin.find((candidate) => candidate.id === item.id);
+      if (source) return rotateData(source.type, source.data, turn.pivot, turn.degrees);
+    }
+    const stretch = scaling.current;
+    if ((stretch == null ? void 0 : stretch.origin.id) === item.id) {
+      return scaleData(item.type, stretch.origin.data, stretch.anchor, stretch.factor);
+    }
+    return null;
+  };
   const hold = (item, data) => {
     held.current.set(item.id, { data, base: item.data, until: performance.now() + HOLD_MS });
     window.setTimeout(() => schedule(), HOLD_MS + 50);
@@ -4693,6 +4902,8 @@ function BoardCanvas({
   const erasing = useRef(null);
   const tapping = useRef(null);
   const rotating = useRef(null);
+  const turning = useRef(null);
+  const scaling = useRef(null);
   const resizing = useRef(null);
   const lastCursor = useRef(0);
   const lastBatch = useRef(0);
@@ -4818,7 +5029,7 @@ function BoardCanvas({
       }
       const grip = resizing.current;
       const spin = rotating.current;
-      const shifted = (grip == null ? void 0 : grip.itemId) === item.id ? grip.data : (spin == null ? void 0 : spin.itemId) === item.id ? spin.data : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : heldData(item) ?? item.data;
+      const shifted = (grip == null ? void 0 : grip.itemId) === item.id ? grip.data : (spin == null ? void 0 : spin.itemId) === item.id ? spin.data : framedData(item) ?? (drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : heldData(item) ?? item.data);
       drawItem(context, item.type, shifted, item.imageRef);
     }
     baseStale.current = false;
@@ -4904,6 +5115,8 @@ function BoardCanvas({
     const live = (item) => {
       if ((grip == null ? void 0 : grip.itemId) === item.id) return { ...item, data: grip.data };
       if ((spin == null ? void 0 : spin.itemId) === item.id) return { ...item, data: spin.data };
+      const framedNow = framedData(item);
+      if (framedNow) return { ...item, data: framedNow };
       if (drag) return { ...item, data: translate(item.data, drag.dx, drag.dy) };
       const pending = heldData(item);
       return pending ? { ...item, data: pending } : item;
@@ -4911,14 +5124,19 @@ function BoardCanvas({
     const selected = hub.items.filter((item) => chosen.has(item.id));
     const box2 = boundsOf(selected.map(live));
     const awaiting = selected.some((item) => held.current.has(item.id));
-    onLiveBounds == null ? void 0 : onLiveBounds(box2 && (drag || grip || spin || awaiting) ? box2 : null);
+    const reshaping = turning.current !== null || scaling.current !== null;
+    onLiveBounds == null ? void 0 : onLiveBounds(box2 && (drag || grip || spin || reshaping || awaiting) ? box2 : null);
     if (box2) outline(context, box2, "#2E5FA3", hair, [6 * hair, 4 * hair]);
     if (marquee.current) {
       outline(context, rectFrom(marquee.current.from, marquee.current.to), "#2E5FA3", hair, [4 * hair, 3 * hair]);
     }
-    if (selected.length === 1 && !drag) {
-      const single = live(selected[0]);
-      const grips = handlesFor(single, boundsOf([single]));
+    if (selected.length > 0 && !drag) {
+      const shown = selected.map(live);
+      const free = shown.filter((item) => !item.data.locked);
+      const grips = framed(shown) ? free.length === shown.length && box2 ? [
+        ...shown.length === 1 ? handlesFor(shown[0], box2) : [],
+        ...frameHandles(shown, box2)
+      ] : [] : shown.length === 1 ? handlesFor(shown[0], boundsOf([shown[0]])) : [];
       for (const grip2 of grips) {
         const half = HANDLE_SIZE / 2 / view.scale;
         context.save();
@@ -5212,6 +5430,34 @@ function BoardCanvas({
     if (latest.current.tool === "select") {
       event.currentTarget.setPointerCapture(event.pointerId);
       const chosen = latest.current.selection;
+      {
+        const picked = latest.current.items.filter((item) => chosen.includes(item.id));
+        const frame2 = framed(picked) && picked.every((item) => !item.data.locked) ? boundsOf(picked) : null;
+        const near = HANDLE_SIZE / latest.current.viewport.scale;
+        const grip = frame2 ? frameHandles(picked, frame2).find((candidate) => Math.abs(candidate.x - point.x) <= near && Math.abs(candidate.y - point.y) <= near) : void 0;
+        if (frame2 && (grip == null ? void 0 : grip.id) === "rot") {
+          const pivot = { x: frame2.x + frame2.width / 2, y: frame2.y + frame2.height / 2, p: 1 };
+          turning.current = {
+            pointerId: event.pointerId,
+            pivot,
+            startAngle: angleTo(pivot, point),
+            degrees: 0,
+            origin: picked
+          };
+          return;
+        }
+        if (frame2 && grip && picked.length === 1) {
+          const anchor = oppositeCorner(frame2, grip.id);
+          scaling.current = {
+            pointerId: event.pointerId,
+            anchor: { ...anchor, p: 1 },
+            corner: { x: grip.x, y: grip.y, p: 1 },
+            factor: 1,
+            origin: picked[0]
+          };
+          return;
+        }
+      }
       if (chosen.length === 1) {
         const single = latest.current.items.find((item) => item.id === chosen[0]);
         const bounds = single && !single.data.locked ? boundsOf([single]) : null;
@@ -5371,6 +5617,23 @@ function BoardCanvas({
       eraseStep(point, latest.current.settings.eraser.size / 2);
       return;
     }
+    const turn = turning.current;
+    if ((turn == null ? void 0 : turn.pointerId) === event.pointerId) {
+      const turned = angleTo(turn.pivot, point) - turn.startAngle;
+      turn.degrees = event.shiftKey ? Math.round(turned / 15) * 15 : Math.round(turned);
+      schedule();
+      return;
+    }
+    const stretch = scaling.current;
+    if ((stretch == null ? void 0 : stretch.pointerId) === event.pointerId) {
+      const ax = stretch.corner.x - stretch.anchor.x;
+      const ay = stretch.corner.y - stretch.anchor.y;
+      const length = ax * ax + ay * ay;
+      const along = length > 0 ? ((point.x - stretch.anchor.x) * ax + (point.y - stretch.anchor.y) * ay) / length : 1;
+      stretch.factor = Math.max(0.05, along);
+      schedule();
+      return;
+    }
     const grip = resizing.current;
     if ((grip == null ? void 0 : grip.pointerId) === event.pointerId) {
       const source = latest.current.items.find((item) => item.id === grip.itemId);
@@ -5483,6 +5746,30 @@ function BoardCanvas({
       marquee.current = null;
       const chosen = within(latest.current.items, rectFrom(band.from, band.to));
       if (chosen.length > 0) onSelection(chosen.map((item) => item.id));
+      schedule();
+      return;
+    }
+    const turn = turning.current;
+    if ((turn == null ? void 0 : turn.pointerId) === event.pointerId) {
+      turning.current = null;
+      if (turn.degrees !== 0) {
+        for (const source of turn.origin) {
+          const data = rotateData(source.type, source.data, turn.pivot, turn.degrees);
+          hold(source, data);
+          hub.updateItem(source.id, data);
+        }
+      }
+      schedule();
+      return;
+    }
+    const stretch = scaling.current;
+    if ((stretch == null ? void 0 : stretch.pointerId) === event.pointerId) {
+      scaling.current = null;
+      if (stretch.factor !== 1) {
+        const data = scaleData(stretch.origin.type, stretch.origin.data, stretch.anchor, stretch.factor);
+        hold(stretch.origin, data);
+        hub.updateItem(stretch.origin.id, data);
+      }
       schedule();
       return;
     }
@@ -6964,10 +7251,14 @@ function SelectionPanel({
   onTable,
   onLock,
   onCopy,
+  onGroup,
+  onUngroup,
+  onMirror,
   canKeep
 }) {
   const text = items.length === 1 && (items[0].type === "text" || items[0].type === "bookmark") ? items[0].data.text ?? "" : null;
-  const keepable = items.filter((item) => item.type !== "image");
+  const hasImage = (item) => item.type === "image" || (item.data.children ?? []).some(hasImage);
+  const keepable = items.filter((item) => !hasImage(item));
   const [naming, setNaming] = useState(false);
   const [templateTitle, setTemplateTitle] = useState("");
   const [templateBusy, setTemplateBusy] = useState(false);
@@ -6997,6 +7288,10 @@ function SelectionPanel({
     return items.every((item) => read(item) === first) ? first : void 0;
   };
   const color = common((item) => item.data.color);
+  const free = items.filter((item) => !item.data.locked);
+  const canMirror = free.length > 1 || free.some((item) => mirrorable(item.type));
+  const canGroup = free.length > 1;
+  const isGroup = items.length === 1 && items[0].type === "group" && !locked;
   const fill = common((item) => item.data.fill ?? "");
   const cap = (text2) => docked ? /* @__PURE__ */ jsx("span", { className: "btn-tool__cap", children: text2 }) : null;
   const panel = useRef(null);
@@ -7030,7 +7325,7 @@ function SelectionPanel({
       "aria-label": "Действия с выделенным",
       children: [
         /* @__PURE__ */ jsx(ColorPick, { label: "Цвет", value: color, onChange: onColor, commitOnClose: true, small: true }),
-        kind === "stroke" || kind === "shape" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
+        kind === "stroke" || kind === "shape" || kind === "group" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
           /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Толщина" }),
           /* @__PURE__ */ jsx("div", { className: "selection-panel__options", children: SIZES.map((value) => /* @__PURE__ */ jsx(
             "button",
@@ -7156,6 +7451,24 @@ function SelectionPanel({
             /* @__PURE__ */ jsx(IconToBack, {}),
             cap("Назад")
           ] }),
+          canMirror ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onMirror("x"), title: "Отразить слева направо", children: [
+              /* @__PURE__ */ jsx(IconMirrorX, {}),
+              cap("Отразить ↔")
+            ] }),
+            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onMirror("y"), title: "Отразить сверху вниз", children: [
+              /* @__PURE__ */ jsx(IconMirrorY, {}),
+              cap("Отразить ↕")
+            ] })
+          ] }) : null,
+          canGroup ? /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onGroup, title: "Сгруппировать: сложить в один объект", children: [
+            /* @__PURE__ */ jsx(IconGroup, {}),
+            cap("Группа")
+          ] }) : null,
+          isGroup ? /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onUngroup, title: "Разгруппировать", children: [
+            /* @__PURE__ */ jsx(IconUngroup, {}),
+            cap("Разгруппировать")
+          ] }) : null,
           canKeep && keepable.length > 0 ? /* @__PURE__ */ jsxs(
             "button",
             {
@@ -8878,7 +9191,8 @@ const MAX_SIDE = 4e3;
 async function renderBoard(items, background) {
   const bounds = boundsOf(items);
   if (!bounds) return null;
-  await preload(items.map((item) => item.imageRef).filter((ref) => Boolean(ref)));
+  const refsOf = (type, data, ref) => type === "group" ? (data.children ?? []).flatMap((child) => refsOf(child.type, child.data, child.imageRef)) : ref ? [ref] : [];
+  await preload(items.flatMap((item) => refsOf(item.type, item.data, item.imageRef)));
   const width = bounds.width + PADDING * 2;
   const height = bounds.height + PADDING * 2;
   const scale = Math.min(1, MAX_SIDE / Math.max(width, height));
@@ -9365,6 +9679,26 @@ function useHistory(actions) {
   }, [sync]);
   return { canUndo: depth.undo > 0, canRedo: depth.redo > 0, push, undo, redo, clear };
 }
+function recolored(type, data, color) {
+  var _a;
+  if (type !== "group") return { ...data, color };
+  return {
+    ...data,
+    color,
+    children: (_a = data.children) == null ? void 0 : _a.map((child) => ({ ...child, data: recolored(child.type, child.data, color) }))
+  };
+}
+function patchedGroup(data, patch) {
+  var _a;
+  return {
+    ...data,
+    children: (_a = data.children) == null ? void 0 : _a.map((child) => {
+      if (child.type === "group") return { ...child, data: patchedGroup(child.data, patch) };
+      if (child.type === "stroke" || child.type === "shape") return { ...child, data: { ...child.data, ...patch } };
+      return child;
+    })
+  };
+}
 function BoardPage() {
   var _a, _b, _c, _d;
   const { boardId } = useParams();
@@ -9803,6 +10137,56 @@ function BoardPage() {
     }
     toSelect.current = born;
   };
+  const groupSelection = () => {
+    const members2 = selectedItems.filter((item) => !item.data.locked).sort((a, b) => a.z - b.z || a.id - b.id);
+    if (members2.length < 2) return;
+    const data = {
+      color: members2[0].data.color,
+      width: 0,
+      children: members2.map((item) => ({ type: item.type, data: item.data, imageRef: item.imageRef ?? void 0 }))
+    };
+    if (JSON.stringify(data).length > 480 * 1024) {
+      setError("Слишком много нарисовано, чтобы сложить в одну группу. Сгруппируйте частями.");
+      return;
+    }
+    const ref = `g${Date.now().toString(36)}`;
+    pending.current.set(`${ref}-new`, { ref });
+    hub.commitItem(`${ref}-new`, "group", data);
+    hub.deleteItems(members2.map((item) => item.id));
+    history.push({
+      kind: "replace",
+      removed: members2.map((item) => ({ ref: refOf(item.id), type: item.type, data: item.data, imageRef: item.imageRef })),
+      added: [{ ref, type: "group", data }]
+    });
+    toSelect.current = [ref];
+  };
+  const ungroupSelection = () => {
+    const group = selectedItems.length === 1 && selectedItems[0].type === "group" ? selectedItems[0] : null;
+    if (!group || group.data.locked) return;
+    const stamp = Date.now().toString(36);
+    const added = (group.data.children ?? []).map((child, index) => {
+      const ref = `u${stamp}-${index}`;
+      pending.current.set(`${ref}-new`, { ref });
+      hub.commitItem(`${ref}-new`, child.type, child.data, child.imageRef ?? null);
+      return { ref, type: child.type, data: child.data, imageRef: child.imageRef ?? null };
+    });
+    hub.deleteItems([group.id]);
+    history.push({
+      kind: "replace",
+      removed: [{ ref: refOf(group.id), type: group.type, data: group.data, imageRef: group.imageRef }],
+      added
+    });
+    toSelect.current = added.map((item) => item.ref);
+  };
+  const mirrorSelection = (axis) => {
+    const movable = selectedItems.filter((item) => !item.data.locked);
+    const box = boundsOf(movable);
+    if (!box) return;
+    const at = axis === "x" ? box.x + box.width / 2 : box.y + box.height / 2;
+    for (const item of movable) {
+      hub.updateItem(item.id, mirrorData(item.type, item.data, axis, at));
+    }
+  };
   const copySelection = () => {
     if (selectedItems.length === 0) return;
     setHasClip(true);
@@ -9873,11 +10257,15 @@ function BoardPage() {
     }
   };
   const recolorSelection = (color) => {
-    for (const item of selectedItems) hub.updateItem(item.id, { ...item.data, color });
+    for (const item of selectedItems) hub.updateItem(item.id, recolored(item.type, item.data, color));
   };
   const patchSelection = (patch) => {
     for (const item of selectedItems) {
       if (item.data.locked) continue;
+      if (item.type === "group") {
+        hub.updateItem(item.id, patchedGroup(item.data, patch));
+        continue;
+      }
       const data = { ...item.data, ...patch };
       if (item.type === "text" && patch.fontSize !== void 0 && data.x1 !== void 0 && data.y1 !== void 0) {
         const box = measureText(data.text ?? "", patch.fontSize);
@@ -10475,6 +10863,9 @@ function BoardPage() {
                 onDone: () => setSelection([]),
                 onLock: lockSelection,
                 onCopy: copySelection,
+                onGroup: groupSelection,
+                onUngroup: ungroupSelection,
+                onMirror: mirrorSelection,
                 onTable: (rows, cols) => {
                   const item = selectedItems[0];
                   if (item) hub.updateItem(item.id, resized$1(item.data, rows, cols));

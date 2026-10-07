@@ -320,7 +320,7 @@ export function PeoplePanel({
         </>
       ) : null}
 
-      <p className="people__group">На доске · {allRows.length}</p>
+      <p className="people__group">Все участники · {allRows.length}</p>
       <ul className="people">{pageRows}</ul>
 
       {totalPages > 1 ? (

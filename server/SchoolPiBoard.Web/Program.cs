@@ -66,7 +66,11 @@ builder.Services.AddHostedService(services => services.GetRequiredService<Cursor
 builder.Services.AddHostedService<PresenceKeepAlive>();
 builder.Services.AddHostedService<RecordingWatchdog>();
 
-builder.Services.AddSignalR().AddStackExchangeRedis(options.RedisUrl);
+// Предел одного сообщения — как предел данных объекта (512 КБ) с запасом.
+// По умолчанию SignalR пускает только 32 КБ: длинный штрих и тем более
+// группа из нескольких штрихов в него не помещались, и соединение рвалось.
+builder.Services.AddSignalR(hub => hub.MaximumReceiveMessageSize = 1024 * 1024)
+    .AddStackExchangeRedis(options.RedisUrl);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(jwt =>

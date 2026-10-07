@@ -18,6 +18,8 @@ export function translate(data: ItemData, dx: number, dy: number): ItemData {
     ...data,
     points: data.points?.map(shift),
     segments: data.segments?.map((segment) => segment.map(shift)),
+    // Группа двигается целиком — каждым своим объектом.
+    children: data.children?.map((child) => ({ ...child, data: translate(child.data, dx, dy) })),
     x1: data.x1 === undefined ? undefined : data.x1 + dx,
     y1: data.y1 === undefined ? undefined : data.y1 + dy,
     x2: data.x2 === undefined ? undefined : data.x2 + dx,
@@ -36,6 +38,9 @@ export function pointsOf(data: ItemData): Point[] {
 
 /** Опорные точки до поворота — в них считается вся геометрия объекта. */
 function localPoints(data: ItemData): Point[] {
+  // У группы точки — все точки её состава, каждый со своим поворотом.
+  if (data.children) return data.children.flatMap((child) => pointsOf(child.data));
+
   if (data.points?.length || data.segments?.length) return allPoints(data);
 
   if (data.x1 === undefined || data.y1 === undefined) return [];
@@ -73,6 +78,21 @@ export function boundsOf(items: BoardItem[]): Bounds | null {
   let maxY = -Infinity;
 
   for (const item of items) {
+    // Группа — по габаритам своего состава, с толщиной каждого: у самой
+    // группы толщины нет.
+    if (item.data.children) {
+      const inner = boundsOf(item.data.children.map((child, index) => ({
+        id: -1 - index, type: child.type, z: 0, data: child.data, imageRef: child.imageRef ?? null, lockedBy: null,
+      })));
+      if (inner) {
+        minX = Math.min(minX, inner.x);
+        minY = Math.min(minY, inner.y);
+        maxX = Math.max(maxX, inner.x + inner.width);
+        maxY = Math.max(maxY, inner.y + inner.height);
+      }
+      continue;
+    }
+
     // Толщина учитывается: габариты по осевой линии обрезали бы штрих
     // по краям, и рамка выделения шла бы прямо по нарисованному.
     const pad = item.data.width / 2;
@@ -113,6 +133,7 @@ export function hits(item: BoardItem, point: Point, radius: number): boolean {
   // а не работа. Половина эллипса ловится так же: её габариты — коробка
   // целого эллипса, и попадать в саму дугу означало бы целиться в волосок.
   if (item.type === 'text' || item.type === 'image' || item.type === 'table' || item.type === 'bookmark'
+      || item.type === 'group'
       || item.data.shape === 'ellipse' || item.data.shape === 'arcUp' || item.data.shape === 'arcDown') {
     // У повёрнутого объекта прямоугольник габаритов заметно больше его
     // самого, и он ловил бы тычки далеко за краем. Поэтому по самому

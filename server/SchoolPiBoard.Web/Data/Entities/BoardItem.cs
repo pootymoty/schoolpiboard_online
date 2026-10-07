@@ -32,9 +32,16 @@ public class BoardItem
     /// </summary>
     public const string TypeBookmark = "bookmark";
 
+    /// <summary>
+    /// Группа: несколько объектов, сложенных в один. Состав лежит в
+    /// <c>data.children</c> — каждый со своим типом и оформлением, — и
+    /// сервер разбирает его только чтобы сдвинуть при перемещении.
+    /// </summary>
+    public const string TypeGroup = "group";
+
     /// <summary>Типы, которые сервер принимает. Всё прочее — отказ.</summary>
     public static readonly string[] KnownTypes =
-        { TypeStroke, TypeShape, TypeText, TypeImage, TypeTable, TypeBookmark };
+        { TypeStroke, TypeShape, TypeText, TypeImage, TypeTable, TypeBookmark, TypeGroup };
 
     public long Id { get; set; }
 

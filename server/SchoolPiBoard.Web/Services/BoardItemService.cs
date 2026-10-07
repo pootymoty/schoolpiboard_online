@@ -205,7 +205,10 @@ public sealed class BoardItemService
         return moved;
     }
 
-    /// <summary>Сдвигает всю геометрию объекта: и точки штриха, и углы фигуры.</summary>
+    /// <summary>
+    /// Сдвигает всю геометрию объекта: точки штриха, куски штриха после
+    /// ластика, углы фигуры и весь состав группы.
+    /// </summary>
     private static string? Translate(string data, double dx, double dy)
     {
         try
@@ -213,23 +216,7 @@ public sealed class BoardItemService
             var root = JsonNode.Parse(data)?.AsObject();
             if (root is null) return null;
 
-            if (root["points"] is JsonArray points)
-            {
-                foreach (var point in points)
-                {
-                    if (point is not JsonObject node) continue;
-
-                    node["x"] = (node["x"]?.GetValue<double>() ?? 0) + dx;
-                    node["y"] = (node["y"]?.GetValue<double>() ?? 0) + dy;
-                }
-            }
-
-            foreach (var (name, delta) in new[] { ("x1", dx), ("y1", dy), ("x2", dx), ("y2", dy) })
-            {
-                if (root[name] is not null)
-                    root[name] = root[name]!.GetValue<double>() + delta;
-            }
-
+            Shift(root, dx, dy);
             return root.ToJsonString();
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
@@ -237,6 +224,53 @@ public sealed class BoardItemService
             // Объект с неожиданной геометрией просто не двигаем: уронить
             // перемещение всей выборки из-за одного такого нельзя.
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Тот же сдвиг, что делает браузер (translate в geometry.ts) — иначе
+    /// у тех, кто откроет доску позже, объект оказался бы не там, где его
+    /// видели все. Раньше здесь сдвигались только <c>points</c>: штрих,
+    /// разрезанный ластиком, хранит куски в <c>segments</c>, и после
+    /// перезагрузки они возвращались на прежнее место.
+    /// </summary>
+    private static void Shift(JsonObject root, double dx, double dy)
+    {
+        static void ShiftPoints(JsonArray points, double dx, double dy)
+        {
+            foreach (var point in points)
+            {
+                if (point is not JsonObject node) continue;
+
+                node["x"] = (node["x"]?.GetValue<double>() ?? 0) + dx;
+                node["y"] = (node["y"]?.GetValue<double>() ?? 0) + dy;
+            }
+        }
+
+        if (root["points"] is JsonArray points)
+            ShiftPoints(points, dx, dy);
+
+        if (root["segments"] is JsonArray segments)
+        {
+            foreach (var segment in segments)
+            {
+                if (segment is JsonArray piece) ShiftPoints(piece, dx, dy);
+            }
+        }
+
+        foreach (var (name, delta) in new[] { ("x1", dx), ("y1", dy), ("x2", dx), ("y2", dy) })
+        {
+            if (root[name] is not null)
+                root[name] = root[name]!.GetValue<double>() + delta;
+        }
+
+        if (root["children"] is JsonArray children)
+        {
+            foreach (var child in children)
+            {
+                if (child is JsonObject node && node["data"] is JsonObject inner)
+                    Shift(inner, dx, dy);
+            }
         }
     }
 

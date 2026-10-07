@@ -1,4 +1,4 @@
-import type { BoardItem, Background } from './protocol';
+import type { BoardItem, Background, ItemData, ItemType } from './protocol';
 import { boundsOf } from './geometry';
 import { preload } from './images';
 import { drawGrid, drawItem } from './render';
@@ -30,7 +30,13 @@ export async function renderBoard(
 
   // Картинки могли ещё не догрузиться: на холсте это пустая рамка, а в
   // сохранённом файле было бы белое пятно вместо страницы учебника.
-  await preload(items.map((item) => item.imageRef).filter((ref): ref is string => Boolean(ref)));
+  // Картинки и внутри групп: у сгруппированной ссылка лежит в составе.
+  const refsOf = (type: ItemType, data: ItemData, ref: string | null | undefined): string[] => (
+    type === 'group'
+      ? (data.children ?? []).flatMap((child) => refsOf(child.type, child.data, child.imageRef))
+      : ref ? [ref] : []
+  );
+  await preload(items.flatMap((item) => refsOf(item.type, item.data, item.imageRef)));
 
   const width = bounds.width + PADDING * 2;
   const height = bounds.height + PADDING * 2;

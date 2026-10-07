@@ -49,7 +49,8 @@ const ROTATE_REACH = 28;
 export function handlesFor(item: BoardItem, box: Bounds): Handle[] {
   // Закладка двигается целиком, но не растягивается и не крутится: у
   // неё нет содержимого, у которого были бы разумные пропорции.
-  if (item.type === 'stroke' || item.type === 'bookmark') return [];
+  // У штриха и группы свои ручки — на общей рамке (frameHandles).
+  if (item.type === 'stroke' || item.type === 'bookmark' || item.type === 'group') return [];
 
   if (item.data.shape === 'line' || item.data.shape === 'arrow') {
     return [
@@ -226,4 +227,54 @@ function anchorOf(box: Bounds, handle: HandleId): { x: number; y: number } {
     x: handle.includes('w') ? box.x + box.width : box.x,
     y: handle.startsWith('n') ? box.y + box.height : box.y,
   };
+}
+
+/**
+ * Преобразуется ли выделение целиком, по общей рамке, а не ручками
+ * одного объекта: когда выбрано несколько, когда выбран штрих, прямая
+ * или группа — у них нет своих габаритов с углом, вокруг которых крутить.
+ */
+export function framed(items: BoardItem[]): boolean {
+  if (items.length > 1) return true;
+
+  const one = items[0];
+  if (!one) return false;
+
+  return one.type === 'stroke' || one.type === 'group'
+    || (one.type === 'shape' && (one.data.shape === 'line' || one.data.shape === 'arrow'));
+}
+
+/**
+ * Ручки общей рамки: поворот — над серединой верхнего края, как у
+ * одиночной фигуры; у группы ещё и четыре угла — растягивание целиком,
+ * пропорционально.
+ */
+export function frameHandles(items: BoardItem[], box: Bounds): Handle[] {
+  const handles: Handle[] = [
+    { id: 'rot', x: box.x + box.width / 2, y: box.y - ROTATE_REACH, cursor: 'grab' },
+  ];
+
+  if (items.length === 1 && items[0].type === 'group') {
+    const right = box.x + box.width;
+    const bottom = box.y + box.height;
+    handles.push(
+      { id: 'nw', x: box.x, y: box.y, cursor: 'nwse-resize' },
+      { id: 'ne', x: right, y: box.y, cursor: 'nesw-resize' },
+      { id: 'se', x: right, y: bottom, cursor: 'nwse-resize' },
+      { id: 'sw', x: box.x, y: bottom, cursor: 'nesw-resize' },
+    );
+  }
+
+  return handles;
+}
+
+/** Угол рамки напротив данного — он стоит на месте, пока тянут. */
+export function oppositeCorner(box: Bounds, id: HandleId): { x: number; y: number } {
+  const right = box.x + box.width;
+  const bottom = box.y + box.height;
+
+  if (id === 'nw') return { x: right, y: bottom };
+  if (id === 'ne') return { x: box.x, y: bottom };
+  if (id === 'se') return { x: box.x, y: box.y };
+  return { x: right, y: box.y };
 }

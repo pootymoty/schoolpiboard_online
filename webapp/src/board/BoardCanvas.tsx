@@ -7,7 +7,8 @@ import { boundsOf, distanceToSegment, rectFrom, topmostAt, translate, within } f
 import { centerOf } from './rotate';
 import { snapPoint, snapValue } from './snap';
 import type { Bounds } from './geometry';
-import { HANDLE_SIZE, angleTo, handlesFor, resized } from './handles';
+import { HANDLE_SIZE, angleTo, frameHandles, framed, handlesFor, oppositeCorner, resized } from './handles';
+import { rotateData, scaleData } from './transform';
 import type { HandleId } from './handles';
 import { onImageLoaded } from './images';
 import { drawGrid, drawItem, drawLaser } from './render';
@@ -216,6 +217,22 @@ export function BoardCanvas({
   /** Сколько ждать ответа сервера, прежде чем поверить, что правки не будет. */
   const HOLD_MS = 2500;
 
+  /** Что рисовать вместо объекта, пока выделение вертят или растягивают по рамке. */
+  const framedData = (item: BoardItem): ItemData | null => {
+    const turn = turning.current;
+    if (turn) {
+      const source = turn.origin.find((candidate) => candidate.id === item.id);
+      if (source) return rotateData(source.type, source.data, turn.pivot, turn.degrees);
+    }
+
+    const stretch = scaling.current;
+    if (stretch?.origin.id === item.id) {
+      return scaleData(item.type, stretch.origin.data, stretch.anchor, stretch.factor);
+    }
+
+    return null;
+  };
+
   const hold = (item: BoardItem, data: ItemData) => {
     held.current.set(item.id, { data, base: item.data, until: performance.now() + HOLD_MS });
     // Проверить, не истекло ли ожидание, — кадр сам по себе никто не попросит.
@@ -318,6 +335,28 @@ export function BoardCanvas({
     startAngle: number;
     origin: number;
     data: ItemData;
+  } | null>(null);
+
+  /**
+   * Поворот выделения по общей рамке — нескольких объектов, штриха,
+   * прямой, группы — вокруг середины рамки. `origin` — объекты, какими
+   * они были до жеста: поворот считается от них, а не накапливается.
+   */
+  const turning = useRef<{
+    pointerId: number;
+    pivot: Point;
+    startAngle: number;
+    degrees: number;
+    origin: BoardItem[];
+  } | null>(null);
+
+  /** Пропорциональное растягивание группы за угол общей рамки. */
+  const scaling = useRef<{
+    pointerId: number;
+    anchor: Point;
+    corner: Point;
+    factor: number;
+    origin: BoardItem;
   } | null>(null);
 
   /** Растягивание за ручку. */
@@ -500,7 +539,8 @@ export function BoardCanvas({
         ? grip.data
         : spin?.itemId === item.id
           ? spin.data
-          : drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : heldData(item) ?? item.data;
+          : framedData(item)
+            ?? (drag && chosen.has(item.id) ? translate(item.data, drag.dx, drag.dy) : heldData(item) ?? item.data);
 
       drawItem(context, item.type, shifted, item.imageRef);
     }
@@ -642,6 +682,8 @@ export function BoardCanvas({
     const live = (item: BoardItem): BoardItem => {
       if (grip?.itemId === item.id) return { ...item, data: grip.data };
       if (spin?.itemId === item.id) return { ...item, data: spin.data };
+      const framedNow = framedData(item);
+      if (framedNow) return { ...item, data: framedNow };
       if (drag) return { ...item, data: translate(item.data, drag.dx, drag.dy) };
       const pending = heldData(item);
       return pending ? { ...item, data: pending } : item;
@@ -653,7 +695,8 @@ export function BoardCanvas({
     // Панель над выделенным — туда же, куда рамка. Вне жеста — пусто:
     // тогда панель стоит по сохранённому.
     const awaiting = selected.some((item) => held.current.has(item.id));
-    onLiveBounds?.(box && (drag || grip || spin || awaiting) ? box : null);
+    const reshaping = turning.current !== null || scaling.current !== null;
+    onLiveBounds?.(box && (drag || grip || spin || reshaping || awaiting) ? box : null);
 
     if (box) outline(context, box, '#2E5FA3', hair, [6 * hair, 4 * hair]);
 
@@ -663,9 +706,20 @@ export function BoardCanvas({
 
     // Ручки — только при одном выбранном объекте: у группы неясно, что
     // именно тянут, и в десктопной версии их там тоже нет.
-    if (selected.length === 1 && !drag) {
-      const single = live(selected[0]);
-      const grips = handlesFor(single, boundsOf([single])!);
+    if (selected.length > 0 && !drag) {
+      const shown = selected.map(live);
+      const free = shown.filter((item) => !item.data.locked);
+
+      // Несколько объектов, штрих, прямая, группа — ручки на общей рамке;
+      // одиночная фигура, надпись, картинка — свои, по её габаритам.
+      const grips = framed(shown)
+        ? (free.length === shown.length && box
+          ? [
+            ...(shown.length === 1 ? handlesFor(shown[0], box) : []),
+            ...frameHandles(shown, box),
+          ]
+          : [])
+        : shown.length === 1 ? handlesFor(shown[0], boundsOf([shown[0]])!) : [];
 
       for (const grip of grips) {
         const half = (HANDLE_SIZE / 2) / view.scale;
@@ -1139,6 +1193,45 @@ export function BoardCanvas({
 
       const chosen = latest.current.selection;
 
+      // Ручки общей рамки — поворот выделения целиком и растягивание
+      // группы. Проверяются первыми: одиночная прямая показывает и свои
+      // концы, и ручку поворота рамки, и концы разбирает код ниже.
+      {
+        const picked = latest.current.items.filter((item) => chosen.includes(item.id));
+        const frame = framed(picked) && picked.every((item) => !item.data.locked) ? boundsOf(picked) : null;
+        const near = HANDLE_SIZE / latest.current.viewport.scale;
+
+        const grip = frame
+          ? frameHandles(picked, frame).find((candidate) => (
+            Math.abs(candidate.x - point.x) <= near && Math.abs(candidate.y - point.y) <= near
+          ))
+          : undefined;
+
+        if (frame && grip?.id === 'rot') {
+          const pivot = { x: frame.x + frame.width / 2, y: frame.y + frame.height / 2, p: 1 };
+          turning.current = {
+            pointerId: event.pointerId,
+            pivot,
+            startAngle: angleTo(pivot, point),
+            degrees: 0,
+            origin: picked,
+          };
+          return;
+        }
+
+        if (frame && grip && picked.length === 1) {
+          const anchor = oppositeCorner(frame, grip.id);
+          scaling.current = {
+            pointerId: event.pointerId,
+            anchor: { ...anchor, p: 1 },
+            corner: { x: grip.x, y: grip.y, p: 1 },
+            factor: 1,
+            origin: picked[0],
+          };
+          return;
+        }
+      }
+
       // Ручка проверяется раньше объектов: она мелкая и лежит поверх, и
       // попадание по ней должно означать растягивание, а не выделение
       // того, что под ней.
@@ -1371,6 +1464,28 @@ export function BoardCanvas({
       return;
     }
 
+    const turn = turning.current;
+    if (turn?.pointerId === event.pointerId) {
+      const turned = angleTo(turn.pivot, point) - turn.startAngle;
+      // Shift — шагом в пятнадцать градусов, как у одиночной фигуры.
+      turn.degrees = event.shiftKey ? Math.round(turned / 15) * 15 : Math.round(turned);
+      schedule();
+      return;
+    }
+
+    const stretch = scaling.current;
+    if (stretch?.pointerId === event.pointerId) {
+      // Насколько протянули вдоль диагонали рамки: так растяжение одно на
+      // обе стороны, и пропорции сохраняются при любом движении руки.
+      const ax = stretch.corner.x - stretch.anchor.x;
+      const ay = stretch.corner.y - stretch.anchor.y;
+      const length = ax * ax + ay * ay;
+      const along = length > 0 ? ((point.x - stretch.anchor.x) * ax + (point.y - stretch.anchor.y) * ay) / length : 1;
+      stretch.factor = Math.max(0.05, along);
+      schedule();
+      return;
+    }
+
     const grip = resizing.current;
     if (grip?.pointerId === event.pointerId) {
       const source = latest.current.items.find((item) => item.id === grip.itemId);
@@ -1540,6 +1655,36 @@ export function BoardCanvas({
       marquee.current = null;
       const chosen = within(latest.current.items, rectFrom(band.from, band.to));
       if (chosen.length > 0) onSelection(chosen.map((item) => item.id));
+      schedule();
+      return;
+    }
+
+    const turn = turning.current;
+    if (turn?.pointerId === event.pointerId) {
+      turning.current = null;
+
+      if (turn.degrees !== 0) {
+        for (const source of turn.origin) {
+          const data = rotateData(source.type, source.data, turn.pivot, turn.degrees);
+          hold(source, data);
+          hub.updateItem(source.id, data);
+        }
+      }
+
+      schedule();
+      return;
+    }
+
+    const stretch = scaling.current;
+    if (stretch?.pointerId === event.pointerId) {
+      scaling.current = null;
+
+      if (stretch.factor !== 1) {
+        const data = scaleData(stretch.origin.type, stretch.origin.data, stretch.anchor, stretch.factor);
+        hold(stretch.origin, data);
+        hub.updateItem(stretch.origin.id, data);
+      }
+
       schedule();
       return;
     }

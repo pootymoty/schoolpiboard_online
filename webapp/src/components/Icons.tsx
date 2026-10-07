@@ -569,3 +569,54 @@ export const IconTarget = (props: Props): ReactElement => (
     </g>
   </Svg>
 );
+
+/**
+ * Отразить слева направо: треугольник, рассечённый вертикальной осью
+ * отражения; одна половина закрашена — видно, что она переедет на другую
+ * сторону.
+ */
+export const IconMirrorX = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <path d="M12 4L12 20L3.5 20Z" fill="currentColor" stroke="none" opacity="0.35" />
+      <path d="M12 4L20.5 20H3.5Z" />
+      <path d="M12 1.5V22.5" strokeDasharray="2 2" />
+    </g>
+  </Svg>
+);
+
+/**
+ * Отразить сверху вниз: тот же треугольник, повёрнутый вершиной вправо,
+ * и горизонтальная ось.
+ */
+export const IconMirrorY = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <path d="M4 12L20 12L4 3.5Z" fill="currentColor" stroke="none" opacity="0.35" />
+      <path d="M4 3.5L20 12L4 20.5Z" />
+      <path d="M1.5 12H22.5" strokeDasharray="2 2" />
+    </g>
+  </Svg>
+);
+
+/** Сгруппировать: две фигуры в общей пунктирной рамке. */
+export const IconGroup = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="2" y="2" width="20" height="20" rx="2" strokeDasharray="3 2.5" />
+      <rect x="6" y="6" width="6" height="6" rx="1" />
+      <circle cx="15.5" cy="15.5" r="3" />
+    </g>
+  </Svg>
+);
+
+/** Разгруппировать: те же фигуры, разведённые в стороны, без рамки. */
+export const IconUngroup = (props: Props): ReactElement => (
+  <Svg {...props}>
+    <g>
+      <rect x="2.5" y="2.5" width="7" height="7" rx="1" />
+      <circle cx="17.5" cy="17.5" r="3.5" />
+      <path d="M12.5 7.5h4v4M11.5 16.5h-4v-4" strokeDasharray="2 2" />
+    </g>
+  </Svg>
+);

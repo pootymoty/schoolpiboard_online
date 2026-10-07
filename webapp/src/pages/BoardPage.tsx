@@ -48,6 +48,7 @@ import { canvasFromFile, toPng } from '../board/pdf';
 import { useBoardHub } from '../board/useBoardHub';
 import { useWaitingQueue } from '../board/useWaitingQueue';
 import { useHistory } from '../board/useHistory';
+import { mirrorData } from '../board/transform';
 import type { ItemSnapshot } from '../board/useHistory';
 import { INITIAL_VIEWPORT, centerOn, fitToContent, toScreen, toWorld, zoomAt } from '../board/viewport';
 import type { Viewport } from '../board/viewport';
@@ -60,6 +61,29 @@ import { BOARD_TITLE_HINT, BOARD_TITLE_MAX, cleanBoardTitle } from '../boardTitl
  * На виду только холст и участники: на доске рисуют, и всё, что нужно
  * изредка — ссылка, замок, настройки — убрано в кнопки и всплывающие окна.
  */
+/** Перекрасить объект; у группы — весь её состав. */
+function recolored(type: ItemType, data: ItemData, color: string): ItemData {
+  if (type !== 'group') return { ...data, color };
+
+  return {
+    ...data,
+    color,
+    children: data.children?.map((child) => ({ ...child, data: recolored(child.type, child.data, color) })),
+  };
+}
+
+/** Толщина и тип линии группы — линиям и фигурам её состава, вглубь. */
+function patchedGroup(data: ItemData, patch: Partial<ItemData>): ItemData {
+  return {
+    ...data,
+    children: data.children?.map((child) => {
+      if (child.type === 'group') return { ...child, data: patchedGroup(child.data, patch) };
+      if (child.type === 'stroke' || child.type === 'shape') return { ...child, data: { ...child.data, ...patch } };
+      return child;
+    }),
+  };
+}
+
 export function BoardPage(): ReactElement {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
@@ -781,6 +805,87 @@ export function BoardPage(): ReactElement {
   };
 
   /**
+   * Сложить выделенное в одну группу.
+   *
+   * Сервер умеет создавать и удалять, но не сливать объекты, поэтому
+   * группировка — это замена: выделенные удаляются, вместо них заводится
+   * группа с ними в составе. Отменяется одним шагом, как проход ластика.
+   * Запертое в группу не берётся — его и двигать-то нельзя.
+   */
+  const groupSelection = () => {
+    const members = selectedItems
+      .filter((item) => !item.data.locked)
+      .sort((a, b) => a.z - b.z || a.id - b.id);
+    if (members.length < 2) return;
+
+    const data: ItemData = {
+      color: members[0].data.color,
+      width: 0,
+      children: members.map((item) => ({ type: item.type, data: item.data, imageRef: item.imageRef ?? undefined })),
+    };
+
+    // Тот же предел, что у сервера на один объект, с запасом: иначе он
+    // молча отказал бы, а выделенное уже было бы удалено.
+    if (JSON.stringify(data).length > 480 * 1024) {
+      setError('Слишком много нарисовано, чтобы сложить в одну группу. Сгруппируйте частями.');
+      return;
+    }
+
+    const ref = `g${Date.now().toString(36)}`;
+    pending.current.set(`${ref}-new`, { ref });
+    hub.commitItem(`${ref}-new`, 'group', data);
+    hub.deleteItems(members.map((item) => item.id));
+
+    history.push({
+      kind: 'replace',
+      removed: members.map((item) => ({ ref: refOf(item.id), type: item.type, data: item.data, imageRef: item.imageRef })),
+      added: [{ ref, type: 'group', data }],
+    });
+
+    toSelect.current = [ref];
+  };
+
+  /** Разложить группу обратно на объекты — такими, какими они в ней сейчас. */
+  const ungroupSelection = () => {
+    const group = selectedItems.length === 1 && selectedItems[0].type === 'group' ? selectedItems[0] : null;
+    if (!group || group.data.locked) return;
+
+    const stamp = Date.now().toString(36);
+    const added: ItemSnapshot[] = (group.data.children ?? []).map((child, index) => {
+      const ref = `u${stamp}-${index}`;
+      pending.current.set(`${ref}-new`, { ref });
+      hub.commitItem(`${ref}-new`, child.type, child.data, child.imageRef ?? null);
+      return { ref, type: child.type, data: child.data, imageRef: child.imageRef ?? null };
+    });
+
+    hub.deleteItems([group.id]);
+    history.push({
+      kind: 'replace',
+      removed: [{ ref: refOf(group.id), type: group.type, data: group.data, imageRef: group.imageRef }],
+      added,
+    });
+
+    toSelect.current = added.map((item) => item.ref);
+  };
+
+  /**
+   * Отразить выделенное — целиком, через середину его рамки: три прямые,
+   * сложенные в треугольник, отражаются треугольником. Надписи и таблицы
+   * только переезжают на отражённое место (см. mirrorData).
+   */
+  const mirrorSelection = (axis: 'x' | 'y') => {
+    const movable = selectedItems.filter((item) => !item.data.locked);
+    const box = boundsOf(movable);
+    if (!box) return;
+
+    const at = axis === 'x' ? box.x + box.width / 2 : box.y + box.height / 2;
+
+    for (const item of movable) {
+      hub.updateItem(item.id, mirrorData(item.type, item.data, axis, at));
+    }
+  };
+
+  /**
    * Копирование в буфер доски. Свой буфер, а не системный: в системный
    * кладут текст и картинки, и затирать им чужое незачем.
    */
@@ -888,7 +993,7 @@ export function BoardPage(): ReactElement {
   };
 
   const recolorSelection = (color: string) => {
-    for (const item of selectedItems) hub.updateItem(item.id, { ...item.data, color });
+    for (const item of selectedItems) hub.updateItem(item.id, recolored(item.type, item.data, color));
   };
 
   /**
@@ -900,6 +1005,13 @@ export function BoardPage(): ReactElement {
   const patchSelection = (patch: Partial<ItemData>) => {
     for (const item of selectedItems) {
       if (item.data.locked) continue;
+
+      // Группа оформляется как один объект: толщина и тип линии — всем
+      // линиям и фигурам её состава.
+      if (item.type === 'group') {
+        hub.updateItem(item.id, patchedGroup(item.data, patch));
+        continue;
+      }
 
       const data: ItemData = { ...item.data, ...patch };
 
@@ -1706,6 +1818,9 @@ export function BoardPage(): ReactElement {
               onDone={() => setSelection([])}
               onLock={lockSelection}
               onCopy={copySelection}
+              onGroup={groupSelection}
+              onUngroup={ungroupSelection}
+              onMirror={mirrorSelection}
               onTable={(rows, cols) => {
                 const item = selectedItems[0];
                 if (item) hub.updateItem(item.id, resizedTable(item.data, rows, cols));
