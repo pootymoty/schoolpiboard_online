@@ -4835,6 +4835,39 @@ const POINTER_FADE_MS = 2200;
 const POINTER_STYLE = { color: "#FF2222", width: 6, opacity: 0.9 };
 const AUTO_PAN_MARGIN = 56;
 const AUTO_PAN_MAX_SPEED = 18;
+function drawRotateGrip(context, x, y, scale) {
+  const radius = 10 / scale;
+  const arc = 5.5 / scale;
+  const line = 1.5 / scale;
+  context.save();
+  context.setLineDash([]);
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.fillStyle = "#fff";
+  context.fill();
+  context.strokeStyle = "#2E5FA3";
+  context.lineWidth = line;
+  context.stroke();
+  const start = -Math.PI * 0.32;
+  const end = Math.PI * 1.42;
+  context.beginPath();
+  context.arc(x, y, arc, start, end);
+  context.lineWidth = line * 1.2;
+  context.lineCap = "round";
+  context.stroke();
+  const tipX = x + arc * Math.cos(end);
+  const tipY = y + arc * Math.sin(end);
+  const along = end + Math.PI / 2;
+  const size = 3.2 / scale;
+  context.beginPath();
+  context.moveTo(tipX + size * Math.cos(along), tipY + size * Math.sin(along));
+  context.lineTo(tipX + size * Math.cos(along + 2.4), tipY + size * Math.sin(along + 2.4));
+  context.lineTo(tipX + size * Math.cos(along - 2.4), tipY + size * Math.sin(along - 2.4));
+  context.closePath();
+  context.fillStyle = "#2E5FA3";
+  context.fill();
+  context.restore();
+}
 function BoardCanvas({
   hub,
   tool,
@@ -4951,8 +4984,16 @@ function BoardCanvas({
       }
     };
   };
-  const latest = useRef({ viewport, tool, settings, spaceHeld, selection, background, items: hub.items, size });
-  latest.current = { viewport, tool, settings, spaceHeld, selection, background, items: hub.items, size };
+  const pannedTo = useRef(null);
+  const panFlushed = useRef(false);
+  const lastPanSent = useRef(0);
+  if (panFlushed.current) {
+    pannedTo.current = null;
+    panFlushed.current = false;
+  }
+  const shownViewport = pannedTo.current ?? viewport;
+  const latest = useRef({ viewport: shownViewport, tool, settings, spaceHeld, selection, background, items: hub.items, size });
+  latest.current = { viewport: shownViewport, tool, settings, spaceHeld, selection, background, items: hub.items, size };
   useEffect(() => {
     const element = box.current;
     if (!element) return;
@@ -5125,20 +5166,73 @@ function BoardCanvas({
     const box2 = boundsOf(selected.map(live));
     const awaiting = selected.some((item) => held.current.has(item.id));
     const reshaping = turning.current !== null || scaling.current !== null;
-    onLiveBounds == null ? void 0 : onLiveBounds(box2 && (drag || grip || spin || reshaping || awaiting) ? box2 : null);
-    if (box2) outline(context, box2, "#2E5FA3", hair, [6 * hair, 4 * hair]);
+    const turn = turning.current;
+    onLiveBounds == null ? void 0 : onLiveBounds(turn ? turn.frame : box2 && (drag || grip || spin || reshaping || awaiting) ? box2 : null);
+    if (turn) {
+      const { frame: frame2, pivot, degrees } = turn;
+      const corners = [
+        { x: frame2.x, y: frame2.y, p: 1 },
+        { x: frame2.x + frame2.width, y: frame2.y, p: 1 },
+        { x: frame2.x + frame2.width, y: frame2.y + frame2.height, p: 1 },
+        { x: frame2.x, y: frame2.y + frame2.height, p: 1 }
+      ].map((corner) => rotatePoint(corner, pivot, degrees));
+      context.save();
+      context.strokeStyle = "#2E5FA3";
+      context.lineWidth = hair;
+      context.setLineDash([6 * hair, 4 * hair]);
+      context.beginPath();
+      context.moveTo(corners[0].x, corners[0].y);
+      for (const corner of corners.slice(1)) context.lineTo(corner.x, corner.y);
+      context.closePath();
+      context.stroke();
+      context.restore();
+    } else if (box2 && selected.length === 1 && !framed(selected) && selected[0].data.angle) {
+      const one = live(selected[0]);
+      const local = boxOf(one.data);
+      const corners = local ? rotated({ ...one.data, flipX: void 0, flipY: void 0 }, [
+        { x: local.x, y: local.y, p: 1 },
+        { x: local.x + local.width, y: local.y, p: 1 },
+        { x: local.x + local.width, y: local.y + local.height, p: 1 },
+        { x: local.x, y: local.y + local.height, p: 1 }
+      ]) : null;
+      if (corners) {
+        context.save();
+        context.strokeStyle = "#2E5FA3";
+        context.lineWidth = hair;
+        context.setLineDash([6 * hair, 4 * hair]);
+        context.beginPath();
+        context.moveTo(corners[0].x, corners[0].y);
+        for (const corner of corners.slice(1)) context.lineTo(corner.x, corner.y);
+        context.closePath();
+        context.stroke();
+        context.restore();
+      } else {
+        outline(context, box2, "#2E5FA3", hair, [6 * hair, 4 * hair]);
+      }
+    } else if (box2) {
+      outline(context, box2, "#2E5FA3", hair, [6 * hair, 4 * hair]);
+    }
     if (marquee.current) {
       outline(context, rectFrom(marquee.current.from, marquee.current.to), "#2E5FA3", hair, [4 * hair, 3 * hair]);
     }
     if (selected.length > 0 && !drag) {
       const shown = selected.map(live);
       const free = shown.filter((item) => !item.data.locked);
-      const grips = framed(shown) ? free.length === shown.length && box2 ? [
+      const turnGrip = turn ? (() => {
+        const top = frameHandles(turn.origin, turn.frame).find((handle) => handle.id === "rot");
+        const moved = rotatePoint({ x: top.x, y: top.y, p: 1 }, turn.pivot, turn.degrees);
+        return [{ ...top, x: moved.x, y: moved.y }];
+      })() : null;
+      const grips = turnGrip ?? (framed(shown) ? free.length === shown.length && box2 ? [
         ...shown.length === 1 ? handlesFor(shown[0], box2) : [],
         ...frameHandles(shown, box2)
-      ] : [] : shown.length === 1 ? handlesFor(shown[0], boundsOf([shown[0]])) : [];
+      ] : [] : shown.length === 1 ? handlesFor(shown[0], boundsOf([shown[0]])) : []);
       for (const grip2 of grips) {
         const half = HANDLE_SIZE / 2 / view.scale;
+        if (grip2.id === "rot") {
+          drawRotateGrip(context, grip2.x, grip2.y, view.scale);
+          continue;
+        }
         context.save();
         context.setLineDash([]);
         context.fillStyle = "#fff";
@@ -5248,7 +5342,13 @@ function BoardCanvas({
     if (panX !== 0 || panY !== 0) {
       const view = latest.current.viewport;
       const next = { ...view, x: view.x + panX, y: view.y + panY };
-      onViewport(next);
+      pannedTo.current = next;
+      latest.current.viewport = next;
+      const now = performance.now();
+      if (now - lastPanSent.current >= 150) {
+        lastPanSent.current = now;
+        onViewport(next);
+      }
       const world = toWorld(next, screen.x, screen.y);
       const snap = latest.current.settings.select.snap;
       drag.dx = snapValue(world.x - drag.from.x, snap);
@@ -5442,7 +5542,8 @@ function BoardCanvas({
             pivot,
             startAngle: angleTo(pivot, point),
             degrees: 0,
-            origin: picked
+            origin: picked,
+            frame: frame2
           };
           return;
         }
@@ -5798,6 +5899,10 @@ function BoardCanvas({
         cancelAnimationFrame(autoPanFrame.current);
         autoPanFrame.current = null;
       }
+      if (pannedTo.current) {
+        onViewport(pannedTo.current);
+        panFlushed.current = true;
+      }
       if (drag.dx !== 0 || drag.dy !== 0) {
         for (const item of latest.current.items) {
           if (latest.current.selection.includes(item.id) && !item.data.locked) {
@@ -5848,7 +5953,7 @@ function BoardCanvas({
       }
     ),
     hub.cursors.filter((cursor2) => cursor2.id !== hub.me).map((cursor2) => {
-      const screen = toScreen(viewport, cursor2.x, cursor2.y);
+      const screen = toScreen(shownViewport, cursor2.x, cursor2.y);
       const tint = cursorColor(cursor2.id);
       return /* @__PURE__ */ jsxs("span", { className: "canvas-cursor", style: { left: screen.x, top: screen.y }, children: [
         /* @__PURE__ */ jsx("svg", { width: "18", height: "18", viewBox: "0 0 24 24", "aria-hidden": "true", children: /* @__PURE__ */ jsx("path", { d: "M5 3l14 8-6 1.5L10 19z", fill: tint, stroke: "#fff", strokeWidth: "1.5" }) }),
@@ -7454,11 +7559,11 @@ function SelectionPanel({
           canMirror ? /* @__PURE__ */ jsxs(Fragment, { children: [
             /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onMirror("x"), title: "Отразить слева направо", children: [
               /* @__PURE__ */ jsx(IconMirrorX, {}),
-              cap("Отразить ↔")
+              cap("Отразить")
             ] }),
             /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onMirror("y"), title: "Отразить сверху вниз", children: [
               /* @__PURE__ */ jsx(IconMirrorY, {}),
-              cap("Отразить ↕")
+              cap("Отразить")
             ] })
           ] }) : null,
           canGroup ? /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onGroup, title: "Сгруппировать: сложить в один объект", children: [
@@ -7467,7 +7572,7 @@ function SelectionPanel({
           ] }) : null,
           isGroup ? /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onUngroup, title: "Разгруппировать", children: [
             /* @__PURE__ */ jsx(IconUngroup, {}),
-            cap("Разгруппировать")
+            cap("Разбить")
           ] }) : null,
           canKeep && keepable.length > 0 ? /* @__PURE__ */ jsxs(
             "button",

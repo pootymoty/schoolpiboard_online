@@ -4,7 +4,7 @@ import type { BoardHub } from './useBoardHub';
 import type { Background, BoardItem, ItemData, ItemType, Point } from './protocol';
 import { cursorColor } from './cursorColors';
 import { boundsOf, distanceToSegment, rectFrom, topmostAt, translate, within } from './geometry';
-import { centerOf } from './rotate';
+import { boxOf, centerOf, rotatePoint, rotated } from './rotate';
 import { snapPoint, snapValue } from './snap';
 import type { Bounds } from './geometry';
 import { HANDLE_SIZE, angleTo, frameHandles, framed, handlesFor, oppositeCorner, resized } from './handles';
@@ -128,6 +128,52 @@ const AUTO_PAN_MAX_SPEED = 18;
  * по завершении штриха: промежуточные точки только рассылаются, в базу
  * не пишутся (раздел 7.3).
  */
+/**
+ * Ручка поворота: белый кружок с круглой стрелкой по часовой. Размер —
+ * в экранных пикселях, как у остальных ручек, поэтому делим на масштаб.
+ */
+function drawRotateGrip(context: CanvasRenderingContext2D, x: number, y: number, scale: number): void {
+  const radius = 10 / scale;
+  const arc = 5.5 / scale;
+  const line = 1.5 / scale;
+
+  context.save();
+  context.setLineDash([]);
+
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.fillStyle = '#fff';
+  context.fill();
+  context.strokeStyle = '#2E5FA3';
+  context.lineWidth = line;
+  context.stroke();
+
+  // Как значок ↻: дуга почти по кругу с просветом наверху, наконечник
+  // сверху смотрит вправо — по ходу часовой стрелки.
+  const start = -Math.PI * 0.32;
+  const end = Math.PI * 1.42;
+  context.beginPath();
+  context.arc(x, y, arc, start, end);
+  context.lineWidth = line * 1.2;
+  context.lineCap = 'round';
+  context.stroke();
+
+  // Наконечник на конце дуги, по ходу часовой стрелки.
+  const tipX = x + arc * Math.cos(end);
+  const tipY = y + arc * Math.sin(end);
+  const along = end + Math.PI / 2;
+  const size = 3.2 / scale;
+  context.beginPath();
+  context.moveTo(tipX + size * Math.cos(along), tipY + size * Math.sin(along));
+  context.lineTo(tipX + size * Math.cos(along + 2.4), tipY + size * Math.sin(along + 2.4));
+  context.lineTo(tipX + size * Math.cos(along - 2.4), tipY + size * Math.sin(along - 2.4));
+  context.closePath();
+  context.fillStyle = '#2E5FA3';
+  context.fill();
+
+  context.restore();
+}
+
 export function BoardCanvas({
   hub, tool, settings, viewport, background, selection,
   onViewport, onSize, onSelection, onMoved, onLiveBounds, onCommit, onDrawStart, onTextAt, onBookmarkAt, onCellAt,
@@ -348,6 +394,8 @@ export function BoardCanvas({
     startAngle: number;
     degrees: number;
     origin: BoardItem[];
+    /** Рамка до поворота: пока вертят, она вертится целиком вокруг своей середины. */
+    frame: Bounds;
   } | null>(null);
 
   /** Пропорциональное растягивание группы за угол общей рамки. */
@@ -427,8 +475,28 @@ export function BoardCanvas({
 
   // Свежие значения для обработчиков указателя: они живут вне React-цикла
   // и иначе видели бы состояние на момент подписки.
-  const latest = useRef({ viewport, tool, settings, spaceHeld, selection, background, items: hub.items, size });
-  latest.current = { viewport, tool, settings, spaceHeld, selection, background, items: hub.items, size };
+  /**
+   * Вид, сдвинутый автопрокруткой, пока тащат объект к краю.
+   *
+   * Сдвиг применяется у холста сразу, а странице сообщается реже: раньше
+   * каждый кадр перерисовывал всю страницу доски, на телефоне это не
+   * успевало — доска замирала, а потом перескакивала туда, куда должна
+   * была уехать. Пока прокрутка идёт, холст верит этому значению, а не
+   * пришедшему сверху, которое отстаёт; по отпускании — отдаёт его наверх.
+   */
+  const pannedTo = useRef<Viewport | null>(null);
+  const panFlushed = useRef(false);
+  const lastPanSent = useRef(0);
+
+  if (panFlushed.current) {
+    pannedTo.current = null;
+    panFlushed.current = false;
+  }
+
+  const shownViewport = pannedTo.current ?? viewport;
+
+  const latest = useRef({ viewport: shownViewport, tool, settings, spaceHeld, selection, background, items: hub.items, size });
+  latest.current = { viewport: shownViewport, tool, settings, spaceHeld, selection, background, items: hub.items, size };
 
   useEffect(() => {
     const element = box.current;
@@ -696,9 +764,64 @@ export function BoardCanvas({
     // тогда панель стоит по сохранённому.
     const awaiting = selected.some((item) => held.current.has(item.id));
     const reshaping = turning.current !== null || scaling.current !== null;
-    onLiveBounds?.(box && (drag || grip || spin || reshaping || awaiting) ? box : null);
+    // Пока вертят по рамке, панель стоит над рамкой до поворота — центр
+    // поворота не двигается, и ей незачем ездить.
+    const turn = turning.current;
+    onLiveBounds?.(turn ? turn.frame : box && (drag || grip || spin || reshaping || awaiting) ? box : null);
 
-    if (box) outline(context, box, '#2E5FA3', hair, [6 * hair, 4 * hair]);
+    // Рамка при повороте вертится сама, вокруг неподвижной середины, а не
+    // пересчитывается по повёрнутому: та на каждом кадре меняла бы размер
+    // и «каталась» под рукой.
+    if (turn) {
+      const { frame, pivot, degrees } = turn;
+      const corners = [
+        { x: frame.x, y: frame.y, p: 1 },
+        { x: frame.x + frame.width, y: frame.y, p: 1 },
+        { x: frame.x + frame.width, y: frame.y + frame.height, p: 1 },
+        { x: frame.x, y: frame.y + frame.height, p: 1 },
+      ].map((corner) => rotatePoint(corner, pivot, degrees));
+
+      context.save();
+      context.strokeStyle = '#2E5FA3';
+      context.lineWidth = hair;
+      context.setLineDash([6 * hair, 4 * hair]);
+      context.beginPath();
+      context.moveTo(corners[0].x, corners[0].y);
+      for (const corner of corners.slice(1)) context.lineTo(corner.x, corner.y);
+      context.closePath();
+      context.stroke();
+      context.restore();
+    } else if (box && selected.length === 1 && !framed(selected) && selected[0].data.angle) {
+      // Повёрнутая фигура — рамкой по ней самой, повёрнутой, а не по
+      // прямоугольнику вокруг: тот при повороте раздувался бы и плавал.
+      const one = live(selected[0]);
+      const local = boxOf(one.data);
+      const corners = local
+        ? rotated({ ...one.data, flipX: undefined, flipY: undefined }, [
+          { x: local.x, y: local.y, p: 1 },
+          { x: local.x + local.width, y: local.y, p: 1 },
+          { x: local.x + local.width, y: local.y + local.height, p: 1 },
+          { x: local.x, y: local.y + local.height, p: 1 },
+        ])
+        : null;
+
+      if (corners) {
+        context.save();
+        context.strokeStyle = '#2E5FA3';
+        context.lineWidth = hair;
+        context.setLineDash([6 * hair, 4 * hair]);
+        context.beginPath();
+        context.moveTo(corners[0].x, corners[0].y);
+        for (const corner of corners.slice(1)) context.lineTo(corner.x, corner.y);
+        context.closePath();
+        context.stroke();
+        context.restore();
+      } else {
+        outline(context, box, '#2E5FA3', hair, [6 * hair, 4 * hair]);
+      }
+    } else if (box) {
+      outline(context, box, '#2E5FA3', hair, [6 * hair, 4 * hair]);
+    }
 
     if (marquee.current) {
       outline(context, rectFrom(marquee.current.from, marquee.current.to), '#2E5FA3', hair, [4 * hair, 3 * hair]);
@@ -712,17 +835,35 @@ export function BoardCanvas({
 
       // Несколько объектов, штрих, прямая, группа — ручки на общей рамке;
       // одиночная фигура, надпись, картинка — свои, по её габаритам.
-      const grips = framed(shown)
+      // Пока вертят по рамке — только ручка поворота, повёрнутая вместе
+      // с рамкой.
+      const turnGrip = turn
+        ? (() => {
+          const top = frameHandles(turn.origin, turn.frame).find((handle) => handle.id === 'rot')!;
+          const moved = rotatePoint({ x: top.x, y: top.y, p: 1 }, turn.pivot, turn.degrees);
+          return [{ ...top, x: moved.x, y: moved.y }];
+        })()
+        : null;
+
+      const grips = turnGrip ?? (framed(shown)
         ? (free.length === shown.length && box
           ? [
             ...(shown.length === 1 ? handlesFor(shown[0], box) : []),
             ...frameHandles(shown, box),
           ]
           : [])
-        : shown.length === 1 ? handlesFor(shown[0], boundsOf([shown[0]])!) : [];
+        : shown.length === 1 ? handlesFor(shown[0], boundsOf([shown[0]])!) : []);
 
       for (const grip of grips) {
         const half = (HANDLE_SIZE / 2) / view.scale;
+
+        // Поворот — круглой стрелкой по часовой, как принято: квадратная
+        // ручка не говорит, что за неё вертят.
+        if (grip.id === 'rot') {
+          drawRotateGrip(context, grip.x, grip.y, view.scale);
+          continue;
+        }
+
         context.save();
         context.setLineDash([]);
         context.fillStyle = '#fff';
@@ -896,7 +1037,16 @@ export function BoardCanvas({
     if (panX !== 0 || panY !== 0) {
       const view = latest.current.viewport;
       const next = { ...view, x: view.x + panX, y: view.y + panY };
-      onViewport(next);
+
+      pannedTo.current = next;
+      latest.current.viewport = next;
+
+      // Наверх — не чаще раза в 150 мс: страница доски тяжёлая.
+      const now = performance.now();
+      if (now - lastPanSent.current >= 150) {
+        lastPanSent.current = now;
+        onViewport(next);
+      }
 
       // Указатель на экране не сдвинулся, а мир под ним — да: без
       // пересчёта объект остался бы висеть на старом месте, пока рука
@@ -1215,6 +1365,7 @@ export function BoardCanvas({
             startAngle: angleTo(pivot, point),
             degrees: 0,
             origin: picked,
+            frame,
           };
           return;
         }
@@ -1718,6 +1869,13 @@ export function BoardCanvas({
         autoPanFrame.current = null;
       }
 
+      // Последний сдвиг автопрокрутки — наверх; со следующей отрисовки
+      // холст снова берёт вид оттуда.
+      if (pannedTo.current) {
+        onViewport(pannedTo.current);
+        panFlushed.current = true;
+      }
+
       if (drag.dx !== 0 || drag.dy !== 0) {
         // Запертое не двигается и на сервере — его и не держим.
         for (const item of latest.current.items) {
@@ -1794,7 +1952,7 @@ export function BoardCanvas({
       {hub.cursors
         .filter((cursor) => cursor.id !== hub.me)
         .map((cursor) => {
-          const screen = toScreen(viewport, cursor.x, cursor.y);
+          const screen = toScreen(shownViewport, cursor.x, cursor.y);
           const tint = cursorColor(cursor.id);
 
           return (

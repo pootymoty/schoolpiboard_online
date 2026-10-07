@@ -424,11 +424,11 @@ export function SelectionPanel({
           <>
             <button className="btn-tool" type="button" onClick={() => onMirror('x')} title="Отразить слева направо">
               <IconMirrorX />
-              {cap('Отразить ↔')}
+              {cap('Отразить')}
             </button>
             <button className="btn-tool" type="button" onClick={() => onMirror('y')} title="Отразить сверху вниз">
               <IconMirrorY />
-              {cap('Отразить ↕')}
+              {cap('Отразить')}
             </button>
           </>
         ) : null}
@@ -443,7 +443,7 @@ export function SelectionPanel({
         {isGroup ? (
           <button className="btn-tool" type="button" onClick={onUngroup} title="Разгруппировать">
             <IconUngroup />
-            {cap('Разгруппировать')}
+            {cap('Разбить')}
           </button>
         ) : null}
 
