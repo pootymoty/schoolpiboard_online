@@ -245,14 +245,29 @@ export function BoardCanvas({
    * ответа не будет вовсе (сервер отказал): тогда объект честно
    * возвращается туда, где он на самом деле.
    */
-  const held = useRef<Map<number, { data: ItemData; base: ItemData; until: number }>>(new Map());
+  const held = useRef<Map<number, { data: ItemData; base: ItemData; baseKey: string; until: number }>>(new Map());
 
   /** Что рисовать вместо объекта, пока его правка в пути; пусто — сам объект. */
   const heldData = (item: BoardItem): ItemData | null => {
     const pending = held.current.get(item.id);
     if (!pending) return null;
 
-    if (item.data !== pending.base || performance.now() > pending.until) {
+    if (performance.now() > pending.until) {
+      held.current.delete(item.id);
+      return null;
+    }
+
+    if (item.data !== pending.base) {
+      // Пришли те же данные заново — доска перечитана целиком после
+      // обрыва связи, а наша правка ещё в пути (её отправят, как только
+      // связь вернётся). Это не ответ на правку: держим дальше. Раньше
+      // здесь сравнивался сам объект, и такой перечит выглядел как
+      // ответ — штрих отскакивал на старое место, а потом прыгал обратно.
+      if (JSON.stringify(item.data) === pending.baseKey) {
+        pending.base = item.data;
+        return pending.data;
+      }
+
       held.current.delete(item.id);
       return null;
     }
@@ -260,8 +275,11 @@ export function BoardCanvas({
     return pending.data;
   };
 
-  /** Сколько ждать ответа сервера, прежде чем поверить, что правки не будет. */
-  const HOLD_MS = 2500;
+  /**
+   * Сколько ждать ответа сервера, прежде чем поверить, что правки не
+   * будет. С запасом на мобильную связь и переподключение.
+   */
+  const HOLD_MS = 10000;
 
   /** Что рисовать вместо объекта, пока выделение вертят или растягивают по рамке. */
   const framedData = (item: BoardItem): ItemData | null => {
@@ -280,7 +298,9 @@ export function BoardCanvas({
   };
 
   const hold = (item: BoardItem, data: ItemData) => {
-    held.current.set(item.id, { data, base: item.data, until: performance.now() + HOLD_MS });
+    held.current.set(item.id, {
+      data, base: item.data, baseKey: JSON.stringify(item.data), until: performance.now() + HOLD_MS,
+    });
     // Проверить, не истекло ли ожидание, — кадр сам по себе никто не попросит.
     window.setTimeout(() => schedule(), HOLD_MS + 50);
   };
@@ -381,6 +401,8 @@ export function BoardCanvas({
     startAngle: number;
     origin: number;
     data: ItemData;
+    /** Где была ручка поворота: пока вертят, она стоит там же. */
+    grip: { x: number; y: number };
   } | null>(null);
 
   /**
@@ -835,15 +857,13 @@ export function BoardCanvas({
 
       // Несколько объектов, штрих, прямая, группа — ручки на общей рамке;
       // одиночная фигура, надпись, картинка — свои, по её габаритам.
-      // Пока вертят по рамке — только ручка поворота, повёрнутая вместе
-      // с рамкой.
+      // Пока вертят — только ручка поворота, и она стоит на месте, над
+      // рамкой: за неё держатся, и уезжать из-под пальца ей незачем.
       const turnGrip = turn
-        ? (() => {
-          const top = frameHandles(turn.origin, turn.frame).find((handle) => handle.id === 'rot')!;
-          const moved = rotatePoint({ x: top.x, y: top.y, p: 1 }, turn.pivot, turn.degrees);
-          return [{ ...top, x: moved.x, y: moved.y }];
-        })()
-        : null;
+        ? frameHandles(turn.origin, turn.frame).filter((handle) => handle.id === 'rot')
+        : spin
+          ? [{ id: 'rot' as const, x: spin.grip.x, y: spin.grip.y, cursor: 'grabbing' }]
+          : null;
 
       const grips = turnGrip ?? (framed(shown)
         ? (free.length === shown.length && box
@@ -1407,6 +1427,7 @@ export function BoardCanvas({
                 startAngle: angleTo(center, point),
                 origin: single.data.angle ?? 0,
                 data: single.data,
+                grip: { x: grip.x, y: grip.y },
               };
               return;
             }

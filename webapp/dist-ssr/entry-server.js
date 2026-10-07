@@ -4546,10 +4546,13 @@ function handlesFor(item, box) {
   if (!angle) return handles;
   const center = centerOf(item.data);
   if (!center) return handles;
-  return handles.map((handle) => {
+  const turned = handles.filter((handle) => handle.id !== "rot").map((handle) => {
     const moved = rotatePoint({ x: handle.x, y: handle.y, p: 1 }, center, angle);
     return { ...handle, x: moved.x, y: moved.y };
   });
+  const top = Math.min(...turned.map((handle) => handle.y));
+  turned.push({ id: "rot", x: center.x, y: top - ROTATE_REACH, cursor: "grab" });
+  return turned;
 }
 function angleTo(center, point) {
   return Math.atan2(point.y - center.y, point.x - center.x) * 180 / Math.PI;
@@ -4925,13 +4928,21 @@ function BoardCanvas({
   const heldData = (item) => {
     const pending = held.current.get(item.id);
     if (!pending) return null;
-    if (item.data !== pending.base || performance.now() > pending.until) {
+    if (performance.now() > pending.until) {
+      held.current.delete(item.id);
+      return null;
+    }
+    if (item.data !== pending.base) {
+      if (JSON.stringify(item.data) === pending.baseKey) {
+        pending.base = item.data;
+        return pending.data;
+      }
       held.current.delete(item.id);
       return null;
     }
     return pending.data;
   };
-  const HOLD_MS = 2500;
+  const HOLD_MS = 1e4;
   const framedData = (item) => {
     const turn = turning.current;
     if (turn) {
@@ -4945,7 +4956,12 @@ function BoardCanvas({
     return null;
   };
   const hold = (item, data) => {
-    held.current.set(item.id, { data, base: item.data, until: performance.now() + HOLD_MS });
+    held.current.set(item.id, {
+      data,
+      base: item.data,
+      baseKey: JSON.stringify(item.data),
+      until: performance.now() + HOLD_MS
+    });
     window.setTimeout(() => schedule(), HOLD_MS + 50);
   };
   const vanishing = useRef(/* @__PURE__ */ new Map());
@@ -5247,11 +5263,7 @@ function BoardCanvas({
     if (selected.length > 0 && !drag) {
       const shown = selected.map(live);
       const free = shown.filter((item) => !item.data.locked);
-      const turnGrip = turn ? (() => {
-        const top = frameHandles(turn.origin, turn.frame).find((handle) => handle.id === "rot");
-        const moved = rotatePoint({ x: top.x, y: top.y, p: 1 }, turn.pivot, turn.degrees);
-        return [{ ...top, x: moved.x, y: moved.y }];
-      })() : null;
+      const turnGrip = turn ? frameHandles(turn.origin, turn.frame).filter((handle) => handle.id === "rot") : spin ? [{ id: "rot", x: spin.grip.x, y: spin.grip.y, cursor: "grabbing" }] : null;
       const grips = turnGrip ?? (framed(shown) ? free.length === shown.length && box2 ? [
         ...shown.length === 1 ? handlesFor(shown[0], box2) : [],
         ...frameHandles(shown, box2)
@@ -5602,7 +5614,8 @@ function BoardCanvas({
                 center,
                 startAngle: angleTo(center, point),
                 origin: single.data.angle ?? 0,
-                data: single.data
+                data: single.data,
+                grip: { x: grip.x, y: grip.y }
               };
               return;
             }

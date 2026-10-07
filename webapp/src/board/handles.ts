@@ -86,10 +86,19 @@ export function handlesFor(item: BoardItem, box: Bounds): Handle[] {
   const center = centerOf(item.data);
   if (!center) return handles;
 
-  return handles.map((handle) => {
-    const moved = rotatePoint({ x: handle.x, y: handle.y, p: 1 }, center, angle);
-    return { ...handle, x: moved.x, y: moved.y };
-  });
+  const turned = handles
+    .filter((handle) => handle.id !== 'rot')
+    .map((handle) => {
+      const moved = rotatePoint({ x: handle.x, y: handle.y, p: 1 }, center, angle);
+      return { ...handle, x: moved.x, y: moved.y };
+    });
+
+  // Ручка поворота — всегда сверху, над повёрнутой фигурой, а не на её
+  // повёрнутом «верхнем» крае: так её всегда найдёшь в одном месте.
+  const top = Math.min(...turned.map((handle) => handle.y));
+  turned.push({ id: 'rot', x: center.x, y: top - ROTATE_REACH, cursor: 'grab' });
+
+  return turned;
 }
 
 /** Угол от центра объекта до точки — по нему и вертят. */
