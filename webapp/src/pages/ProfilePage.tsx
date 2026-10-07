@@ -240,7 +240,7 @@ function DangerCard({ onDeleted }: { onDeleted: () => void }): ReactElement {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!window.confirm('Удалить аккаунт насовсем? Войти в него станет нельзя.')) return;
+    if (!window.confirm('Удалить аккаунт? Войти в него станет нельзя.')) return;
 
     setBusy(true);
     setError(null);
@@ -268,19 +268,22 @@ function DangerCard({ onDeleted }: { onDeleted: () => void }): ReactElement {
 
           <div className="field">
             <label htmlFor="deleteCode">Код из письма</label>
-            <input id="deleteCode" type="text" inputMode="numeric" autoComplete="one-time-code"
+            <input id="deleteCode" className="delete-card__code" type="text" inputMode="numeric" autoComplete="one-time-code"
                    required pattern="[0-9]{6}" placeholder="000000"
                    value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} />
           </div>
 
+          {/* Повторная отправка — мелко, прямо под полем: она про код, а
+              не про удаление. Внизу — только «удалить» и «отмена», поровну. */}
+          <button className="btn-quiet btn-sm delete-card__resend" type="button" onClick={requestCode} disabled={busy}>
+            Прислать код ещё раз
+          </button>
+
           {error ? <p className="note note-danger">{error}</p> : null}
 
-          <div className="row">
+          <div className="delete-card__actions">
             <button className="btn-danger" type="submit" disabled={busy || code.length !== 6}>
-              {busy ? 'Удаляем…' : 'Удалить аккаунт насовсем'}
-            </button>
-            <button className="btn-quiet" type="button" onClick={requestCode} disabled={busy}>
-              Прислать код ещё раз
+              {busy ? 'Удаляем…' : 'Удалить аккаунт'}
             </button>
             <button className="btn-quiet" type="button" onClick={() => { setSent(null); setError(null); }} disabled={busy}>
               Отмена

@@ -3717,3 +3717,25 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
     from { --theme-sweep: 0deg; }
     to { --theme-sweep: 184deg; }
 }
+
+/* --- Профиль: удаление аккаунта по коду ------------------------------------- */
+
+/* Код — крупно и вразрядку: шесть цифр переписывают из письма глазами. */
+.delete-card__code {
+    font-size: 1.25rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .3em;
+    text-align: center;
+}
+
+.delete-card__resend { margin: var(--sp-2) 0 var(--sp-3); }
+
+/* «Удалить» и «Отмена» — двумя равными кнопками в ряд. */
+.delete-card__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-2);
+    max-width: 420px;
+}
+
+.delete-card__actions > button { width: 100%; }

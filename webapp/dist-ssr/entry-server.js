@@ -4046,7 +4046,7 @@ function DangerCard({ onDeleted }) {
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (!window.confirm("Удалить аккаунт насовсем? Войти в него станет нельзя.")) return;
+    if (!window.confirm("Удалить аккаунт? Войти в него станет нельзя.")) return;
     setBusy(true);
     setError(null);
     try {
@@ -4071,6 +4071,7 @@ function DangerCard({ onDeleted }) {
           "input",
           {
             id: "deleteCode",
+            className: "delete-card__code",
             type: "text",
             inputMode: "numeric",
             autoComplete: "one-time-code",
@@ -4082,10 +4083,10 @@ function DangerCard({ onDeleted }) {
           }
         )
       ] }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm delete-card__resend", type: "button", onClick: requestCode, disabled: busy, children: "Прислать код ещё раз" }),
       error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-      /* @__PURE__ */ jsxs("div", { className: "row", children: [
-        /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "submit", disabled: busy || code.length !== 6, children: busy ? "Удаляем…" : "Удалить аккаунт насовсем" }),
-        /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: requestCode, disabled: busy, children: "Прислать код ещё раз" }),
+      /* @__PURE__ */ jsxs("div", { className: "delete-card__actions", children: [
+        /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "submit", disabled: busy || code.length !== 6, children: busy ? "Удаляем…" : "Удалить аккаунт" }),
         /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: () => {
           setSent(null);
           setError(null);
