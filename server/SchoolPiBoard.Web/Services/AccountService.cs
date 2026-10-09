@@ -26,7 +26,7 @@ public sealed record AccountResult(AccountOutcome Outcome, User? User = null, st
 public sealed class AccountService
 {
     public const int MinPasswordLength = 8;
-    private const int TokenLifetimeHours = 24;
+    public const int TokenLifetimeHours = 24;
 
     /// <summary>
     /// Хеш заведомо неподходящего пароля. Нужен, чтобы вход по незнакомому

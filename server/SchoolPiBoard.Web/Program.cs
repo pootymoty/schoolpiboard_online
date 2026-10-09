@@ -51,6 +51,7 @@ builder.Services.AddScoped<SchoolPiAuthService>();
 builder.Services.AddHttpClient();
 builder.Services.AddHostedService<AutoRenewService>();
 builder.Services.AddHostedService<RetentionCleanupService>();
+builder.Services.AddHostedService<UnconfirmedCleanupService>();
 
 // Redis подключается при старте, а не при первом обращении: если он
 // недоступен, узнать об этом надо сейчас, а не посреди занятия.
