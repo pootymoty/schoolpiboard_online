@@ -1194,15 +1194,19 @@ html.board-locked body {
 
 /* --- Название доски: первым в верхней полосе ------------------------------- */
 
-/* Ширина — не по тексту, а не больше 200px: длинное название иначе
-   растягивало бы полосу и сталкивало кнопки за край. Не влезло —
-   обрезается многоточием, целиком видно в подсказке и при правке. */
+/* Ширина постоянная, не по тексту: и надписью, и полем правки — 200px.
+   Раньше надпись была по тексту, а поле — шире, и при начале правки
+   полоса раздвигалась. Не влезло — обрезается многоточием, целиком видно
+   в подсказке и при правке. */
 .board-title {
     display: flex;
     align-items: center;
     gap: var(--sp-1);
     flex: 0 0 200px;
     width: 200px;
+    /* И высота постоянная: поле правки по умолчанию выше надписи, и
+       полоса при начале правки подрастала. По кнопкам полосы. */
+    height: 44px;
     min-width: 0;
 }
 
@@ -1211,38 +1215,57 @@ html.board-locked body {
        иначе не влезающий текст обрезался с обеих сторон сразу, и
        начала названия видно не было. */
     display: block;
-    flex: 0 1 auto;
-    max-width: 200px;
+    flex: 1 1 auto;
+    width: 100%;
     min-width: 0;
     font-family: var(--font-head);
     font-weight: 700;
     margin: 0;
+    /* Тот же отступ и та же рамка, что у поля правки: при переходе
+       в правку текст не сдвигается. */
     padding: var(--sp-1) var(--sp-2);
+    border: 1px solid transparent;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
     background: none;
-    border: none;
     color: var(--text);
     text-align: left;
 }
 
+p.board-title__text { cursor: default; }
+
 /* На телефоне полоса узкая — название короче, чтобы рядом поместился
    масштаб. Целиком оно видно при правке. */
 @media (max-width: 720px) {
-    .board-title__text { max-width: 110px; }
-    .board-title { flex-basis: 160px; width: 160px; }
+    .board-title { flex-basis: 140px; width: 140px; height: 40px; }
 }
 
 .board-title__input {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     width: 100%;
-    padding: var(--sp-1) var(--sp-2);
+    height: 36px;
+    margin: 0;
+    box-sizing: border-box;
+    padding: 0 var(--sp-2);
     font-family: var(--font-head);
     font-weight: 700;
 }
+
+.board-title .btn-tool { flex: none; min-height: 36px; height: 36px; width: 36px; }
+
+/* На широком экране — отдельным блоком в левом верхнем углу холста, над
+   полосой инструментов (та начинается ниже, см. .toolbar-slot--vertical). */
+.board-title-slot {
+    position: absolute;
+    left: var(--sp-3);
+    top: var(--sp-3);
+    z-index: 8;
+}
+
+.toolbar--title { flex-wrap: nowrap; }
 
 /* --- Кнопка участников в углу холста ---------------------------------------- */
 

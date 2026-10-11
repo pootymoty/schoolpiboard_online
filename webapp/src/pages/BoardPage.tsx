@@ -54,6 +54,7 @@ import { INITIAL_VIEWPORT, centerOn, fitToContent, toScreen, toWorld, zoomAt } f
 import type { Viewport } from '../board/viewport';
 import { reachGoal } from '../components/Analytics';
 import { BOARD_TITLE_HINT, BOARD_TITLE_MAX, cleanBoardTitle } from '../boardTitle';
+import { useMediaQuery } from '../components/useMediaQuery';
 
 /**
  * Страница доски.
@@ -83,6 +84,9 @@ function patchedGroup(data: ItemData, patch: Partial<ItemData>): ItemData {
     }),
   };
 }
+
+/** С какой ширины окна название доски стоит отдельно от верхней полосы. */
+const TITLE_APART_MIN = 1540;
 
 export function BoardPage(): ReactElement {
   const { boardId } = useParams<{ boardId: string }>();
@@ -151,6 +155,10 @@ export function BoardPage(): ReactElement {
 
   // Название правится прямо на холсте: щёлкнул — поле, галочка — сохранил.
   const [editingTitle, setEditingTitle] = useState(false);
+
+  // Название отдельным блоком слева сверху — только там, где рядом с ним
+  // целиком помещается верхняя полоса; иначе оно первым в самой полосе.
+  const titleApart = useMediaQuery(`(min-width: ${TITLE_APART_MIN}px) and (min-height: 521px)`);
   const [titleDraft, setTitleDraft] = useState('');
 
   /** Куда поставить надпись. Пока задано — на холсте открыто поле ввода. */
@@ -1522,16 +1530,20 @@ export function BoardPage(): ReactElement {
       </button>
     </div>
   ) : board.canManage ? (
-    <button
-      className="board-title__text"
-      type="button"
-      onClick={() => { setTitleDraft(board.title); setEditingTitle(true); }}
-      title="Переименовать доску"
-    >
-      {board.title}
-    </button>
+    <div className="board-title">
+      <button
+        className="board-title__text"
+        type="button"
+        onClick={() => { setTitleDraft(board.title); setEditingTitle(true); }}
+        title={`${board.title} — переименовать доску`}
+      >
+        {board.title}
+      </button>
+    </div>
   ) : (
-    <p className="board-title__text">{board.title}</p>
+    <div className="board-title">
+      <p className="board-title__text" title={board.title}>{board.title}</p>
+    </div>
   );
 
   return (
@@ -1594,8 +1606,16 @@ export function BoardPage(): ReactElement {
           />
           )}
 
+          {/* На широком экране слева сверху пусто — название там, отдельным
+              блоком, и верхняя полоса становится короче. */}
+          {titleApart ? (
+            <div className="board-title-slot">
+              <div className="toolbar toolbar--title">{titleNode}</div>
+            </div>
+          ) : null}
+
           <ViewToolbar
-            lead={titleNode}
+            lead={titleApart ? undefined : titleNode}
             canManage={hub.canManage}
             canEdit={hub.canEdit}
             tool={tool}

@@ -9888,6 +9888,17 @@ function useHistory(actions) {
   }, [sync]);
   return { canUndo: depth.undo > 0, canRedo: depth.redo > 0, push, undo, redo, clear };
 }
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  useEffect(() => {
+    const list2 = window.matchMedia(query);
+    const update = () => setMatches(list2.matches);
+    update();
+    list2.addEventListener("change", update);
+    return () => list2.removeEventListener("change", update);
+  }, [query]);
+  return matches;
+}
 function recolored(type, data, color) {
   var _a;
   if (type !== "group") return { ...data, color };
@@ -9908,6 +9919,7 @@ function patchedGroup(data, patch) {
     })
   };
 }
+const TITLE_APART_MIN = 1540;
 function BoardPage() {
   var _a, _b, _c, _d;
   const { boardId } = useParams();
@@ -9952,6 +9964,7 @@ function BoardPage() {
   const [watching, setWatching] = useState(null);
   const [hasClip, setHasClip] = useState(() => readClip() !== null);
   const [editingTitle, setEditingTitle] = useState(false);
+  const titleApart = useMediaQuery(`(min-width: ${TITLE_APART_MIN}px) and (min-height: 521px)`);
   const [titleDraft, setTitleDraft] = useState("");
   const [textAt, setTextAt] = useState(null);
   const [bookmarkAt, setBookmarkAt] = useState(null);
@@ -10804,7 +10817,7 @@ function BoardPage() {
       }
     ),
     /* @__PURE__ */ jsx("button", { className: "btn-tool", type: "button", onClick: saveTitle, "aria-label": "Сохранить название", children: /* @__PURE__ */ jsx(IconCheck, {}) })
-  ] }) : board.canManage ? /* @__PURE__ */ jsx(
+  ] }) : board.canManage ? /* @__PURE__ */ jsx("div", { className: "board-title", children: /* @__PURE__ */ jsx(
     "button",
     {
       className: "board-title__text",
@@ -10813,10 +10826,10 @@ function BoardPage() {
         setTitleDraft(board.title);
         setEditingTitle(true);
       },
-      title: "Переименовать доску",
+      title: `${board.title} — переименовать доску`,
       children: board.title
     }
-  ) : /* @__PURE__ */ jsx("p", { className: "board-title__text", children: board.title });
+  ) }) : /* @__PURE__ */ jsx("div", { className: "board-title", children: /* @__PURE__ */ jsx("p", { className: "board-title__text", title: board.title, children: board.title }) });
   return /* @__PURE__ */ jsxs(BoardShell, { children: [
     /* @__PURE__ */ jsxs("div", { className: "board-page", children: [
       shownError ? (
@@ -10868,10 +10881,11 @@ function BoardPage() {
                 onToggleOpen: () => setToolbarOpen((current) => !current)
               }
             ),
+            titleApart ? /* @__PURE__ */ jsx("div", { className: "board-title-slot", children: /* @__PURE__ */ jsx("div", { className: "toolbar toolbar--title", children: titleNode }) }) : null,
             /* @__PURE__ */ jsx(
               ViewToolbar,
               {
-                lead: titleNode,
+                lead: titleApart ? void 0 : titleNode,
                 canManage: hub.canManage,
                 canEdit: hub.canEdit,
                 tool,
