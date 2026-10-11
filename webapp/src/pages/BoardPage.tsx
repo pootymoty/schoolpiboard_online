@@ -85,8 +85,8 @@ function patchedGroup(data: ItemData, patch: Partial<ItemData>): ItemData {
   };
 }
 
-/** С какой ширины окна название доски стоит отдельно от верхней полосы. */
-const TITLE_APART_MIN = 1540;
+/** С какой ширины окна (ПК) название доски стоит отдельно от верхней полосы. */
+const TITLE_APART_MIN = 900;
 
 export function BoardPage(): ReactElement {
   const { boardId } = useParams<{ boardId: string }>();
@@ -156,8 +156,8 @@ export function BoardPage(): ReactElement {
   // Название правится прямо на холсте: щёлкнул — поле, галочка — сохранил.
   const [editingTitle, setEditingTitle] = useState(false);
 
-  // Название отдельным блоком слева сверху — только там, где рядом с ним
-  // целиком помещается верхняя полоса; иначе оно первым в самой полосе.
+  // На ПК название — отдельным блоком слева сверху; на телефоне оно
+  // первым в верхней полосе: рядом с ней места для него нет.
   const titleApart = useMediaQuery(`(min-width: ${TITLE_APART_MIN}px) and (min-height: 521px)`);
   const [titleDraft, setTitleDraft] = useState('');
 
@@ -1548,7 +1548,7 @@ export function BoardPage(): ReactElement {
 
   return (
     <BoardShell>
-      <div className="board-page">
+      <div className={titleApart ? 'board-page board-page--title-apart' : 'board-page'}>
 
         {shownError ? (
           // Предупреждение — не навсегда: гаснет само через десять секунд

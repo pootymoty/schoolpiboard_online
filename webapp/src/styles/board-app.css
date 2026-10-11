@@ -1219,6 +1219,8 @@ html.board-locked body {
     width: 100%;
     min-width: 0;
     font-family: var(--font-head);
+    font-size: var(--fs-base);
+    line-height: 1.2;
     font-weight: 700;
     margin: 0;
     /* Тот же отступ и та же рамка, что у поля правки: при переходе
@@ -1242,8 +1244,14 @@ p.board-title__text { cursor: default; }
     .board-title { flex-basis: 140px; width: 140px; height: 40px; }
 }
 
-.board-title__input {
+/* Селектор с запасом: общее правило темы для полей (input[type="text"])
+   сильнее одного класса — с ним поле получало отступ снизу и свою высоту
+   и при начале правки уезжало вверх. */
+.board-title input.board-title__input {
     flex: 1 1 auto;
+    max-width: none;
+    font-size: var(--fs-base);
+    line-height: 1.2;
     min-width: 0;
     width: 100%;
     height: 36px;
@@ -1266,6 +1274,14 @@ p.board-title__text { cursor: default; }
 }
 
 .toolbar--title { flex-wrap: nowrap; }
+
+/* Верхняя полоса тогда начинается правее названия; не поместилась —
+   прокручивается, а не наезжает на него. */
+.board-page--title-apart .toolbar-slot--view {
+    max-width: calc(100% - 218px - 3 * var(--sp-3));
+}
+
+.board-page--title-apart .toolbar--view { overflow-x: auto; }
 
 /* --- Кнопка участников в углу холста ---------------------------------------- */
 

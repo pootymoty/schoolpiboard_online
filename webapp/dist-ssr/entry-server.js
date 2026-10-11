@@ -9919,7 +9919,7 @@ function patchedGroup(data, patch) {
     })
   };
 }
-const TITLE_APART_MIN = 1540;
+const TITLE_APART_MIN = 900;
 function BoardPage() {
   var _a, _b, _c, _d;
   const { boardId } = useParams();
@@ -10831,7 +10831,7 @@ function BoardPage() {
     }
   ) }) : /* @__PURE__ */ jsx("div", { className: "board-title", children: /* @__PURE__ */ jsx("p", { className: "board-title__text", title: board.title, children: board.title }) });
   return /* @__PURE__ */ jsxs(BoardShell, { children: [
-    /* @__PURE__ */ jsxs("div", { className: "board-page", children: [
+    /* @__PURE__ */ jsxs("div", { className: titleApart ? "board-page board-page--title-apart" : "board-page", children: [
       shownError ? (
         // Предупреждение — не навсегда: гаснет само через десять секунд
         // или по нажатию. Висящее оно сдвигает холст вниз и закрывает
