@@ -85,6 +85,12 @@ function patchedGroup(data: ItemData, patch: Partial<ItemData>): ItemData {
   };
 }
 
+/**
+ * Сколько ждать, пока сервер закрепит всё вставленное, прежде чем
+ * выделить хотя бы то, что уже закреплено.
+ */
+const SELECT_WAIT_MS = 3000;
+
 /** С какой ширины окна (ПК) название доски стоит отдельно от верхней полосы. */
 const TITLE_APART_MIN = 900;
 
@@ -287,6 +293,25 @@ export function BoardPage(): ReactElement {
    */
   const toSelect = useRef<string[]>([]);
 
+  /** Когда вставили то, что ждёт выделения, — для предела ожидания. */
+  const toSelectSince = useRef(0);
+  const [selectWait, setSelectWait] = useState(0);
+
+  /**
+   * Вставили объект — фигуру, таблицу, картинку, заготовку, содержимое
+   * буфера: сразу курсор, а вставленное выделяется, как только сервер
+   * назовёт его номера. Курсор — сразу, не дожидаясь ответа: с пером в
+   * руке следующий же тычок рядом нарисовал бы линию поверх вставленного.
+   */
+  const selectInserted = useCallback((refs: string[]) => {
+    toSelect.current = refs;
+    toSelectSince.current = Date.now();
+    setSelection([]);
+    setToolRaw('select');
+    setShowParams(false);
+    window.setTimeout(() => setSelectWait((tick) => tick + 1), SELECT_WAIT_MS + 50);
+  }, []);
+
   useEffect(() => {
     // Разбираем весь список: разобранное из ожидания уже вычеркнуто и
     // второй раз не попадётся.
@@ -310,16 +335,20 @@ export function BoardPage(): ReactElement {
       .map((ref) => refToId.current.get(ref))
       .filter((itemId): itemId is number => itemId !== undefined);
 
-    if (born.length < toSelect.current.length) return;
+    // Но не бесконечно: если какой-то объект сервер так и не закрепил,
+    // раньше не выделялось ничего вовсе — и курсор не переключался.
+    const waitedOut = Date.now() - toSelectSince.current >= SELECT_WAIT_MS;
+    if (born.length < toSelect.current.length && !waitedOut) return;
 
     toSelect.current = [];
+    if (born.length === 0) return;
     setSelection(born);
 
     // И курсор: выделить вставленное, оставив в руке перо, значит
     // предложить потянуть за него и нарисовать поверх линию.
     setToolRaw('select');
     setShowParams(false);
-  }, [hub.commits, history]);
+  }, [hub.commits, history, selectWait]);
 
   /** Ссылка объекта: своя, если он наш, иначе заводим новую. */
   const refOf = useCallback((itemId: number) => {
@@ -809,7 +838,7 @@ export function BoardPage(): ReactElement {
 
     // Выделение переезжает на копию: следующее движение почти всегда —
     // отодвинуть её от оригинала.
-    toSelect.current = born;
+    selectInserted(born);
   };
 
   /**
@@ -850,7 +879,7 @@ export function BoardPage(): ReactElement {
       added: [{ ref, type: 'group', data }],
     });
 
-    toSelect.current = [ref];
+    selectInserted([ref]);
   };
 
   /** Разложить группу обратно на объекты — такими, какими они в ней сейчас. */
@@ -873,7 +902,7 @@ export function BoardPage(): ReactElement {
       added,
     });
 
-    toSelect.current = added.map((item) => item.ref);
+    selectInserted(added.map((item) => item.ref));
   };
 
   /**
@@ -991,7 +1020,7 @@ export function BoardPage(): ReactElement {
 
     // Вставленное сразу выделено: по нему видно, что вставка произошла,
     // и его можно тут же перетащить.
-    toSelect.current = born;
+    selectInserted(born);
   };
 
   const lockSelection = (locked: boolean) => {
@@ -1074,7 +1103,8 @@ export function BoardPage(): ReactElement {
     });
 
     hub.commitItem(`${ref}-new`, 'image', data, uploaded.imageRef);
-  }, [hub, id]);
+    selectInserted([ref]);
+  }, [hub, id, selectInserted]);
 
   /**
    * Лист PDF отдельной страницей доски.
@@ -1237,7 +1267,7 @@ export function BoardPage(): ReactElement {
     });
 
     // Вставленное сразу выделяем: чертёж почти всегда двигают следом.
-    toSelect.current = snapshots.map((one) => one.ref);
+    selectInserted(snapshots.map((one) => one.ref));
 
     // Одна запись в истории на всю заготовку: отменять чертёж по линии —
     // полсотни нажатий, и до нужного места человек не доберётся.
@@ -1288,7 +1318,7 @@ export function BoardPage(): ReactElement {
       send(ref, item.type, data);
     });
 
-    toSelect.current = snapshots.map((one) => one.ref);
+    selectInserted(snapshots.map((one) => one.ref));
     history.push({ kind: 'create', items: snapshots });
   }, [history, send]);
 
@@ -1699,6 +1729,10 @@ export function BoardPage(): ReactElement {
               const ref = `s${tempId}`;
               pending.current.set(tempId, { ref, snapshot: { ref, type, data } });
               hub.commitItem(tempId, type, data);
+
+              // Фигура и таблица — вставленный объект, а не росчерк: сразу
+              // курсор и выделение, чтобы подвинуть или растянуть.
+              if (type === 'shape' || type === 'table') selectInserted([ref]);
             }}
             onCellAt={editCell}
             onErased={eraseDone}

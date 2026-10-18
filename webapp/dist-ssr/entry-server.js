@@ -9919,6 +9919,7 @@ function patchedGroup(data, patch) {
     })
   };
 }
+const SELECT_WAIT_MS = 3e3;
 const TITLE_APART_MIN = 900;
 function BoardPage() {
   var _a, _b, _c, _d;
@@ -10028,6 +10029,16 @@ function BoardPage() {
     remove: (refs) => hub.deleteItems(idsOf(refs))
   });
   const toSelect = useRef([]);
+  const toSelectSince = useRef(0);
+  const [selectWait, setSelectWait] = useState(0);
+  const selectInserted = useCallback((refs) => {
+    toSelect.current = refs;
+    toSelectSince.current = Date.now();
+    setSelection([]);
+    setToolRaw("select");
+    setShowParams(false);
+    window.setTimeout(() => setSelectWait((tick) => tick + 1), SELECT_WAIT_MS + 50);
+  }, []);
   useEffect(() => {
     for (const commit of hub.commits) {
       const waiting = pending.current.get(commit.tempId);
@@ -10039,12 +10050,14 @@ function BoardPage() {
     }
     if (toSelect.current.length === 0) return;
     const born = toSelect.current.map((ref) => refToId.current.get(ref)).filter((itemId) => itemId !== void 0);
-    if (born.length < toSelect.current.length) return;
+    const waitedOut = Date.now() - toSelectSince.current >= SELECT_WAIT_MS;
+    if (born.length < toSelect.current.length && !waitedOut) return;
     toSelect.current = [];
+    if (born.length === 0) return;
     setSelection(born);
     setToolRaw("select");
     setShowParams(false);
-  }, [hub.commits, history]);
+  }, [hub.commits, history, selectWait]);
   const refOf = useCallback((itemId) => {
     const existing = idToRef.current.get(itemId);
     if (existing) return existing;
@@ -10357,7 +10370,7 @@ function BoardPage() {
       pending.current.set(`${ref}-new`, { ref, snapshot });
       hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
     }
-    toSelect.current = born;
+    selectInserted(born);
   };
   const groupSelection = () => {
     const members2 = selectedItems.filter((item) => !item.data.locked).sort((a, b) => a.z - b.z || a.id - b.id);
@@ -10380,7 +10393,7 @@ function BoardPage() {
       removed: members2.map((item) => ({ ref: refOf(item.id), type: item.type, data: item.data, imageRef: item.imageRef })),
       added: [{ ref, type: "group", data }]
     });
-    toSelect.current = [ref];
+    selectInserted([ref]);
   };
   const ungroupSelection = () => {
     const group = selectedItems.length === 1 && selectedItems[0].type === "group" ? selectedItems[0] : null;
@@ -10398,7 +10411,7 @@ function BoardPage() {
       removed: [{ ref: refOf(group.id), type: group.type, data: group.data, imageRef: group.imageRef }],
       added
     });
-    toSelect.current = added.map((item) => item.ref);
+    selectInserted(added.map((item) => item.ref));
   };
   const mirrorSelection = (axis) => {
     const movable = selectedItems.filter((item) => !item.data.locked);
@@ -10471,7 +10484,7 @@ function BoardPage() {
       });
       hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
     }
-    toSelect.current = born;
+    selectInserted(born);
   };
   const lockSelection = (locked) => {
     for (const item of selectedItems) {
@@ -10523,7 +10536,8 @@ function BoardPage() {
       snapshot: { ref, type: "image", data, imageRef: uploaded.imageRef }
     });
     hub.commitItem(`${ref}-new`, "image", data, uploaded.imageRef);
-  }, [hub, id]);
+    selectInserted([ref]);
+  }, [hub, id, selectInserted]);
   const spreadPage = useCallback(async (blob, name, ratio) => {
     const uploaded = await uploadBoardImage(id, blob, name, readGuestToken(id));
     const pageId = await hub.addPageNow(name);
@@ -10622,7 +10636,7 @@ function BoardPage() {
       snapshots.push({ ref, type: draft.type, data: draft.data });
       send2(ref, draft.type, draft.data);
     });
-    toSelect.current = snapshots.map((one) => one.ref);
+    selectInserted(snapshots.map((one) => one.ref));
     history.push({ kind: "create", items: snapshots });
   }, [history, send2]);
   const insertItems = useCallback((items) => {
@@ -10653,7 +10667,7 @@ function BoardPage() {
       snapshots.push({ ref, type: item.type, data });
       send2(ref, item.type, data);
     });
-    toSelect.current = snapshots.map((one) => one.ref);
+    selectInserted(snapshots.map((one) => one.ref));
     history.push({ kind: "create", items: snapshots });
   }, [history, send2]);
   useEffect(() => {
@@ -10958,6 +10972,7 @@ function BoardPage() {
                   const ref = `s${tempId}`;
                   pending.current.set(tempId, { ref, snapshot: { ref, type, data } });
                   hub.commitItem(tempId, type, data);
+                  if (type === "shape" || type === "table") selectInserted([ref]);
                 },
                 onCellAt: editCell,
                 onErased: eraseDone,
