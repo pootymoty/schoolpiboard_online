@@ -20,6 +20,9 @@ public sealed record ItemDto(
 /// <summary>Оформление холста.</summary>
 public sealed record BackgroundDto(string Background, string GridStyle, string GridColor);
 
+/// <summary>Объект, который вставляют вместе с другими (см. <see cref="BoardHub.CommitItems"/>).</summary>
+public sealed record CommitDraft(string TempId, string Type, JsonElement Data, string? ImageRef);
+
 /// <summary>Участник, подключённый к доске.</summary>
 /// <summary>
 /// Участник на доске. <c>Key</c> — тот же ключ, которым записывают, кому
@@ -349,6 +352,71 @@ public sealed class BoardHub : Hub
             by = Context.ConnectionId,
             item = ToDto(item)
         });
+    }
+
+    /// <summary>Сколько объектов принимается за одну вставку.</summary>
+    private const int MaxDraftsPerCommit = 500;
+
+    /// <summary>
+    /// Несколько объектов одним вызовом — заготовка, вставка из буфера,
+    /// копия выделения.
+    ///
+    /// По одному вызову на объект заготовка из полусотни линий шла на
+    /// сервер полусотней вызовов, обрабатывались они по очереди, и на
+    /// экране у всех она прорисовывалась по кусочку. Здесь права и страница
+    /// проверяются один раз, а объекты закрепляются подряд. Рассылка — тем
+    /// же «ItemCommitted» на каждый объект, что и при одиночном закреплении:
+    /// так её понимают и клиенты, и проигрыватель записи занятия.
+    /// </summary>
+    public async Task CommitItems(long pageId, CommitDraft[]? items)
+    {
+        if (items is null || items.Length == 0) return;
+
+        var presence = await RequireEditorAsync();
+        if (presence is null) return;
+
+        if (items.Length > MaxDraftsPerCommit)
+        {
+            await Clients.Caller.SendAsync("Error", "too_many", "Слишком много объектов за один раз.");
+            return;
+        }
+
+        var page = await RequirePageAsync(presence, pageId);
+        if (page is null) return;
+
+        var rejected = false;
+        var created = false;
+
+        foreach (var draft in items)
+        {
+            var item = string.IsNullOrEmpty(draft.TempId)
+                ? null
+                : await _items.CreateAsync(
+                    presence.BoardId, page.Id, draft.Type, draft.Data.ValueKind == JsonValueKind.Undefined ? null : draft.Data.GetRawText(),
+                    presence.UserId, draft.ImageRef, Context.ConnectionAborted);
+
+            if (item is null)
+            {
+                rejected = true;
+                continue;
+            }
+
+            created = true;
+
+            await PublishAsync(presence.BoardId, "ItemCommitted", new
+            {
+                tempId = draft.TempId,
+                pageId = page.Id,
+                by = Context.ConnectionId,
+                item = ToDto(item)
+            });
+        }
+
+        if (created)
+            await _items.TouchBoardAsync(presence.BoardId, Context.ConnectionAborted);
+
+        if (rejected)
+            await Clients.Caller.SendAsync("Error", "bad_item", "Часть объектов доска принять не может.");
     }
 
     /// <summary>

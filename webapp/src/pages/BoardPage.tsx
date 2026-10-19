@@ -46,6 +46,7 @@ import { exportPng, renderBoard } from '../board/exportPng';
 import { uploadBoardImage } from '../api/files';
 import { canvasFromFile, toPng } from '../board/pdf';
 import { useBoardHub } from '../board/useBoardHub';
+import type { ItemDraft } from '../board/useBoardHub';
 import { useWaitingQueue } from '../board/useWaitingQueue';
 import { useHistory } from '../board/useHistory';
 import { mirrorData } from '../board/transform';
@@ -89,7 +90,7 @@ function patchedGroup(data: ItemData, patch: Partial<ItemData>): ItemData {
  * Сколько ждать, пока сервер закрепит всё вставленное, прежде чем
  * выделить хотя бы то, что уже закреплено.
  */
-const SELECT_WAIT_MS = 3000;
+const SELECT_WAIT_MS = 10000;
 
 /** С какой ширины окна (ПК) название доски стоит отдельно от верхней полосы. */
 const TITLE_APART_MIN = 900;
@@ -273,6 +274,19 @@ export function BoardPage(): ReactElement {
     const tempId = `${ref}-${Date.now().toString(36)}`;
     pending.current.set(tempId, { ref });
     hub.commitItem(tempId, type, data, imageRef);
+  }, [hub]);
+
+  /**
+   * То же для нескольких объектов разом — одним вызовом: заготовка из
+   * полусотни линий появляется сразу целиком, а не по линии.
+   */
+  const sendAll = useCallback((list: { ref: string; type: ItemType; data: ItemData; imageRef?: string | null }[]) => {
+    const stamp = Date.now().toString(36);
+    hub.commitItems(list.map((one) => {
+      const tempId = `${one.ref}-${stamp}`;
+      pending.current.set(tempId, { ref: one.ref });
+      return { tempId, type: one.type, data: one.data, imageRef: one.imageRef };
+    }));
   }, [hub]);
 
   const history = useHistory({
@@ -825,6 +839,7 @@ export function BoardPage(): ReactElement {
   /** Копия выделенного со сдвигом — чтобы копия не легла ровно поверх оригинала. */
   const duplicateSelection = () => {
     const born: string[] = [];
+    const drafts: ItemDraft[] = [];
 
     for (const item of selectedItems) {
       const ref = `c${item.id}-${Date.now().toString(36)}`;
@@ -833,8 +848,10 @@ export function BoardPage(): ReactElement {
 
       born.push(ref);
       pending.current.set(`${ref}-new`, { ref, snapshot });
-      hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
+      drafts.push({ tempId: `${ref}-new`, type: item.type, data, imageRef: item.imageRef });
     }
+
+    hub.commitItems(drafts);
 
     // Выделение переезжает на копию: следующее движение почти всегда —
     // отодвинуть её от оригинала.
@@ -1004,6 +1021,7 @@ export function BoardPage(): ReactElement {
     }
 
     const born: string[] = [];
+    const drafts: ItemDraft[] = [];
     const stamp = Date.now().toString(36);
 
     for (const item of items) {
@@ -1015,8 +1033,10 @@ export function BoardPage(): ReactElement {
         ref,
         snapshot: { ref, type: item.type, data, imageRef: item.imageRef },
       });
-      hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
+      drafts.push({ tempId: `${ref}-new`, type: item.type, data, imageRef: item.imageRef });
     }
+
+    hub.commitItems(drafts);
 
     // Вставленное сразу выделено: по нему видно, что вставка произошла,
     // и его можно тут же перетащить.
@@ -1263,8 +1283,8 @@ export function BoardPage(): ReactElement {
     drafts.forEach((draft, index) => {
       const ref = `g${stamp}-${index}`;
       snapshots.push({ ref, type: draft.type, data: draft.data });
-      send(ref, draft.type, draft.data);
     });
+    sendAll(snapshots);
 
     // Вставленное сразу выделяем: чертёж почти всегда двигают следом.
     selectInserted(snapshots.map((one) => one.ref));
@@ -1272,7 +1292,7 @@ export function BoardPage(): ReactElement {
     // Одна запись в истории на всю заготовку: отменять чертёж по линии —
     // полсотни нажатий, и до нужного места человек не доберётся.
     history.push({ kind: 'create', items: snapshots });
-  }, [history, send]);
+  }, [history, sendAll, selectInserted]);
 
   /**
    * Своя заготовка из папки «Мои».
@@ -1315,12 +1335,12 @@ export function BoardPage(): ReactElement {
       const data = translate(item.data, dx, dy);
 
       snapshots.push({ ref, type: item.type, data });
-      send(ref, item.type, data);
     });
+    sendAll(snapshots);
 
     selectInserted(snapshots.map((one) => one.ref));
     history.push({ kind: 'create', items: snapshots });
-  }, [history, send]);
+  }, [history, sendAll, selectInserted]);
 
   /**
    * Вставка чего угодно из буфера: картинка ложится картинкой, текст —

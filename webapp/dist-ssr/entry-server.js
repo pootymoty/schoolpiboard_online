@@ -9390,6 +9390,7 @@ const QUEUE_WHILE_OFFLINE = /* @__PURE__ */ new Set([
   "BeginItem",
   "AppendPoints",
   "CommitItem",
+  "CommitItems",
   "CancelItem",
   "SetBackground",
   "MoveItems",
@@ -9398,6 +9399,7 @@ const QUEUE_WHILE_OFFLINE = /* @__PURE__ */ new Set([
   "DeleteItems",
   "ClearBoard"
 ]);
+const DRAFT_MS = 15e3;
 let reloadTaken = false;
 function takeReload() {
   if (reloadTaken || typeof performance === "undefined") return false;
@@ -9434,6 +9436,9 @@ function useBoardHub(boardId) {
   const pending = useRef(/* @__PURE__ */ new Map());
   const [pendingVersion, setPendingVersion] = useState(0);
   const itemsRef = useRef([]);
+  const drafts = useRef(/* @__PURE__ */ new Map());
+  const [draftVersion, setDraftVersion] = useState(0);
+  const draftSeq = useRef(0);
   itemsRef.current = items;
   const settle = (id, data) => {
     const entry = pending.current.get(id);
@@ -9475,6 +9480,10 @@ function useBoardHub(boardId) {
         });
         break;
       case "ItemCommitted":
+        if (drafts.current.has(payload.tempId)) {
+          drafts.current.delete(payload.tempId);
+          setDraftVersion((version) => version + 1);
+        }
         setLive((live2) => {
           const next = new Map(live2);
           next.delete(payload.tempId);
@@ -9625,6 +9634,7 @@ function useBoardHub(boardId) {
       current.current = payload.pageId;
       setPageId(payload.pageId);
       pending.current.clear();
+      drafts.current.clear();
       setItems(payload.items);
       setLive(/* @__PURE__ */ new Map());
     });
@@ -9705,9 +9715,16 @@ function useBoardHub(boardId) {
   }, []);
   const page = () => current.current ?? 0;
   const shown = useMemo(() => {
-    if (pending.current.size === 0) return items;
     const now = performance.now();
-    return items.map((item) => {
+    let unsent = [];
+    if (drafts.current.size > 0) {
+      for (const [tempId, draft] of drafts.current) {
+        if (now > draft.until) drafts.current.delete(tempId);
+      }
+      unsent = [...drafts.current.values()].map((draft) => draft.item);
+    }
+    if (pending.current.size === 0) return unsent.length > 0 ? [...items, ...unsent] : items;
+    const merged = items.map((item) => {
       const entry = pending.current.get(item.id);
       if (!entry) return item;
       if (now > entry.until) {
@@ -9716,7 +9733,36 @@ function useBoardHub(boardId) {
       }
       return { ...item, data: entry.data };
     });
-  }, [items, pendingVersion]);
+    return unsent.length > 0 ? [...merged, ...unsent] : merged;
+  }, [items, pendingVersion, draftVersion]);
+  const commitItems = useCallback((list2) => {
+    if (list2.length === 0) return;
+    const until = performance.now() + DRAFT_MS;
+    let top = itemsRef.current.reduce((max, item) => Math.max(max, item.z), 0);
+    for (const draft of list2) {
+      draftSeq.current += 1;
+      top += 1;
+      drafts.current.set(draft.tempId, {
+        item: {
+          id: -draftSeq.current,
+          type: draft.type,
+          z: top,
+          data: draft.data,
+          imageRef: draft.imageRef ?? null,
+          lockedBy: null
+        },
+        until
+      });
+    }
+    setDraftVersion((version) => version + 1);
+    window.setTimeout(() => setDraftVersion((version) => version + 1), DRAFT_MS + 50);
+    call("CommitItems", page(), list2.map((draft) => ({
+      tempId: draft.tempId,
+      type: draft.type,
+      data: draft.data,
+      imageRef: draft.imageRef ?? null
+    })));
+  }, [call]);
   const updateItem = useCallback((id, data) => {
     var _a;
     const before = pending.current.get(id);
@@ -9756,6 +9802,7 @@ function useBoardHub(boardId) {
       (id, type, data, imageRef, pageId2) => call("CommitItem", id, pageId2 ?? page(), type, data, imageRef ?? null),
       [call]
     ),
+    commitItems,
     cancelItem: useCallback((id) => call("CancelItem", id, page()), [call]),
     setBackground: useCallback((next) => call("SetBackground", next.background, next.gridStyle, next.gridColor), [call]),
     moveItems: useCallback(
@@ -9919,7 +9966,7 @@ function patchedGroup(data, patch) {
     })
   };
 }
-const SELECT_WAIT_MS = 3e3;
+const SELECT_WAIT_MS = 1e4;
 const TITLE_APART_MIN = 900;
 function BoardPage() {
   var _a, _b, _c, _d;
@@ -10022,6 +10069,14 @@ function BoardPage() {
     const tempId = `${ref}-${Date.now().toString(36)}`;
     pending.current.set(tempId, { ref });
     hub.commitItem(tempId, type, data, imageRef);
+  }, [hub]);
+  const sendAll = useCallback((list2) => {
+    const stamp = Date.now().toString(36);
+    hub.commitItems(list2.map((one) => {
+      const tempId = `${one.ref}-${stamp}`;
+      pending.current.set(tempId, { ref: one.ref });
+      return { tempId, type: one.type, data: one.data, imageRef: one.imageRef };
+    }));
   }, [hub]);
   const history = useHistory({
     restore: (snapshot) => send2(snapshot.ref, snapshot.type, snapshot.data, snapshot.imageRef),
@@ -10362,14 +10417,16 @@ function BoardPage() {
   );
   const duplicateSelection = () => {
     const born = [];
+    const drafts = [];
     for (const item of selectedItems) {
       const ref = `c${item.id}-${Date.now().toString(36)}`;
       const data = translate(item.data, 16, 16);
       const snapshot = { ref, type: item.type, data, imageRef: item.imageRef };
       born.push(ref);
       pending.current.set(`${ref}-new`, { ref, snapshot });
-      hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
+      drafts.push({ tempId: `${ref}-new`, type: item.type, data, imageRef: item.imageRef });
     }
+    hub.commitItems(drafts);
     selectInserted(born);
   };
   const groupSelection = () => {
@@ -10473,6 +10530,7 @@ function BoardPage() {
       }
     }
     const born = [];
+    const drafts = [];
     const stamp = Date.now().toString(36);
     for (const item of items) {
       const ref = `v${stamp}-${born.length}`;
@@ -10482,8 +10540,9 @@ function BoardPage() {
         ref,
         snapshot: { ref, type: item.type, data, imageRef: item.imageRef }
       });
-      hub.commitItem(`${ref}-new`, item.type, data, item.imageRef);
+      drafts.push({ tempId: `${ref}-new`, type: item.type, data, imageRef: item.imageRef });
     }
+    hub.commitItems(drafts);
     selectInserted(born);
   };
   const lockSelection = (locked) => {
@@ -10634,11 +10693,11 @@ function BoardPage() {
     drafts.forEach((draft, index) => {
       const ref = `g${stamp}-${index}`;
       snapshots.push({ ref, type: draft.type, data: draft.data });
-      send2(ref, draft.type, draft.data);
     });
+    sendAll(snapshots);
     selectInserted(snapshots.map((one) => one.ref));
     history.push({ kind: "create", items: snapshots });
-  }, [history, send2]);
+  }, [history, sendAll, selectInserted]);
   const insertItems = useCallback((items) => {
     if (items.length === 0) return;
     let minX = Infinity;
@@ -10665,11 +10724,11 @@ function BoardPage() {
       const ref = `m${stamp}-${index}`;
       const data = translate(item.data, dx, dy);
       snapshots.push({ ref, type: item.type, data });
-      send2(ref, item.type, data);
     });
+    sendAll(snapshots);
     selectInserted(snapshots.map((one) => one.ref));
     history.push({ kind: "create", items: snapshots });
-  }, [history, send2]);
+  }, [history, sendAll, selectInserted]);
   useEffect(() => {
     if (!hub.canEdit || (state == null ? void 0 : state.me.isGuest) !== false) return;
     const onPaste = (event) => {

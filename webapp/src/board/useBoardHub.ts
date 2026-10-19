@@ -23,9 +23,20 @@ export type HubStatus = 'connecting' | 'ready' | 'reconnecting' | 'failed';
  * полминуты для них либо бессмысленен, либо неожиданен.
  */
 const QUEUE_WHILE_OFFLINE = new Set([
-  'BeginItem', 'AppendPoints', 'CommitItem', 'CancelItem',
+  'BeginItem', 'AppendPoints', 'CommitItem', 'CommitItems', 'CancelItem',
   'SetBackground', 'MoveItems', 'UpdateItem', 'Reorder', 'DeleteItems', 'ClearBoard',
 ]);
+
+/** Объект, отправленный на закрепление, — пока без номера. */
+export interface ItemDraft {
+  tempId: string;
+  type: ItemType;
+  data: ItemData;
+  imageRef?: string | null;
+}
+
+/** Сколько показывать неподтверждённую вставку, если сервер так и не ответил. */
+const DRAFT_MS = 15000;
 
 /** Почему доступ к доске пропал именно сейчас, а не выяснился при входе. */
 export interface RemovedInfo {
@@ -96,6 +107,12 @@ export interface BoardHub {
   commitItem: (
     tempId: string, type: ItemType, data: ItemData, imageRef?: string | null, pageId?: number,
   ) => void;
+  /**
+   * Закрепляет несколько объектов одним вызовом — заготовку, вставку из
+   * буфера. Они сразу видны у себя целиком, а не по одному по мере
+   * ответов сервера.
+   */
+  commitItems: (drafts: ItemDraft[]) => void;
   cancelItem: (tempId: string) => void;
   setBackground: (background: Background) => void;
   moveItems: (ids: number[], dx: number, dy: number) => void;
@@ -216,6 +233,16 @@ export function useBoardHub(boardId: number): BoardHub {
   const pending = useRef<Map<number, { data: ItemData; passed: ItemData[]; until: number }>>(new Map());
   const [pendingVersion, setPendingVersion] = useState(0);
   const itemsRef = useRef<BoardItem[]>([]);
+
+  /**
+   * Своя вставка, которую сервер ещё не закрепил. Видна сразу и целиком:
+   * иначе заготовка из полусотни линий прорисовывалась по кусочку, по мере
+   * ответов сервера. Номеров у неё ещё нет — отрицательные, чтобы ни с чем
+   * не совпасть; уходит, как только придёт закреплённый объект.
+   */
+  const drafts = useRef<Map<string, { item: BoardItem; until: number }>>(new Map());
+  const [draftVersion, setDraftVersion] = useState(0);
+  const draftSeq = useRef(0);
   itemsRef.current = items;
 
   /** Пришли данные объекта от сервера: держать ли дальше свою правку. */
@@ -280,6 +307,11 @@ export function useBoardHub(boardId: number): BoardHub {
         break;
 
       case 'ItemCommitted':
+        if (drafts.current.has(payload.tempId)) {
+          drafts.current.delete(payload.tempId);
+          setDraftVersion((version) => version + 1);
+        }
+
         // Штрих переезжает из «рисуется» в «нарисовано» — двумя действиями
         // сразу, иначе между ними он мигнул бы, пропав из обоих списков.
         setLive((live) => {
@@ -488,6 +520,7 @@ export function useBoardHub(boardId: number): BoardHub {
       current.current = payload.pageId;
       setPageId(payload.pageId);
       pending.current.clear();
+      drafts.current.clear();
       setItems(payload.items);
       setLive(new Map());
     });
@@ -636,10 +669,19 @@ export function useBoardHub(boardId: number): BoardHub {
 
   /** Объекты такими, какими их видно: со своими правками в пути. */
   const shown = useMemo(() => {
-    if (pending.current.size === 0) return items;
-
     const now = performance.now();
-    return items.map((item) => {
+
+    let unsent: BoardItem[] = [];
+    if (drafts.current.size > 0) {
+      for (const [tempId, draft] of drafts.current) {
+        if (now > draft.until) drafts.current.delete(tempId);
+      }
+      unsent = [...drafts.current.values()].map((draft) => draft.item);
+    }
+
+    if (pending.current.size === 0) return unsent.length > 0 ? [...items, ...unsent] : items;
+
+    const merged = items.map((item) => {
       const entry = pending.current.get(item.id);
       if (!entry) return item;
 
@@ -652,7 +694,39 @@ export function useBoardHub(boardId: number): BoardHub {
 
       return { ...item, data: entry.data };
     });
-  }, [items, pendingVersion]);
+
+    return unsent.length > 0 ? [...merged, ...unsent] : merged;
+  }, [items, pendingVersion, draftVersion]);
+
+  const commitItems = useCallback((list: ItemDraft[]) => {
+    if (list.length === 0) return;
+
+    const until = performance.now() + DRAFT_MS;
+    let top = itemsRef.current.reduce((max, item) => Math.max(max, item.z), 0);
+
+    for (const draft of list) {
+      draftSeq.current += 1;
+      top += 1;
+      drafts.current.set(draft.tempId, {
+        item: {
+          id: -draftSeq.current,
+          type: draft.type,
+          z: top,
+          data: draft.data,
+          imageRef: draft.imageRef ?? null,
+          lockedBy: null,
+        },
+        until,
+      });
+    }
+
+    setDraftVersion((version) => version + 1);
+    window.setTimeout(() => setDraftVersion((version) => version + 1), DRAFT_MS + 50);
+
+    call('CommitItems', page(), list.map((draft) => ({
+      tempId: draft.tempId, type: draft.type, data: draft.data, imageRef: draft.imageRef ?? null,
+    })));
+  }, [call]);
 
   const updateItem = useCallback((id: number, data: ItemData) => {
     const before = pending.current.get(id);
@@ -683,6 +757,7 @@ export function useBoardHub(boardId: number): BoardHub {
       ),
       [call],
     ),
+    commitItems,
     cancelItem: useCallback((id: string) => call('CancelItem', id, page()), [call]),
     setBackground: useCallback((next: Background) => (
       call('SetBackground', next.background, next.gridStyle, next.gridColor)
