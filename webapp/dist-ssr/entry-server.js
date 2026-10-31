@@ -919,6 +919,35 @@ function processNode(node) {
 function NoOrphans({ children }) {
   return /* @__PURE__ */ jsx(Fragment, { children: processNode(children) });
 }
+function useEqualHeights() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const grid = ref.current;
+    if (!grid || typeof ResizeObserver === "undefined") return void 0;
+    let frame = 0;
+    const fit = () => {
+      var _a;
+      const cards = [...grid.children];
+      for (const card of cards) card.style.minHeight = "";
+      const first = (_a = cards[0]) == null ? void 0 : _a.getBoundingClientRect();
+      const together = cards.some((card) => card.getBoundingClientRect().top === (first == null ? void 0 : first.top) && card !== cards[0]);
+      if (!together) return;
+      const tallest = Math.max(...cards.map((card) => card.getBoundingClientRect().height));
+      for (const card of cards) card.style.minHeight = `${tallest}px`;
+    };
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
+    });
+    observer.observe(grid);
+    fit();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
+  return ref;
+}
 const TILES = [
   {
     icon: /* @__PURE__ */ jsx(IconGuest, { size: 26 }),
@@ -947,6 +976,7 @@ const TILES = [
   }
 ];
 function LandingPage() {
+  const cards = useEqualHeights();
   const { user } = useAuth();
   return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs(NoOrphans, { children: [
     /* @__PURE__ */ jsxs("section", { className: "card hero", children: [
@@ -984,7 +1014,7 @@ function LandingPage() {
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ jsx("div", { className: "feature-grid", children: TILES.map((tile) => /* @__PURE__ */ jsxs("article", { className: "feature-tile", children: [
+    /* @__PURE__ */ jsx("div", { className: "feature-grid", ref: cards, children: TILES.map((tile) => /* @__PURE__ */ jsxs("article", { className: "feature-tile", children: [
       /* @__PURE__ */ jsx("span", { className: "feature-tile__icon", children: tile.icon }),
       /* @__PURE__ */ jsx("h3", { children: tile.title }),
       /* @__PURE__ */ jsx("p", { children: tile.text })
@@ -1138,6 +1168,8 @@ function storage(bytes) {
   return megabytes >= 1024 ? `${Math.round(megabytes / 1024)} ГБ` : `${Math.round(megabytes)} МБ`;
 }
 function PricingPage() {
+  const planCards = useEqualHeights();
+  const factCards = useEqualHeights();
   const { user } = useAuth();
   const [plans, setPlans] = useState(SHOWN_PLANS);
   const [period, setPeriod] = useState(PERIODS$1[0]);
@@ -1163,7 +1195,7 @@ function PricingPage() {
       )) })
     ] }),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    /* @__PURE__ */ jsx("div", { className: "plans", children: plans.map((plan) => {
+    /* @__PURE__ */ jsx("div", { className: "plans", ref: planCards, children: plans.map((plan) => {
       const price = plan[period.field];
       return /* @__PURE__ */ jsxs("article", { className: "plan", children: [
         /* @__PURE__ */ jsx("h2", { className: "plan__name", children: plan.name }),
@@ -1204,7 +1236,7 @@ function PricingPage() {
     }) }),
     /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Что важно знать" }),
-      /* @__PURE__ */ jsxs("ul", { className: "fact-grid", children: [
+      /* @__PURE__ */ jsxs("ul", { className: "fact-grid", ref: factCards, children: [
         /* @__PURE__ */ jsx("li", { children: "Первые 7 дней после подтверждения почты — «Стандартный», без привязки карты." }),
         /* @__PURE__ */ jsx("li", { children: "Продление прибавляет дни к концу текущего срока." }),
         /* @__PURE__ */ jsx("li", { children: "После окончания срока доски и файлы остаются: аккаунт возвращается к бесплатным пределам." }),
@@ -1259,12 +1291,13 @@ const BLOCKS = [
   }
 ];
 function FeaturesPage() {
+  const cards = useEqualHeights();
   return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs(NoOrphans, { children: [
     /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsx("h1", { children: "Возможности" }),
       /* @__PURE__ */ jsx("p", { className: "reading", children: "На доске рисуют от руки и работают с документами, а не расставляют карточки и стикеры." })
     ] }),
-    /* @__PURE__ */ jsx("div", { className: "feature-blocks", children: BLOCKS.map((block) => /* @__PURE__ */ jsxs("article", { className: "card feature-block", children: [
+    /* @__PURE__ */ jsx("div", { className: "feature-blocks", ref: cards, children: BLOCKS.map((block) => /* @__PURE__ */ jsxs("article", { className: "card feature-block", children: [
       /* @__PURE__ */ jsx("h2", { className: "card-title", children: block.title }),
       /* @__PURE__ */ jsx("ul", { className: "reading", children: block.items.map((item) => /* @__PURE__ */ jsx("li", { children: item }, item)) })
     ] }, block.title)) }),

@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Page } from '../components/Layout';
 import { NoOrphans } from '../components/NoOrphans';
 import { SHOWN_PLANS } from '../content/plans';
+import { useEqualHeights } from '../components/useEqualHeights';
 import type { Plan } from '../api/types';
 import { IconCheck, IconClose } from '../components/Icons';
 
@@ -29,6 +30,8 @@ function storage(bytes: number): string {
  * видеть, что у него уже есть, рядом с тем, что он получит за деньги.
  */
 export function PricingPage(): ReactElement {
+  const planCards = useEqualHeights<HTMLDivElement>();
+  const factCards = useEqualHeights<HTMLUListElement>();
   const { user } = useAuth();
   // Начинаем с известного списка, а не с пустого: страница собирается в
   // статический HTML, и на сборке спросить сервер не у кого — иначе
@@ -74,7 +77,7 @@ export function PricingPage(): ReactElement {
 
       {error ? <p className="note note-danger">{error}</p> : null}
 
-      <div className="plans">
+      <div className="plans" ref={planCards}>
         {plans.map((plan) => {
           const price = plan[period.field];
 
@@ -115,7 +118,7 @@ export function PricingPage(): ReactElement {
 
       <section className="card">
         <h2 className="card-title">Что важно знать</h2>
-        <ul className="fact-grid">
+        <ul className="fact-grid" ref={factCards}>
           <li>Первые 7 дней после подтверждения почты — «Стандартный», без привязки карты.</li>
           <li>Продление прибавляет дни к концу текущего срока.</li>
           <li>

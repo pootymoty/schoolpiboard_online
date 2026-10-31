@@ -4,6 +4,7 @@ import { Page } from '../components/Layout';
 import { useAuth } from '../auth/AuthContext';
 import { MAIN_SITE } from '../content/company';
 import { NoOrphans } from '../components/NoOrphans';
+import { useEqualHeights } from '../components/useEqualHeights';
 import {
   IconExternal, IconGuest, IconImage, IconPeople, IconTimer, IconViewer,
 } from '../components/Icons';
@@ -51,6 +52,7 @@ const TILES: Tile[] = [
  * почему сделано так, а не перечисляет эпитеты.
  */
 export function LandingPage(): ReactElement {
+  const cards = useEqualHeights<HTMLDivElement>();
   const { user } = useAuth();
 
   return (
@@ -101,7 +103,7 @@ export function LandingPage(): ReactElement {
         )}
       </section>
 
-      <div className="feature-grid">
+      <div className="feature-grid" ref={cards}>
         {TILES.map((tile) => (
           <article className="feature-tile" key={tile.title}>
             <span className="feature-tile__icon">{tile.icon}</span>

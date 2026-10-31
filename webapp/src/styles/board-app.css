@@ -2915,8 +2915,11 @@ p.board-title__text { cursor: default; }
 .feature-blocks {
     --gap: var(--sp-4);
     container-type: inline-size;
-    align-items: flex-start;
 }
+
+/* Высоту карточек равняет сама сетка (useEqualHeights), а отступ снизу
+   у .card здесь лишний: между рядами уже есть --gap. */
+.feature-blocks > .card { margin: 0; }
 
 .feature-blocks > * { --cols: 1; }
 

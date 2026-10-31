@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Page } from '../components/Layout';
 import { NoOrphans } from '../components/NoOrphans';
+import { useEqualHeights } from '../components/useEqualHeights';
 
 interface Block {
   title: string;
@@ -61,6 +62,7 @@ const BLOCKS: Block[] = [
 ];
 
 export function FeaturesPage(): ReactElement {
+  const cards = useEqualHeights<HTMLDivElement>();
   return (
     <Page>
       <NoOrphans>
@@ -72,7 +74,7 @@ export function FeaturesPage(): ReactElement {
         </p>
       </section>
 
-      <div className="feature-blocks">
+      <div className="feature-blocks" ref={cards}>
         {BLOCKS.map((block) => (
           <article className="card feature-block" key={block.title}>
             <h2 className="card-title">{block.title}</h2>
