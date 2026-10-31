@@ -203,12 +203,9 @@ export function Header(): ReactElement {
     <header className="header">
       <Link className="header__brand" to="/">Доска <BoardMark /></Link>
 
-      <span className="header__spacer" />
-
-      {/* Одни и те же разделы у гостя и у вошедшего, в одном и том же
-          месте: меню, которое перестраивается после входа, заставляет
-          искать заново то, что человек уже нашёл. «Главной» в списке нет —
-          на неё ведёт название слева, как на любом сайте. */}
+      {/* Разделы сайта — слева, сразу за названием: одни и те же у гостя
+          и у вошедшего, в одном и том же месте. «Главной» в списке нет —
+          на неё ведёт название, как на любом сайте. */}
       <nav aria-label="Разделы сайта">
         <ul className="desktop-menu">
           <li><NavLink to="/features">Возможности</NavLink></li>
@@ -219,7 +216,15 @@ export function Header(): ReactElement {
               <SchoolPiLabel /><IconExternal size={14} />
             </a>
           </li>
+        </ul>
+      </nav>
 
+      <span className="header__spacer" />
+
+      {/* Справа — только своё: вход или всё, что относится к учётной
+          записи, и переключатель темы. */}
+      <nav className="header__account" aria-label="Учётная запись">
+        <ul className="desktop-menu">
           {user ? (
             <>
               <li><NavLink to="/boards">Мои доски</NavLink></li>

@@ -656,7 +656,6 @@ function Header() {
       "Доска ",
       /* @__PURE__ */ jsx(BoardMark, {})
     ] }),
-    /* @__PURE__ */ jsx("span", { className: "header__spacer" }),
     /* @__PURE__ */ jsx("nav", { "aria-label": "Разделы сайта", children: /* @__PURE__ */ jsxs("ul", { className: "desktop-menu", children: [
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/features", children: "Возможности" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/pricing", children: "Тарифы" }) }),
@@ -664,33 +663,34 @@ function Header() {
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "header__site-link", children: [
         /* @__PURE__ */ jsx(SchoolPiLabel, {}),
         /* @__PURE__ */ jsx(IconExternal, { size: 14 })
-      ] }) }),
-      user ? /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }) }),
-        /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/recordings", children: "Мои записи" }) }),
-        user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/admin", children: "Администрирование" }) }) : null,
-        /* @__PURE__ */ jsxs("li", { className: "dropdown", ref: drop, children: [
-          /* @__PURE__ */ jsxs(
-            "button",
-            {
-              className: dropOpen ? "dropdown-toggle active" : "dropdown-toggle",
-              type: "button",
-              "aria-expanded": dropOpen,
-              onClick: () => setDropOpen((current) => !current),
-              children: [
-                "Личный кабинет",
-                /* @__PURE__ */ jsx("span", { className: "dropdown-arrow", "aria-hidden": "true" })
-              ]
-            }
-          ),
-          /* @__PURE__ */ jsxs("ul", { className: dropOpen ? "dropdown-menu show" : "dropdown-menu", children: [
-            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", children: "Мой тариф" }) }),
-            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", children: "Настройки" }) }),
-            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "dropdown-menu__danger", type: "button", onClick: logout, children: "Выйти" }) })
-          ] })
-        ] })
-      ] }) : /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-sm header__cta", to: "/login", children: "Войти" }) })
+      ] }) })
     ] }) }),
+    /* @__PURE__ */ jsx("span", { className: "header__spacer" }),
+    /* @__PURE__ */ jsx("nav", { className: "header__account", "aria-label": "Учётная запись", children: /* @__PURE__ */ jsx("ul", { className: "desktop-menu", children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }) }),
+      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/recordings", children: "Мои записи" }) }),
+      user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/admin", children: "Администрирование" }) }) : null,
+      /* @__PURE__ */ jsxs("li", { className: "dropdown", ref: drop, children: [
+        /* @__PURE__ */ jsxs(
+          "button",
+          {
+            className: dropOpen ? "dropdown-toggle active" : "dropdown-toggle",
+            type: "button",
+            "aria-expanded": dropOpen,
+            onClick: () => setDropOpen((current) => !current),
+            children: [
+              "Личный кабинет",
+              /* @__PURE__ */ jsx("span", { className: "dropdown-arrow", "aria-hidden": "true" })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxs("ul", { className: dropOpen ? "dropdown-menu show" : "dropdown-menu", children: [
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", children: "Мой тариф" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", children: "Настройки" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "dropdown-menu__danger", type: "button", onClick: logout, children: "Выйти" }) })
+        ] })
+      ] })
+    ] }) : /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-sm header__cta", to: "/login", children: "Войти" }) }) }) }),
     /* @__PURE__ */ jsx("span", { className: "theme-switch--header", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) }),
     /* @__PURE__ */ jsx(
       "button",
