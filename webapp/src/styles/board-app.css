@@ -2638,15 +2638,79 @@ p.board-title__text { cursor: default; }
     text-decoration: none;
 }
 
+/* --- Карточки по центру ---------------------------------------------------- */
+
+/*
+ * Сетки карточек с текстом. Раньше это были CSS-сетки, и неполный
+ * последний ряд (4 и 3, 3 и 2) прижимался к левому краю — смотрелось
+ * криво. Здесь — ряды с переносом, выровненные по центру: последний ряд
+ * встаёт посередине под предыдущим, при любой ширине окна.
+ *
+ * Ширина карточки — доля ряда по числу колонок (--cols, задаётся у каждой
+ * сетки ниже: по ширине окна или по ширине самой сетки), а не «сколько
+ * влезет»: иначе карточки неполного ряда растягивались бы шире остальных.
+ */
+.plans,
+.feature-grid,
+.feature-blocks,
+.fact-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--gap);
+}
+
+.plans > *,
+.feature-grid > *,
+.feature-blocks > *,
+.fact-grid > * {
+    /* Колонок не больше, чем самих карточек: четыре тарифа в окне, где
+       поместилось бы пять, делят ряд на четыре, а не жмутся в середину. */
+    --c: min(var(--cols), var(--n, 99));
+    flex: 0 0 calc((100% - (var(--c) - 1) * var(--gap)) / var(--c));
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* Сколько карточек в сетке — для предела выше. */
+.plans:has(> :nth-child(1):last-child),
+.feature-grid:has(> :nth-child(1):last-child),
+.feature-blocks:has(> :nth-child(1):last-child),
+.fact-grid:has(> :nth-child(1):last-child) { --n: 1; }
+.plans:has(> :nth-child(2):last-child),
+.feature-grid:has(> :nth-child(2):last-child),
+.feature-blocks:has(> :nth-child(2):last-child),
+.fact-grid:has(> :nth-child(2):last-child) { --n: 2; }
+.plans:has(> :nth-child(3):last-child),
+.feature-grid:has(> :nth-child(3):last-child),
+.feature-blocks:has(> :nth-child(3):last-child),
+.fact-grid:has(> :nth-child(3):last-child) { --n: 3; }
+.plans:has(> :nth-child(4):last-child),
+.feature-grid:has(> :nth-child(4):last-child),
+.feature-blocks:has(> :nth-child(4):last-child),
+.fact-grid:has(> :nth-child(4):last-child) { --n: 4; }
+.plans:has(> :nth-child(5):last-child),
+.feature-grid:has(> :nth-child(5):last-child),
+.feature-blocks:has(> :nth-child(5):last-child),
+.fact-grid:has(> :nth-child(5):last-child) { --n: 5; }
+
 /* --- Тарифы ---------------------------------------------------------------- */
 
 /* Карточки в ряд, пока помещаются: тарифы сравнивают глазами, и колонка
    из четырёх карточек сравнивать не даёт. */
 .plans {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: var(--sp-4);
+    /* Неполный последний ряд — по центру (см. «Карточки по центру»). */
+    --cols: 1;
+    --gap: var(--sp-4);
+    container-type: inline-size;
 }
+
+/* Столько колонок по 220px, сколько помещается. */
+.plans > * { --cols: 1; }
+@container (min-width: 456px) { .plans > * { --cols: 2; } }
+@container (min-width: 692px) { .plans > * { --cols: 3; } }
+@container (min-width: 928px) { .plans > * { --cols: 4; } }
+@container (min-width: 1164px) { .plans > * { --cols: 5; } }
 
 .plan {
     display: flex;
@@ -2741,17 +2805,17 @@ p.board-title__text { cursor: default; }
    auto-fit раскладывал в 4 и 2 внахлёст, и вторая строка не совпадала
    с первой ни по одной границе. */
 .feature-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--sp-5);
+    --gap: var(--sp-5);
 }
 
+.feature-grid > * { --cols: 3; }
+
 @media (max-width: 900px) {
-    .feature-grid { grid-template-columns: repeat(2, 1fr); }
+    .feature-grid > * { --cols: 2; }
 }
 
 @media (max-width: 560px) {
-    .feature-grid { grid-template-columns: 1fr; }
+    .feature-grid > * { --cols: 1; }
 }
 
 /* Без рамки: тень одна держит карточку над фоном, а рамка вокруг неё
@@ -2849,11 +2913,17 @@ p.board-title__text { cursor: default; }
    карточек. Сеткой они складываются в два неполных ряда — уже видно, что
    их пять, а не «сколько-то». */
 .feature-blocks {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: var(--sp-4);
-    align-items: start;
+    --gap: var(--sp-4);
+    container-type: inline-size;
+    align-items: flex-start;
 }
+
+.feature-blocks > * { --cols: 1; }
+
+/* Столько колонок по 320px, сколько помещается. */
+@container (min-width: 656px) { .feature-blocks > * { --cols: 2; } }
+@container (min-width: 992px) { .feature-blocks > * { --cols: 3; } }
+@container (min-width: 1328px) { .feature-blocks > * { --cols: 4; } }
 
 /* Полоса слева вместо значка у заголовка: тот же порядковый акцент, но
    без мелкого рисунка, который на 20 пикселях не читался как что-то
@@ -3037,13 +3107,20 @@ p.board-title__text { cursor: default; }
 /* --- Тарифы: короткие факты плиткой, а не списком ----------------------- */
 
 .fact-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: var(--sp-3);
+    --gap: var(--sp-3);
+    container-type: inline-size;
     list-style: none;
     margin: var(--sp-4) 0 0;
     padding: 0;
 }
+
+.fact-grid > * { --cols: 1; }
+
+/* Столько колонок по 240px, сколько помещается. */
+@container (min-width: 492px) { .fact-grid > * { --cols: 2; } }
+@container (min-width: 744px) { .fact-grid > * { --cols: 3; } }
+@container (min-width: 996px) { .fact-grid > * { --cols: 4; } }
+@container (min-width: 1248px) { .fact-grid > * { --cols: 5; } }
 
 .fact-grid li {
     padding: var(--sp-3) var(--sp-4);
