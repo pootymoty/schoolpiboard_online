@@ -151,7 +151,7 @@ public sealed class AutoRenewService : BackgroundService
             if (price is null or <= 0) continue;
 
             var address = await db.Users
-                .Where(x => x.Id == due.UserId)
+                .Where(x => x.Id == due.UserId && x.DeletedAt == null)
                 .Select(x => x.Email)
                 .FirstOrDefaultAsync(cancellationToken);
 

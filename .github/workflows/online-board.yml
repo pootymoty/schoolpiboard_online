@@ -48,6 +48,12 @@ jobs:
       - name: Build
         run: dotnet build ${{ env.PROJECT }} -c Release
 
+      # Тесты сервера (server/SchoolPiBoard.Tests): красная сборка, если
+      # сломалось то, что уже однажды ломалось, — например, письма
+      # удалённым учётным записям.
+      - name: Test
+        run: dotnet test server/SchoolPiBoard.Tests/SchoolPiBoard.Tests.csproj -c Release
+
       # Миграции пишутся вручную: у среды, где готовятся правки, нет доступа
       # к пакетам .NET, а значит и к `dotnet ef migrations add`. Отсюда две
       # проверки вместо одной.

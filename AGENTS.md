@@ -46,6 +46,7 @@
 | `server/SchoolPiBoard.Web/Hubs/BoardHub.cs` | SignalR-хаб: рисование, курсоры, присутствие — всё, что происходит на холсте в реальном времени |
 | `server/SchoolPiBoard.Web/Data/` | `AppDbContext`, сущности EF Core |
 | `server/SchoolPiBoard.Web/Migrations/` | миграции EF Core — **пишутся вручную**, см. раздел 6 |
+| `server/SchoolPiBoard.Tests/` | тесты сервера (xUnit, база EF Core в памяти); гоняются в CI, см. раздел 4 |
 | `webapp/` | React + TypeScript + Vite, весь frontend |
 | `webapp/src/pages/` | страницы-маршруты (`BoardsPage`, `BoardPage`, `LandingPage`, …) |
 | `webapp/src/board/` | всё про сам холст: `BoardCanvas.tsx`, `useBoardHub.ts`, инструменты рисования |
@@ -110,7 +111,8 @@ systemd-служба «schoolpiboard» (пользователь boardsvc, бе�
 Что делает сборка, по шагам:
 
 1. `dotnet build` — компилирует backend. Если правка ломает сборку C#,
-   упадёт здесь, с текстом ошибки в логе джобы.
+   упадёт здесь, с текстом ошибки в логе джобы. Сразу за ним —
+   `dotnet test` по `server/SchoolPiBoard.Tests`.
 2. Две проверки миграций (важны, потому что миграции пишутся вручную,
    без `dotnet ef migrations add` — см. раздел 6):
    - миграции вообще находятся (`dotnet ef migrations list`);
@@ -275,9 +277,11 @@ curl -s http://localhost:5000/api/health
 2. Внести изменение в `server/` и/или `webapp/`.
 3. Проверить, что получилось:
    - frontend: `cd webapp && npx tsc --noEmit && npm run build`;
-   - backend: перечитать diff внимательно вручную (компилятора нет) —
-     сверить сигнатуры, using-директивы, что вызываемые методы
-     существуют и с той же сигнатурой.
+   - backend: перечитать diff внимательно вручную — сверить сигнатуры,
+     using-директивы, что вызываемые методы существуют и с той же
+     сигнатурой. Если в песочнице есть apt, .NET SDK ставится оттуда
+     (`apt-get install -y dotnet-sdk-8.0`), и тогда можно прогнать
+     `dotnet build` и `dotnet test server/SchoolPiBoard.Tests` на месте.
 4. Закоммитить с понятным сообщением, запушить.
 5. Проверить статус сборки в GitHub Actions (раздел 4) — для backend-правок
    это единственная настоящая проверка.

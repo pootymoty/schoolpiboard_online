@@ -555,15 +555,23 @@ public sealed class SubscriptionService
 
         // Администраторов пропускаем: пределы у них свои, подписка не
         // действует, и списывать за неё деньги — значит брать плату за
-        // то, чем человек не пользуется.
-        var admins = _db.Users.Where(x => x.Role == User.RoleAdmin).Select(x => x.Id);
+        // то, чем человек не пользуется. Удалённых — тем более: учётной
+        // записи больше нет, и продлевать нечего.
+        var skipped = SkippedForRenewal();
 
         return _db.Subscriptions
             .Include(x => x.Plan)
             .Where(x => x.AutoRenew && x.EndsAt > now && x.EndsAt <= edge && x.InvoiceId != null
-                && !admins.Contains(x.UserId))
+                && !skipped.Contains(x.UserId))
             .ToListAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Кого продление не касается вовсе: администраторы (пределы у них свои)
+    /// и удалённые учётные записи. Им не списывают и не пишут о списании.
+    /// </summary>
+    private IQueryable<long> SkippedForRenewal()
+        => _db.Users.Where(x => x.Role == User.RoleAdmin || x.DeletedAt != null).Select(x => x.Id);
 
     /// <summary>
     /// Подписки, о списании по которым пора предупредить: с автопродлением,
@@ -578,13 +586,13 @@ public sealed class SubscriptionService
         var now = DateTime.UtcNow;
         var edge = now + ahead;
 
-        var admins = _db.Users.Where(x => x.Role == User.RoleAdmin).Select(x => x.Id);
+        var skipped = SkippedForRenewal();
 
         return _db.Subscriptions
             .Include(x => x.Plan)
             .Where(x => x.AutoRenew && x.EndsAt > now && x.EndsAt <= edge
                 && x.InvoiceId != null && x.RenewalNoticeAt == null
-                && !admins.Contains(x.UserId))
+                && !skipped.Contains(x.UserId))
             .ToListAsync(cancellationToken);
     }
 

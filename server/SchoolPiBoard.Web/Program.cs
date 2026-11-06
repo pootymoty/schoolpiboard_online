@@ -28,7 +28,13 @@ builder.Services.AddDbContext<AppDbContext>(db => db.UseNpgsql(options.DatabaseU
 
 builder.Services.AddSingleton<AuthTokenService>();
 builder.Services.AddSingleton<GuestTokenService>();
-builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+// Любое письмо проходит через заслон: удалённой учётной записи не уходит
+// ничего, откуда бы его ни отправляли (см. GuardedEmailSender).
+builder.Services.AddSingleton<SmtpEmailSender>();
+builder.Services.AddSingleton<IEmailSender>(services => new GuardedEmailSender(
+    services.GetRequiredService<SmtpEmailSender>(),
+    services.GetRequiredService<IServiceScopeFactory>(),
+    services.GetRequiredService<ILogger<GuardedEmailSender>>()));
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<BoardItemService>();

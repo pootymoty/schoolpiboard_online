@@ -280,7 +280,7 @@ public sealed class AccountService
         // Прежний адрес не сохраняем: удаление на то и удаление. Домен
         // .invalid зарезервирован стандартом — письмо туда не уйдёт даже
         // по ошибке.
-        user.Email = $"deleted-{user.Id}@deleted.invalid";
+        user.Email = MailAddresses.Deleted(user.Id);
 
         // Пароль затираем: войти и так нельзя, но хеш от живого пароля,
         // лежащий полгода, — это хеш от пароля, которым человек, скорее
@@ -301,6 +301,15 @@ public sealed class AccountService
             .ToListAsync(cancellationToken);
 
         foreach (var token in pending) token.UsedAt = now;
+
+        // Автопродление выключаем: удалённой учётной записи нечего продлевать,
+        // а без этого подписка оставалась «к продлению» — сервис предупреждал
+        // о списании письмом на обезличенный адрес и просил бы списать деньги.
+        var renewing = await _db.Subscriptions
+            .Where(x => x.UserId == user.Id && x.AutoRenew)
+            .ToListAsync(cancellationToken);
+
+        foreach (var subscription in renewing) subscription.AutoRenew = false;
 
         await _db.SaveChangesAsync(cancellationToken);
 

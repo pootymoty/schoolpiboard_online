@@ -1,7 +1,9 @@
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.EntityFrameworkCore;
 using MimeKit;
 using SchoolPiBoard.Web.Configuration;
+using SchoolPiBoard.Web.Data;
 
 namespace SchoolPiBoard.Web.Services;
 
@@ -15,6 +17,97 @@ public interface IEmailSender
     Task<bool> SendAsync(
         string to, string subject, string html, string text,
         IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken);
+}
+
+/// <summary>Адреса, на которые письма не уходят никогда.</summary>
+public static class MailAddresses
+{
+    /// <summary>
+    /// Домен обезличенных адресов удалённых учётных записей. Зона .invalid
+    /// зарезервирована стандартом (RFC 2606): такого адреса не бывает.
+    /// </summary>
+    public const string DeletedDomain = "deleted.invalid";
+
+    /// <summary>Адрес, которым заменяется почта удалённой учётной записи.</summary>
+    public static string Deleted(long userId) => $"deleted-{userId}@{DeletedDomain}";
+
+    /// <summary>Можно ли вообще писать на этот адрес.</summary>
+    public static bool IsDeliverable(string? address)
+    {
+        if (string.IsNullOrWhiteSpace(address)) return false;
+
+        var at = address.LastIndexOf('@');
+        if (at <= 0 || at == address.Length - 1) return false;
+
+        var domain = address[(at + 1)..].Trim().TrimEnd('.').ToLowerInvariant();
+        return domain != "invalid" && !domain.EndsWith(".invalid", StringComparison.Ordinal);
+    }
+}
+
+/// <summary>
+/// Общий заслон перед любой отправкой: ни одно письмо не уходит удалённой
+/// учётной записи, откуда бы его ни отправляли.
+///
+/// Писем у сервиса много — подтверждение почты, восстановление пароля,
+/// чеки, предупреждение о продлении, конспекты, письма из
+/// администрирования, — и проверять удалённость в каждом из них по
+/// отдельности значит однажды забыть очередное. Так уже было:
+/// предупреждение о продлении ушло на обезличенный адрес удалённого
+/// пользователя, и почта вернула отказ.
+///
+/// Проверяется и сам адрес (обезличенный, в зоне .invalid), и база:
+/// адрес, который числится только за удалёнными учётными записями,
+/// тоже пропускается.
+/// </summary>
+public sealed class GuardedEmailSender : IEmailSender
+{
+    private readonly IEmailSender _inner;
+    private readonly IServiceScopeFactory _scopes;
+    private readonly ILogger<GuardedEmailSender> _logger;
+
+    public GuardedEmailSender(IEmailSender inner, IServiceScopeFactory scopes, ILogger<GuardedEmailSender> logger)
+    {
+        _inner = inner;
+        _scopes = scopes;
+        _logger = logger;
+    }
+
+    public Task<bool> SendAsync(string to, string subject, string html, string text, CancellationToken cancellationToken)
+        => SendAsync(to, subject, html, text, Array.Empty<EmailAttachment>(), cancellationToken);
+
+    public async Task<bool> SendAsync(
+        string to, string subject, string html, string text,
+        IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken)
+    {
+        if (!MailAddresses.IsDeliverable(to) || await BelongsToDeletedAsync(to, cancellationToken))
+        {
+            _logger.LogWarning("Письмо «{Subject}» не отправлено: адрес принадлежит удалённой учётной записи.", subject);
+            return false;
+        }
+
+        return await _inner.SendAsync(to, subject, html, text, attachments, cancellationToken);
+    }
+
+    /// <summary>
+    /// Числится ли адрес только за удалёнными учётными записями. Адрес, по
+    /// которому учётной записи нет вовсе (участник, которому шлют конспект),
+    /// — не повод отказывать.
+    /// </summary>
+    private async Task<bool> BelongsToDeletedAsync(string address, CancellationToken cancellationToken)
+    {
+        using var scope = _scopes.CreateScope();
+        var db = scope.ServiceProvider.GetService<AppDbContext>();
+        if (db is null) return false;
+
+        var normalized = address.Trim().ToLowerInvariant();
+
+        var owners = await db.Users
+            .Where(x => x.Email == normalized)
+            .Select(x => x.DeletedAt)
+            .ToListAsync(cancellationToken);
+
+        return owners.Count > 0 && owners.All(deletedAt => deletedAt != null);
+    }
 }
 
 /// <summary>
