@@ -1543,6 +1543,12 @@ function PlanPage() {
   );
   const pay = async () => {
     if (!chosen) return;
+    if ((mine == null ? void 0 : mine.autoRenew) && !renew) {
+      const sure = window.confirm(
+        `Сейчас включено автопродление тарифа «${mine.plan.name}». После этой покупки оно будет отключено: новый срок без автопродления. Продолжить?`
+      );
+      if (!sure) return;
+    }
     reachGoal("upgrade_click");
     setBusy(true);
     setError(null);
@@ -4063,8 +4069,20 @@ function DangerCard({ onDeleted }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [renewing, setRenewing] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    api("/billing/me").then((mine) => {
+      if (alive) setRenewing(mine.autoRenew ? mine.plan.name : null);
+    }).catch(() => void 0);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const renewalWarning = renewing ? `У вас включено автопродление тарифа «${renewing}». После удаления аккаунта оно будет отключено, и больше ничего списываться не будет.` : null;
   const requestCode = async () => {
-    if (!sent && !window.confirm("Удалить аккаунт? На почту придёт код для подтверждения.")) return;
+    const question = ["Удалить аккаунт? На почту придёт код для подтверждения.", renewalWarning].filter(Boolean).join("\n\n");
+    if (!sent && !window.confirm(question)) return;
     setBusy(true);
     setError(null);
     try {
@@ -4079,7 +4097,8 @@ function DangerCard({ onDeleted }) {
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (!window.confirm("Удалить аккаунт? Войти в него станет нельзя.")) return;
+    const question = ["Удалить аккаунт? Войти в него станет нельзя.", renewalWarning].filter(Boolean).join("\n\n");
+    if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
     try {
@@ -4093,6 +4112,7 @@ function DangerCard({ onDeleted }) {
   return /* @__PURE__ */ jsxs("div", { className: "card", children: [
     /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Удаление аккаунта" }),
     /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Войти станет нельзя. Почта освободится сразу, доски проработают у участников ещё полгода." }),
+    renewalWarning ? /* @__PURE__ */ jsx("p", { className: "note note-warning", children: renewalWarning }) : null,
     sent ? /* @__PURE__ */ jsxs("form", { onSubmit: submit, children: [
       /* @__PURE__ */ jsxs("p", { className: "note note-success", children: [
         sent,

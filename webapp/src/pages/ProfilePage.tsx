@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent, ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError, writeToken } from '../api/client';
-import type { User } from '../api/types';
+import type { MyPlan, User } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { startSchoolPi } from '../auth/schoolPi';
 import { Page } from '../components/Layout';
@@ -221,8 +221,26 @@ function DangerCard({ onDeleted }: { onDeleted: () => void }): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Включено ли автопродление: удаление его выключает, и сказать об этом
+  // нужно до удаления, а не узнавать потом по отсутствию списаний.
+  const [renewing, setRenewing] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api<MyPlan>('/billing/me')
+      .then((mine) => { if (alive) setRenewing(mine.autoRenew ? mine.plan.name : null); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+
+  const renewalWarning = renewing
+    ? `У вас включено автопродление тарифа «${renewing}». После удаления аккаунта оно будет отключено, и больше ничего списываться не будет.`
+    : null;
+
   const requestCode = async () => {
-    if (!sent && !window.confirm('Удалить аккаунт? На почту придёт код для подтверждения.')) return;
+    const question = ['Удалить аккаунт? На почту придёт код для подтверждения.', renewalWarning]
+      .filter(Boolean).join('\n\n');
+    if (!sent && !window.confirm(question)) return;
 
     setBusy(true);
     setError(null);
@@ -240,7 +258,9 @@ function DangerCard({ onDeleted }: { onDeleted: () => void }): ReactElement {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!window.confirm('Удалить аккаунт? Войти в него станет нельзя.')) return;
+    const question = ['Удалить аккаунт? Войти в него станет нельзя.', renewalWarning]
+      .filter(Boolean).join('\n\n');
+    if (!window.confirm(question)) return;
 
     setBusy(true);
     setError(null);
@@ -261,6 +281,8 @@ function DangerCard({ onDeleted }: { onDeleted: () => void }): ReactElement {
         Войти станет нельзя. Почта освободится сразу, доски проработают
         у участников ещё полгода.
       </p>
+
+      {renewalWarning ? <p className="note note-warning">{renewalWarning}</p> : null}
 
       {sent ? (
         <form onSubmit={submit}>
