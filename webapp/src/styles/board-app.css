@@ -4008,3 +4008,47 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
     margin-bottom: var(--sp-2);
     white-space: pre-wrap;
 }
+
+.survey-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.survey-list__item { border-bottom: 1px solid var(--line); }
+
+.survey-list__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2) var(--sp-4);
+    padding: var(--sp-3) 0;
+}
+
+.survey-list__info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px var(--sp-3);
+    min-width: 0;
+}
+
+.survey-list__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px var(--sp-3);
+    font-size: var(--fs-sm);
+}
+
+.survey-list__open {
+    padding: var(--sp-3);
+    margin-bottom: var(--sp-3);
+    background: var(--surface-2);
+    border-radius: var(--radius);
+}
+
+/* На телефоне столбики — от левого края, без отступа под кружок средней. */
+@media (max-width: 560px) {
+    .survey-results__bars { margin-left: 0; }
+}

@@ -140,7 +140,7 @@ export function LandingPage(): ReactElement {
           ) : (
             <Link className="btn btn-primary" to="/register">Создать первую доску</Link>
           )}
-          <Link className="btn btn-quiet" to="/faq">Частые вопросы</Link>
+          <Link className="btn btn-quiet" to="/faq">FAQ</Link>
         </div>
       </section>
       </NoOrphans>

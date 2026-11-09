@@ -210,7 +210,7 @@ export function Header(): ReactElement {
         <ul className="desktop-menu">
           <li><NavLink to="/features">Возможности</NavLink></li>
           <li><NavLink to="/pricing">Тарифы</NavLink></li>
-          <li><NavLink to="/faq">Вопросы</NavLink></li>
+          <li><NavLink to="/faq">FAQ</NavLink></li>
           <li>
             <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="header__site-link">
               <SchoolPiLabel /><IconExternal size={14} />
@@ -307,7 +307,7 @@ export function Header(): ReactElement {
             <>
               <li><Link to="/features" onClick={closeMobile}>Возможности</Link></li>
               <li><Link to="/pricing" onClick={closeMobile}>Тарифы</Link></li>
-              <li><Link to="/faq" onClick={closeMobile}>Вопросы</Link></li>
+              <li><Link to="/faq" onClick={closeMobile}>FAQ</Link></li>
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
               <li>
                 <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="header__site-link">
@@ -347,7 +347,7 @@ export function Header(): ReactElement {
             <>
               <li><Link to="/features" onClick={closeMobile}>Возможности</Link></li>
               <li><Link to="/pricing" onClick={closeMobile}>Тарифы</Link></li>
-              <li><Link to="/faq" onClick={closeMobile}>Вопросы</Link></li>
+              <li><Link to="/faq" onClick={closeMobile}>FAQ</Link></li>
               <li><Link to="/about" onClick={closeMobile}>О нас</Link></li>
               <li>
                 <a href={MAIN_SITE.url} target="_blank" rel="noopener noreferrer" className="header__site-link">

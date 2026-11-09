@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
@@ -131,50 +131,44 @@ export function AdminSurveysPage(): ReactElement {
         {items.length === 0 ? (
           <p className="text-muted">Опросов ещё не было.</p>
         ) : (
-          <table className="admin__table">
-            <thead>
-              <tr>
-                <th>Опрос</th>
-                <th>Писем</th>
-                <th>Ответов</th>
-                <th>Состояние</th>
-                <th aria-label="Действия" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((one) => (
-                <Fragment key={one.id}>
-                  <tr>
-                    <td>№{one.id} · {dayTime(one.createdAt)}</td>
-                    <td>{one.sent} из {one.recipients}</td>
-                    <td>{one.responses}</td>
-                    <td>{one.closedAt ? `закрыт ${dayTime(one.closedAt)}` : 'идёт'}</td>
-                    <td>
-                      <div className="admin__actions">
-                        <button className="btn-quiet btn-sm" type="button" onClick={() => toggle(one.id)}
-                                aria-expanded={open === one.id}>
-                          {open === one.id ? 'Свернуть' : 'Результаты'}
-                        </button>
-                        {one.closedAt ? null : (
-                          <button className="btn-quiet btn-sm" type="button" onClick={() => void close(one.id)}>
-                            Закрыть
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+          // Списком, а не таблицей: раскрытые результаты занимают всю
+          // ширину, а на телефоне строка просто переносится, не раздвигая
+          // страницу и не уезжая в горизонтальную прокрутку.
+          <ul className="survey-list">
+            {items.map((one) => (
+              <li className="survey-list__item" key={one.id}>
+                <div className="survey-list__row">
+                  <div className="survey-list__info">
+                    <strong>Опрос №{one.id}</strong>
+                    <span className="text-muted small">{dayTime(one.createdAt)}</span>
+                    <span className="survey-list__meta">
+                      <span>писем {one.sent} из {one.recipients}</span>
+                      <span>ответов {one.responses}</span>
+                      <span>{one.closedAt ? `закрыт ${dayTime(one.closedAt)}` : 'идёт'}</span>
+                    </span>
+                  </div>
 
-                  {open === one.id ? (
-                    <tr className="admin__open">
-                      <td colSpan={5}>
-                        {results?.id === one.id ? <Results results={results} /> : <p className="text-muted">Загружаем…</p>}
-                      </td>
-                    </tr>
-                  ) : null}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
+                  <div className="admin__actions">
+                    <button className="btn-quiet btn-sm" type="button" onClick={() => toggle(one.id)}
+                            aria-expanded={open === one.id}>
+                      {open === one.id ? 'Свернуть' : 'Результаты'}
+                    </button>
+                    {one.closedAt ? null : (
+                      <button className="btn-quiet btn-sm" type="button" onClick={() => void close(one.id)}>
+                        Закрыть
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {open === one.id ? (
+                  <div className="survey-list__open">
+                    {results?.id === one.id ? <Results results={results} /> : <p className="text-muted">Загружаем…</p>}
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
         )}
 
         {pages > 1 ? <Pagination page={page} count={pages} onPage={setPage} label="Страницы списка опросов" /> : null}

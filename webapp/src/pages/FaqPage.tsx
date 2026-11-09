@@ -70,7 +70,7 @@ export function FaqPage(): ReactElement {
     <Page>
       <NoOrphans>
       <section className="card">
-        <h1>Вопросы и ответы</h1>
+        <h1>FAQ</h1>
       </section>
 
       <div className="accordion">

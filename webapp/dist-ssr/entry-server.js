@@ -192,7 +192,7 @@ const PUBLIC_PAGES = {
     description: "Бесплатный тариф без срока и платные от 190 ₽ в месяц. Платит только владелец доски: участники заходят по ссылке и не платят ничего."
   },
   "/faq": {
-    title: "Доска π — вопросы и ответы",
+    title: "Доска π — FAQ, часто задаваемые вопросы",
     description: "Нужна ли участнику регистрация, сколько стоит, что будет после окончания подписки, как вставить документ и сохранится ли доска после встречи."
   },
   "/about": {
@@ -659,7 +659,7 @@ function Header() {
     /* @__PURE__ */ jsx("nav", { "aria-label": "Разделы сайта", children: /* @__PURE__ */ jsxs("ul", { className: "desktop-menu", children: [
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/features", children: "Возможности" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/pricing", children: "Тарифы" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/faq", children: "Вопросы" }) }),
+      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/faq", children: "FAQ" }) }),
       /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "header__site-link", children: [
         /* @__PURE__ */ jsx(SchoolPiLabel, {}),
         /* @__PURE__ */ jsx(IconExternal, { size: 14 })
@@ -720,7 +720,7 @@ function Header() {
         children: /* @__PURE__ */ jsx("ul", { children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "FAQ" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "header__site-link", children: [
             /* @__PURE__ */ jsx(SchoolPiLabel, {}),
@@ -756,7 +756,7 @@ function Header() {
         ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/features", onClick: closeMobile, children: "Возможности" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/pricing", onClick: closeMobile, children: "Тарифы" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "Вопросы" }) }),
+          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/faq", onClick: closeMobile, children: "FAQ" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/about", onClick: closeMobile, children: "О нас" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsxs("a", { href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", className: "header__site-link", children: [
             /* @__PURE__ */ jsx(SchoolPiLabel, {}),
@@ -1044,7 +1044,7 @@ function LandingPage() {
       ] }),
       /* @__PURE__ */ jsxs("div", { className: "row", children: [
         user ? /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/boards", children: "Перейти к доскам" }) : /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/register", children: "Создать первую доску" }),
-        /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet", to: "/faq", children: "Частые вопросы" })
+        /* @__PURE__ */ jsx(Link, { className: "btn btn-quiet", to: "/faq", children: "FAQ" })
       ] })
     ] })
   ] }) });
@@ -1361,7 +1361,7 @@ const QUESTIONS = [
 ];
 function FaqPage() {
   return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs(NoOrphans, { children: [
-    /* @__PURE__ */ jsx("section", { className: "card", children: /* @__PURE__ */ jsx("h1", { children: "Вопросы и ответы" }) }),
+    /* @__PURE__ */ jsx("section", { className: "card", children: /* @__PURE__ */ jsx("h1", { children: "FAQ" }) }),
     /* @__PURE__ */ jsx("div", { className: "accordion", children: QUESTIONS.map((item, index) => /* @__PURE__ */ jsxs("details", { className: "accordion-item", open: index === 0, children: [
       /* @__PURE__ */ jsx("summary", { children: item.q }),
       /* @__PURE__ */ jsx("p", { className: "accordion-item__body reading", children: item.a })
@@ -12127,30 +12127,33 @@ function AdminSurveysPage() {
         "Результаты",
         total > 0 ? ` · ${total}` : ""
       ] }),
-      items.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Опросов ещё не было." }) : /* @__PURE__ */ jsxs("table", { className: "admin__table", children: [
-        /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { children: [
-          /* @__PURE__ */ jsx("th", { children: "Опрос" }),
-          /* @__PURE__ */ jsx("th", { children: "Писем" }),
-          /* @__PURE__ */ jsx("th", { children: "Ответов" }),
-          /* @__PURE__ */ jsx("th", { children: "Состояние" }),
-          /* @__PURE__ */ jsx("th", { "aria-label": "Действия" })
-        ] }) }),
-        /* @__PURE__ */ jsx("tbody", { children: items.map((one) => /* @__PURE__ */ jsxs(Fragment$1, { children: [
-          /* @__PURE__ */ jsxs("tr", { children: [
-            /* @__PURE__ */ jsxs("td", { children: [
-              "№",
-              one.id,
-              " · ",
-              dayTime$1(one.createdAt)
+      items.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Опросов ещё не было." }) : (
+        // Списком, а не таблицей: раскрытые результаты занимают всю
+        // ширину, а на телефоне строка просто переносится, не раздвигая
+        // страницу и не уезжая в горизонтальную прокрутку.
+        /* @__PURE__ */ jsx("ul", { className: "survey-list", children: items.map((one) => /* @__PURE__ */ jsxs("li", { className: "survey-list__item", children: [
+          /* @__PURE__ */ jsxs("div", { className: "survey-list__row", children: [
+            /* @__PURE__ */ jsxs("div", { className: "survey-list__info", children: [
+              /* @__PURE__ */ jsxs("strong", { children: [
+                "Опрос №",
+                one.id
+              ] }),
+              /* @__PURE__ */ jsx("span", { className: "text-muted small", children: dayTime$1(one.createdAt) }),
+              /* @__PURE__ */ jsxs("span", { className: "survey-list__meta", children: [
+                /* @__PURE__ */ jsxs("span", { children: [
+                  "писем ",
+                  one.sent,
+                  " из ",
+                  one.recipients
+                ] }),
+                /* @__PURE__ */ jsxs("span", { children: [
+                  "ответов ",
+                  one.responses
+                ] }),
+                /* @__PURE__ */ jsx("span", { children: one.closedAt ? `закрыт ${dayTime$1(one.closedAt)}` : "идёт" })
+              ] })
             ] }),
-            /* @__PURE__ */ jsxs("td", { children: [
-              one.sent,
-              " из ",
-              one.recipients
-            ] }),
-            /* @__PURE__ */ jsx("td", { children: one.responses }),
-            /* @__PURE__ */ jsx("td", { children: one.closedAt ? `закрыт ${dayTime$1(one.closedAt)}` : "идёт" }),
-            /* @__PURE__ */ jsx("td", { children: /* @__PURE__ */ jsxs("div", { className: "admin__actions", children: [
+            /* @__PURE__ */ jsxs("div", { className: "admin__actions", children: [
               /* @__PURE__ */ jsx(
                 "button",
                 {
@@ -12162,11 +12165,11 @@ function AdminSurveysPage() {
                 }
               ),
               one.closedAt ? null : /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => void close(one.id), children: "Закрыть" })
-            ] }) })
+            ] })
           ] }),
-          open === one.id ? /* @__PURE__ */ jsx("tr", { className: "admin__open", children: /* @__PURE__ */ jsx("td", { colSpan: 5, children: (results == null ? void 0 : results.id) === one.id ? /* @__PURE__ */ jsx(Results, { results }) : /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) }) }) : null
+          open === one.id ? /* @__PURE__ */ jsx("div", { className: "survey-list__open", children: (results == null ? void 0 : results.id) === one.id ? /* @__PURE__ */ jsx(Results, { results }) : /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) }) : null
         ] }, one.id)) })
-      ] }),
+      ),
       pages > 1 ? /* @__PURE__ */ jsx(Pagination, { page, count: pages, onPage: setPage, label: "Страницы списка опросов" }) : null
     ] }),
     confirming ? /* @__PURE__ */ jsxs(Modal, { title: "Отправить опрос?", onClose: () => setConfirming(false), children: [
