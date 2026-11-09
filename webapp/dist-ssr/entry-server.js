@@ -12071,7 +12071,7 @@ function adminFlaggedBoards() {
 function adminDeleteBoard(boardId) {
   return api(`/admin/boards/${boardId}`, { method: "DELETE" });
 }
-const SIZE = 20;
+const SIZE = 10;
 const TYPING_MS = 250;
 const RETENTION_DAYS = 182;
 function purgeDate(deletedAt) {
@@ -12372,7 +12372,7 @@ function AdminPage() {
                 /* @__PURE__ */ jsx("span", { className: "text-muted small", children: b.ownerEmail })
               ] }),
               /* @__PURE__ */ jsx("td", { children: b.items }),
-              /* @__PURE__ */ jsx("td", { children: day(b.createdAt) }),
+              /* @__PURE__ */ jsx("td", { children: dayTime(b.createdAt) }),
               /* @__PURE__ */ jsx("td", { children: dayTime(b.updatedAt) }),
               /* @__PURE__ */ jsx("td", { children: /* @__PURE__ */ jsxs("div", { className: "admin__actions", children: [
                 /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => showText(b.id), children: textFor === b.id ? "Скрыть текст" : "Текст" }),

@@ -14,7 +14,7 @@ import { Page } from '../components/Layout';
 import { Pagination } from '../components/Pagination';
 
 /** Столько строк на странице. Больше не помещается на экран без прокрутки. */
-const SIZE = 20;
+const SIZE = 10;
 
 /**
  * Пауза перед запросом при наборе.
@@ -44,7 +44,7 @@ function day(value: string | null): string {
   return value ? new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
 }
 
-/** С временем — для «Изменена»: за один день доску правят не раз. */
+/** С временем — для «Создана» и «Изменена»: за один день досок заводят и правят не одну. */
 function dayTime(value: string | null): string {
   return value
     ? new Date(value).toLocaleDateString('ru-RU', {
@@ -448,7 +448,7 @@ export function AdminPage(): ReactElement {
                       <span className="text-muted small">{b.ownerEmail}</span>
                     </td>
                     <td>{b.items}</td>
-                    <td>{day(b.createdAt)}</td>
+                    <td>{dayTime(b.createdAt)}</td>
                     <td>{dayTime(b.updatedAt)}</td>
                     <td>
                       <div className="admin__actions">
