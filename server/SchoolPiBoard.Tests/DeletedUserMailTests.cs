@@ -165,22 +165,7 @@ public sealed class DeletedUserMailTests : IDisposable
         await db.SaveChangesAsync();
     }
 
-    private static AppOptions Options() => new()
-    {
-        DatabaseUrl = "Host=unused",
-        RedisUrl = "unused",
-        JwtSigningKey = new string('k', 64),
-        PublicUrl = "https://board.example.com",
-        LicenseServerUrl = "https://keys.example.com",
-        LicenseSharedSecret = "unused",
-        Mail = new MailOptions { Server = "smtp.example.com", Port = 465, Username = "u", Password = "p", From = "info@example.com" },
-        Storage = new StorageOptions { Endpoint = "unused", Bucket = "unused", AccessKey = "unused", SecretKey = "unused" },
-        FilesDir = Path.GetTempPath(),
-        AdminEmails = Array.Empty<string>(),
-        SchoolPi = new SchoolPiOptions { BaseUrl = "https://school.example.com", ClientId = "id", ClientSecret = "secret", BonusDays = 7 },
-        TrialDays = 7,
-        GraceDays = 3,
-    };
+    private static AppOptions Options() => TestOptions.Create();
 
     /// <summary>Вместо SMTP: запоминает, кому письмо ушло бы на самом деле.</summary>
     private sealed class RecordingSender : IEmailSender

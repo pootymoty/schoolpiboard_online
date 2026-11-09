@@ -23,7 +23,14 @@
 
 /* Вход и учётная запись — у правого края, даже когда шапка не уместилась
    в строку и перенесла их вниз: там они не должны съезжать влево. */
-.header__account { margin-left: auto; }
+/* Переключатель темы — вместе с ними, а не отдельно: иначе при переносе
+   он один оставался на второй строке у левого края. */
+.header__right {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    margin-left: auto;
+}
 
 /* У темы `.btn-tool` прозрачная и берёт цвет текста как есть — на светлой
    странице это тёмный цвет. У шапки фон всегда тёмный (в обеих темах),
@@ -3862,3 +3869,142 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
 }
 
 .delete-card__actions > button { width: 100%; }
+
+/* --- Опросы --------------------------------------------------------------- */
+
+.survey h1 { margin-bottom: var(--sp-2); }
+
+.survey__question {
+    border: none;
+    margin: var(--sp-5) 0 0;
+    padding: 0;
+}
+
+.survey__question legend {
+    font-weight: 600;
+    margin-bottom: var(--sp-2);
+}
+
+/* Десять кнопок в ряд; на узком экране — две строки по пять, а не мелочь. */
+.survey__scale {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: var(--sp-1);
+}
+
+@media (max-width: 480px) {
+    .survey__scale { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+.survey__score {
+    min-height: 40px;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.survey__score:hover { border-color: var(--accent); }
+
+.survey__score[aria-checked="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.survey__ends {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+}
+
+.survey__skip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.survey__skip input { width: auto; margin: 0; }
+
+.survey .field { margin-top: var(--sp-5); }
+
+.survey-results__question {
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.survey-results__head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+/* Средняя — кружком с цветом: хорошо, средне, плохо видно сразу. */
+.survey-results__avg {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--surface-2);
+    font-weight: 700;
+    font-size: var(--fs-lg, 18px);
+}
+
+.survey-results__avg.is-good { background: #2E7D32; color: #fff; }
+.survey-results__avg.is-mid { background: #F9A825; color: #222; }
+.survey-results__avg.is-bad { background: #C62828; color: #fff; }
+
+.survey-results__bars {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 4px;
+    height: 90px;
+    margin: var(--sp-2) 0 0 60px;
+    max-width: 420px;
+}
+
+.survey-results__bar {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: stretch;
+    text-align: center;
+    font-size: var(--fs-xs);
+}
+
+.survey-results__fill {
+    display: block;
+    min-height: 2px;
+    background: var(--accent);
+    border-radius: 3px 3px 0 0;
+}
+
+.survey-results__count { color: var(--text-muted); min-height: 1.2em; }
+.survey-results__label { color: var(--text-muted); }
+
+.survey-results__title {
+    margin: var(--sp-4) 0 var(--sp-2);
+    font-size: var(--fs-base);
+}
+
+.survey-results__comments {
+    margin: 0;
+    padding-left: var(--sp-4);
+}
+
+.survey-results__comments li {
+    margin-bottom: var(--sp-2);
+    white-space: pre-wrap;
+}

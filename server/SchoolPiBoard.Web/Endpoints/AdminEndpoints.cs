@@ -542,7 +542,7 @@ public static class AdminEndpoints
     }
 
     /// <summary>Администратор — или ничего. Роль сверяется каждый раз.</summary>
-    private static async Task<User?> AdminAsync(
+    internal static async Task<User?> AdminAsync(
         ClaimsPrincipal principal, AppDbContext db, CancellationToken cancellationToken)
     {
         var user = await AuthEndpoints.CurrentUser(principal, db, cancellationToken);
@@ -553,7 +553,7 @@ public static class AdminEndpoints
     /// Не «нет доступа», а «нет такой страницы»: существование панели —
     /// само по себе сведение, которое посторонним знать незачем.
     /// </summary>
-    private static IResult Denied()
+    internal static IResult Denied()
         => Results.NotFound(new { message = "Страница не найдена." });
 
     /// <summary>

@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import {
   adminBoardText, adminBoards, adminDeleteBoard, adminFlaggedBoards, adminOrders,
@@ -319,6 +319,9 @@ export function AdminPage(): ReactElement {
     <Page>
       <div className="page-header">
         <h1>Администрирование</h1>
+        <div className="page-header__actions">
+          <Link className="btn btn-outline" to="/admin/surveys">Опросы</Link>
+        </div>
       </div>
 
       {error ? <p className="note note-danger">{error}</p> : null}

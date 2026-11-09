@@ -223,6 +223,7 @@ export function Header(): ReactElement {
 
       {/* Справа — только своё: вход или всё, что относится к учётной
           записи, и переключатель темы. */}
+      <div className="header__right">
       <nav className="header__account" aria-label="Учётная запись">
         <ul className="desktop-menu">
           {user ? (
@@ -275,6 +276,7 @@ export function Header(): ReactElement {
       <span className="theme-switch--header">
         <ThemeSwitch theme={theme} toggle={toggle} />
       </span>
+      </div>
 
       {/* Крестик собирается из тех же трёх полосок: средняя гаснет,
           крайние съезжаются к середине и разворачиваются навстречу.

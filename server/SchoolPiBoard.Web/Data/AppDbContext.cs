@@ -45,8 +45,70 @@ public class AppDbContext : DbContext
 
     public DbSet<SchoolPiBonus> SchoolPiBonuses => Set<SchoolPiBonus>();
 
+    public DbSet<Survey> Surveys => Set<Survey>();
+
+    public DbSet<SurveyParticipant> SurveyParticipants => Set<SurveyParticipant>();
+
+    public DbSet<SurveyResponse> SurveyResponses => Set<SurveyResponse>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<Survey>(entity =>
+        {
+            entity.ToTable("surveys");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.Questions).HasColumnName("questions").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.Recipients).HasColumnName("recipients");
+            entity.Property(x => x.Sent).HasColumnName("sent");
+            entity.Property(x => x.CreatedBy).HasColumnName("created_by");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.ClosedAt).HasColumnName("closed_at");
+
+            entity.HasIndex(x => x.CreatedAt);
+        });
+
+        model.Entity<SurveyParticipant>(entity =>
+        {
+            entity.ToTable("survey_participants");
+
+            // Ключ — сама пара: второй ответ того же человека база не примет,
+            // даже если два запроса придут одновременно.
+            entity.HasKey(x => new { x.SurveyId, x.UserId });
+
+            entity.Property(x => x.SurveyId).HasColumnName("survey_id");
+            entity.Property(x => x.UserId).HasColumnName("user_id");
+
+            entity.HasOne<Survey>()
+                .WithMany()
+                .HasForeignKey(x => x.SurveyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<SurveyResponse>(entity =>
+        {
+            entity.ToTable("survey_responses");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.SurveyId).HasColumnName("survey_id");
+            entity.Property(x => x.Scores).HasColumnName("scores").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.Comment).HasColumnName("comment");
+
+            entity.HasIndex(x => x.SurveyId);
+
+            entity.HasOne<Survey>()
+                .WithMany()
+                .HasForeignKey(x => x.SurveyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         model.Entity<User>(entity =>
         {
             entity.ToTable("users");

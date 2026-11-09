@@ -666,32 +666,34 @@ function Header() {
       ] }) })
     ] }) }),
     /* @__PURE__ */ jsx("span", { className: "header__spacer" }),
-    /* @__PURE__ */ jsx("nav", { className: "header__account", "aria-label": "Учётная запись", children: /* @__PURE__ */ jsx("ul", { className: "desktop-menu", children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }) }),
-      /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/recordings", children: "Мои записи" }) }),
-      user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/admin", children: "Администрирование" }) }) : null,
-      /* @__PURE__ */ jsxs("li", { className: "dropdown", ref: drop, children: [
-        /* @__PURE__ */ jsxs(
-          "button",
-          {
-            className: dropOpen ? "dropdown-toggle active" : "dropdown-toggle",
-            type: "button",
-            "aria-expanded": dropOpen,
-            onClick: () => setDropOpen((current) => !current),
-            children: [
-              "Личный кабинет",
-              /* @__PURE__ */ jsx("span", { className: "dropdown-arrow", "aria-hidden": "true" })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxs("ul", { className: dropOpen ? "dropdown-menu show" : "dropdown-menu", children: [
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", children: "Мой тариф" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", children: "Настройки" }) }),
-          /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "dropdown-menu__danger", type: "button", onClick: logout, children: "Выйти" }) })
+    /* @__PURE__ */ jsxs("div", { className: "header__right", children: [
+      /* @__PURE__ */ jsx("nav", { className: "header__account", "aria-label": "Учётная запись", children: /* @__PURE__ */ jsx("ul", { className: "desktop-menu", children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }) }),
+        /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/recordings", children: "Мои записи" }) }),
+        user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/admin", children: "Администрирование" }) }) : null,
+        /* @__PURE__ */ jsxs("li", { className: "dropdown", ref: drop, children: [
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: dropOpen ? "dropdown-toggle active" : "dropdown-toggle",
+              type: "button",
+              "aria-expanded": dropOpen,
+              onClick: () => setDropOpen((current) => !current),
+              children: [
+                "Личный кабинет",
+                /* @__PURE__ */ jsx("span", { className: "dropdown-arrow", "aria-hidden": "true" })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxs("ul", { className: dropOpen ? "dropdown-menu show" : "dropdown-menu", children: [
+            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/plan", children: "Мой тариф" }) }),
+            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/profile", children: "Настройки" }) }),
+            /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx("button", { className: "dropdown-menu__danger", type: "button", onClick: logout, children: "Выйти" }) })
+          ] })
         ] })
-      ] })
-    ] }) : /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-sm header__cta", to: "/login", children: "Войти" }) }) }) }),
-    /* @__PURE__ */ jsx("span", { className: "theme-switch--header", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) }),
+      ] }) : /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-sm header__cta", to: "/login", children: "Войти" }) }) }) }),
+      /* @__PURE__ */ jsx("span", { className: "theme-switch--header", children: /* @__PURE__ */ jsx(ThemeSwitch, { theme, toggle }) })
+    ] }),
     /* @__PURE__ */ jsx(
       "button",
       {
@@ -12030,6 +12032,307 @@ function LegalPage() {
     ] })
   ] }) });
 }
+const surveyForm = (id) => api(`/surveys/${id}`);
+const answerSurvey = (id, scores, comment) => api(`/surveys/${id}/answer`, { method: "POST", body: { scores, comment } });
+const adminSurveys = (page) => api(`/admin/surveys?page=${page}`);
+const sendSurvey = () => api("/admin/surveys", { method: "POST" });
+const surveyResults = (id) => api(`/admin/surveys/${id}`);
+const closeSurvey = (id) => api(`/admin/surveys/${id}/close`, { method: "POST" });
+const SIZE$1 = 10;
+function dayTime$1(value) {
+  return new Date(value).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+function AdminSurveysPage() {
+  const { user, loading: loading2 } = useAuth();
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [recipients, setRecipients] = useState(0);
+  const [page, setPage] = useState(1);
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(null);
+  const [results, setResults] = useState(null);
+  const load = useCallback((at) => {
+    adminSurveys(at).then((answer) => {
+      setItems(answer.items);
+      setTotal(answer.total);
+      setRecipients(answer.recipientsNow);
+    }).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось загрузить опросы."));
+  }, []);
+  useEffect(() => {
+    if (user == null ? void 0 : user.isAdmin) load(page);
+  }, [user == null ? void 0 : user.isAdmin, page, load]);
+  const sending = items.some((one) => one.sent < one.recipients && !one.closedAt);
+  useEffect(() => {
+    if (!sending) return void 0;
+    const timer = window.setInterval(() => load(page), 5e3);
+    return () => window.clearInterval(timer);
+  }, [sending, page, load]);
+  const send2 = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const answer = await sendSurvey();
+      setNote(`Опрос создан, письма уходят ${answer.recipients} пользователям — по одному, это займёт пару минут.`);
+      setConfirming(false);
+      setPage(1);
+      load(1);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось отправить опрос.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const toggle = (id) => {
+    if (open === id) {
+      setOpen(null);
+      return;
+    }
+    setOpen(id);
+    setResults(null);
+    surveyResults(id).then(setResults).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось загрузить результаты."));
+  };
+  const close = async (id) => {
+    if (!window.confirm("Закрыть опрос? Новые ответы на него приниматься не будут.")) return;
+    try {
+      await closeSurvey(id);
+      load(page);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось закрыть опрос.");
+    }
+  };
+  if (loading2) return /* @__PURE__ */ jsx(Page, { narrow: true, children: null });
+  if (!(user == null ? void 0 : user.isAdmin)) return /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true });
+  const pages = Math.max(1, Math.ceil(total / SIZE$1));
+  return /* @__PURE__ */ jsxs(Page, { children: [
+    /* @__PURE__ */ jsxs("div", { className: "page-header", children: [
+      /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsx("p", { className: "page-header__sub", children: /* @__PURE__ */ jsx(Link, { to: "/admin", children: "← Администрирование" }) }),
+        /* @__PURE__ */ jsx("h1", { children: "Опросы" })
+      ] }),
+      /* @__PURE__ */ jsx("div", { className: "page-header__actions", children: /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: () => setConfirming(true), children: "Отправить опрос" }) })
+    ] }),
+    note ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: note }) : null,
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    /* @__PURE__ */ jsxs("section", { className: "card", children: [
+      /* @__PURE__ */ jsxs("h2", { className: "card-title", children: [
+        "Результаты",
+        total > 0 ? ` · ${total}` : ""
+      ] }),
+      items.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Опросов ещё не было." }) : /* @__PURE__ */ jsxs("table", { className: "admin__table", children: [
+        /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { children: [
+          /* @__PURE__ */ jsx("th", { children: "Опрос" }),
+          /* @__PURE__ */ jsx("th", { children: "Писем" }),
+          /* @__PURE__ */ jsx("th", { children: "Ответов" }),
+          /* @__PURE__ */ jsx("th", { children: "Состояние" }),
+          /* @__PURE__ */ jsx("th", { "aria-label": "Действия" })
+        ] }) }),
+        /* @__PURE__ */ jsx("tbody", { children: items.map((one) => /* @__PURE__ */ jsxs(Fragment$1, { children: [
+          /* @__PURE__ */ jsxs("tr", { children: [
+            /* @__PURE__ */ jsxs("td", { children: [
+              "№",
+              one.id,
+              " · ",
+              dayTime$1(one.createdAt)
+            ] }),
+            /* @__PURE__ */ jsxs("td", { children: [
+              one.sent,
+              " из ",
+              one.recipients
+            ] }),
+            /* @__PURE__ */ jsx("td", { children: one.responses }),
+            /* @__PURE__ */ jsx("td", { children: one.closedAt ? `закрыт ${dayTime$1(one.closedAt)}` : "идёт" }),
+            /* @__PURE__ */ jsx("td", { children: /* @__PURE__ */ jsxs("div", { className: "admin__actions", children: [
+              /* @__PURE__ */ jsx(
+                "button",
+                {
+                  className: "btn-quiet btn-sm",
+                  type: "button",
+                  onClick: () => toggle(one.id),
+                  "aria-expanded": open === one.id,
+                  children: open === one.id ? "Свернуть" : "Результаты"
+                }
+              ),
+              one.closedAt ? null : /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => void close(one.id), children: "Закрыть" })
+            ] }) })
+          ] }),
+          open === one.id ? /* @__PURE__ */ jsx("tr", { className: "admin__open", children: /* @__PURE__ */ jsx("td", { colSpan: 5, children: (results == null ? void 0 : results.id) === one.id ? /* @__PURE__ */ jsx(Results, { results }) : /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) }) }) : null
+        ] }, one.id)) })
+      ] }),
+      pages > 1 ? /* @__PURE__ */ jsx(Pagination, { page, count: pages, onPage: setPage, label: "Страницы списка опросов" }) : null
+    ] }),
+    confirming ? /* @__PURE__ */ jsxs(Modal, { title: "Отправить опрос?", onClose: () => setConfirming(false), children: [
+      /* @__PURE__ */ jsxs("p", { children: [
+        "Письмо со ссылкой на опрос получат ",
+        /* @__PURE__ */ jsx("b", { children: recipients }),
+        " пользователей — все, у кого подтверждена почта. Отменить отправку будет нельзя."
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "row", children: [
+        /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: () => void send2(), disabled: busy || recipients === 0, children: busy ? "Отправляем…" : "Отправить" }),
+        /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: () => setConfirming(false), disabled: busy, children: "Отмена" })
+      ] })
+    ] }) : null
+  ] });
+}
+function Results({ results }) {
+  if (results.responses === 0) return /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Ответов пока нет." });
+  return /* @__PURE__ */ jsxs("div", { className: "survey-results", children: [
+    /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
+      "Ответов: ",
+      results.responses,
+      ". Средняя — по тем, кто поставил оценку; «не пользовались» в неё не входят."
+    ] }),
+    results.questions.map((question) => /* @__PURE__ */ jsx(QuestionResult, { question }, question.key)),
+    /* @__PURE__ */ jsxs("h3", { className: "survey-results__title", children: [
+      "Замечания и предложения",
+      results.comments.length > 0 ? ` · ${results.comments.length}` : ""
+    ] }),
+    results.comments.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Никто ничего не написал." }) : /* @__PURE__ */ jsx("ul", { className: "survey-results__comments", children: results.comments.map((comment, index) => /* @__PURE__ */ jsx("li", { children: comment }, index)) })
+  ] });
+}
+function QuestionResult({ question }) {
+  const peak = Math.max(1, ...question.distribution);
+  const tone = question.average === null ? "" : question.average >= 8 ? " is-good" : question.average >= 5 ? " is-mid" : " is-bad";
+  return /* @__PURE__ */ jsxs("div", { className: "survey-results__question", children: [
+    /* @__PURE__ */ jsxs("div", { className: "survey-results__head", children: [
+      /* @__PURE__ */ jsx("span", { className: `survey-results__avg${tone}`, children: question.average ?? "—" }),
+      /* @__PURE__ */ jsxs("span", { children: [
+        question.text,
+        /* @__PURE__ */ jsxs("span", { className: "text-muted small", children: [
+          " · ",
+          "оценок ",
+          question.answered,
+          question.optional && question.skipped > 0 ? `, не пользовались ${question.skipped}` : ""
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsx("div", { className: "survey-results__bars", "aria-label": `Раскладка оценок: ${question.distribution.join(", ")}`, children: question.distribution.map((count, index) => /* @__PURE__ */ jsxs("div", { className: "survey-results__bar", title: `${index + 1}: ${count}`, children: [
+      /* @__PURE__ */ jsx("span", { className: "survey-results__count", children: count > 0 ? count : "" }),
+      /* @__PURE__ */ jsx("span", { className: "survey-results__fill", style: { height: `${count / peak * 100}%` } }),
+      /* @__PURE__ */ jsx("span", { className: "survey-results__label", children: index + 1 })
+    ] }, index)) })
+  ] });
+}
+const SCALE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const SKIP = 0;
+function SurveyPage() {
+  const { id } = useParams();
+  const surveyId = Number(id);
+  const [form, setForm] = useState(null);
+  const [scores, setScores] = useState({});
+  const [comment, setComment] = useState("");
+  const [error, setError] = useState(null);
+  const [done, setDone] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    surveyForm(surveyId).then(setForm).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось открыть опрос."));
+  }, [surveyId]);
+  const missing = (form == null ? void 0 : form.questions.filter((question) => scores[question.key] === void 0)) ?? [];
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!form || missing.length > 0) {
+      setError("Ответьте, пожалуйста, на все вопросы — у функций можно выбрать «Не пользовался».");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = Object.fromEntries(
+        form.questions.map((question) => [question.key, scores[question.key] === SKIP ? null : scores[question.key]])
+      );
+      const answer = await answerSurvey(form.id, payload, comment);
+      setDone(answer.message);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось отправить ответ.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (done || (form == null ? void 0 : form.answered)) {
+    return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("section", { className: "card survey", children: [
+      /* @__PURE__ */ jsx("h1", { children: "Спасибо!" }),
+      /* @__PURE__ */ jsxs("p", { children: [
+        done ?? "Вы уже ответили на этот опрос.",
+        " Ваши оценки помогут сделать доску лучше."
+      ] }),
+      /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/boards", children: "К доскам" })
+    ] }) });
+  }
+  if (form == null ? void 0 : form.closed) {
+    return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("section", { className: "card survey", children: [
+      /* @__PURE__ */ jsx("h1", { children: "Опрос закрыт" }),
+      /* @__PURE__ */ jsx("p", { children: "Ответы на этот опрос больше не принимаются. Спасибо, что заглянули!" }),
+      /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/boards", children: "К доскам" })
+    ] }) });
+  }
+  return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("form", { className: "card survey", onSubmit: submit, children: [
+    /* @__PURE__ */ jsx("h1", { children: "Опрос о Доске Пи" }),
+    /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Оцените от 1 до 10, где 1 — плохо, 10 — отлично. Если какой-то функцией не пользовались, так и отметьте. Ответы обезличены: мы видим оценки, но не то, кто их поставил." }),
+    !form && !error ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) : null,
+    form == null ? void 0 : form.questions.map((question, index) => /* @__PURE__ */ jsxs("fieldset", { className: "survey__question", children: [
+      /* @__PURE__ */ jsxs("legend", { children: [
+        index + 1,
+        ". ",
+        question.text
+      ] }),
+      /* @__PURE__ */ jsx("div", { className: "survey__scale", role: "radiogroup", "aria-label": question.text, children: SCALE.map((value) => /* @__PURE__ */ jsx(
+        "button",
+        {
+          type: "button",
+          className: "survey__score",
+          role: "radio",
+          "aria-checked": scores[question.key] === value,
+          onClick: () => setScores((current) => ({ ...current, [question.key]: value })),
+          children: value
+        },
+        value
+      )) }),
+      /* @__PURE__ */ jsxs("div", { className: "survey__ends", "aria-hidden": "true", children: [
+        /* @__PURE__ */ jsx("span", { children: "плохо" }),
+        /* @__PURE__ */ jsx("span", { children: "отлично" })
+      ] }),
+      question.optional ? /* @__PURE__ */ jsxs("label", { className: "survey__skip", children: [
+        /* @__PURE__ */ jsx(
+          "input",
+          {
+            type: "checkbox",
+            checked: scores[question.key] === SKIP,
+            onChange: (event) => setScores((current) => {
+              const next = { ...current };
+              if (event.target.checked) next[question.key] = SKIP;
+              else delete next[question.key];
+              return next;
+            })
+          }
+        ),
+        "Не пользовался"
+      ] }) : null
+    ] }, question.key)),
+    form ? /* @__PURE__ */ jsxs("div", { className: "field", children: [
+      /* @__PURE__ */ jsx("label", { htmlFor: "surveyComment", children: "Что улучшить? Замечания, предложения, жалобы — всё, что хотите сказать" }),
+      /* @__PURE__ */ jsx(
+        "textarea",
+        {
+          id: "surveyComment",
+          rows: 6,
+          maxLength: form.maxComment,
+          value: comment,
+          onChange: (event) => setComment(event.target.value)
+        }
+      )
+    ] }) : null,
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    form ? /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Отправить ответ" }) : null
+  ] }) });
+}
 function adminStats() {
   return api("/admin/stats");
 }
@@ -12265,7 +12568,10 @@ function AdminPage() {
   const pages = Math.max(1, Math.ceil(total / SIZE));
   const boardsPages = Math.max(1, Math.ceil(boardsTotal / SIZE));
   return /* @__PURE__ */ jsxs(Page, { children: [
-    /* @__PURE__ */ jsx("div", { className: "page-header", children: /* @__PURE__ */ jsx("h1", { children: "Администрирование" }) }),
+    /* @__PURE__ */ jsxs("div", { className: "page-header", children: [
+      /* @__PURE__ */ jsx("h1", { children: "Администрирование" }),
+      /* @__PURE__ */ jsx("div", { className: "page-header__actions", children: /* @__PURE__ */ jsx(Link, { className: "btn btn-outline", to: "/admin/surveys", children: "Опросы" }) })
+    ] }),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     stats ? /* @__PURE__ */ jsxs("div", { className: "admin__tiles", children: [
       /* @__PURE__ */ jsx(Tile, { title: "Учётных записей", value: String(stats.users) }),
@@ -12742,6 +13048,7 @@ function App() {
     /* @__PURE__ */ jsxs(Routes, { children: [
       /* @__PURE__ */ jsx(Route, { path: "/legal/:page", element: /* @__PURE__ */ jsx(LegalPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/admin", element: /* @__PURE__ */ jsx(AdminPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/admin/surveys", element: /* @__PURE__ */ jsx(AdminSurveysPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/about", element: /* @__PURE__ */ jsx(AboutPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/pricing", element: /* @__PURE__ */ jsx(PricingPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/features", element: /* @__PURE__ */ jsx(FeaturesPage, {}) }),
@@ -12761,6 +13068,7 @@ function App() {
         /* @__PURE__ */ jsx(Route, { path: "/plan", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/plan/paid", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/plan/failed", element: /* @__PURE__ */ jsx(PlanPage, {}) }),
+        /* @__PURE__ */ jsx(Route, { path: "/survey/:id", element: /* @__PURE__ */ jsx(SurveyPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(NotFoundPage, {}) })
       ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
         /* @__PURE__ */ jsx(Route, { path: "/", element: /* @__PURE__ */ jsx(LandingPage, {}) }),
@@ -12768,6 +13076,7 @@ function App() {
         /* @__PURE__ */ jsx(Route, { path: "/register", element: /* @__PURE__ */ jsx(RegisterPage, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "/forgot-password", element: /* @__PURE__ */ jsx(ForgotPasswordPage, {}) }),
         PRIVATE_PATHS.map((path) => /* @__PURE__ */ jsx(Route, { path, element: /* @__PURE__ */ jsx(ToLogin, {}) }, path)),
+        /* @__PURE__ */ jsx(Route, { path: "/survey/:id", element: /* @__PURE__ */ jsx(ToLogin, {}) }),
         /* @__PURE__ */ jsx(Route, { path: "*", element: /* @__PURE__ */ jsx(NotFoundPage, {}) })
       ] })
     ] })

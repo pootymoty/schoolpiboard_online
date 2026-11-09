@@ -21,6 +21,8 @@ import { ProfilePage } from './pages/ProfilePage';
 import { BoardPage } from './pages/BoardPage';
 import { JoinPage } from './pages/JoinPage';
 import { LegalPage } from './pages/LegalPage';
+import { AdminSurveysPage } from './pages/AdminSurveysPage';
+import { SurveyPage } from './pages/SurveyPage';
 import { AdminPage } from './pages/AdminPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { CookieBanner } from './components/CookieBanner';
@@ -75,6 +77,7 @@ export function App(): ReactElement {
             и не будет. */}
         <Route path="/legal/:page" element={<LegalPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/surveys" element={<AdminSurveysPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/features" element={<FeaturesPage />} />
@@ -102,6 +105,7 @@ export function App(): ReactElement {
                 принимает только адрес без параметров. */}
             <Route path="/plan/paid" element={<PlanPage />} />
             <Route path="/plan/failed" element={<PlanPage />} />
+            <Route path="/survey/:id" element={<SurveyPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </>
         ) : (
@@ -114,6 +118,8 @@ export function App(): ReactElement {
             {PRIVATE_PATHS.map((path) => (
               <Route key={path} path={path} element={<ToLogin />} />
             ))}
+            {/* Опрос из письма: пройти могут только зарегистрированные. */}
+            <Route path="/survey/:id" element={<ToLogin />} />
             <Route path="*" element={<NotFoundPage />} />
           </>
         )}

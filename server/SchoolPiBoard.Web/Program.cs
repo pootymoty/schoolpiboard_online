@@ -47,6 +47,8 @@ builder.Services.AddScoped<ConsentService>();
 builder.Services.AddScoped<RoleChangeService>();
 builder.Services.AddScoped<DeleteCodeService>();
 builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddScoped<SurveyService>();
+builder.Services.AddSingleton<SurveyQueue>();
 builder.Services.AddScoped<BoardRecordingService>();
 builder.Services.AddScoped<KeyServerClient>();
 builder.Services.AddScoped<SchoolPiAuthService>();
@@ -58,6 +60,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddHostedService<AutoRenewService>();
 builder.Services.AddHostedService<RetentionCleanupService>();
 builder.Services.AddHostedService<UnconfirmedCleanupService>();
+builder.Services.AddHostedService<SurveyMailer>();
 
 // Redis подключается при старте, а не при первом обращении: если он
 // недоступен, узнать об этом надо сейчас, а не посреди занятия.
@@ -175,6 +178,7 @@ app.MapTemplateEndpoints();
 app.MapSummaryEndpoints();
 app.MapRecordingEndpoints();
 app.MapAdminEndpoints();
+app.MapSurveyEndpoints();
 app.MapBillingEndpoints();
 app.MapCookieConsentEndpoints();
 
