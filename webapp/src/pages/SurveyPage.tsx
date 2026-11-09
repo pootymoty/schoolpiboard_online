@@ -87,7 +87,7 @@ export function SurveyPage(): ReactElement {
       <form className="card survey" onSubmit={submit}>
         <h1>Опрос о Доске Пи</h1>
         <p className="text-muted">
-          Оцените от 1 до 10, где 1 — плохо, 10 — отлично. Если какой-то функцией не пользовались,
+          Оцените от 1 до 10, где <b>1 — плохо</b>, <b>10 — отлично</b>. Если какой-то функцией не пользовались,
           так и отметьте. Ответы обезличены: мы видим оценки, но не то, кто их поставил.
         </p>
 
@@ -110,11 +110,6 @@ export function SurveyPage(): ReactElement {
                   {value}
                 </button>
               ))}
-            </div>
-
-            <div className="survey__ends" aria-hidden="true">
-              <span>плохо</span>
-              <span>отлично</span>
             </div>
 
             {question.optional ? (

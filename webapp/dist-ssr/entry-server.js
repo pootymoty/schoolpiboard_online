@@ -12278,7 +12278,13 @@ function SurveyPage() {
   }
   return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("form", { className: "card survey", onSubmit: submit, children: [
     /* @__PURE__ */ jsx("h1", { children: "Опрос о Доске Пи" }),
-    /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Оцените от 1 до 10, где 1 — плохо, 10 — отлично. Если какой-то функцией не пользовались, так и отметьте. Ответы обезличены: мы видим оценки, но не то, кто их поставил." }),
+    /* @__PURE__ */ jsxs("p", { className: "text-muted", children: [
+      "Оцените от 1 до 10, где ",
+      /* @__PURE__ */ jsx("b", { children: "1 — плохо" }),
+      ", ",
+      /* @__PURE__ */ jsx("b", { children: "10 — отлично" }),
+      ". Если какой-то функцией не пользовались, так и отметьте. Ответы обезличены: мы видим оценки, но не то, кто их поставил."
+    ] }),
     !form && !error ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) : null,
     form == null ? void 0 : form.questions.map((question, index) => /* @__PURE__ */ jsxs("fieldset", { className: "survey__question", children: [
       /* @__PURE__ */ jsxs("legend", { children: [
@@ -12298,10 +12304,6 @@ function SurveyPage() {
         },
         value
       )) }),
-      /* @__PURE__ */ jsxs("div", { className: "survey__ends", "aria-hidden": "true", children: [
-        /* @__PURE__ */ jsx("span", { children: "плохо" }),
-        /* @__PURE__ */ jsx("span", { children: "отлично" })
-      ] }),
       question.optional ? /* @__PURE__ */ jsxs("label", { className: "survey__skip", children: [
         /* @__PURE__ */ jsx(
           "input",

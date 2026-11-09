@@ -3915,14 +3915,6 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
     color: #fff;
 }
 
-.survey__ends {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 4px;
-    color: var(--text-muted);
-    font-size: var(--fs-xs);
-}
-
 .survey__skip {
     display: inline-flex;
     align-items: center;
