@@ -3880,6 +3880,11 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
     padding: 0;
 }
 
+.survey__question > label {
+    font-size: var(--fs-base);
+    font-weight: 600;
+}
+
 .survey__question legend {
     font-weight: 600;
     margin-bottom: var(--sp-2);
@@ -3986,61 +3991,136 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
 .survey-results__count { color: var(--text-muted); min-height: 1.2em; }
 .survey-results__label { color: var(--text-muted); }
 
-.survey-results__title {
-    margin: var(--sp-4) 0 var(--sp-2);
-    font-size: var(--fs-base);
-}
+/* --- Опросы: составление ----------------------------------------------------- */
 
-.survey-results__comments {
-    margin: 0;
-    padding-left: var(--sp-4);
-}
-
-.survey-results__comments li {
-    margin-bottom: var(--sp-2);
-    white-space: pre-wrap;
-}
-
-.survey-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.survey-list__item { border-bottom: 1px solid var(--line); }
-
-.survey-list__row {
+.survey-editor__head {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: var(--sp-2) var(--sp-4);
-    padding: var(--sp-3) 0;
 }
 
-.survey-list__info {
+.survey-editor__head .card-title { margin: 0; }
+
+.survey-editor {
+    list-style: none;
+    margin: var(--sp-4) 0 0;
+    padding: 0;
+}
+
+.survey-editor__item { margin-bottom: var(--sp-2); }
+
+.survey-editor__question {
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px var(--sp-3);
-    min-width: 0;
-}
-
-.survey-list__meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px var(--sp-3);
-    font-size: var(--fs-sm);
-}
-
-.survey-list__open {
+    align-items: flex-start;
+    gap: var(--sp-3);
     padding: var(--sp-3);
-    margin-bottom: var(--sp-3);
     background: var(--surface-2);
     border-radius: var(--radius);
 }
 
-/* На телефоне столбики — от левого края, без отступа под кружок средней. */
-@media (max-width: 560px) {
-    .survey-results__bars { margin-left: 0; }
+.survey-editor__number {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: var(--fs-sm);
+    margin-top: 6px;
+}
+
+.survey-editor__fields {
+    flex: 1;
+    min-width: 0;
+}
+
+.survey-editor__fields textarea {
+    width: 100%;
+    max-width: none;
+    margin-bottom: var(--sp-2);
+    resize: vertical;
+    min-height: 0;
+    /* Поле растёт по тексту — длинный вопрос на телефоне виден целиком. */
+    field-sizing: content;
+}
+
+/* Редактор открывается прокруткой к нему — верх не должен уйти под шапку. */
+.survey-editor__card { scroll-margin-top: calc(var(--header-h, 72px) + var(--sp-4)); }
+
+.survey-answers__question { font-weight: 600; margin-top: 0; }
+
+.survey-editor__options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-4);
+}
+
+.survey-editor__options select {
+    width: auto;
+    margin: 0;
+}
+
+.survey-editor__options .survey__skip { margin: 0; }
+
+.survey-editor__remove { flex: none; }
+
+.survey-editor__add { margin-top: 4px; }
+
+.survey-editor__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    margin-top: var(--sp-4);
+}
+
+.survey-templates {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.survey-templates__item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    border-bottom: 1px solid var(--line);
+}
+
+.survey-templates__pick {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: var(--sp-3) var(--sp-2);
+    background: transparent;
+    border: 0;
+    text-align: left;
+    color: var(--text);
+}
+
+.survey-results__avg--text {
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    font-size: var(--fs-sm);
+}
+
+.survey-results__text { flex: 1; min-width: 0; }
+
+.survey-answers {
+    margin: 0;
+    padding-left: var(--sp-5);
+}
+
+.survey-answers li {
+    padding: var(--sp-2) 0;
+    border-bottom: 1px solid var(--line);
+    white-space: pre-wrap;
 }

@@ -12032,13 +12032,45 @@ function LegalPage() {
     ] })
   ] }) });
 }
+const typeOf = (question) => question.type ?? "scale";
 const surveyForm = (id) => api(`/surveys/${id}`);
-const answerSurvey = (id, scores, comment) => api(`/surveys/${id}/answer`, { method: "POST", body: { scores, comment } });
+const answerSurvey = (id, scores, texts) => api(`/surveys/${id}/answer`, { method: "POST", body: { scores, texts } });
 const adminSurveys = (page) => api(`/admin/surveys?page=${page}`);
-const sendSurvey = () => api("/admin/surveys", { method: "POST" });
+const surveyTemplate = () => api("/admin/surveys/template");
+const createSurvey = (questions) => api("/admin/surveys", { method: "POST", body: { questions } });
 const surveyResults = (id) => api(`/admin/surveys/${id}`);
+const textAnswers = (id, key) => api(`/admin/surveys/${id}/answers/${encodeURIComponent(key)}`);
 const closeSurvey = (id) => api(`/admin/surveys/${id}/close`, { method: "POST" });
+const surveyTemplates = () => api("/admin/surveys/templates");
+const saveSurveyTemplate = (name, questions) => api("/admin/surveys/templates", { method: "POST", body: { name, questions } });
+const deleteSurveyTemplate = (id) => api(`/admin/surveys/templates/${id}`, { method: "DELETE" });
 const SIZE$1 = 10;
+const DRAFT_KEY = "schoolpiboard.admin.surveyDraft";
+let nextUid = 1;
+const blank = () => ({ uid: nextUid++, text: "", type: "scale", optional: false });
+const fromQuestions = (questions) => questions.map((question) => ({
+  uid: nextUid++,
+  text: question.text,
+  type: typeOf(question),
+  optional: question.optional
+}));
+const toDrafts = (questions) => questions.map(({ text, type, optional }) => ({ text: text.trim(), type, optional: type === "text" || optional }));
+function readDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) && parsed.length > 0 ? fromQuestions(parsed) : null;
+  } catch {
+    return null;
+  }
+}
+function writeDraft(questions) {
+  try {
+    if (questions) localStorage.setItem(DRAFT_KEY, JSON.stringify(toDrafts(questions)));
+    else localStorage.removeItem(DRAFT_KEY);
+  } catch {
+  }
+}
 function dayTime$1(value) {
   return new Date(value).toLocaleDateString("ru-RU", {
     day: "numeric",
@@ -12048,6 +12080,14 @@ function dayTime$1(value) {
     minute: "2-digit"
   });
 }
+const questionsWord = (count) => {
+  const tens = count % 100;
+  const ones = count % 10;
+  if (tens >= 11 && tens <= 14) return "вопросов";
+  if (ones === 1) return "вопрос";
+  if (ones >= 2 && ones <= 4) return "вопроса";
+  return "вопросов";
+};
 function AdminSurveysPage() {
   const { user, loading: loading2 } = useAuth();
   const [items, setItems] = useState([]);
@@ -12056,10 +12096,10 @@ function AdminSurveysPage() {
   const [page, setPage] = useState(1);
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(null);
   const [results, setResults] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const editorRef = useRef(null);
   const load = useCallback((at) => {
     adminSurveys(at).then((answer) => {
       setItems(answer.items);
@@ -12076,20 +12116,32 @@ function AdminSurveysPage() {
     const timer = window.setInterval(() => load(page), 5e3);
     return () => window.clearInterval(timer);
   }, [sending, page, load]);
-  const send2 = async () => {
-    setBusy(true);
+  const startEditing = async () => {
     setError(null);
-    try {
-      const answer = await sendSurvey();
-      setNote(`Опрос создан, письма уходят ${answer.recipients} пользователям — по одному, это займёт пару минут.`);
-      setConfirming(false);
-      setPage(1);
-      load(1);
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось отправить опрос.");
-    } finally {
-      setBusy(false);
+    setNote(null);
+    const draft = readDraft();
+    if (draft) {
+      setEditing(draft);
+    } else {
+      try {
+        const template = await surveyTemplate();
+        setEditing(fromQuestions(template.questions));
+      } catch (reason) {
+        setError(reason instanceof ApiError ? reason.message : "Не удалось открыть форму опроса.");
+        return;
+      }
     }
+    window.setTimeout(() => {
+      var _a;
+      return (_a = editorRef.current) == null ? void 0 : _a.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  };
+  const sent = (count) => {
+    writeDraft(null);
+    setEditing(null);
+    setNote(`Опрос создан, письма уходят ${count} пользователям — по одному, это займёт пару минут.`);
+    setPage(1);
+    load(1);
   };
   const toggle = (id) => {
     if (open === id) {
@@ -12118,10 +12170,23 @@ function AdminSurveysPage() {
         /* @__PURE__ */ jsx("p", { className: "page-header__sub", children: /* @__PURE__ */ jsx(Link, { to: "/admin", children: "← Администрирование" }) }),
         /* @__PURE__ */ jsx("h1", { children: "Опросы" })
       ] }),
-      /* @__PURE__ */ jsx("div", { className: "page-header__actions", children: /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: () => setConfirming(true), children: "Отправить опрос" }) })
+      editing ? null : /* @__PURE__ */ jsx("div", { className: "page-header__actions", children: /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: () => void startEditing(), children: "Создать опрос" }) })
     ] }),
     note ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: note }) : null,
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    editing ? /* @__PURE__ */ jsx("section", { className: "card survey-editor__card", ref: editorRef, children: /* @__PURE__ */ jsx(
+      SurveyEditor,
+      {
+        questions: editing,
+        recipients,
+        onChange: (next) => {
+          setEditing(next);
+          writeDraft(next);
+        },
+        onCancel: () => setEditing(null),
+        onSent: sent
+      }
+    ) }) : null,
     /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsxs("h2", { className: "card-title", children: [
         "Результаты",
@@ -12171,10 +12236,136 @@ function AdminSurveysPage() {
         ] }, one.id)) })
       ),
       pages > 1 ? /* @__PURE__ */ jsx(Pagination, { page, count: pages, onPage: setPage, label: "Страницы списка опросов" }) : null
+    ] })
+  ] });
+}
+function SurveyEditor({ questions, recipients, onChange, onCancel, onSent }) {
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const update = (uid, patch) => {
+    onChange(questions.map((question) => question.uid === uid ? { ...question, ...patch } : question));
+  };
+  const insertAfter = (index) => {
+    const next = [...questions];
+    next.splice(index + 1, 0, blank());
+    onChange(next);
+  };
+  const remove = (uid) => onChange(questions.filter((question) => question.uid !== uid));
+  const problem = () => {
+    if (questions.length === 0) return "Добавьте хотя бы один вопрос.";
+    const empty = questions.findIndex((question) => !question.text.trim());
+    if (empty >= 0) return `Впишите текст вопроса ${empty + 1}.`;
+    return null;
+  };
+  const askToSend = () => {
+    const wrong = problem();
+    setError(wrong);
+    setNote(null);
+    if (!wrong) setConfirming(true);
+  };
+  const send2 = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const answer = await createSurvey(toDrafts(questions));
+      setConfirming(false);
+      onSent(answer.recipients);
+    } catch (reason) {
+      setConfirming(false);
+      setError(reason instanceof ApiError ? reason.message : "Не удалось отправить опрос.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const askToSave = () => {
+    const wrong = problem();
+    setError(wrong);
+    setNote(null);
+    if (!wrong) setSaving(true);
+  };
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsxs("div", { className: "survey-editor__head", children: [
+      /* @__PURE__ */ jsx("h2", { className: "card-title", children: "Новый опрос" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-outline btn-sm", type: "button", onClick: () => setPicking(true), children: "Выбрать готовый шаблон" })
+    ] }),
+    /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Оценка — шкала от 1 до 10, где 1 — плохо, 10 — отлично. Открытый ответ — поле для текста, его можно оставить пустым. Форма запоминается: закроете, не отправив, — при следующем открытии она будет такой же." }),
+    questions.length === 0 ? /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => insertAfter(-1), children: "+ Добавить вопрос" }) : null,
+    /* @__PURE__ */ jsx("ol", { className: "survey-editor", children: questions.map((question, index) => /* @__PURE__ */ jsxs("li", { className: "survey-editor__item", children: [
+      /* @__PURE__ */ jsxs("div", { className: "survey-editor__question", children: [
+        /* @__PURE__ */ jsx("span", { className: "survey-editor__number", children: index + 1 }),
+        /* @__PURE__ */ jsxs("div", { className: "survey-editor__fields", children: [
+          /* @__PURE__ */ jsx(
+            "textarea",
+            {
+              rows: 2,
+              maxLength: 300,
+              placeholder: "Текст вопроса",
+              "aria-label": `Текст вопроса ${index + 1}`,
+              value: question.text,
+              onChange: (event) => update(question.uid, { text: event.target.value })
+            }
+          ),
+          /* @__PURE__ */ jsxs("div", { className: "survey-editor__options", children: [
+            /* @__PURE__ */ jsxs(
+              "select",
+              {
+                "aria-label": `Тип ответа на вопрос ${index + 1}`,
+                value: question.type,
+                onChange: (event) => update(question.uid, { type: event.target.value }),
+                children: [
+                  /* @__PURE__ */ jsx("option", { value: "scale", children: "Оценка от 1 до 10" }),
+                  /* @__PURE__ */ jsx("option", { value: "text", children: "Открытый ответ" })
+                ]
+              }
+            ),
+            question.type === "scale" ? /* @__PURE__ */ jsxs("label", { className: "survey__skip", children: [
+              /* @__PURE__ */ jsx(
+                "input",
+                {
+                  type: "checkbox",
+                  checked: question.optional,
+                  onChange: (event) => update(question.uid, { optional: event.target.checked })
+                }
+              ),
+              "Можно ответить «Не пользовался»"
+            ] }) : null
+          ] })
+        ] }),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            className: "btn-tool survey-editor__remove",
+            type: "button",
+            onClick: () => remove(question.uid),
+            "aria-label": `Удалить вопрос ${index + 1}`,
+            title: "Удалить вопрос",
+            "data-tip": "Удалить вопрос",
+            children: /* @__PURE__ */ jsx(IconTrash, {})
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm survey-editor__add", type: "button", onClick: () => insertAfter(index), children: "+ Добавить вопрос" })
+    ] }, question.uid)) }),
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    note ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: note }) : null,
+    /* @__PURE__ */ jsxs("div", { className: "survey-editor__actions", children: [
+      /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: askToSend, disabled: busy, children: "Отправить опрос" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-outline", type: "button", onClick: askToSave, disabled: busy, children: "Сохранить шаблон" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: onCancel, disabled: busy, children: "Отмена" })
     ] }),
     confirming ? /* @__PURE__ */ jsxs(Modal, { title: "Отправить опрос?", onClose: () => setConfirming(false), children: [
       /* @__PURE__ */ jsxs("p", { children: [
-        "Письмо со ссылкой на опрос получат ",
+        "Письмо со ссылкой на опрос (",
+        questions.length,
+        " ",
+        questionsWord(questions.length),
+        ") получат",
+        " ",
         /* @__PURE__ */ jsx("b", { children: recipients }),
         " пользователей — все, у кого подтверждена почта. Отменить отправку будет нельзя."
       ] }),
@@ -12182,10 +12373,127 @@ function AdminSurveysPage() {
         /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: () => void send2(), disabled: busy || recipients === 0, children: busy ? "Отправляем…" : "Отправить" }),
         /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: () => setConfirming(false), disabled: busy, children: "Отмена" })
       ] })
-    ] }) : null
+    ] }) : null,
+    saving ? /* @__PURE__ */ jsx(
+      SaveTemplate,
+      {
+        initial: templateName,
+        questions,
+        onClose: () => setSaving(false),
+        onSaved: (name, message) => {
+          setTemplateName(name);
+          setSaving(false);
+          setNote(message);
+        }
+      }
+    ) : null,
+    picking ? /* @__PURE__ */ jsx(
+      PickTemplate,
+      {
+        onClose: () => setPicking(false),
+        onPick: (template) => {
+          onChange(fromQuestions(template.questions));
+          setTemplateName(template.name);
+          setPicking(false);
+          setError(null);
+          setNote(`Вопросы взяты из шаблона «${template.name}».`);
+        }
+      }
+    ) : null
+  ] });
+}
+function SaveTemplate({ initial, questions, onClose, onSaved }) {
+  const [name, setName] = useState(initial);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const answer = await saveSurveyTemplate(name.trim(), toDrafts(questions));
+      onSaved(name.trim(), answer.message);
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось сохранить шаблон.");
+      setBusy(false);
+    }
+  };
+  return /* @__PURE__ */ jsx(Modal, { title: "Сохранить шаблон", onClose, children: /* @__PURE__ */ jsxs("form", { onSubmit: (event) => {
+    event.preventDefault();
+    void save();
+  }, children: [
+    /* @__PURE__ */ jsxs("div", { className: "field", children: [
+      /* @__PURE__ */ jsx("label", { htmlFor: "templateName", children: "Название шаблона" }),
+      /* @__PURE__ */ jsx(
+        "input",
+        {
+          id: "templateName",
+          type: "text",
+          maxLength: 100,
+          required: true,
+          autoFocus: true,
+          value: name,
+          onChange: (event) => setName(event.target.value)
+        }
+      ),
+      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Шаблон с тем же названием будет заменён этими вопросами." })
+    ] }),
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    /* @__PURE__ */ jsxs("div", { className: "row", children: [
+      /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy || !name.trim(), children: busy ? "Сохраняем…" : "Сохранить" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: onClose, disabled: busy, children: "Отмена" })
+    ] })
+  ] }) });
+}
+function PickTemplate({ onClose, onPick }) {
+  const [templates, setTemplates] = useState(null);
+  const [error, setError] = useState(null);
+  const load = useCallback(() => {
+    surveyTemplates().then(setTemplates).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось загрузить шаблоны."));
+  }, []);
+  useEffect(load, [load]);
+  const remove = async (template) => {
+    if (!window.confirm(`Удалить шаблон «${template.name}»?`)) return;
+    try {
+      await deleteSurveyTemplate(template.id);
+      load();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не удалось удалить шаблон.");
+    }
+  };
+  const pick = (template) => {
+    if (window.confirm(`Заменить вопросы в форме вопросами шаблона «${template.name}»?`)) onPick(template);
+  };
+  return /* @__PURE__ */ jsxs(Modal, { title: "Готовые шаблоны", onClose, children: [
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    templates === null && !error ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) : null,
+    (templates == null ? void 0 : templates.length) === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Шаблонов пока нет. Составьте вопросы и нажмите «Сохранить шаблон» внизу формы." }) : null,
+    templates && templates.length > 0 ? /* @__PURE__ */ jsx("ul", { className: "survey-templates", children: templates.map((template) => /* @__PURE__ */ jsxs("li", { className: "survey-templates__item", children: [
+      /* @__PURE__ */ jsxs("button", { className: "survey-templates__pick", type: "button", onClick: () => pick(template), children: [
+        /* @__PURE__ */ jsx("strong", { children: template.name }),
+        /* @__PURE__ */ jsxs("span", { className: "text-muted small", children: [
+          template.questions.length,
+          " ",
+          questionsWord(template.questions.length),
+          " · ",
+          dayTime$1(template.updatedAt)
+        ] })
+      ] }),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-tool",
+          type: "button",
+          onClick: () => void remove(template),
+          "aria-label": `Удалить шаблон «${template.name}»`,
+          title: "Удалить шаблон",
+          children: /* @__PURE__ */ jsx(IconTrash, {})
+        }
+      )
+    ] }, template.id)) }) : null
   ] });
 }
 function Results({ results }) {
+  const [reading, setReading] = useState(null);
   if (results.responses === 0) return /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Ответов пока нет." });
   return /* @__PURE__ */ jsxs("div", { className: "survey-results", children: [
     /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
@@ -12193,12 +12501,38 @@ function Results({ results }) {
       results.responses,
       ". Средняя — по тем, кто поставил оценку; «не пользовались» в неё не входят."
     ] }),
-    results.questions.map((question) => /* @__PURE__ */ jsx(QuestionResult, { question }, question.key)),
-    /* @__PURE__ */ jsxs("h3", { className: "survey-results__title", children: [
-      "Замечания и предложения",
-      results.comments.length > 0 ? ` · ${results.comments.length}` : ""
-    ] }),
-    results.comments.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Никто ничего не написал." }) : /* @__PURE__ */ jsx("ul", { className: "survey-results__comments", children: results.comments.map((comment, index) => /* @__PURE__ */ jsx("li", { children: comment }, index)) })
+    results.questions.map((question) => typeOf(question) === "text" ? /* @__PURE__ */ jsx("div", { className: "survey-results__question", children: /* @__PURE__ */ jsxs("div", { className: "survey-results__head", children: [
+      /* @__PURE__ */ jsx("span", { className: "survey-results__avg survey-results__avg--text", "aria-hidden": "true", children: "Аа" }),
+      /* @__PURE__ */ jsxs("span", { className: "survey-results__text", children: [
+        question.text,
+        /* @__PURE__ */ jsxs("span", { className: "text-muted small", children: [
+          " · открытый вопрос, ответов ",
+          question.answered
+        ] })
+      ] }),
+      question.answered > 0 ? /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => setReading(question), children: "Ответы" }) : null
+    ] }) }, question.key) : /* @__PURE__ */ jsx(QuestionResult, { question }, question.key)),
+    reading ? /* @__PURE__ */ jsx(Answers, { surveyId: results.id, question: reading, onClose: () => setReading(null) }) : null
+  ] });
+}
+function Answers({ surveyId, question, onClose }) {
+  const [answers, setAnswers] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    textAnswers(surveyId, question.key).then(setAnswers).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось загрузить ответы."));
+  }, [surveyId, question.key]);
+  return /* @__PURE__ */ jsxs(Modal, { title: "Ответы", onClose, children: [
+    /* @__PURE__ */ jsx("p", { className: "survey-answers__question", children: question.text }),
+    error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
+    answers === null && !error ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) : null,
+    answers ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
+        "Ответов: ",
+        answers.length,
+        ". Порядок случайный — по нему нельзя понять, кто отвечал."
+      ] }),
+      /* @__PURE__ */ jsx("ol", { className: "survey-answers", children: answers.map((answer, index) => /* @__PURE__ */ jsx("li", { children: answer }, index)) })
+    ] }) : null
   ] });
 }
 function QuestionResult({ question }) {
@@ -12231,27 +12565,27 @@ function SurveyPage() {
   const surveyId = Number(id);
   const [form, setForm] = useState(null);
   const [scores, setScores] = useState({});
-  const [comment, setComment] = useState("");
+  const [texts, setTexts] = useState({});
   const [error, setError] = useState(null);
   const [done, setDone] = useState(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     surveyForm(surveyId).then(setForm).catch((reason) => setError(reason instanceof ApiError ? reason.message : "Не удалось открыть опрос."));
   }, [surveyId]);
-  const missing = (form == null ? void 0 : form.questions.filter((question) => scores[question.key] === void 0)) ?? [];
+  const missing = (form == null ? void 0 : form.questions.filter((question) => typeOf(question) === "scale" && scores[question.key] === void 0)) ?? [];
   const submit = async (event) => {
     event.preventDefault();
     if (!form || missing.length > 0) {
-      setError("Ответьте, пожалуйста, на все вопросы — у функций можно выбрать «Не пользовался».");
+      setError("Поставьте, пожалуйста, оценку в каждом вопросе — где можно, отметьте «Не пользовался».");
       return;
     }
     setBusy(true);
     setError(null);
     try {
       const payload = Object.fromEntries(
-        form.questions.map((question) => [question.key, scores[question.key] === SKIP ? null : scores[question.key]])
+        form.questions.filter((question) => typeOf(question) === "scale").map((question) => [question.key, scores[question.key] === SKIP ? null : scores[question.key]])
       );
-      const answer = await answerSurvey(form.id, payload, comment);
+      const answer = await answerSurvey(form.id, payload, texts);
       setDone(answer.message);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Не удалось отправить ответ.");
@@ -12283,10 +12617,26 @@ function SurveyPage() {
       /* @__PURE__ */ jsx("b", { children: "1 — плохо" }),
       ", ",
       /* @__PURE__ */ jsx("b", { children: "10 — отлично" }),
-      ". Если какой-то функцией не пользовались, так и отметьте. Ответы обезличены: мы видим оценки, но не то, кто их поставил."
+      ". Если какой-то функцией не пользовались, так и отметьте. Ответы обезличены: мы видим ответы, но не то, кто их дал."
     ] }),
     !form && !error ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: "Загружаем…" }) : null,
-    form == null ? void 0 : form.questions.map((question, index) => /* @__PURE__ */ jsxs("fieldset", { className: "survey__question", children: [
+    form == null ? void 0 : form.questions.map((question, index) => typeOf(question) === "text" ? /* @__PURE__ */ jsxs("div", { className: "field survey__question", children: [
+      /* @__PURE__ */ jsxs("label", { htmlFor: `survey-${question.key}`, children: [
+        index + 1,
+        ". ",
+        question.text
+      ] }),
+      /* @__PURE__ */ jsx(
+        "textarea",
+        {
+          id: `survey-${question.key}`,
+          rows: 5,
+          maxLength: form.maxText,
+          value: texts[question.key] ?? "",
+          onChange: (event) => setTexts((current) => ({ ...current, [question.key]: event.target.value }))
+        }
+      )
+    ] }, question.key) : /* @__PURE__ */ jsxs("fieldset", { className: "survey__question", children: [
       /* @__PURE__ */ jsxs("legend", { children: [
         index + 1,
         ". ",
@@ -12321,19 +12671,6 @@ function SurveyPage() {
         "Не пользовался"
       ] }) : null
     ] }, question.key)),
-    form ? /* @__PURE__ */ jsxs("div", { className: "field", children: [
-      /* @__PURE__ */ jsx("label", { htmlFor: "surveyComment", children: "Что улучшить? Замечания, предложения, жалобы — всё, что хотите сказать" }),
-      /* @__PURE__ */ jsx(
-        "textarea",
-        {
-          id: "surveyComment",
-          rows: 6,
-          maxLength: form.maxComment,
-          value: comment,
-          onChange: (event) => setComment(event.target.value)
-        }
-      )
-    ] }) : null,
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     form ? /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Отправить ответ" }) : null
   ] }) });

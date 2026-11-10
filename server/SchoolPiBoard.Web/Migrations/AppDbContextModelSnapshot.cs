@@ -1018,6 +1018,37 @@ namespace SchoolPiBoard.Web.Migrations
                     b.ToTable("survey_participants", (string)null);
                 });
 
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.SurveyTemplate", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Questions")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("questions");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("survey_templates", (string)null);
+                });
+
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.SurveyResponse", b =>
                 {
                     b.Property<long>("Id")
@@ -1027,9 +1058,6 @@ namespace SchoolPiBoard.Web.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<string>("Comment")
-                        .HasColumnType("text")
-                        .HasColumnName("comment");
 
                     b.Property<string>("Scores")
                         .IsRequired()
@@ -1039,6 +1067,11 @@ namespace SchoolPiBoard.Web.Migrations
                     b.Property<long>("SurveyId")
                         .HasColumnType("bigint")
                         .HasColumnName("survey_id");
+
+                    b.Property<string>("Texts")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("texts");
 
                     b.HasKey("Id");
 

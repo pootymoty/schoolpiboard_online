@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent, ReactElement } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
-import { answerSurvey, surveyForm } from '../api/surveys';
+import { answerSurvey, surveyForm, typeOf } from '../api/surveys';
 import type { SurveyForm } from '../api/surveys';
 import { Page } from '../components/Layout';
 
@@ -22,7 +22,7 @@ export function SurveyPage(): ReactElement {
 
   const [form, setForm] = useState<SurveyForm | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
-  const [comment, setComment] = useState('');
+  const [texts, setTexts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,12 +33,15 @@ export function SurveyPage(): ReactElement {
       .catch((reason) => setError(reason instanceof ApiError ? reason.message : 'Не удалось открыть опрос.'));
   }, [surveyId]);
 
-  const missing = form?.questions.filter((question) => scores[question.key] === undefined) ?? [];
+  // Открытые вопросы необязательны; оценку нужно поставить или отметить
+  // «Не пользовался», где это разрешено.
+  const missing = form?.questions
+    .filter((question) => typeOf(question) === 'scale' && scores[question.key] === undefined) ?? [];
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form || missing.length > 0) {
-      setError('Ответьте, пожалуйста, на все вопросы — у функций можно выбрать «Не пользовался».');
+      setError('Поставьте, пожалуйста, оценку в каждом вопросе — где можно, отметьте «Не пользовался».');
       return;
     }
 
@@ -47,9 +50,11 @@ export function SurveyPage(): ReactElement {
 
     try {
       const payload = Object.fromEntries(
-        form.questions.map((question) => [question.key, scores[question.key] === SKIP ? null : scores[question.key]]),
+        form.questions
+          .filter((question) => typeOf(question) === 'scale')
+          .map((question) => [question.key, scores[question.key] === SKIP ? null : scores[question.key]]),
       );
-      const answer = await answerSurvey(form.id, payload, comment);
+      const answer = await answerSurvey(form.id, payload, texts);
       setDone(answer.message);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Не удалось отправить ответ.');
@@ -88,12 +93,23 @@ export function SurveyPage(): ReactElement {
         <h1>Опрос о Доске Пи</h1>
         <p className="text-muted">
           Оцените от 1 до 10, где <b>1 — плохо</b>, <b>10 — отлично</b>. Если какой-то функцией не пользовались,
-          так и отметьте. Ответы обезличены: мы видим оценки, но не то, кто их поставил.
+          так и отметьте. Ответы обезличены: мы видим ответы, но не то, кто их дал.
         </p>
 
         {!form && !error ? <p className="text-muted">Загружаем…</p> : null}
 
-        {form?.questions.map((question, index) => (
+        {form?.questions.map((question, index) => (typeOf(question) === 'text' ? (
+          <div className="field survey__question" key={question.key}>
+            <label htmlFor={`survey-${question.key}`}>{index + 1}. {question.text}</label>
+            <textarea
+              id={`survey-${question.key}`}
+              rows={5}
+              maxLength={form.maxText}
+              value={texts[question.key] ?? ''}
+              onChange={(event) => setTexts((current) => ({ ...current, [question.key]: event.target.value }))}
+            />
+          </div>
+        ) : (
           <fieldset className="survey__question" key={question.key}>
             <legend>{index + 1}. {question.text}</legend>
 
@@ -128,20 +144,7 @@ export function SurveyPage(): ReactElement {
               </label>
             ) : null}
           </fieldset>
-        ))}
-
-        {form ? (
-          <div className="field">
-            <label htmlFor="surveyComment">Что улучшить? Замечания, предложения, жалобы — всё, что хотите сказать</label>
-            <textarea
-              id="surveyComment"
-              rows={6}
-              maxLength={form.maxComment}
-              value={comment}
-              onChange={(event) => setComment(event.target.value)}
-            />
-          </div>
-        ) : null}
+        )))}
 
         {error ? <p className="note note-danger">{error}</p> : null}
 

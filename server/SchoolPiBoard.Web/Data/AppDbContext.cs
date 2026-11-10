@@ -51,6 +51,8 @@ public class AppDbContext : DbContext
 
     public DbSet<SurveyResponse> SurveyResponses => Set<SurveyResponse>();
 
+    public DbSet<SurveyTemplate> SurveyTemplates => Set<SurveyTemplate>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<Survey>(entity =>
@@ -67,6 +69,19 @@ public class AppDbContext : DbContext
             entity.Property(x => x.ClosedAt).HasColumnName("closed_at");
 
             entity.HasIndex(x => x.CreatedAt);
+        });
+
+        model.Entity<SurveyTemplate>(entity =>
+        {
+            entity.ToTable("survey_templates");
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.Name).HasColumnName("name").IsRequired();
+            entity.Property(x => x.Questions).HasColumnName("questions").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+
+            entity.HasIndex(x => x.Name).IsUnique();
         });
 
         model.Entity<SurveyParticipant>(entity =>
@@ -99,7 +114,7 @@ public class AppDbContext : DbContext
             entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
             entity.Property(x => x.SurveyId).HasColumnName("survey_id");
             entity.Property(x => x.Scores).HasColumnName("scores").HasColumnType("jsonb").IsRequired();
-            entity.Property(x => x.Comment).HasColumnName("comment");
+            entity.Property(x => x.Texts).HasColumnName("texts").HasColumnType("jsonb").IsRequired();
 
             entity.HasIndex(x => x.SurveyId);
 

@@ -73,12 +73,12 @@ public sealed class SurveyTests : IDisposable
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var response = await db.SurveyResponses.SingleAsync();
-        Assert.DoesNotContain("live@example.com", response.Scores + response.Comment);
+        Assert.DoesNotContain("live@example.com", response.Scores + response.Texts);
         Assert.Single(await db.SurveyParticipants.ToListAsync());
 
         // У ответа нет ни автора, ни времени — только оценки и текст.
         var columns = db.Model.FindEntityType(typeof(SurveyResponse))!.GetProperties().Select(x => x.Name).ToHashSet();
-        Assert.Equal(new HashSet<string> { "Id", "SurveyId", "Scores", "Comment" }, columns);
+        Assert.Equal(new HashSet<string> { "Id", "SurveyId", "Scores", "Texts" }, columns);
     }
 
     [Fact]
@@ -88,16 +88,16 @@ public sealed class SurveyTests : IDisposable
         var survey = await CreateAsync();
 
         var missing = Full(5);
-        missing["overall"] = null;
+        missing[SurveyQuestions.Default[0].Key] = null;
         Assert.Equal(SurveyAnswerOutcome.Invalid, await AnswerAsync(survey.Id, 1, missing, null));
 
         var outOfRange = Full(5);
-        outOfRange["pen"] = 11;
+        outOfRange[SurveyQuestions.Default[3].Key] = 11;
         Assert.Equal(SurveyAnswerOutcome.Invalid, await AnswerAsync(survey.Id, 1, outOfRange, null));
 
         // «Не пользовался» в необязательном вопросе — можно.
         var skipped = Full(5);
-        skipped["recording"] = null;
+        skipped[Recording] = null;
         Assert.Equal(SurveyAnswerOutcome.Ok, await AnswerAsync(survey.Id, 1, skipped, null));
     }
 
@@ -125,7 +125,7 @@ public sealed class SurveyTests : IDisposable
         var survey = await CreateAsync();
 
         var first = Full(10);
-        first["recording"] = null;
+        first[Recording] = null;
         await AnswerAsync(survey.Id, 1, first, "Отлично");
         await AnswerAsync(survey.Id, 2, Full(6), "   ");
 
@@ -135,33 +135,112 @@ public sealed class SurveyTests : IDisposable
         Assert.NotNull(results);
         Assert.Equal(2, results!.Responses);
 
-        var overall = results.Questions.Single(x => x.Key == "overall");
+        var overall = results.Questions.First();
         Assert.Equal(8.0, overall.Average);
         Assert.Equal(1, overall.Distribution[5]);
         Assert.Equal(1, overall.Distribution[9]);
 
-        var recording = results.Questions.Single(x => x.Key == "recording");
+        var recording = results.Questions.Single(x => x.Key == Recording);
         Assert.Equal(1, recording.Answered);
         Assert.Equal(1, recording.Skipped);
         Assert.Equal(6.0, recording.Average);
 
-        Assert.Equal(new[] { "Отлично" }, results.Comments);
+        var text = results.Questions.Single(x => x.Key == TextKey);
+        Assert.Equal(1, text.Answered);
+
+        var answers = await scope.ServiceProvider.GetRequiredService<SurveyService>()
+            .TextAnswersAsync(survey.Id, TextKey, CancellationToken.None);
+        Assert.Equal(new[] { "Отлично" }, answers);
+    }
+
+    [Fact]
+    public async Task CustomQuestionsAreNumberedAndValidated()
+    {
+        await AddUserAsync(1, "live@example.com", confirmed: true, deleted: false);
+
+        using var scope = _services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<SurveyService>();
+
+        var (bad, _) = await service.CreateAsync(1, new List<SurveyQuestionDraft> { new("   ", "scale", false) }, CancellationToken.None);
+        Assert.Equal(SurveyCreateOutcome.Invalid, bad);
+
+        var (empty, _) = await service.CreateAsync(1, new List<SurveyQuestionDraft>(), CancellationToken.None);
+        Assert.Equal(SurveyCreateOutcome.Invalid, empty);
+
+        var (ok, survey) = await service.CreateAsync(1, new List<SurveyQuestionDraft>
+        {
+            new("Как вам таймер?", "scale", false),
+            new("Что добавить?", "text", false),
+        }, CancellationToken.None);
+
+        Assert.Equal(SurveyCreateOutcome.Ok, ok);
+        var questions = SurveyService.QuestionsOf(survey!);
+        Assert.Equal(new[] { "q1", "q2" }, questions.Select(x => x.Key));
+        Assert.True(questions[1].Optional);
+
+        // Следующая форма начинается с вопросов этого опроса.
+        var template = await service.TemplateAsync(CancellationToken.None);
+        Assert.Equal(new[] { "Как вам таймер?", "Что добавить?" }, template.Select(x => x.Text));
+    }
+
+    [Fact]
+    public void QuestionWithoutTypeFromOldSurveyIsScale()
+    {
+        // Так лежат вопросы опросов, отправленных до появления типов.
+        var old = new Survey { Questions = """[{"key":"overall","text":"Как вам?","optional":false}]""" };
+
+        var question = Assert.Single(SurveyService.QuestionsOf(old));
+        Assert.Equal(SurveyQuestionTypes.Scale, question.Type);
+        Assert.False(question.IsText);
+    }
+
+    [Fact]
+    public async Task TemplatesAreSavedReplacedByNameAndDeleted()
+    {
+        using var scope = _services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<SurveyService>();
+
+        var first = new List<SurveyQuestionDraft> { new("Вопрос А", "scale", false) };
+        var second = new List<SurveyQuestionDraft> { new("Вопрос Б", "text", false), new("Вопрос В", "scale", true) };
+
+        Assert.Equal(SurveyTemplateOutcome.Created, await service.SaveTemplateAsync("Ежемесячный", first, CancellationToken.None));
+        Assert.Equal(SurveyTemplateOutcome.Replaced, await service.SaveTemplateAsync("ежемесячный ", second, CancellationToken.None));
+        Assert.Equal(SurveyTemplateOutcome.Invalid, await service.SaveTemplateAsync("", second, CancellationToken.None));
+
+        var templates = await service.TemplatesAsync(CancellationToken.None);
+        var only = Assert.Single(templates);
+        Assert.Equal(new[] { "Вопрос Б", "Вопрос В" }, only.Questions.Select(x => x.Text));
+
+        Assert.True(await service.DeleteTemplateAsync(only.Id, CancellationToken.None));
+        Assert.Empty(await service.TemplatesAsync(CancellationToken.None));
     }
 
     private static Dictionary<string, int?> Full(int score)
-        => SurveyQuestions.Current.ToDictionary(x => x.Key, _ => (int?)score);
+        => SurveyQuestions.Default.Where(x => !x.IsText).ToDictionary(x => x.Key, _ => (int?)score);
+
+    private static List<SurveyQuestionDraft> Drafts(IEnumerable<SurveyQuestion> questions)
+        => questions.Select(x => new SurveyQuestionDraft(x.Text, x.Type, x.Optional)).ToList();
+
+    /// <summary>Ключ открытого вопроса в опросе по умолчанию.</summary>
+    private static string TextKey => SurveyQuestions.Default.Single(x => x.IsText).Key;
+
+    /// <summary>Ключ вопроса про запись занятия — необязательная оценка.</summary>
+    private static string Recording => SurveyQuestions.Default.Single(x => x.Text.StartsWith("Запись занятия")).Key;
 
     private async Task<Survey> CreateAsync()
     {
         using var scope = _services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<SurveyService>().CreateAsync(1, CancellationToken.None);
+        var (_, survey) = await scope.ServiceProvider.GetRequiredService<SurveyService>()
+            .CreateAsync(1, Drafts(SurveyQuestions.Default), CancellationToken.None);
+        return survey!;
     }
 
     private async Task<SurveyAnswerOutcome> AnswerAsync(long surveyId, long userId, Dictionary<string, int?> scores, string? comment)
     {
         using var scope = _services.CreateScope();
+        var texts = new Dictionary<string, string?> { [TextKey] = comment };
         return await scope.ServiceProvider.GetRequiredService<SurveyService>()
-            .AnswerAsync(surveyId, userId, scores, comment, CancellationToken.None);
+            .AnswerAsync(surveyId, userId, scores, texts, CancellationToken.None);
     }
 
     private async Task AddUserAsync(long id, string email, bool confirmed, bool deleted)

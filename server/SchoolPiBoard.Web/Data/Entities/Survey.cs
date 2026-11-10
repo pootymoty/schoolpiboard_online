@@ -42,7 +42,7 @@ public class SurveyParticipant
     public long UserId { get; set; }
 }
 
-/// <summary>Обезличенный ответ: оценки и свободный текст, без автора и без времени.</summary>
+/// <summary>Обезличенный ответ: оценки и тексты, без автора и без времени.</summary>
 public class SurveyResponse
 {
     public long Id { get; set; }
@@ -52,6 +52,22 @@ public class SurveyResponse
     /// <summary>Оценки: ключ вопроса → 1..10, или null — «не пользовался». JSON.</summary>
     public string Scores { get; set; } = "{}";
 
-    /// <summary>Что улучшить, замечания, жалобы. Пусто — ничего не написали.</summary>
-    public string? Comment { get; set; }
+    /// <summary>Открытые ответы: ключ вопроса → текст. Пустые не хранятся. JSON.</summary>
+    public string Texts { get; set; } = "{}";
+}
+
+/// <summary>
+/// Сохранённый набор вопросов — чтобы повторяющийся опрос не собирать
+/// заново. Имя уникально: сохранение под тем же именем заменяет вопросы.
+/// </summary>
+public class SurveyTemplate
+{
+    public long Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Вопросы в том же виде, что у опроса (см. SurveyQuestions), JSON.</summary>
+    public string Questions { get; set; } = "[]";
+
+    public DateTime UpdatedAt { get; set; }
 }
