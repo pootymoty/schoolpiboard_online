@@ -10,7 +10,7 @@ public sealed record SurveyAnswerRequest(Dictionary<string, int?>? Scores, Dicti
 
 public sealed record SurveyCreateRequest(List<SurveyQuestionDraft>? Questions);
 
-public sealed record SurveyTemplateRequest(string? Name, List<SurveyQuestionDraft>? Questions);
+public sealed record SurveyTemplateRequest(string? Name, List<SurveyQuestionDraft>? Questions, bool Overwrite);
 
 public sealed record SurveyFormDto(
     long Id, DateTime CreatedAt, bool Closed, bool Answered, bool Invited, IReadOnlyList<SurveyQuestion> Questions, int MaxText);
@@ -138,8 +138,13 @@ public static class SurveyEndpoints
         {
             if (await AdminEndpoints.AdminAsync(principal, db, ct) is null) return AdminEndpoints.Denied();
 
-            return await service.SaveTemplateAsync(request.Name, request.Questions, ct) switch
+            return await service.SaveTemplateAsync(request.Name, request.Questions, request.Overwrite, ct) switch
             {
+                SurveyTemplateOutcome.Exists => Results.Conflict(new
+                {
+                    code = "template_exists",
+                    message = "Шаблон с таким названием уже есть.",
+                }),
                 SurveyTemplateOutcome.Created => Results.Ok(new { replaced = false, message = "Шаблон сохранён." }),
                 SurveyTemplateOutcome.Replaced => Results.Ok(new { replaced = true, message = "Шаблон с таким именем обновлён." }),
                 _ => Results.BadRequest(new

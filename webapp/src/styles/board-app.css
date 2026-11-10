@@ -4065,6 +4065,16 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
     border-radius: var(--radius);
 }
 
+/* Слева столбиком: номер, ручка для перетаскивания, корзина. Поле
+   вопроса справа — во всю оставшуюся ширину. */
+.survey-editor__side {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-1);
+}
+
 .survey-editor__number {
     flex: none;
     width: 28px;
@@ -4077,8 +4087,26 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
     color: #fff;
     font-weight: 700;
     font-size: var(--fs-sm);
-    margin-top: 6px;
+    margin: 6px 0 2px;
 }
+
+/* Ручка: палец на ней не прокручивает страницу, а тянет вопрос. */
+.survey-editor__grip {
+    cursor: grab;
+    touch-action: none;
+}
+
+.survey-editor__grip:active { cursor: grabbing; }
+
+/* Перетаскиваемый вопрос — приподнят над остальными. */
+.survey-editor__item.is-dragging .survey-editor__question {
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 8px 24px var(--shadow-color);
+    outline: 2px solid var(--accent);
+}
+
+.survey-editor__item.is-dragging { user-select: none; }
 
 .survey-editor__fields {
     flex: 1;
@@ -4114,9 +4142,7 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
 
 .survey-editor__options .survey__skip { margin: 0; }
 
-.survey-editor__remove { flex: none; }
-
-.survey-editor__add { margin-top: 4px; }
+.survey-editor__add { margin-top: var(--sp-1); }
 
 .survey-editor__actions {
     display: flex;

@@ -437,6 +437,11 @@ const IconImage = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /*
   /* @__PURE__ */ jsx("circle", { cx: "8.5", cy: "9.5", r: "1.5" }),
   /* @__PURE__ */ jsx("path", { d: "M21 16l-5-5-6 6-3-3-4 4" })
 ] }) });
+const IconMenu = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
+  /* @__PURE__ */ jsx("path", { d: "M3 6h18" }),
+  /* @__PURE__ */ jsx("path", { d: "M3 12h18" }),
+  /* @__PURE__ */ jsx("path", { d: "M3 18h18" })
+] }) });
 const IconChevronDown = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsx("path", { d: "M6 9l6 6 6-6" }) });
 const IconTable = (props) => /* @__PURE__ */ jsx(Svg$1, { ...props, children: /* @__PURE__ */ jsxs("g", { children: [
   /* @__PURE__ */ jsx("rect", { x: "3", y: "4", width: "18", height: "16", rx: "2" }),
@@ -12106,7 +12111,10 @@ const surveyResults = (id) => api(`/admin/surveys/${id}`);
 const textAnswers = (id, key) => api(`/admin/surveys/${id}/answers/${encodeURIComponent(key)}`);
 const closeSurvey = (id) => api(`/admin/surveys/${id}/close`, { method: "POST" });
 const surveyTemplates = () => api("/admin/surveys/templates");
-const saveSurveyTemplate = (name, questions) => api("/admin/surveys/templates", { method: "POST", body: { name, questions } });
+const saveSurveyTemplate = (name, questions, overwrite = false) => api("/admin/surveys/templates", {
+  method: "POST",
+  body: { name, questions, overwrite }
+});
 const deleteSurveyTemplate = (id) => api(`/admin/surveys/templates/${id}`, { method: "DELETE" });
 const SIZE$1 = 10;
 const DRAFT_KEY = "schoolpiboard.admin.surveyDraft";
@@ -12314,12 +12322,7 @@ function SurveyEditor({ questions, recipients, onChange, onCancel, onSent }) {
   const update = (uid, patch) => {
     onChange(questions.map((question) => question.uid === uid ? { ...question, ...patch } : question));
   };
-  const insertAfter = (index) => {
-    const next = [...questions];
-    next.splice(index + 1, 0, blank());
-    onChange(next);
-  };
-  const remove = (uid) => onChange(questions.filter((question) => question.uid !== uid));
+  const add = () => onChange([...questions, blank()]);
   const problem = () => {
     if (questions.length === 0) return "Добавьте хотя бы один вопрос.";
     const empty = questions.findIndex((question) => !question.text.trim());
@@ -12358,63 +12361,8 @@ function SurveyEditor({ questions, recipients, onChange, onCancel, onSent }) {
       /* @__PURE__ */ jsx("button", { className: "btn-outline btn-sm", type: "button", onClick: () => setPicking(true), children: "Выбрать готовый шаблон" })
     ] }),
     /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Оценка — шкала от 1 до 10, где 1 — плохо, 10 — отлично. Открытый ответ — поле для текста, его можно оставить пустым. Форма запоминается: закроете, не отправив, — при следующем открытии она будет такой же." }),
-    questions.length === 0 ? /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => insertAfter(-1), children: "+ Добавить вопрос" }) : null,
-    /* @__PURE__ */ jsx("ol", { className: "survey-editor", children: questions.map((question, index) => /* @__PURE__ */ jsxs("li", { className: "survey-editor__item", children: [
-      /* @__PURE__ */ jsxs("div", { className: "survey-editor__question", children: [
-        /* @__PURE__ */ jsx("span", { className: "survey-editor__number", children: index + 1 }),
-        /* @__PURE__ */ jsxs("div", { className: "survey-editor__fields", children: [
-          /* @__PURE__ */ jsx(
-            "textarea",
-            {
-              rows: 2,
-              maxLength: 300,
-              placeholder: "Текст вопроса",
-              "aria-label": `Текст вопроса ${index + 1}`,
-              value: question.text,
-              onChange: (event) => update(question.uid, { text: event.target.value })
-            }
-          ),
-          /* @__PURE__ */ jsxs("div", { className: "survey-editor__options", children: [
-            /* @__PURE__ */ jsxs(
-              "select",
-              {
-                "aria-label": `Тип ответа на вопрос ${index + 1}`,
-                value: question.type,
-                onChange: (event) => update(question.uid, { type: event.target.value }),
-                children: [
-                  /* @__PURE__ */ jsx("option", { value: "scale", children: "Оценка от 1 до 10" }),
-                  /* @__PURE__ */ jsx("option", { value: "text", children: "Открытый ответ" })
-                ]
-              }
-            ),
-            question.type === "scale" ? /* @__PURE__ */ jsxs("label", { className: "survey__skip", children: [
-              /* @__PURE__ */ jsx(
-                "input",
-                {
-                  type: "checkbox",
-                  checked: question.optional,
-                  onChange: (event) => update(question.uid, { optional: event.target.checked })
-                }
-              ),
-              "Можно ответить «Не пользовался»"
-            ] }) : null
-          ] })
-        ] }),
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: "btn-tool survey-editor__remove",
-            type: "button",
-            onClick: () => remove(question.uid),
-            "aria-label": `Удалить вопрос ${index + 1}`,
-            title: "Удалить вопрос",
-            "data-tip": "Удалить вопрос",
-            children: /* @__PURE__ */ jsx(IconTrash, {})
-          }
-        )
-      ] }),
-      /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm survey-editor__add", type: "button", onClick: () => insertAfter(index), children: "+ Добавить вопрос" })
-    ] }, question.uid)) }),
+    /* @__PURE__ */ jsx(QuestionList, { questions, onChange, onUpdate: update }),
+    /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm survey-editor__add", type: "button", onClick: add, children: "+ Добавить вопрос" }),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     note ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: note }) : null,
     /* @__PURE__ */ jsxs("div", { className: "survey-editor__actions", children: [
@@ -12466,24 +12414,164 @@ function SurveyEditor({ questions, recipients, onChange, onCancel, onSent }) {
     ) : null
   ] });
 }
+function QuestionList({ questions, onChange, onUpdate }) {
+  const items = useRef(/* @__PURE__ */ new Map());
+  const [dragging, setDragging] = useState(null);
+  const latest = useRef({ questions, onChange });
+  latest.current = { questions, onChange };
+  const moveTo = (uid, to) => {
+    const list2 = latest.current.questions;
+    const from = list2.findIndex((question) => question.uid === uid);
+    if (from < 0 || to === from || to < 0 || to >= list2.length) return;
+    const next = [...list2];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    latest.current.onChange(next);
+  };
+  const startDrag = (uid, event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    setDragging(uid);
+    const move = (pointer) => {
+      const others = latest.current.questions.filter((question) => question.uid !== uid);
+      let to = 0;
+      for (const question of others) {
+        const element = items.current.get(question.uid);
+        if (!element) continue;
+        const box = element.getBoundingClientRect();
+        if (pointer.clientY > box.top + box.height / 2) to += 1;
+      }
+      moveTo(uid, to);
+      const edge = 80;
+      if (pointer.clientY < edge) window.scrollBy(0, -14);
+      else if (pointer.clientY > window.innerHeight - edge) window.scrollBy(0, 14);
+    };
+    const stop = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", stop);
+      handle.removeEventListener("pointercancel", stop);
+      setDragging(null);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", stop);
+    handle.addEventListener("pointercancel", stop);
+  };
+  const nudge = (uid, by, event) => {
+    const index = questions.findIndex((question) => question.uid === uid);
+    event.preventDefault();
+    moveTo(uid, index + by);
+    window.requestAnimationFrame(() => {
+      var _a, _b;
+      (_b = (_a = items.current.get(uid)) == null ? void 0 : _a.querySelector(".survey-editor__grip")) == null ? void 0 : _b.focus();
+    });
+  };
+  return /* @__PURE__ */ jsx("ol", { className: "survey-editor", children: questions.map((question, index) => /* @__PURE__ */ jsx(
+    "li",
+    {
+      className: dragging === question.uid ? "survey-editor__item is-dragging" : "survey-editor__item",
+      ref: (element) => {
+        if (element) items.current.set(question.uid, element);
+        else items.current.delete(question.uid);
+      },
+      children: /* @__PURE__ */ jsxs("div", { className: "survey-editor__question", children: [
+        /* @__PURE__ */ jsxs("div", { className: "survey-editor__side", children: [
+          /* @__PURE__ */ jsx("span", { className: "survey-editor__number", children: index + 1 }),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool survey-editor__grip",
+              type: "button",
+              onPointerDown: (event) => startDrag(question.uid, event),
+              onKeyDown: (event) => {
+                if (event.key === "ArrowUp") nudge(question.uid, -1, event);
+                if (event.key === "ArrowDown") nudge(question.uid, 1, event);
+              },
+              "aria-label": `Переместить вопрос ${index + 1}: перетащите или нажимайте стрелки вверх и вниз`,
+              title: "Перетащите, чтобы переставить вопрос",
+              children: /* @__PURE__ */ jsx(IconMenu, {})
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: "btn-tool survey-editor__remove",
+              type: "button",
+              onClick: () => onChange(questions.filter((one) => one.uid !== question.uid)),
+              "aria-label": `Удалить вопрос ${index + 1}`,
+              title: "Удалить вопрос",
+              children: /* @__PURE__ */ jsx(IconTrash, {})
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "survey-editor__fields", children: [
+          /* @__PURE__ */ jsx(
+            "textarea",
+            {
+              rows: 2,
+              maxLength: 300,
+              placeholder: "Текст вопроса",
+              "aria-label": `Текст вопроса ${index + 1}`,
+              value: question.text,
+              onChange: (event) => onUpdate(question.uid, { text: event.target.value })
+            }
+          ),
+          /* @__PURE__ */ jsxs("div", { className: "survey-editor__options", children: [
+            /* @__PURE__ */ jsxs(
+              "select",
+              {
+                "aria-label": `Тип ответа на вопрос ${index + 1}`,
+                value: question.type,
+                onChange: (event) => onUpdate(question.uid, { type: event.target.value }),
+                children: [
+                  /* @__PURE__ */ jsx("option", { value: "scale", children: "Оценка от 1 до 10" }),
+                  /* @__PURE__ */ jsx("option", { value: "text", children: "Открытый ответ" })
+                ]
+              }
+            ),
+            question.type === "scale" ? /* @__PURE__ */ jsxs("label", { className: "survey__skip", children: [
+              /* @__PURE__ */ jsx(
+                "input",
+                {
+                  type: "checkbox",
+                  checked: question.optional,
+                  onChange: (event) => onUpdate(question.uid, { optional: event.target.checked })
+                }
+              ),
+              "Можно ответить «Не пользовался»"
+            ] }) : null
+          ] })
+        ] })
+      ] })
+    },
+    question.uid
+  )) });
+}
 function SaveTemplate({ initial, questions, onClose, onSaved }) {
   const [name, setName] = useState(initial);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const save = async () => {
+  const [exists, setExists] = useState(false);
+  const field = useRef(null);
+  const save = async (overwrite) => {
     setBusy(true);
     setError(null);
     try {
-      const answer = await saveSurveyTemplate(name.trim(), toDrafts(questions));
+      const answer = await saveSurveyTemplate(name.trim(), toDrafts(questions), overwrite);
       onSaved(name.trim(), answer.message);
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось сохранить шаблон.");
+      if (reason instanceof ApiError && reason.code === "template_exists") {
+        setExists(true);
+      } else {
+        setError(reason instanceof ApiError ? reason.message : "Не удалось сохранить шаблон.");
+      }
       setBusy(false);
     }
   };
   return /* @__PURE__ */ jsx(Modal, { title: "Сохранить шаблон", onClose, children: /* @__PURE__ */ jsxs("form", { onSubmit: (event) => {
     event.preventDefault();
-    void save();
+    void save(exists);
   }, children: [
     /* @__PURE__ */ jsxs("div", { className: "field", children: [
       /* @__PURE__ */ jsx("label", { htmlFor: "templateName", children: "Название шаблона" }),
@@ -12495,17 +12583,42 @@ function SaveTemplate({ initial, questions, onClose, onSaved }) {
           maxLength: 100,
           required: true,
           autoFocus: true,
+          ref: field,
           value: name,
-          onChange: (event) => setName(event.target.value)
+          onChange: (event) => {
+            setName(event.target.value);
+            setExists(false);
+          }
         }
-      ),
-      /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Шаблон с тем же названием будет заменён этими вопросами." })
+      )
     ] }),
+    exists ? /* @__PURE__ */ jsxs("p", { className: "note note-warning", children: [
+      "Шаблон «",
+      name.trim(),
+      "» уже есть. Перезаписать его этими вопросами? Прежние вопросы шаблона пропадут."
+    ] }) : null,
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    /* @__PURE__ */ jsxs("div", { className: "row", children: [
+    /* @__PURE__ */ jsx("div", { className: "row", children: exists ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("button", { className: "btn-danger", type: "submit", disabled: busy, children: busy ? "Сохраняем…" : "Перезаписать" }),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn-quiet",
+          type: "button",
+          disabled: busy,
+          onClick: () => {
+            var _a, _b;
+            setExists(false);
+            (_a = field.current) == null ? void 0 : _a.focus();
+            (_b = field.current) == null ? void 0 : _b.select();
+          },
+          children: "Другое название"
+        }
+      )
+    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy || !name.trim(), children: busy ? "Сохраняем…" : "Сохранить" }),
       /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: onClose, disabled: busy, children: "Отмена" })
-    ] })
+    ] }) })
   ] }) });
 }
 function PickTemplate({ onClose, onPick }) {

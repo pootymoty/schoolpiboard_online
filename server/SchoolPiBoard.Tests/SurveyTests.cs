@@ -274,9 +274,14 @@ public sealed class SurveyTests : IDisposable
         var first = new List<SurveyQuestionDraft> { new("Вопрос А", "scale", false) };
         var second = new List<SurveyQuestionDraft> { new("Вопрос Б", "text", false), new("Вопрос В", "scale", true) };
 
-        Assert.Equal(SurveyTemplateOutcome.Created, await service.SaveTemplateAsync("Ежемесячный", first, CancellationToken.None));
-        Assert.Equal(SurveyTemplateOutcome.Replaced, await service.SaveTemplateAsync("ежемесячный ", second, CancellationToken.None));
-        Assert.Equal(SurveyTemplateOutcome.Invalid, await service.SaveTemplateAsync("", second, CancellationToken.None));
+        Assert.Equal(SurveyTemplateOutcome.Created, await service.SaveTemplateAsync("Ежемесячный", first, false, CancellationToken.None));
+
+        // То же название без согласия на перезапись — ничего не меняется.
+        Assert.Equal(SurveyTemplateOutcome.Exists, await service.SaveTemplateAsync("ежемесячный ", second, false, CancellationToken.None));
+        Assert.Equal(new[] { "Вопрос А" }, (await service.TemplatesAsync(CancellationToken.None)).Single().Questions.Select(x => x.Text));
+
+        Assert.Equal(SurveyTemplateOutcome.Replaced, await service.SaveTemplateAsync("ежемесячный ", second, true, CancellationToken.None));
+        Assert.Equal(SurveyTemplateOutcome.Invalid, await service.SaveTemplateAsync("", second, false, CancellationToken.None));
 
         var templates = await service.TemplatesAsync(CancellationToken.None);
         var only = Assert.Single(templates);

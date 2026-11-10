@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ReactElement } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import { Navigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import {
@@ -11,7 +11,7 @@ import type {
 } from '../api/surveys';
 import { useAuth } from '../auth/AuthContext';
 import { AdminHeader } from '../components/AdminNav';
-import { IconTrash } from '../components/Icons';
+import { IconMenu, IconTrash } from '../components/Icons';
 import { Page } from '../components/Layout';
 import { Modal } from '../components/Modal';
 import { Pagination } from '../components/Pagination';
@@ -292,13 +292,7 @@ function SurveyEditor({ questions, recipients, onChange, onCancel, onSent }: {
     onChange(questions.map((question) => (question.uid === uid ? { ...question, ...patch } : question)));
   };
 
-  const insertAfter = (index: number) => {
-    const next = [...questions];
-    next.splice(index + 1, 0, blank());
-    onChange(next);
-  };
-
-  const remove = (uid: number) => onChange(questions.filter((question) => question.uid !== uid));
+  const add = () => onChange([...questions, blank()]);
 
   /** Что не так с формой; пусто — можно отправлять и сохранять. */
   const problem = (): string | null => {
@@ -353,67 +347,13 @@ function SurveyEditor({ questions, recipients, onChange, onCancel, onSent }: {
         будет такой же.
       </p>
 
-      {questions.length === 0 ? (
-        <button className="btn-quiet btn-sm" type="button" onClick={() => insertAfter(-1)}>+ Добавить вопрос</button>
-      ) : null}
+      <QuestionList questions={questions} onChange={onChange} onUpdate={update} />
 
-      <ol className="survey-editor">
-        {questions.map((question, index) => (
-          <li className="survey-editor__item" key={question.uid}>
-            <div className="survey-editor__question">
-              <span className="survey-editor__number">{index + 1}</span>
-
-              <div className="survey-editor__fields">
-                <textarea
-                  rows={2}
-                  maxLength={300}
-                  placeholder="Текст вопроса"
-                  aria-label={`Текст вопроса ${index + 1}`}
-                  value={question.text}
-                  onChange={(event) => update(question.uid, { text: event.target.value })}
-                />
-
-                <div className="survey-editor__options">
-                  <select
-                    aria-label={`Тип ответа на вопрос ${index + 1}`}
-                    value={question.type}
-                    onChange={(event) => update(question.uid, { type: event.target.value as EditorQuestion['type'] })}
-                  >
-                    <option value="scale">Оценка от 1 до 10</option>
-                    <option value="text">Открытый ответ</option>
-                  </select>
-
-                  {question.type === 'scale' ? (
-                    <label className="survey__skip">
-                      <input
-                        type="checkbox"
-                        checked={question.optional}
-                        onChange={(event) => update(question.uid, { optional: event.target.checked })}
-                      />
-                      Можно ответить «Не пользовался»
-                    </label>
-                  ) : null}
-                </div>
-              </div>
-
-              <button
-                className="btn-tool survey-editor__remove"
-                type="button"
-                onClick={() => remove(question.uid)}
-                aria-label={`Удалить вопрос ${index + 1}`}
-                title="Удалить вопрос"
-                data-tip="Удалить вопрос"
-              >
-                <IconTrash />
-              </button>
-            </div>
-
-            <button className="btn-quiet btn-sm survey-editor__add" type="button" onClick={() => insertAfter(index)}>
-              + Добавить вопрос
-            </button>
-          </li>
-        ))}
-      </ol>
+      {/* Одна кнопка — под последним вопросом: на нужное место новый вопрос
+          переносится перетаскиванием. */}
+      <button className="btn-quiet btn-sm survey-editor__add" type="button" onClick={add}>
+        + Добавить вопрос
+      </button>
 
       {error ? <p className="note note-danger">{error}</p> : null}
       {note ? <p className="note note-success">{note}</p> : null}
@@ -470,6 +410,164 @@ function SurveyEditor({ questions, recipients, onChange, onCancel, onSent }: {
   );
 }
 
+/**
+ * Вопросы формы. Порядок меняется перетаскиванием за «три полоски» под
+ * номером — мышью или пальцем, а с клавиатуры стрелками ↑ и ↓ на ней же.
+ * За саму карточку не тянем: в ней поле текста, и выделить слово в нём
+ * стало бы невозможно.
+ */
+function QuestionList({ questions, onChange, onUpdate }: {
+  questions: EditorQuestion[];
+  onChange: (questions: EditorQuestion[]) => void;
+  onUpdate: (uid: number, patch: Partial<EditorQuestion>) => void;
+}): ReactElement {
+  const items = useRef(new Map<number, HTMLLIElement>());
+  const [dragging, setDragging] = useState<number | null>(null);
+
+  // Свежие вопросы и обработчик — для слушателей перетаскивания: они живут
+  // всё перетаскивание и иначе видели бы порядок на его начало.
+  const latest = useRef({ questions, onChange });
+  latest.current = { questions, onChange };
+
+  const moveTo = (uid: number, to: number) => {
+    const list = latest.current.questions;
+    const from = list.findIndex((question) => question.uid === uid);
+    if (from < 0 || to === from || to < 0 || to >= list.length) return;
+
+    const next = [...list];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    latest.current.onChange(next);
+  };
+
+  const startDrag = (uid: number, event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    setDragging(uid);
+
+    const move = (pointer: PointerEvent) => {
+      // Куда встать: сколько других вопросов выше указателя по их середине.
+      const others = latest.current.questions.filter((question) => question.uid !== uid);
+      let to = 0;
+      for (const question of others) {
+        const element = items.current.get(question.uid);
+        if (!element) continue;
+        const box = element.getBoundingClientRect();
+        if (pointer.clientY > box.top + box.height / 2) to += 1;
+      }
+      moveTo(uid, to);
+
+      // У края экрана список сам едет: длинный опрос не помещается в окно.
+      const edge = 80;
+      if (pointer.clientY < edge) window.scrollBy(0, -14);
+      else if (pointer.clientY > window.innerHeight - edge) window.scrollBy(0, 14);
+    };
+
+    const stop = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', stop);
+      handle.removeEventListener('pointercancel', stop);
+      setDragging(null);
+    };
+
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', stop);
+    handle.addEventListener('pointercancel', stop);
+  };
+
+  const nudge = (uid: number, by: number, event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const index = questions.findIndex((question) => question.uid === uid);
+    event.preventDefault();
+    moveTo(uid, index + by);
+
+    // Фокус остаётся на ручке переставленного вопроса — можно жать дальше.
+    window.requestAnimationFrame(() => {
+      items.current.get(uid)?.querySelector<HTMLButtonElement>('.survey-editor__grip')?.focus();
+    });
+  };
+
+  return (
+    <ol className="survey-editor">
+      {questions.map((question, index) => (
+        <li
+          className={dragging === question.uid ? 'survey-editor__item is-dragging' : 'survey-editor__item'}
+          key={question.uid}
+          ref={(element) => {
+            if (element) items.current.set(question.uid, element);
+            else items.current.delete(question.uid);
+          }}
+        >
+          <div className="survey-editor__question">
+            <div className="survey-editor__side">
+              <span className="survey-editor__number">{index + 1}</span>
+
+              <button
+                className="btn-tool survey-editor__grip"
+                type="button"
+                onPointerDown={(event) => startDrag(question.uid, event)}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowUp') nudge(question.uid, -1, event);
+                  if (event.key === 'ArrowDown') nudge(question.uid, 1, event);
+                }}
+                aria-label={`Переместить вопрос ${index + 1}: перетащите или нажимайте стрелки вверх и вниз`}
+                title="Перетащите, чтобы переставить вопрос"
+              >
+                <IconMenu />
+              </button>
+
+              <button
+                className="btn-tool survey-editor__remove"
+                type="button"
+                onClick={() => onChange(questions.filter((one) => one.uid !== question.uid))}
+                aria-label={`Удалить вопрос ${index + 1}`}
+                title="Удалить вопрос"
+              >
+                <IconTrash />
+              </button>
+            </div>
+
+            <div className="survey-editor__fields">
+              <textarea
+                rows={2}
+                maxLength={300}
+                placeholder="Текст вопроса"
+                aria-label={`Текст вопроса ${index + 1}`}
+                value={question.text}
+                onChange={(event) => onUpdate(question.uid, { text: event.target.value })}
+              />
+
+              <div className="survey-editor__options">
+                <select
+                  aria-label={`Тип ответа на вопрос ${index + 1}`}
+                  value={question.type}
+                  onChange={(event) => onUpdate(question.uid, { type: event.target.value as EditorQuestion['type'] })}
+                >
+                  <option value="scale">Оценка от 1 до 10</option>
+                  <option value="text">Открытый ответ</option>
+                </select>
+
+                {question.type === 'scale' ? (
+                  <label className="survey__skip">
+                    <input
+                      type="checkbox"
+                      checked={question.optional}
+                      onChange={(event) => onUpdate(question.uid, { optional: event.target.checked })}
+                    />
+                    Можно ответить «Не пользовался»
+                  </label>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function SaveTemplate({ initial, questions, onClose, onSaved }: {
   initial: string;
   questions: EditorQuestion[];
@@ -480,36 +578,75 @@ function SaveTemplate({ initial, questions, onClose, onSaved }: {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const save = async () => {
+  /** Шаблон с таким названием уже есть — ждём согласия на перезапись. */
+  const [exists, setExists] = useState(false);
+  const field = useRef<HTMLInputElement | null>(null);
+
+  const save = async (overwrite: boolean) => {
     setBusy(true);
     setError(null);
 
     try {
-      const answer = await saveSurveyTemplate(name.trim(), toDrafts(questions));
+      const answer = await saveSurveyTemplate(name.trim(), toDrafts(questions), overwrite);
       onSaved(name.trim(), answer.message);
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось сохранить шаблон.');
+      if (reason instanceof ApiError && reason.code === 'template_exists') {
+        setExists(true);
+      } else {
+        setError(reason instanceof ApiError ? reason.message : 'Не удалось сохранить шаблон.');
+      }
       setBusy(false);
     }
   };
 
   return (
     <Modal title="Сохранить шаблон" onClose={onClose}>
-      <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      <form onSubmit={(event) => { event.preventDefault(); void save(exists); }}>
         <div className="field">
           <label htmlFor="templateName">Название шаблона</label>
-          <input id="templateName" type="text" maxLength={100} required autoFocus
-                 value={name} onChange={(event) => setName(event.target.value)} />
-          <p className="text-muted small">Шаблон с тем же названием будет заменён этими вопросами.</p>
+          <input id="templateName" type="text" maxLength={100} required autoFocus ref={field}
+                 value={name}
+                 onChange={(event) => {
+                   setName(event.target.value);
+                   setExists(false);
+                 }} />
         </div>
+
+        {exists ? (
+          <p className="note note-warning">
+            Шаблон «{name.trim()}» уже есть. Перезаписать его этими вопросами? Прежние вопросы шаблона пропадут.
+          </p>
+        ) : null}
 
         {error ? <p className="note note-danger">{error}</p> : null}
 
         <div className="row">
-          <button className="btn-primary" type="submit" disabled={busy || !name.trim()}>
-            {busy ? 'Сохраняем…' : 'Сохранить'}
-          </button>
-          <button className="btn-quiet" type="button" onClick={onClose} disabled={busy}>Отмена</button>
+          {exists ? (
+            <>
+              <button className="btn-danger" type="submit" disabled={busy}>
+                {busy ? 'Сохраняем…' : 'Перезаписать'}
+              </button>
+              <button
+                className="btn-quiet"
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setExists(false);
+                  field.current?.focus();
+                  field.current?.select();
+                }}
+              >
+                Другое название
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn-primary" type="submit" disabled={busy || !name.trim()}>
+                {busy ? 'Сохраняем…' : 'Сохранить'}
+              </button>
+              <button className="btn-quiet" type="button" onClick={onClose} disabled={busy}>Отмена</button>
+            </>
+          )}
         </div>
       </form>
     </Modal>

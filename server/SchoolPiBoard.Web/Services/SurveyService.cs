@@ -76,7 +76,7 @@ public enum SurveyCreateOutcome { Ok, Invalid }
 
 public sealed record SurveyTemplateDto(long Id, string Name, DateTime UpdatedAt, IReadOnlyList<SurveyQuestion> Questions);
 
-public enum SurveyTemplateOutcome { Created, Replaced, Invalid }
+public enum SurveyTemplateOutcome { Created, Replaced, Exists, Invalid }
 
 /// <summary>
 /// Очередь рассылки опросов. Письма уходят в фоне (см. <see cref="SurveyMailer"/>):
@@ -198,11 +198,13 @@ public sealed class SurveyService
     }
 
     /// <summary>
-    /// Сохраняет вопросы шаблоном. То же имя (без учёта регистра) —
-    /// заменяет вопросы у существующего, а не заводит второй с тем же именем.
+    /// Сохраняет вопросы шаблоном. То же имя (без учёта регистра) — заменяет
+    /// вопросы у существующего, а не заводит второй с тем же именем, но
+    /// только с явного согласия (<paramref name="overwrite"/>): без него —
+    /// <see cref="SurveyTemplateOutcome.Exists"/>, и ничего не меняется.
     /// </summary>
     public async Task<SurveyTemplateOutcome> SaveTemplateAsync(
-        string? name, IReadOnlyList<SurveyQuestionDraft>? drafts, CancellationToken cancellationToken)
+        string? name, IReadOnlyList<SurveyQuestionDraft>? drafts, bool overwrite, CancellationToken cancellationToken)
     {
         var title = name?.Trim();
         var questions = Normalize(drafts);
@@ -218,6 +220,8 @@ public sealed class SurveyService
 
         if (existing is not null)
         {
+            if (!overwrite) return SurveyTemplateOutcome.Exists;
+
             existing.Name = title;
             existing.Questions = json;
             existing.UpdatedAt = DateTime.UtcNow;

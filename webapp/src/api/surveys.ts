@@ -106,7 +106,11 @@ export const closeSurvey = (id: number) => api<unknown>(`/admin/surveys/${id}/cl
 
 export const surveyTemplates = () => api<SurveyTemplate[]>('/admin/surveys/templates');
 
-export const saveSurveyTemplate = (name: string, questions: SurveyQuestionDraft[]) =>
-  api<{ replaced: boolean; message: string }>('/admin/surveys/templates', { method: 'POST', body: { name, questions } });
+/** Без `overwrite` шаблон с тем же названием не трогается — сервер ответит `template_exists`. */
+export const saveSurveyTemplate = (name: string, questions: SurveyQuestionDraft[], overwrite = false) =>
+  api<{ replaced: boolean; message: string }>('/admin/surveys/templates', {
+    method: 'POST',
+    body: { name, questions, overwrite },
+  });
 
 export const deleteSurveyTemplate = (id: number) => api<unknown>(`/admin/surveys/templates/${id}`, { method: 'DELETE' });
