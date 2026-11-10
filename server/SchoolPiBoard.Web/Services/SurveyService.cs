@@ -70,7 +70,7 @@ public sealed record SurveyQuestionResult(
 
 public sealed record SurveyResults(long Id, int Responses, IReadOnlyList<SurveyQuestionResult> Questions);
 
-public enum SurveyAnswerOutcome { Ok, NotFound, Closed, AlreadyAnswered, Invalid }
+public enum SurveyAnswerOutcome { Ok, NotFound, Closed, AlreadyAnswered, NotInvited, Invalid }
 
 public enum SurveyCreateOutcome { Ok, Invalid }
 
@@ -145,15 +145,23 @@ public sealed class SurveyService
         var questions = Normalize(drafts);
         if (questions is null) return (SurveyCreateOutcome.Invalid, null);
 
+        // Список адресатов снимается сейчас и хранится: заведённые после
+        // рассылки учётные записи в опрос не попадают, даже с пересланной
+        // ссылкой.
+        var recipients = await Recipients().Select(x => x.Id).ToListAsync(cancellationToken);
+
         var survey = new Survey
         {
             Questions = JsonSerializer.Serialize(questions, Json),
-            Recipients = await Recipients().CountAsync(cancellationToken),
+            Recipients = recipients.Count,
             CreatedBy = createdBy,
             CreatedAt = DateTime.UtcNow,
         };
 
         _db.Surveys.Add(survey);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _db.SurveyRecipients.AddRange(recipients.Select(userId => new SurveyRecipient { SurveyId = survey.Id, UserId = userId }));
         await _db.SaveChangesAsync(cancellationToken);
 
         _queue.Enqueue(survey.Id);
@@ -238,6 +246,11 @@ public sealed class SurveyService
     public Task<Survey?> FindAsync(long id, CancellationToken cancellationToken)
         => _db.Surveys.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+    /// <summary>Отправлено ли этому человеку письмо с опросом. Только такой может ответить.</summary>
+    public Task<bool> IsInvitedAsync(long surveyId, long userId, CancellationToken cancellationToken)
+        => _db.SurveyRecipients.AnyAsync(
+            x => x.SurveyId == surveyId && x.UserId == userId && x.SentAt != null, cancellationToken);
+
     public Task<bool> HasAnsweredAsync(long surveyId, long userId, CancellationToken cancellationToken)
         => _db.SurveyParticipants.AnyAsync(x => x.SurveyId == surveyId && x.UserId == userId, cancellationToken);
 
@@ -253,6 +266,9 @@ public sealed class SurveyService
         var survey = await FindAsync(surveyId, cancellationToken);
         if (survey is null) return SurveyAnswerOutcome.NotFound;
         if (survey.ClosedAt is not null) return SurveyAnswerOutcome.Closed;
+
+        if (!await IsInvitedAsync(surveyId, userId, cancellationToken))
+            return SurveyAnswerOutcome.NotInvited;
 
         if (await HasAnsweredAsync(surveyId, userId, cancellationToken))
             return SurveyAnswerOutcome.AlreadyAnswered;
@@ -439,18 +455,29 @@ public sealed class SurveyMailer : BackgroundService
         var survey = await db.Surveys.FirstOrDefaultAsync(x => x.Id == surveyId, cancellationToken);
         if (survey is null) return;
 
+        // По снятому при отправке списку — и только тем из него, кто за
+        // это время не удалился и не потерял подтверждённую почту.
+        // Кому уже ушло — не повторяем: так рассылку можно и дослать.
+        var invited = db.SurveyRecipients.Where(x => x.SurveyId == survey.Id && x.SentAt == null).Select(x => x.UserId);
         var addresses = await surveys.Recipients()
+            .Where(x => invited.Contains(x.Id))
             .OrderBy(x => x.Id)
-            .Select(x => x.Email)
+            .Select(x => new { x.Id, x.Email })
             .ToListAsync(cancellationToken);
 
-        var letter = EmailTemplates.SurveyInvite($"{options.PublicUrl}/survey/{survey.Id}");
-        var sent = 0;
+        var sent = survey.Sent;
 
-        foreach (var address in addresses)
+        var letter = EmailTemplates.SurveyInvite($"{options.PublicUrl}/survey/{survey.Id}");
+
+        foreach (var user in addresses)
         {
-            if (await email.SendAsync(address, letter.Subject, letter.Html, letter.Text, cancellationToken))
+            if (await email.SendAsync(user.Email, letter.Subject, letter.Html, letter.Text, cancellationToken))
             {
+                // Отметка — у адресата: ответить сможет только тот, кому письмо ушло.
+                var recipient = await db.SurveyRecipients
+                    .FirstAsync(x => x.SurveyId == survey.Id && x.UserId == user.Id, cancellationToken);
+                recipient.SentAt = DateTime.UtcNow;
+
                 sent++;
                 survey.Sent = sent;
                 await db.SaveChangesAsync(cancellationToken);
@@ -459,6 +486,6 @@ public sealed class SurveyMailer : BackgroundService
             if (Pause > TimeSpan.Zero) await Task.Delay(Pause, cancellationToken);
         }
 
-        _logger.LogInformation("Опрос {SurveyId}: писем отправлено — {Sent} из {Total}.", survey.Id, sent, addresses.Count);
+        _logger.LogInformation("Опрос {SurveyId}: писем отправлено — {Sent} из {Total}.", survey.Id, sent, survey.Recipients);
     }
 }

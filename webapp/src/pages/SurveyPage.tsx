@@ -75,6 +75,22 @@ export function SurveyPage(): ReactElement {
     );
   }
 
+  // Ссылку могли переслать: пройти опрос может только тот, кому пришло письмо.
+  if (form && !form.invited) {
+    return (
+      <Page narrow>
+        <section className="card survey">
+          <h1>Опрос не для этой учётной записи</h1>
+          <p>
+            Этот опрос отправлялся письмом другим пользователям — пройти его могут только те, кому оно пришло.
+            Если письмо пришло вам, войдите с той почтой, на которую оно было отправлено.
+          </p>
+          <Link className="btn btn-primary" to="/boards">К доскам</Link>
+        </section>
+      </Page>
+    );
+  }
+
   if (form?.closed) {
     return (
       <Page narrow>

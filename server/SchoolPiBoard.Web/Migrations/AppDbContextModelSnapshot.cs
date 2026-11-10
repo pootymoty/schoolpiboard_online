@@ -1049,6 +1049,27 @@ namespace SchoolPiBoard.Web.Migrations
                     b.ToTable("survey_templates", (string)null);
                 });
 
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.SurveyRecipient", b =>
+                {
+                    b.Property<long>("SurveyId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("survey_id");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.HasKey("SurveyId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("survey_recipients", (string)null);
+                });
+
             modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.SurveyResponse", b =>
                 {
                     b.Property<long>("Id")
@@ -1256,6 +1277,21 @@ namespace SchoolPiBoard.Web.Migrations
                     b.HasOne("SchoolPiBoard.Web.Data.Entities.Survey", null)
                         .WithMany()
                         .HasForeignKey("SurveyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SchoolPiBoard.Web.Data.Entities.SurveyRecipient", b =>
+                {
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.Survey", null)
+                        .WithMany()
+                        .HasForeignKey("SurveyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SchoolPiBoard.Web.Data.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

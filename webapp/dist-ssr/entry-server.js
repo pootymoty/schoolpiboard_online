@@ -12603,6 +12603,13 @@ function SurveyPage() {
       /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/boards", children: "К доскам" })
     ] }) });
   }
+  if (form && !form.invited) {
+    return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("section", { className: "card survey", children: [
+      /* @__PURE__ */ jsx("h1", { children: "Опрос не для этой учётной записи" }),
+      /* @__PURE__ */ jsx("p", { children: "Этот опрос отправлялся письмом другим пользователям — пройти его могут только те, кому оно пришло. Если письмо пришло вам, войдите с той почтой, на которую оно было отправлено." }),
+      /* @__PURE__ */ jsx(Link, { className: "btn btn-primary", to: "/boards", children: "К доскам" })
+    ] }) });
+  }
   if (form == null ? void 0 : form.closed) {
     return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("section", { className: "card survey", children: [
       /* @__PURE__ */ jsx("h1", { children: "Опрос закрыт" }),

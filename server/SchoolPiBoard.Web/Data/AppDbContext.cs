@@ -47,6 +47,8 @@ public class AppDbContext : DbContext
 
     public DbSet<Survey> Surveys => Set<Survey>();
 
+    public DbSet<SurveyRecipient> SurveyRecipients => Set<SurveyRecipient>();
+
     public DbSet<SurveyParticipant> SurveyParticipants => Set<SurveyParticipant>();
 
     public DbSet<SurveyResponse> SurveyResponses => Set<SurveyResponse>();
@@ -82,6 +84,26 @@ public class AppDbContext : DbContext
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
 
             entity.HasIndex(x => x.Name).IsUnique();
+        });
+
+        model.Entity<SurveyRecipient>(entity =>
+        {
+            entity.ToTable("survey_recipients");
+            entity.HasKey(x => new { x.SurveyId, x.UserId });
+
+            entity.Property(x => x.SurveyId).HasColumnName("survey_id");
+            entity.Property(x => x.UserId).HasColumnName("user_id");
+            entity.Property(x => x.SentAt).HasColumnName("sent_at");
+
+            entity.HasOne<Survey>()
+                .WithMany()
+                .HasForeignKey(x => x.SurveyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         model.Entity<SurveyParticipant>(entity =>

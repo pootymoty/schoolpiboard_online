@@ -43,8 +43,18 @@ public sealed class SurveyTests : IDisposable
         await AddUserAsync(2, "unconfirmed@example.com", confirmed: false, deleted: false);
         await AddUserAsync(3, MailAddresses.Deleted(3), confirmed: true, deleted: true);
 
-        var survey = await CreateAsync();
+        Survey survey;
+        using (var scope = _services.CreateScope())
+        {
+            (_, var created) = await scope.ServiceProvider.GetRequiredService<SurveyService>()
+                .CreateAsync(1, Drafts(SurveyQuestions.Default), CancellationToken.None);
+            survey = created!;
+        }
+
         Assert.Equal(1, survey.Recipients);
+
+        // До рассылки отвечать нельзя никому — письма ещё не ушли.
+        Assert.Equal(SurveyAnswerOutcome.NotInvited, await AnswerAsync(survey.Id, 1, Full(8), null));
 
         var mailer = new SurveyMailer(
             _services.GetRequiredService<SurveyQueue>(),
@@ -55,9 +65,36 @@ public sealed class SurveyTests : IDisposable
 
         Assert.Equal(new[] { "live@example.com" }, _sent);
 
-        using var scope = _services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.Equal(1, (await db.Surveys.SingleAsync()).Sent);
+        using (var scope = _services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(1, (await db.Surveys.SingleAsync()).Sent);
+        }
+
+        // Письмо ушло — теперь можно; повторный проход рассылки второе письмо не шлёт.
+        Assert.Equal(SurveyAnswerOutcome.Ok, await AnswerAsync(survey.Id, 1, Full(8), null));
+        await mailer.SendAsync(survey.Id, CancellationToken.None);
+        Assert.Single(_sent);
+    }
+
+    [Fact]
+    public async Task OnlyThoseWhoGotTheLetterCanAnswer()
+    {
+        await AddUserAsync(1, "live@example.com", confirmed: true, deleted: false);
+        var survey = await CreateAsync();
+
+        // Ссылку переслали — человек завёл учётную запись уже после рассылки.
+        await AddUserAsync(2, "friend@example.com", confirmed: true, deleted: false);
+        Assert.Equal(SurveyAnswerOutcome.NotInvited, await AnswerAsync(survey.Id, 2, Full(9), null));
+
+        using (var scope = _services.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<SurveyService>();
+            Assert.False(await service.IsInvitedAsync(survey.Id, 2, CancellationToken.None));
+            Assert.True(await service.IsInvitedAsync(survey.Id, 1, CancellationToken.None));
+        }
+
+        Assert.Equal(SurveyAnswerOutcome.Ok, await AnswerAsync(survey.Id, 1, Full(9), null));
     }
 
     [Fact]
@@ -232,6 +269,12 @@ public sealed class SurveyTests : IDisposable
         using var scope = _services.CreateScope();
         var (_, survey) = await scope.ServiceProvider.GetRequiredService<SurveyService>()
             .CreateAsync(1, Drafts(SurveyQuestions.Default), CancellationToken.None);
+
+        // Как после рассылки: письма ушли всем адресатам.
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        foreach (var recipient in db.SurveyRecipients.Where(x => x.SurveyId == survey!.Id)) recipient.SentAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
         return survey!;
     }
 

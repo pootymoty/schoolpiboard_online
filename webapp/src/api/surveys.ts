@@ -29,6 +29,8 @@ export interface SurveyForm {
   createdAt: string;
   closed: boolean;
   answered: boolean;
+  /** Ушло ли этому человеку письмо с опросом. Отвечать может только он. */
+  invited: boolean;
   questions: SurveyQuestion[];
   maxText: number;
 }

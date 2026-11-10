@@ -13,7 +13,7 @@ public sealed record SurveyCreateRequest(List<SurveyQuestionDraft>? Questions);
 public sealed record SurveyTemplateRequest(string? Name, List<SurveyQuestionDraft>? Questions);
 
 public sealed record SurveyFormDto(
-    long Id, DateTime CreatedAt, bool Closed, bool Answered, IReadOnlyList<SurveyQuestion> Questions, int MaxText);
+    long Id, DateTime CreatedAt, bool Closed, bool Answered, bool Invited, IReadOnlyList<SurveyQuestion> Questions, int MaxText);
 
 public sealed record AdminSurveyDto(
     long Id, DateTime CreatedAt, int Recipients, int Sent, int Responses, DateTime? ClosedAt);
@@ -47,6 +47,7 @@ public static class SurveyEndpoints
             return Results.Ok(new SurveyFormDto(
                 survey.Id, survey.CreatedAt, survey.ClosedAt is not null,
                 await service.HasAnsweredAsync(survey.Id, user.Id, ct),
+                await service.IsInvitedAsync(survey.Id, user.Id, ct),
                 SurveyService.QuestionsOf(survey), SurveyQuestions.MaxTextAnswerLength));
         });
 
@@ -63,6 +64,8 @@ public static class SurveyEndpoints
                 SurveyAnswerOutcome.NotFound => Results.NotFound(new { message = "Такого опроса нет." }),
                 SurveyAnswerOutcome.Closed => Results.Json(new { message = "Опрос уже закрыт." }, statusCode: 410),
                 SurveyAnswerOutcome.AlreadyAnswered => Results.Conflict(new { message = "Вы уже ответили на этот опрос. Спасибо!" }),
+                SurveyAnswerOutcome.NotInvited => Results.Json(
+                    new { message = "Этот опрос отправлялся другим пользователям — ответить на него нельзя." }, statusCode: 403),
                 _ => Results.BadRequest(new { message = "Поставьте оценку в каждом обязательном вопросе." }),
             };
         });
