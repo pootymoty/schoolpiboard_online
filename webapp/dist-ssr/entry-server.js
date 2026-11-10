@@ -12415,48 +12415,126 @@ function SurveyEditor({ questions, recipients, onChange, onCancel, onSent }) {
   ] });
 }
 function QuestionList({ questions, onChange, onUpdate }) {
+  const list2 = useRef(null);
   const items = useRef(/* @__PURE__ */ new Map());
-  const [dragging, setDragging] = useState(null);
   const latest = useRef({ questions, onChange });
   latest.current = { questions, onChange };
   const moveTo = (uid, to) => {
-    const list2 = latest.current.questions;
-    const from = list2.findIndex((question) => question.uid === uid);
-    if (from < 0 || to === from || to < 0 || to >= list2.length) return;
-    const next = [...list2];
+    const current = latest.current.questions;
+    const from = current.findIndex((question) => question.uid === uid);
+    if (from < 0 || to === from || to < 0 || to >= current.length) return;
+    const next = [...current];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
     latest.current.onChange(next);
   };
   const startDrag = (uid, event) => {
-    if (event.button !== 0) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const ol = list2.current;
+    const item = items.current.get(uid);
+    if (!ol || !item) return;
     event.preventDefault();
-    const handle = event.currentTarget;
-    handle.setPointerCapture(event.pointerId);
-    setDragging(uid);
-    const move = (pointer) => {
-      const others = latest.current.questions.filter((question) => question.uid !== uid);
-      let to = 0;
-      for (const question of others) {
-        const element = items.current.get(question.uid);
-        if (!element) continue;
-        const box = element.getBoundingClientRect();
-        if (pointer.clientY > box.top + box.height / 2) to += 1;
+    const original = Array.from(ol.children);
+    let startY = event.clientY + window.scrollY;
+    let lastY = event.clientY;
+    let frame = 0;
+    item.classList.add("is-dragging");
+    const follow = () => {
+      item.style.transform = `translateY(${lastY + window.scrollY - startY}px)`;
+    };
+    const renumber = () => {
+      Array.from(ol.children).forEach((child, index) => {
+        const number = child.querySelector(".survey-editor__number");
+        if (number) number.textContent = String(index + 1);
+      });
+    };
+    const shift = () => {
+      for (let guard = 0; guard < 100; guard += 1) {
+        const box = item.getBoundingClientRect();
+        const prev = item.previousElementSibling;
+        const next = item.nextElementSibling;
+        const before = item.offsetTop;
+        if (prev) {
+          const p2 = prev.getBoundingClientRect();
+          if (box.top < p2.top + p2.height / 2) {
+            ol.insertBefore(prev, item.nextSibling);
+            startY += item.offsetTop - before;
+            follow();
+            continue;
+          }
+        }
+        if (next) {
+          const n = next.getBoundingClientRect();
+          if (box.bottom > n.top + n.height / 2) {
+            ol.insertBefore(next, item);
+            startY += item.offsetTop - before;
+            follow();
+            continue;
+          }
+        }
+        break;
       }
-      moveTo(uid, to);
-      const edge = 80;
-      if (pointer.clientY < edge) window.scrollBy(0, -14);
-      else if (pointer.clientY > window.innerHeight - edge) window.scrollBy(0, 14);
+      renumber();
+    };
+    const scroll = () => {
+      var _a, _b;
+      const zone = 90;
+      const top = ((_a = document.querySelector("header.header")) == null ? void 0 : _a.getBoundingClientRect().bottom) ?? 0;
+      const bottom = ((_b = window.visualViewport) == null ? void 0 : _b.height) ?? window.innerHeight;
+      let step = 0;
+      if (lastY < top + zone) step = -18 * Math.min(1, (top + zone - lastY) / zone);
+      else if (lastY > bottom - zone) step = 18 * Math.min(1, (lastY - (bottom - zone)) / zone);
+      if (step !== 0) {
+        window.scrollBy({ top: step, behavior: "instant" });
+        follow();
+        shift();
+      }
+      frame = window.requestAnimationFrame(scroll);
+    };
+    const move = (clientY) => {
+      lastY = clientY;
+      follow();
+      shift();
+    };
+    const onPointerMove = (pointer) => {
+      pointer.preventDefault();
+      move(pointer.clientY);
+    };
+    const onTouchMove = (touch) => {
+      touch.preventDefault();
+      if (touch.touches[0]) move(touch.touches[0].clientY);
     };
     const stop = () => {
-      handle.removeEventListener("pointermove", move);
-      handle.removeEventListener("pointerup", stop);
-      handle.removeEventListener("pointercancel", stop);
-      setDragging(null);
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", stop);
+      document.removeEventListener("pointercancel", stop);
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", stop);
+      document.removeEventListener("touchcancel", stop);
+      window.removeEventListener("blur", stop);
+      window.cancelAnimationFrame(frame);
+      item.classList.remove("is-dragging");
+      item.style.transform = "";
+      const order = Array.from(ol.children).map((child) => Number(child.dataset.uid));
+      for (const child of original) ol.appendChild(child);
+      renumber();
+      const current = latest.current.questions;
+      const changed = order.some((value, index) => {
+        var _a;
+        return value !== ((_a = current[index]) == null ? void 0 : _a.uid);
+      });
+      if (changed) {
+        latest.current.onChange(order.map((value) => current.find((question) => question.uid === value)).filter((question) => Boolean(question)));
+      }
     };
-    handle.addEventListener("pointermove", move);
-    handle.addEventListener("pointerup", stop);
-    handle.addEventListener("pointercancel", stop);
+    document.addEventListener("pointermove", onPointerMove, { passive: false });
+    document.addEventListener("pointerup", stop);
+    document.addEventListener("pointercancel", stop);
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("touchend", stop);
+    document.addEventListener("touchcancel", stop);
+    window.addEventListener("blur", stop);
+    frame = window.requestAnimationFrame(scroll);
   };
   const nudge = (uid, by, event) => {
     const index = questions.findIndex((question) => question.uid === uid);
@@ -12467,10 +12545,16 @@ function QuestionList({ questions, onChange, onUpdate }) {
       (_b = (_a = items.current.get(uid)) == null ? void 0 : _a.querySelector(".survey-editor__grip")) == null ? void 0 : _b.focus();
     });
   };
-  return /* @__PURE__ */ jsx("ol", { className: "survey-editor", children: questions.map((question, index) => /* @__PURE__ */ jsx(
+  const remove = (question, index) => {
+    const text = question.text.trim();
+    if (text && !window.confirm(`Удалить вопрос ${index + 1} «${text.length > 80 ? `${text.slice(0, 80)}…` : text}»?`)) return;
+    onChange(questions.filter((one) => one.uid !== question.uid));
+  };
+  return /* @__PURE__ */ jsx("ol", { className: "survey-editor", ref: list2, children: questions.map((question, index) => /* @__PURE__ */ jsx(
     "li",
     {
-      className: dragging === question.uid ? "survey-editor__item is-dragging" : "survey-editor__item",
+      className: "survey-editor__item",
+      "data-uid": question.uid,
       ref: (element) => {
         if (element) items.current.set(question.uid, element);
         else items.current.delete(question.uid);
@@ -12483,6 +12567,9 @@ function QuestionList({ questions, onChange, onUpdate }) {
             {
               className: "btn-tool survey-editor__grip",
               type: "button",
+              ref: (element) => {
+                element == null ? void 0 : element.addEventListener("touchstart", stopTouchScroll, { passive: false });
+              },
               onPointerDown: (event) => startDrag(question.uid, event),
               onKeyDown: (event) => {
                 if (event.key === "ArrowUp") nudge(question.uid, -1, event);
@@ -12498,7 +12585,7 @@ function QuestionList({ questions, onChange, onUpdate }) {
             {
               className: "btn-tool survey-editor__remove",
               type: "button",
-              onClick: () => onChange(questions.filter((one) => one.uid !== question.uid)),
+              onClick: () => remove(question, index),
               "aria-label": `Удалить вопрос ${index + 1}`,
               title: "Удалить вопрос",
               children: /* @__PURE__ */ jsx(IconTrash, {})
@@ -12548,6 +12635,7 @@ function QuestionList({ questions, onChange, onUpdate }) {
     question.uid
   )) });
 }
+const stopTouchScroll = (event) => event.preventDefault();
 function SaveTemplate({ initial, questions, onClose, onSaved }) {
   const [name, setName] = useState(initial);
   const [error, setError] = useState(null);

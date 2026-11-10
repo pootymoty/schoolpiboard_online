@@ -421,8 +421,8 @@ function QuestionList({ questions, onChange, onUpdate }: {
   onChange: (questions: EditorQuestion[]) => void;
   onUpdate: (uid: number, patch: Partial<EditorQuestion>) => void;
 }): ReactElement {
+  const list = useRef<HTMLOListElement | null>(null);
   const items = useRef(new Map<number, HTMLLIElement>());
-  const [dragging, setDragging] = useState<number | null>(null);
 
   // Свежие вопросы и обработчик — для слушателей перетаскивания: они живут
   // всё перетаскивание и иначе видели бы порядок на его начало.
@@ -430,52 +430,162 @@ function QuestionList({ questions, onChange, onUpdate }: {
   latest.current = { questions, onChange };
 
   const moveTo = (uid: number, to: number) => {
-    const list = latest.current.questions;
-    const from = list.findIndex((question) => question.uid === uid);
-    if (from < 0 || to === from || to < 0 || to >= list.length) return;
+    const current = latest.current.questions;
+    const from = current.findIndex((question) => question.uid === uid);
+    if (from < 0 || to === from || to < 0 || to >= current.length) return;
 
-    const next = [...list];
+    const next = [...current];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
     latest.current.onChange(next);
   };
 
+  /**
+   * Перетаскивание за ☰.
+   *
+   * Карточка едет за указателем сдвигом (transform), а соседей по ходу
+   * переставляем прямо в DOM: так соседи раздвигаются и номера меняются
+   * сразу, не дожидаясь отпускания. Переставляем именно соседей, а не саму
+   * карточку: перенос элемента под указателем ломает отслеживание, и
+   * отпускание терялось — карточка «зависала» поверх других.
+   *
+   * Движение и отпускание слушаем на документе, а не на ☰: палец с неё
+   * уходит. По отпусканию DOM возвращается в исходный порядок, а новый
+   * порядок уходит в состояние — переставлять узлы дальше будет React.
+   */
   const startDrag = (uid: number, event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const ol = list.current;
+    const item = items.current.get(uid);
+    if (!ol || !item) return;
+
     event.preventDefault();
 
-    const handle = event.currentTarget;
-    handle.setPointerCapture(event.pointerId);
-    setDragging(uid);
+    const original = Array.from(ol.children) as HTMLElement[];
+    let startY = event.clientY + window.scrollY;
+    let lastY = event.clientY;
+    let frame = 0;
 
-    const move = (pointer: PointerEvent) => {
-      // Куда встать: сколько других вопросов выше указателя по их середине.
-      const others = latest.current.questions.filter((question) => question.uid !== uid);
-      let to = 0;
-      for (const question of others) {
-        const element = items.current.get(question.uid);
-        if (!element) continue;
-        const box = element.getBoundingClientRect();
-        if (pointer.clientY > box.top + box.height / 2) to += 1;
+    item.classList.add('is-dragging');
+
+    const follow = () => {
+      item.style.transform = `translateY(${lastY + window.scrollY - startY}px)`;
+    };
+
+    const renumber = () => {
+      Array.from(ol.children).forEach((child, index) => {
+        const number = child.querySelector('.survey-editor__number');
+        if (number) number.textContent = String(index + 1);
+      });
+    };
+
+    const shift = () => {
+      // При быстром движении карточка проходит сразу несколько соседей.
+      for (let guard = 0; guard < 100; guard += 1) {
+        const box = item.getBoundingClientRect();
+        const prev = item.previousElementSibling as HTMLElement | null;
+        const next = item.nextElementSibling as HTMLElement | null;
+        const before = item.offsetTop;
+
+        if (prev) {
+          const p = prev.getBoundingClientRect();
+          if (box.top < p.top + p.height / 2) {
+            ol.insertBefore(prev, item.nextSibling);
+            startY += item.offsetTop - before;
+            follow();
+            continue;
+          }
+        }
+
+        if (next) {
+          const n = next.getBoundingClientRect();
+          if (box.bottom > n.top + n.height / 2) {
+            ol.insertBefore(next, item);
+            startY += item.offsetTop - before;
+            follow();
+            continue;
+          }
+        }
+
+        break;
       }
-      moveTo(uid, to);
 
-      // У края экрана список сам едет: длинный опрос не помещается в окно.
-      const edge = 80;
-      if (pointer.clientY < edge) window.scrollBy(0, -14);
-      else if (pointer.clientY > window.innerHeight - edge) window.scrollBy(0, 14);
+      renumber();
+    };
+
+    // Автопрокрутка у краёв: чем ближе к краю, тем быстрее. Циклом по
+    // кадрам — палец может стоять на месте, и движений тогда не приходит.
+    const scroll = () => {
+      const zone = 90;
+      const top = document.querySelector('header.header')?.getBoundingClientRect().bottom ?? 0;
+      const bottom = window.visualViewport?.height ?? window.innerHeight;
+
+      let step = 0;
+      if (lastY < top + zone) step = -18 * Math.min(1, (top + zone - lastY) / zone);
+      else if (lastY > bottom - zone) step = 18 * Math.min(1, (lastY - (bottom - zone)) / zone);
+
+      if (step !== 0) {
+        // Мгновенно: при плавной прокрутке каждый шаг обрывал бы предыдущий.
+        window.scrollBy({ top: step, behavior: 'instant' as ScrollBehavior });
+        follow();
+        shift();
+      }
+
+      frame = window.requestAnimationFrame(scroll);
+    };
+
+    const move = (clientY: number) => {
+      lastY = clientY;
+      follow();
+      shift();
+    };
+
+    const onPointerMove = (pointer: PointerEvent) => {
+      pointer.preventDefault();
+      move(pointer.clientY);
+    };
+
+    const onTouchMove = (touch: TouchEvent) => {
+      touch.preventDefault();
+      if (touch.touches[0]) move(touch.touches[0].clientY);
     };
 
     const stop = () => {
-      handle.removeEventListener('pointermove', move);
-      handle.removeEventListener('pointerup', stop);
-      handle.removeEventListener('pointercancel', stop);
-      setDragging(null);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', stop);
+      document.removeEventListener('pointercancel', stop);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', stop);
+      document.removeEventListener('touchcancel', stop);
+      window.removeEventListener('blur', stop);
+      window.cancelAnimationFrame(frame);
+
+      item.classList.remove('is-dragging');
+      item.style.transform = '';
+
+      const order = (Array.from(ol.children) as HTMLElement[]).map((child) => Number(child.dataset.uid));
+
+      // DOM — обратно как было, порядок — в состояние: узлами владеет React.
+      for (const child of original) ol.appendChild(child);
+      renumber();
+
+      const current = latest.current.questions;
+      const changed = order.some((value, index) => value !== current[index]?.uid);
+      if (changed) {
+        latest.current.onChange(order
+          .map((value) => current.find((question) => question.uid === value))
+          .filter((question): question is EditorQuestion => Boolean(question)));
+      }
     };
 
-    handle.addEventListener('pointermove', move);
-    handle.addEventListener('pointerup', stop);
-    handle.addEventListener('pointercancel', stop);
+    document.addEventListener('pointermove', onPointerMove, { passive: false });
+    document.addEventListener('pointerup', stop);
+    document.addEventListener('pointercancel', stop);
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', stop);
+    document.addEventListener('touchcancel', stop);
+    window.addEventListener('blur', stop);
+    frame = window.requestAnimationFrame(scroll);
   };
 
   const nudge = (uid: number, by: number, event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -489,12 +599,20 @@ function QuestionList({ questions, onChange, onUpdate }: {
     });
   };
 
+  const remove = (question: EditorQuestion, index: number) => {
+    // От случайного нажатия: пустой вопрос терять нечего, а написанный — жалко.
+    const text = question.text.trim();
+    if (text && !window.confirm(`Удалить вопрос ${index + 1} «${text.length > 80 ? `${text.slice(0, 80)}…` : text}»?`)) return;
+    onChange(questions.filter((one) => one.uid !== question.uid));
+  };
+
   return (
-    <ol className="survey-editor">
+    <ol className="survey-editor" ref={list}>
       {questions.map((question, index) => (
         <li
-          className={dragging === question.uid ? 'survey-editor__item is-dragging' : 'survey-editor__item'}
+          className="survey-editor__item"
           key={question.uid}
+          data-uid={question.uid}
           ref={(element) => {
             if (element) items.current.set(question.uid, element);
             else items.current.delete(question.uid);
@@ -507,6 +625,12 @@ function QuestionList({ questions, onChange, onUpdate }: {
               <button
                 className="btn-tool survey-editor__grip"
                 type="button"
+                ref={(element) => {
+                  // Без этого iPhone успевает начать прокрутку страницы и
+                  // обрывает перетаскивание. Подписка нативная: у React
+                  // touchstart пассивный, и отменить его оттуда нельзя.
+                  element?.addEventListener('touchstart', stopTouchScroll, { passive: false });
+                }}
                 onPointerDown={(event) => startDrag(question.uid, event)}
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowUp') nudge(question.uid, -1, event);
@@ -521,7 +645,7 @@ function QuestionList({ questions, onChange, onUpdate }: {
               <button
                 className="btn-tool survey-editor__remove"
                 type="button"
-                onClick={() => onChange(questions.filter((one) => one.uid !== question.uid))}
+                onClick={() => remove(question, index)}
                 aria-label={`Удалить вопрос ${index + 1}`}
                 title="Удалить вопрос"
               >
@@ -567,6 +691,9 @@ function QuestionList({ questions, onChange, onUpdate }: {
     </ol>
   );
 }
+
+/** Палец на ☰ тянет вопрос, а не прокручивает страницу (см. QuestionList). */
+const stopTouchScroll = (event: TouchEvent) => event.preventDefault();
 
 function SaveTemplate({ initial, questions, onClose, onSaved }: {
   initial: string;

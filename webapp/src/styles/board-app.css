@@ -363,6 +363,11 @@
 
 .navbar-dropdown--active .navbar-submenu { max-height: 100vh; }
 
+/* Общее правило `.navbar ul` даёт спискам отступ со всех сторон — у
+   вложенного списка он оставался и в свёрнутом виде, и между свёрнутым
+   разделом и следующим пунктом зияла пустая полоса. */
+.navbar .navbar-submenu { padding: 0 0 0 var(--sp-3); }
+
 .navbar-submenu li .menu__item {
     width: 100%;
     text-align: left;
@@ -4100,13 +4105,15 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
 
 /* Перетаскиваемый вопрос — приподнят над остальными. */
 .survey-editor__item.is-dragging .survey-editor__question {
-    position: relative;
-    z-index: 1;
     box-shadow: 0 8px 24px var(--shadow-color);
     outline: 2px solid var(--accent);
 }
 
-.survey-editor__item.is-dragging { user-select: none; }
+.survey-editor__item.is-dragging {
+    position: relative;
+    z-index: 2;
+    user-select: none;
+}
 
 .survey-editor__fields {
     flex: 1;
