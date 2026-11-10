@@ -76,7 +76,10 @@ export function App(): ReactElement {
             потому что на доску пускают гостя, у которого учётной записи нет
             и не будет. */}
         <Route path="/legal/:page" element={<LegalPage />} />
-        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin" element={<Navigate to="/admin/summary" replace />} />
+        <Route path="/admin/summary" element={<AdminPage section="summary" />} />
+        <Route path="/admin/boards" element={<AdminPage section="boards" />} />
+        <Route path="/admin/users" element={<AdminPage section="users" />} />
         <Route path="/admin/surveys" element={<AdminSurveysPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/pricing" element={<PricingPage />} />

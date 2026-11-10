@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import {
   adminSurveys, closeSurvey, createSurvey, deleteSurveyTemplate, saveSurveyTemplate, surveyResults,
@@ -10,6 +10,7 @@ import type {
   AdminSurvey, SurveyQuestion, SurveyQuestionDraft, SurveyQuestionResult, SurveyResults, SurveyTemplate,
 } from '../api/surveys';
 import { useAuth } from '../auth/AuthContext';
+import { AdminHeader } from '../components/AdminNav';
 import { IconTrash } from '../components/Icons';
 import { Page } from '../components/Layout';
 import { Modal } from '../components/Modal';
@@ -184,19 +185,14 @@ export function AdminSurveysPage(): ReactElement {
 
   return (
     <Page>
-      <div className="page-header">
-        <div>
-          <p className="page-header__sub"><Link to="/admin">← Администрирование</Link></p>
-          <h1>Опросы</h1>
-        </div>
-        {editing ? null : (
-          <div className="page-header__actions">
-            <button className="btn-primary" type="button" onClick={() => void startEditing()}>
-              Создать опрос
-            </button>
-          </div>
+      <AdminHeader
+        title="Опросы"
+        actions={editing ? null : (
+          <button className="btn-primary" type="button" onClick={() => void startEditing()}>
+            Создать опрос
+          </button>
         )}
-      </div>
+      />
 
       {note ? <p className="note note-success">{note}</p> : null}
       {error ? <p className="note note-danger">{error}</p> : null}

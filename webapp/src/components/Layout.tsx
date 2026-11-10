@@ -1,3 +1,4 @@
+import { ADMIN_SECTIONS } from './AdminNav';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { flushSync } from 'react-dom';
@@ -129,11 +130,18 @@ export function Header(): ReactElement {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cabinetOpen, setCabinetOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
 
   /** Открыто ли выпадающее меню кабинета на широком экране. */
   const [dropOpen, setDropOpen] = useState(false);
 
+  /** То же для администрирования — у него свои подразделы. */
+  const [adminDropOpen, setAdminDropOpen] = useState(false);
+
   const drop = useRef<HTMLLIElement | null>(null);
+  const adminDrop = useRef<HTMLLIElement | null>(null);
+
+  const inAdmin = location.pathname.startsWith('/admin');
   const panel = useRef<HTMLDivElement | null>(null);
   const burger = useRef<HTMLButtonElement | null>(null);
 
@@ -143,7 +151,9 @@ export function Header(): ReactElement {
   useEffect(() => {
     setMobileOpen(false);
     setCabinetOpen(false);
+    setAdminOpen(false);
     setDropOpen(false);
+    setAdminDropOpen(false);
   }, [location.pathname]);
 
   const closeMobile = () => setMobileOpen(false);
@@ -156,6 +166,7 @@ export function Header(): ReactElement {
       const target = event.target as Node;
 
       if (drop.current && !drop.current.contains(target)) setDropOpen(false);
+      if (adminDrop.current && !adminDrop.current.contains(target)) setAdminDropOpen(false);
 
       if (panel.current && burger.current
           && !panel.current.contains(target) && !burger.current.contains(target)) {
@@ -166,6 +177,7 @@ export function Header(): ReactElement {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       setDropOpen(false);
+      setAdminDropOpen(false);
       setMobileOpen(false);
     };
 
@@ -235,7 +247,23 @@ export function Header(): ReactElement {
                   управление сервисом, а не настройки своей учётной записи,
                   и прятать её в то же подменю значило бы смешивать разное. */}
               {user.isAdmin ? (
-                <li><NavLink to="/admin">Администрирование</NavLink></li>
+                <li className="dropdown" ref={adminDrop}>
+                  <button
+                    className={adminDropOpen || inAdmin ? 'dropdown-toggle active' : 'dropdown-toggle'}
+                    type="button"
+                    aria-expanded={adminDropOpen}
+                    onClick={() => setAdminDropOpen((current) => !current)}
+                  >
+                    Администрирование
+                    <span className="dropdown-arrow" aria-hidden="true" />
+                  </button>
+
+                  <ul className={adminDropOpen ? 'dropdown-menu show' : 'dropdown-menu'}>
+                    {ADMIN_SECTIONS.map((section) => (
+                      <li key={section.path}><Link to={section.path}>{section.title}</Link></li>
+                    ))}
+                  </ul>
+                </li>
               ) : null}
 
               {/* Подменю невидимо и приподнято, пока закрыто: появление
@@ -317,7 +345,22 @@ export function Header(): ReactElement {
               <li><Link to="/boards" onClick={closeMobile}>Мои доски</Link></li>
               <li><Link to="/recordings" onClick={closeMobile}>Мои записи</Link></li>
               {user.isAdmin ? (
-                <li><Link to="/admin" onClick={closeMobile}>Администрирование</Link></li>
+                <li className={adminOpen ? 'navbar-dropdown navbar-dropdown--active' : 'navbar-dropdown'}>
+                  <button
+                    className="navbar-dropdown__toggle"
+                    type="button"
+                    aria-expanded={adminOpen}
+                    onClick={() => setAdminOpen((current) => !current)}
+                  >
+                    Администрирование
+                    <span className="navbar-dropdown__arrow" aria-hidden="true" />
+                  </button>
+                  <ul className="navbar-submenu">
+                    {ADMIN_SECTIONS.map((section) => (
+                      <li key={section.path}><Link to={section.path} onClick={closeMobile}>{section.title}</Link></li>
+                    ))}
+                  </ul>
+                </li>
               ) : null}
               <li className={cabinetOpen ? 'navbar-dropdown navbar-dropdown--active' : 'navbar-dropdown'}>
                 <button

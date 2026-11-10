@@ -5,7 +5,7 @@ import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server.mjs";
 import { createContext, useState, useCallback, useEffect, useRef, useMemo, useContext, Children, isValidElement, cloneElement, useLayoutEffect, useSyncExternalStore, Fragment as Fragment$1 } from "react";
-import { useLocation, Link, NavLink, useNavigate, useSearchParams, useParams, Navigate, Routes, Route } from "react-router-dom";
+import { NavLink, useLocation, Link, useNavigate, useSearchParams, useParams, Navigate, Routes, Route } from "react-router-dom";
 import { flushSync } from "react-dom";
 import { HubConnectionBuilder, LogLevel, HubConnectionState } from "@microsoft/signalr";
 const API_URL = "http://localhost:5000";
@@ -230,6 +230,32 @@ const DEFAULT_META = {
 };
 function metaFor(path) {
   return PUBLIC_PAGES[path] ?? DEFAULT_META;
+}
+const ADMIN_SECTIONS = [
+  { path: "/admin/summary", title: "Сводка" },
+  { path: "/admin/boards", title: "Доски" },
+  { path: "/admin/users", title: "Тарифы пользователей" },
+  { path: "/admin/surveys", title: "Опросы" }
+];
+function AdminHeader({ title, actions }) {
+  const tabs = useRef(null);
+  useEffect(() => {
+    var _a;
+    const active = (_a = tabs.current) == null ? void 0 : _a.querySelector(".active");
+    const strip = tabs.current;
+    if (!active || !strip) return;
+    strip.scrollLeft = active.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2;
+  }, [title]);
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsxs("div", { className: "page-header", children: [
+      /* @__PURE__ */ jsxs("div", { children: [
+        /* @__PURE__ */ jsx("p", { className: "page-header__sub", children: "Администрирование" }),
+        /* @__PURE__ */ jsx("h1", { children: title })
+      ] }),
+      actions ? /* @__PURE__ */ jsx("div", { className: "page-header__actions", children: actions }) : null
+    ] }),
+    /* @__PURE__ */ jsx("nav", { className: "admin-tabs", "aria-label": "Подразделы администрирования", ref: tabs, children: ADMIN_SECTIONS.map((section) => /* @__PURE__ */ jsx(NavLink, { to: section.path, className: "admin-tabs__tab", children: section.title }, section.path)) })
+  ] });
 }
 const COMPANY = {
   /** Как продавец называется в документах. */
@@ -604,21 +630,28 @@ function Header() {
   const location2 = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cabinetOpen, setCabinetOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
+  const [adminDropOpen, setAdminDropOpen] = useState(false);
   const drop = useRef(null);
+  const adminDrop = useRef(null);
+  const inAdmin = location2.pathname.startsWith("/admin");
   const panel = useRef(null);
   const burger = useRef(null);
   useScrollLock(mobileOpen);
   useEffect(() => {
     setMobileOpen(false);
     setCabinetOpen(false);
+    setAdminOpen(false);
     setDropOpen(false);
+    setAdminDropOpen(false);
   }, [location2.pathname]);
   const closeMobile = () => setMobileOpen(false);
   useEffect(() => {
     const outside = (event) => {
       const target = event.target;
       if (drop.current && !drop.current.contains(target)) setDropOpen(false);
+      if (adminDrop.current && !adminDrop.current.contains(target)) setAdminDropOpen(false);
       if (panel.current && burger.current && !panel.current.contains(target) && !burger.current.contains(target)) {
         setMobileOpen(false);
       }
@@ -626,6 +659,7 @@ function Header() {
     const escape = (event) => {
       if (event.key !== "Escape") return;
       setDropOpen(false);
+      setAdminDropOpen(false);
       setMobileOpen(false);
     };
     document.addEventListener("mousedown", outside);
@@ -670,7 +704,22 @@ function Header() {
       /* @__PURE__ */ jsx("nav", { className: "header__account", "aria-label": "Учётная запись", children: /* @__PURE__ */ jsx("ul", { className: "desktop-menu", children: user ? /* @__PURE__ */ jsxs(Fragment, { children: [
         /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/boards", children: "Мои доски" }) }),
         /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/recordings", children: "Мои записи" }) }),
-        user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(NavLink, { to: "/admin", children: "Администрирование" }) }) : null,
+        user.isAdmin ? /* @__PURE__ */ jsxs("li", { className: "dropdown", ref: adminDrop, children: [
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              className: adminDropOpen || inAdmin ? "dropdown-toggle active" : "dropdown-toggle",
+              type: "button",
+              "aria-expanded": adminDropOpen,
+              onClick: () => setAdminDropOpen((current) => !current),
+              children: [
+                "Администрирование",
+                /* @__PURE__ */ jsx("span", { className: "dropdown-arrow", "aria-hidden": "true" })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsx("ul", { className: adminDropOpen ? "dropdown-menu show" : "dropdown-menu", children: ADMIN_SECTIONS.map((section) => /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: section.path, children: section.title }) }, section.path)) })
+        ] }) : null,
         /* @__PURE__ */ jsxs("li", { className: "dropdown", ref: drop, children: [
           /* @__PURE__ */ jsxs(
             "button",
@@ -728,7 +777,22 @@ function Header() {
           ] }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/boards", onClick: closeMobile, children: "Мои доски" }) }),
           /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/recordings", onClick: closeMobile, children: "Мои записи" }) }),
-          user.isAdmin ? /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: "/admin", onClick: closeMobile, children: "Администрирование" }) }) : null,
+          user.isAdmin ? /* @__PURE__ */ jsxs("li", { className: adminOpen ? "navbar-dropdown navbar-dropdown--active" : "navbar-dropdown", children: [
+            /* @__PURE__ */ jsxs(
+              "button",
+              {
+                className: "navbar-dropdown__toggle",
+                type: "button",
+                "aria-expanded": adminOpen,
+                onClick: () => setAdminOpen((current) => !current),
+                children: [
+                  "Администрирование",
+                  /* @__PURE__ */ jsx("span", { className: "navbar-dropdown__arrow", "aria-hidden": "true" })
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsx("ul", { className: "navbar-submenu", children: ADMIN_SECTIONS.map((section) => /* @__PURE__ */ jsx("li", { children: /* @__PURE__ */ jsx(Link, { to: section.path, onClick: closeMobile, children: section.title }) }, section.path)) })
+          ] }) : null,
           /* @__PURE__ */ jsxs("li", { className: cabinetOpen ? "navbar-dropdown navbar-dropdown--active" : "navbar-dropdown", children: [
             /* @__PURE__ */ jsxs(
               "button",
@@ -12165,13 +12229,13 @@ function AdminSurveysPage() {
   if (!(user == null ? void 0 : user.isAdmin)) return /* @__PURE__ */ jsx(Navigate, { to: "/boards", replace: true });
   const pages = Math.max(1, Math.ceil(total / SIZE$1));
   return /* @__PURE__ */ jsxs(Page, { children: [
-    /* @__PURE__ */ jsxs("div", { className: "page-header", children: [
-      /* @__PURE__ */ jsxs("div", { children: [
-        /* @__PURE__ */ jsx("p", { className: "page-header__sub", children: /* @__PURE__ */ jsx(Link, { to: "/admin", children: "← Администрирование" }) }),
-        /* @__PURE__ */ jsx("h1", { children: "Опросы" })
-      ] }),
-      editing ? null : /* @__PURE__ */ jsx("div", { className: "page-header__actions", children: /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: () => void startEditing(), children: "Создать опрос" }) })
-    ] }),
+    /* @__PURE__ */ jsx(
+      AdminHeader,
+      {
+        title: "Опросы",
+        actions: editing ? null : /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: () => void startEditing(), children: "Создать опрос" })
+      }
+    ),
     note ? /* @__PURE__ */ jsx("p", { className: "note note-success", children: note }) : null,
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     editing ? /* @__PURE__ */ jsx("section", { className: "card survey-editor__card", ref: editorRef, children: /* @__PURE__ */ jsx(
@@ -12763,7 +12827,12 @@ function BoardTextView({ rows }) {
     row.text
   ] }, row.itemId)) });
 }
-function AdminPage() {
+const TITLES = {
+  summary: "Сводка",
+  boards: "Доски",
+  users: "Тарифы пользователей"
+};
+function AdminPage({ section }) {
   const { user, loading: loading2 } = useAuth();
   const [stats, setStats] = useState(null);
   const [rows, setRows] = useState([]);
@@ -12785,9 +12854,9 @@ function AdminPage() {
     ));
   }, []);
   useEffect(() => {
-    if (!(user == null ? void 0 : user.isAdmin)) return;
+    if (!(user == null ? void 0 : user.isAdmin) || section !== "boards") return;
     loadReports();
-  }, [user == null ? void 0 : user.isAdmin, loadReports]);
+  }, [user == null ? void 0 : user.isAdmin, section, loadReports]);
   const resolveReport = async (reportId) => {
     try {
       await adminResolveReport(reportId);
@@ -12813,10 +12882,10 @@ function AdminPage() {
     )).finally(() => setBoardsBusy(false));
   }, []);
   useEffect(() => {
-    if (!(user == null ? void 0 : user.isAdmin)) return void 0;
+    if (!(user == null ? void 0 : user.isAdmin) || section !== "boards") return void 0;
     const timer = window.setTimeout(() => loadBoards(boardsQuery, boardsPage), TYPING_MS);
     return () => window.clearTimeout(timer);
-  }, [boardsQuery, boardsPage, loadBoards, user == null ? void 0 : user.isAdmin]);
+  }, [boardsQuery, boardsPage, loadBoards, user == null ? void 0 : user.isAdmin, section]);
   const [textFor, setTextFor] = useState(null);
   const [textRows, setTextRows] = useState([]);
   const showText = (boardId) => {
@@ -12867,14 +12936,14 @@ function AdminPage() {
     });
   }, []);
   useEffect(() => {
-    if (!(user == null ? void 0 : user.isAdmin)) return void 0;
+    if (!(user == null ? void 0 : user.isAdmin) || section !== "users") return void 0;
     const timer = window.setTimeout(() => load(query, page), TYPING_MS);
     return () => window.clearTimeout(timer);
-  }, [query, page, load, user == null ? void 0 : user.isAdmin]);
+  }, [query, page, load, user == null ? void 0 : user.isAdmin, section]);
   useEffect(() => {
-    if (!(user == null ? void 0 : user.isAdmin)) return;
+    if (!(user == null ? void 0 : user.isAdmin) || section !== "summary") return;
     adminStats().then(setStats).catch(() => void 0);
-  }, [user == null ? void 0 : user.isAdmin]);
+  }, [user == null ? void 0 : user.isAdmin, section]);
   const show = (userId, what) => {
     if ((open == null ? void 0 : open.id) === userId && open.what === what) {
       setOpen(null);
@@ -12917,12 +12986,9 @@ function AdminPage() {
   const pages = Math.max(1, Math.ceil(total / SIZE));
   const boardsPages = Math.max(1, Math.ceil(boardsTotal / SIZE));
   return /* @__PURE__ */ jsxs(Page, { children: [
-    /* @__PURE__ */ jsxs("div", { className: "page-header", children: [
-      /* @__PURE__ */ jsx("h1", { children: "Администрирование" }),
-      /* @__PURE__ */ jsx("div", { className: "page-header__actions", children: /* @__PURE__ */ jsx(Link, { className: "btn btn-outline", to: "/admin/surveys", children: "Опросы" }) })
-    ] }),
+    /* @__PURE__ */ jsx(AdminHeader, { title: TITLES[section] }),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    stats ? /* @__PURE__ */ jsxs("div", { className: "admin__tiles", children: [
+    section === "summary" && stats ? /* @__PURE__ */ jsxs("div", { className: "admin__tiles", children: [
       /* @__PURE__ */ jsx(Tile, { title: "Учётных записей", value: String(stats.users) }),
       /* @__PURE__ */ jsx(Tile, { title: "Почта подтверждена", value: String(stats.confirmed) }),
       /* @__PURE__ */ jsx(Tile, { title: "Платных подписок", value: String(stats.active) }),
@@ -12934,122 +13000,124 @@ function AdminPage() {
       /* @__PURE__ */ jsx(Tile, { title: "Счетов ждёт оплаты", value: String(stats.pending) }),
       /* @__PURE__ */ jsx(Tile, { title: "Счетов брошено", value: String(stats.abandoned) })
     ] }) : null,
-    /* @__PURE__ */ jsxs("section", { className: "card", children: [
-      /* @__PURE__ */ jsxs("h2", { className: "card-title", children: [
-        "Жалобы",
-        reports.length > 0 ? ` · ${reports.length}` : ""
-      ] }),
-      reportsError ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: reportsError }) : null,
-      reports.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Открытых жалоб нет." }) : /* @__PURE__ */ jsx("div", { className: "stack", children: reports.map((r) => /* @__PURE__ */ jsxs("div", { className: "admin__report", children: [
-        /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: 0 }, children: [
-          /* @__PURE__ */ jsx("strong", { children: r.boardTitle }),
-          " (доска № ",
-          r.boardId,
-          ")",
-          r.ownerName ? ` · владелец: ${r.ownerName} (${r.ownerEmail})` : "",
-          " · от ",
-          r.reporter,
-          " · ",
-          day(r.createdAt)
+    section === "boards" ? /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsxs("section", { className: "card", children: [
+        /* @__PURE__ */ jsxs("h2", { className: "card-title", children: [
+          "Жалобы",
+          reports.length > 0 ? ` · ${reports.length}` : ""
         ] }),
-        /* @__PURE__ */ jsx("p", { className: "small", style: { margin: "var(--sp-1) 0" }, children: r.comment }),
-        /* @__PURE__ */ jsxs("div", { className: "row", children: [
-          /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => showText(r.boardId), children: textFor === r.boardId ? "Скрыть текст" : "Текст на доске" }),
-          /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => resolveReport(r.id), children: "Закрыть жалобу" }),
+        reportsError ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: reportsError }) : null,
+        reports.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Открытых жалоб нет." }) : /* @__PURE__ */ jsx("div", { className: "stack", children: reports.map((r) => /* @__PURE__ */ jsxs("div", { className: "admin__report", children: [
+          /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: 0 }, children: [
+            /* @__PURE__ */ jsx("strong", { children: r.boardTitle }),
+            " (доска № ",
+            r.boardId,
+            ")",
+            r.ownerName ? ` · владелец: ${r.ownerName} (${r.ownerEmail})` : "",
+            " · от ",
+            r.reporter,
+            " · ",
+            day(r.createdAt)
+          ] }),
+          /* @__PURE__ */ jsx("p", { className: "small", style: { margin: "var(--sp-1) 0" }, children: r.comment }),
+          /* @__PURE__ */ jsxs("div", { className: "row", children: [
+            /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => showText(r.boardId), children: textFor === r.boardId ? "Скрыть текст" : "Текст на доске" }),
+            /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => resolveReport(r.id), children: "Закрыть жалобу" }),
+            /* @__PURE__ */ jsx(
+              "button",
+              {
+                className: "btn-quiet menu__item--danger btn-sm",
+                type: "button",
+                onClick: () => removeBoard(r.boardId, r.boardTitle),
+                children: "Удалить доску"
+              }
+            )
+          ] }),
+          textFor === r.boardId ? /* @__PURE__ */ jsx(BoardTextView, { rows: textRows }) : null
+        ] }, r.id)) })
+      ] }),
+      /* @__PURE__ */ jsxs("section", { className: "card", children: [
+        /* @__PURE__ */ jsxs("div", { className: "row row--between", children: [
+          /* @__PURE__ */ jsx("h2", { className: "card-title", style: { margin: 0 }, children: "Доски" }),
+          /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: runFlaggedScan, disabled: flaggedBusy, children: flaggedBusy ? "Проверяем…" : "Проверить надписи на запрещённые слова" })
+        ] }),
+        flaggedError ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: flaggedError }) : null,
+        flagged ? flagged.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Проверка ничего не нашла. Она видит только надписи инструментом «текст» — не рисунок от руки." }) : /* @__PURE__ */ jsx("div", { className: "stack", children: flagged.map((f) => /* @__PURE__ */ jsxs("div", { className: "admin__report", children: [
+          /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: 0 }, children: [
+            /* @__PURE__ */ jsx("strong", { children: f.boardTitle }),
+            " (доска № ",
+            f.boardId,
+            ")",
+            f.ownerEmail ? ` · владелец: ${f.ownerEmail}` : "",
+            " · ",
+            f.reason
+          ] }),
+          /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: "var(--sp-1) 0" }, children: [
+            "«",
+            f.text,
+            "»"
+          ] })
+        ] }, f.itemId)) }) : null,
+        /* @__PURE__ */ jsxs("div", { className: "admin__search", style: { marginTop: "var(--sp-4)" }, children: [
           /* @__PURE__ */ jsx(
-            "button",
+            "input",
             {
-              className: "btn-quiet menu__item--danger btn-sm",
-              type: "button",
-              onClick: () => removeBoard(r.boardId, r.boardTitle),
-              children: "Удалить доску"
+              className: "input",
+              type: "search",
+              value: boardsQuery,
+              placeholder: "Название доски, имя или почта владельца",
+              onChange: (event) => {
+                setBoardsQuery(event.target.value);
+                setBoardsPage(1);
+              }
             }
-          )
+          ),
+          /* @__PURE__ */ jsx("span", { className: "text-muted small", children: boardsBusy ? "Ищем…" : `Найдено: ${boardsTotal}` })
         ] }),
-        textFor === r.boardId ? /* @__PURE__ */ jsx(BoardTextView, { rows: textRows }) : null
-      ] }, r.id)) })
-    ] }),
-    /* @__PURE__ */ jsxs("section", { className: "card", children: [
-      /* @__PURE__ */ jsxs("div", { className: "row row--between", children: [
-        /* @__PURE__ */ jsx("h2", { className: "card-title", style: { margin: 0 }, children: "Доски" }),
-        /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: runFlaggedScan, disabled: flaggedBusy, children: flaggedBusy ? "Проверяем…" : "Проверить надписи на запрещённые слова" })
-      ] }),
-      flaggedError ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: flaggedError }) : null,
-      flagged ? flagged.length === 0 ? /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Проверка ничего не нашла. Она видит только надписи инструментом «текст» — не рисунок от руки." }) : /* @__PURE__ */ jsx("div", { className: "stack", children: flagged.map((f) => /* @__PURE__ */ jsxs("div", { className: "admin__report", children: [
-        /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: 0 }, children: [
-          /* @__PURE__ */ jsx("strong", { children: f.boardTitle }),
-          " (доска № ",
-          f.boardId,
-          ")",
-          f.ownerEmail ? ` · владелец: ${f.ownerEmail}` : "",
-          " · ",
-          f.reason
-        ] }),
-        /* @__PURE__ */ jsxs("p", { className: "small", style: { margin: "var(--sp-1) 0" }, children: [
-          "«",
-          f.text,
-          "»"
-        ] })
-      ] }, f.itemId)) }) : null,
-      /* @__PURE__ */ jsxs("div", { className: "admin__search", style: { marginTop: "var(--sp-4)" }, children: [
-        /* @__PURE__ */ jsx(
-          "input",
-          {
-            className: "input",
-            type: "search",
-            value: boardsQuery,
-            placeholder: "Название доски, имя или почта владельца",
-            onChange: (event) => {
-              setBoardsQuery(event.target.value);
-              setBoardsPage(1);
-            }
-          }
-        ),
-        /* @__PURE__ */ jsx("span", { className: "text-muted small", children: boardsBusy ? "Ищем…" : `Найдено: ${boardsTotal}` })
-      ] }),
-      boardsError ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: boardsError }) : null,
-      /* @__PURE__ */ jsx("div", { className: "table-scroll", children: /* @__PURE__ */ jsxs("table", { className: "admin__table", children: [
-        /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { children: [
-          /* @__PURE__ */ jsx("th", { children: "Доска" }),
-          /* @__PURE__ */ jsx("th", { children: "Владелец" }),
-          /* @__PURE__ */ jsx("th", { children: "Объектов" }),
-          /* @__PURE__ */ jsx("th", { children: "Создана" }),
-          /* @__PURE__ */ jsx("th", { children: "Изменена" }),
-          /* @__PURE__ */ jsx("th", {})
-        ] }) }),
-        /* @__PURE__ */ jsxs("tbody", { children: [
-          boards.map((b) => /* @__PURE__ */ jsxs(Fragment$1, { children: [
-            /* @__PURE__ */ jsxs("tr", { children: [
-              /* @__PURE__ */ jsx("td", { children: b.title }),
-              /* @__PURE__ */ jsxs("td", { children: [
-                b.ownerName,
-                /* @__PURE__ */ jsx("br", {}),
-                /* @__PURE__ */ jsx("span", { className: "text-muted small", children: b.ownerEmail })
+        boardsError ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: boardsError }) : null,
+        /* @__PURE__ */ jsx("div", { className: "table-scroll", children: /* @__PURE__ */ jsxs("table", { className: "admin__table", children: [
+          /* @__PURE__ */ jsx("thead", { children: /* @__PURE__ */ jsxs("tr", { children: [
+            /* @__PURE__ */ jsx("th", { children: "Доска" }),
+            /* @__PURE__ */ jsx("th", { children: "Владелец" }),
+            /* @__PURE__ */ jsx("th", { children: "Объектов" }),
+            /* @__PURE__ */ jsx("th", { children: "Создана" }),
+            /* @__PURE__ */ jsx("th", { children: "Изменена" }),
+            /* @__PURE__ */ jsx("th", {})
+          ] }) }),
+          /* @__PURE__ */ jsxs("tbody", { children: [
+            boards.map((b) => /* @__PURE__ */ jsxs(Fragment$1, { children: [
+              /* @__PURE__ */ jsxs("tr", { children: [
+                /* @__PURE__ */ jsx("td", { children: b.title }),
+                /* @__PURE__ */ jsxs("td", { children: [
+                  b.ownerName,
+                  /* @__PURE__ */ jsx("br", {}),
+                  /* @__PURE__ */ jsx("span", { className: "text-muted small", children: b.ownerEmail })
+                ] }),
+                /* @__PURE__ */ jsx("td", { children: b.items }),
+                /* @__PURE__ */ jsx("td", { children: dayTime(b.createdAt) }),
+                /* @__PURE__ */ jsx("td", { children: dayTime(b.updatedAt) }),
+                /* @__PURE__ */ jsx("td", { children: /* @__PURE__ */ jsxs("div", { className: "admin__actions", children: [
+                  /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => showText(b.id), children: textFor === b.id ? "Скрыть текст" : "Текст" }),
+                  /* @__PURE__ */ jsx(
+                    "button",
+                    {
+                      className: "btn-quiet btn-sm",
+                      type: "button",
+                      onClick: () => removeBoard(b.id, b.title),
+                      children: "Удалить"
+                    }
+                  )
+                ] }) })
               ] }),
-              /* @__PURE__ */ jsx("td", { children: b.items }),
-              /* @__PURE__ */ jsx("td", { children: dayTime(b.createdAt) }),
-              /* @__PURE__ */ jsx("td", { children: dayTime(b.updatedAt) }),
-              /* @__PURE__ */ jsx("td", { children: /* @__PURE__ */ jsxs("div", { className: "admin__actions", children: [
-                /* @__PURE__ */ jsx("button", { className: "btn-quiet btn-sm", type: "button", onClick: () => showText(b.id), children: textFor === b.id ? "Скрыть текст" : "Текст" }),
-                /* @__PURE__ */ jsx(
-                  "button",
-                  {
-                    className: "btn-quiet btn-sm",
-                    type: "button",
-                    onClick: () => removeBoard(b.id, b.title),
-                    children: "Удалить"
-                  }
-                )
-              ] }) })
-            ] }),
-            textFor === b.id ? /* @__PURE__ */ jsx("tr", { className: "admin__open", children: /* @__PURE__ */ jsx("td", { colSpan: 6, children: /* @__PURE__ */ jsx(BoardTextView, { rows: textRows }) }) }) : null
-          ] }, b.id)),
-          boards.length === 0 && !boardsBusy ? /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsx("td", { colSpan: 6, children: /* @__PURE__ */ jsx("span", { className: "text-muted", children: "Ничего не нашлось." }) }) }) : null
-        ] })
-      ] }) }),
-      boardsPages > 1 ? /* @__PURE__ */ jsx(Pagination, { page: boardsPage, count: boardsPages, onPage: setBoardsPage, label: "Страницы списка досок" }) : null
-    ] }),
-    /* @__PURE__ */ jsxs("section", { className: "card", children: [
+              textFor === b.id ? /* @__PURE__ */ jsx("tr", { className: "admin__open", children: /* @__PURE__ */ jsx("td", { colSpan: 6, children: /* @__PURE__ */ jsx(BoardTextView, { rows: textRows }) }) }) : null
+            ] }, b.id)),
+            boards.length === 0 && !boardsBusy ? /* @__PURE__ */ jsx("tr", { children: /* @__PURE__ */ jsx("td", { colSpan: 6, children: /* @__PURE__ */ jsx("span", { className: "text-muted", children: "Ничего не нашлось." }) }) }) : null
+          ] })
+        ] }) }),
+        boardsPages > 1 ? /* @__PURE__ */ jsx(Pagination, { page: boardsPage, count: boardsPages, onPage: setBoardsPage, label: "Страницы списка досок" }) : null
+      ] })
+    ] }) : null,
+    section === "users" ? /* @__PURE__ */ jsxs("section", { className: "card", children: [
       /* @__PURE__ */ jsxs("div", { className: "admin__search", children: [
         /* @__PURE__ */ jsx(
           "input",
@@ -13168,7 +13236,7 @@ function AdminPage() {
         ] })
       ] }) }),
       pages > 1 ? /* @__PURE__ */ jsx(Pagination, { page, count: pages, onPage: setPage, label: "Страницы списка пользователей" }) : null
-    ] })
+    ] }) : null
   ] });
 }
 function ErrorView({ code, title, children, actions }) {
@@ -13396,7 +13464,10 @@ function App() {
     /* @__PURE__ */ jsx(Analytics, {}),
     /* @__PURE__ */ jsxs(Routes, { children: [
       /* @__PURE__ */ jsx(Route, { path: "/legal/:page", element: /* @__PURE__ */ jsx(LegalPage, {}) }),
-      /* @__PURE__ */ jsx(Route, { path: "/admin", element: /* @__PURE__ */ jsx(AdminPage, {}) }),
+      /* @__PURE__ */ jsx(Route, { path: "/admin", element: /* @__PURE__ */ jsx(Navigate, { to: "/admin/summary", replace: true }) }),
+      /* @__PURE__ */ jsx(Route, { path: "/admin/summary", element: /* @__PURE__ */ jsx(AdminPage, { section: "summary" }) }),
+      /* @__PURE__ */ jsx(Route, { path: "/admin/boards", element: /* @__PURE__ */ jsx(AdminPage, { section: "boards" }) }),
+      /* @__PURE__ */ jsx(Route, { path: "/admin/users", element: /* @__PURE__ */ jsx(AdminPage, { section: "users" }) }),
       /* @__PURE__ */ jsx(Route, { path: "/admin/surveys", element: /* @__PURE__ */ jsx(AdminSurveysPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/about", element: /* @__PURE__ */ jsx(AboutPage, {}) }),
       /* @__PURE__ */ jsx(Route, { path: "/pricing", element: /* @__PURE__ */ jsx(PricingPage, {}) }),

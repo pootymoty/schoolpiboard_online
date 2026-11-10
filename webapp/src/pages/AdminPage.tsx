@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import {
   adminBoardText, adminBoards, adminDeleteBoard, adminFlaggedBoards, adminOrders,
@@ -10,6 +10,7 @@ import type {
   AdminBoard, AdminBoardText, AdminFlagged, AdminOrder, AdminReport, AdminStats, AdminUser,
 } from '../api/admin';
 import { useAuth } from '../auth/AuthContext';
+import { AdminHeader } from '../components/AdminNav';
 import { Page } from '../components/Layout';
 import { Pagination } from '../components/Pagination';
 
@@ -85,7 +86,21 @@ function BoardTextView({ rows }: { rows: AdminBoardText[] }): ReactElement {
   );
 }
 
-export function AdminPage(): ReactElement {
+/** Какой подраздел администрирования показывает страница. */
+export type AdminSection = 'summary' | 'boards' | 'users';
+
+const TITLES: Record<AdminSection, string> = {
+  summary: 'Сводка',
+  boards: 'Доски',
+  users: 'Тарифы пользователей',
+};
+
+/**
+ * Администрирование: сводка, доски с жалобами, тарифы пользователей —
+ * каждый подраздел своей страницей. Данные грузятся только те, что нужны
+ * открытому подразделу.
+ */
+export function AdminPage({ section }: { section: AdminSection }): ReactElement {
   const { user, loading } = useAuth();
 
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -127,9 +142,9 @@ export function AdminPage(): ReactElement {
   }, []);
 
   useEffect(() => {
-    if (!user?.isAdmin) return;
+    if (!user?.isAdmin || section !== 'boards') return;
     loadReports();
-  }, [user?.isAdmin, loadReports]);
+  }, [user?.isAdmin, section, loadReports]);
 
   const resolveReport = async (reportId: number) => {
     try {
@@ -163,11 +178,11 @@ export function AdminPage(): ReactElement {
   }, []);
 
   useEffect(() => {
-    if (!user?.isAdmin) return undefined;
+    if (!user?.isAdmin || section !== 'boards') return undefined;
 
     const timer = window.setTimeout(() => loadBoards(boardsQuery, boardsPage), TYPING_MS);
     return () => window.clearTimeout(timer);
-  }, [boardsQuery, boardsPage, loadBoards, user?.isAdmin]);
+  }, [boardsQuery, boardsPage, loadBoards, user?.isAdmin, section]);
 
   /** Текст, показанный под строкой доски — своя таблица открыта не более чем у одной. */
   const [textFor, setTextFor] = useState<number | null>(null);
@@ -240,16 +255,16 @@ export function AdminPage(): ReactElement {
   }, []);
 
   useEffect(() => {
-    if (!user?.isAdmin) return undefined;
+    if (!user?.isAdmin || section !== 'users') return undefined;
 
     const timer = window.setTimeout(() => load(query, page), TYPING_MS);
     return () => window.clearTimeout(timer);
-  }, [query, page, load, user?.isAdmin]);
+  }, [query, page, load, user?.isAdmin, section]);
 
   useEffect(() => {
-    if (!user?.isAdmin) return;
+    if (!user?.isAdmin || section !== 'summary') return;
     adminStats().then(setStats).catch(() => undefined);
-  }, [user?.isAdmin]);
+  }, [user?.isAdmin, section]);
 
   const show = (userId: number, what: 'orders' | 'role') => {
     if (open?.id === userId && open.what === what) {
@@ -317,16 +332,11 @@ export function AdminPage(): ReactElement {
 
   return (
     <Page>
-      <div className="page-header">
-        <h1>Администрирование</h1>
-        <div className="page-header__actions">
-          <Link className="btn btn-outline" to="/admin/surveys">Опросы</Link>
-        </div>
-      </div>
+      <AdminHeader title={TITLES[section]} />
 
       {error ? <p className="note note-danger">{error}</p> : null}
 
-      {stats ? (
+      {section === 'summary' && stats ? (
         <div className="admin__tiles">
           <Tile title="Учётных записей" value={String(stats.users)} />
           <Tile title="Почта подтверждена" value={String(stats.confirmed)} />
@@ -341,6 +351,8 @@ export function AdminPage(): ReactElement {
         </div>
       ) : null}
 
+      {section === 'boards' ? (
+      <>
       <section className="card">
         <h2 className="card-title">Жалобы{reports.length > 0 ? ` · ${reports.length}` : ''}</h2>
 
@@ -488,7 +500,10 @@ export function AdminPage(): ReactElement {
           <Pagination page={boardsPage} count={boardsPages} onPage={setBoardsPage} label="Страницы списка досок" />
         ) : null}
       </section>
+      </>
+      ) : null}
 
+      {section === 'users' ? (
       <section className="card">
         <div className="admin__search">
           <input
@@ -643,6 +658,7 @@ export function AdminPage(): ReactElement {
           <Pagination page={page} count={pages} onPage={setPage} label="Страницы списка пользователей" />
         ) : null}
       </section>
+      ) : null}
     </Page>
   );
 }
