@@ -78,6 +78,40 @@ public sealed class SurveyTests : IDisposable
     }
 
     [Fact]
+    public async Task InterruptedMailingResumesFromTheDatabaseAndSkipsThoseAlreadyMailed()
+    {
+        await AddUserAsync(1, "first@example.com", confirmed: true, deleted: false);
+        await AddUserAsync(2, "second@example.com", confirmed: true, deleted: false);
+
+        long surveyId;
+        using (var scope = _services.CreateScope())
+        {
+            (_, var created) = await scope.ServiceProvider.GetRequiredService<SurveyService>()
+                .CreateAsync(1, Drafts(SurveyQuestions.Default), CancellationToken.None);
+            surveyId = created!.Id;
+
+            // Будто служба упала после первого письма.
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.SurveyRecipients.SingleAsync(x => x.UserId == 1)).SentAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+        }
+
+        var mailer = new SurveyMailer(
+            _services.GetRequiredService<SurveyQueue>(),
+            _services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<SurveyMailer>.Instance);
+
+        // После перезапуска: незаконченная рассылка находится по базе…
+        Assert.Equal(new[] { surveyId }, await mailer.ResumePendingAsync(CancellationToken.None));
+
+        // …и досылается только тем, кому письмо ещё не ушло.
+        await mailer.SendAsync(surveyId, CancellationToken.None);
+        Assert.Equal(new[] { "second@example.com" }, _sent);
+
+        Assert.Empty(await mailer.ResumePendingAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task OnlyThoseWhoGotTheLetterCanAnswer()
     {
         await AddUserAsync(1, "live@example.com", confirmed: true, deleted: false);

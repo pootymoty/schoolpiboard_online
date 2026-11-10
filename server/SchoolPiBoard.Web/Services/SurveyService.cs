@@ -429,8 +429,27 @@ public sealed class SurveyMailer : BackgroundService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Сколько после отправки опроса рассылку ещё досылают при запуске.
+    /// Дальше недошедшие письма считаются неотправляемыми (адрес отказывает
+    /// насовсем), и перезапуск службы не должен раз за разом слать их снова.
+    /// </summary>
+    public static readonly TimeSpan ResumeWindow = TimeSpan.FromDays(7);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Очередь — в базе: адресаты без отметки «письмо ушло». Служба
+        // перезапустилась посреди рассылки — при старте она продолжается
+        // с того, на ком остановилась, без участия администратора.
+        try
+        {
+            await ResumePendingAsync(stoppingToken);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogError(error, "Не удалось продолжить прерванные рассылки опросов.");
+        }
+
         await foreach (var surveyId in _queue.ReadAllAsync(stoppingToken))
         {
             try
@@ -442,6 +461,29 @@ public sealed class SurveyMailer : BackgroundService
                 _logger.LogError(error, "Рассылка опроса {SurveyId} прервалась.", surveyId);
             }
         }
+    }
+
+    /// <summary>Ставит в очередь опросы, рассылка которых не дошла до конца.</summary>
+    public async Task<IReadOnlyList<long>> ResumePendingAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _scopes.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var since = DateTime.UtcNow - ResumeWindow;
+        var pending = await db.Surveys
+            .Where(x => x.ClosedAt == null && x.CreatedAt >= since
+                && db.SurveyRecipients.Any(r => r.SurveyId == x.Id && r.SentAt == null))
+            .OrderBy(x => x.Id)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var surveyId in pending)
+        {
+            _logger.LogInformation("Опрос {SurveyId}: рассылка не была закончена — продолжаем.", surveyId);
+            _queue.Enqueue(surveyId);
+        }
+
+        return pending;
     }
 
     public async Task SendAsync(long surveyId, CancellationToken cancellationToken)
