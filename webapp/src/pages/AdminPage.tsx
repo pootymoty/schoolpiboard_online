@@ -92,7 +92,7 @@ export type AdminSection = 'summary' | 'boards' | 'users';
 const TITLES: Record<AdminSection, string> = {
   summary: 'Сводка',
   boards: 'Доски',
-  users: 'Тарифы пользователей',
+  users: 'Тарифы',
 };
 
 /**

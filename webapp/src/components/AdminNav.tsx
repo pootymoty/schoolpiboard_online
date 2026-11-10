@@ -6,7 +6,7 @@ import { NavLink } from 'react-router-dom';
 export const ADMIN_SECTIONS = [
   { path: '/admin/summary', title: 'Сводка' },
   { path: '/admin/boards', title: 'Доски' },
-  { path: '/admin/users', title: 'Тарифы пользователей' },
+  { path: '/admin/users', title: 'Тарифы' },
   { path: '/admin/surveys', title: 'Опросы' },
 ] as const;
 

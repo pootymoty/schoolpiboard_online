@@ -234,7 +234,7 @@ function metaFor(path) {
 const ADMIN_SECTIONS = [
   { path: "/admin/summary", title: "Сводка" },
   { path: "/admin/boards", title: "Доски" },
-  { path: "/admin/users", title: "Тарифы пользователей" },
+  { path: "/admin/users", title: "Тарифы" },
   { path: "/admin/surveys", title: "Опросы" }
 ];
 function AdminHeader({ title, actions }) {
@@ -12830,7 +12830,7 @@ function BoardTextView({ rows }) {
 const TITLES = {
   summary: "Сводка",
   boards: "Доски",
-  users: "Тарифы пользователей"
+  users: "Тарифы"
 };
 function AdminPage({ section }) {
   const { user, loading: loading2 } = useAuth();
