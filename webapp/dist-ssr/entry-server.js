@@ -10265,6 +10265,9 @@ function BoardPage() {
     setToolRaw(next);
   };
   useEffect(() => {
+    if (DRAWING_TOOLS.includes(tool)) setSelection([]);
+  }, [tool]);
+  useEffect(() => {
     const anyOpen = showParams || showBackground || showTimer || showHelp || showFiles || showPages || showLibrary || showSummary || showRecordings || showBookmarks;
     if (!anyOpen) return;
     const onPointerDown = (event) => {

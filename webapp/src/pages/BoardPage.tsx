@@ -16,6 +16,7 @@ import { DrawToolbar, ViewToolbar } from '../board/BoardToolbar';
 import { ToolSettingsPanel } from '../board/ToolSettingsPanel';
 import { BOOKMARK_COLOR, BOOKMARK_FONT_SIZE, DEFAULT_SETTINGS, TOOLS_WITH_SETTINGS } from '../board/tools';
 import type { Tool, ToolSettings } from '../board/tools';
+import { DRAWING_TOOLS } from '../board/tools';
 import type { ItemData, ItemType, Point } from '../board/protocol';
 import { readClip, writeClip } from '../board/clipboard';
 
@@ -197,6 +198,13 @@ export function BoardPage(): ReactElement {
     setShowParams(next === tool && TOOLS_WITH_SETTINGS.includes(next) ? !showParams : false);
     setToolRaw(next);
   };
+
+  // Взяли рисующий инструмент — выделение снимается вместе с панелью
+  // выбранного объекта: дальше рисуют, а не правят выбранное. Рука не в
+  // счёт — ею только двигают холст, и выделение при этом ещё нужно.
+  useEffect(() => {
+    if (DRAWING_TOOLS.includes(tool)) setSelection([]);
+  }, [tool]);
 
   // Клик мимо открытой панели настроек закрывает её — так же, как кнопка
   // «Готово», но без отдельного клика по ней. Клики по самим панелям и
