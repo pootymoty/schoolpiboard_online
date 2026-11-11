@@ -246,6 +246,24 @@ export function useBoardHub(boardId: number): BoardHub {
   itemsRef.current = items;
 
   /** Пришли данные объекта от сервера: держать ли дальше свою правку. */
+  /** Своих сдвигов, на которые ответ сервера ещё не пришёл. */
+  const ownMoves = useRef(0);
+
+  /** Сдвигает объекты — и ещё не подтверждённые правки, если они есть. */
+  const shift = (ids: number[], dx: number, dy: number) => {
+    // Сдвиг ложится и на ещё не подтверждённую правку: сервер сдвинет
+    // то, что у него окажется к тому моменту, — то есть её итог.
+    for (const id of ids) {
+      const entry = pending.current.get(id);
+      if (!entry) continue;
+      entry.data = translate(entry.data, dx, dy);
+      entry.passed = entry.passed.map((earlier) => translate(earlier, dx, dy));
+    }
+    setItems((current) => current.map((item) => (
+      ids.includes(item.id) ? { ...item, data: translate(item.data, dx, dy) } : item
+    )));
+  };
+
   const settle = (id: number, data: ItemData) => {
     const entry = pending.current.get(id);
     if (!entry) return;
@@ -330,17 +348,15 @@ export function useBoardHub(boardId: number): BoardHub {
         break;
 
       case 'ItemsMoved':
-        // Сдвиг ложится и на ещё не подтверждённую правку: сервер сдвинет
-        // то, что у него окажется к тому моменту, — то есть её итог.
-        for (const id of payload.itemIds as number[]) {
-          const entry = pending.current.get(id);
-          if (!entry) continue;
-          entry.data = translate(entry.data, payload.dx, payload.dy);
-          entry.passed = entry.passed.map((earlier) => translate(earlier, payload.dx, payload.dy));
+        // Свой сдвиг уже применён на месте, при отпускании (см. moveItems):
+        // ответ сервера на него второй раз не прикладываем — иначе
+        // объект, который водили по доске в несколько приёмов, спустя
+        // время «проигрывал» этот путь заново.
+        if (payload.by === connection.current?.connectionId && ownMoves.current > 0) {
+          ownMoves.current -= 1;
+          break;
         }
-        setItems((current) => current.map((item) => (
-          payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item
-        )));
+        shift(payload.itemIds as number[], payload.dx, payload.dy);
         break;
 
       case 'ItemsReordered':
@@ -427,6 +443,7 @@ export function useBoardHub(boardId: number): BoardHub {
     connection.current = hub;
 
     const join = async () => {
+      ownMoves.current = 0;
       await hub.invoke('JoinBoard', boardId, readGuestToken(boardId), seq.current);
     };
 
@@ -771,9 +788,14 @@ export function useBoardHub(boardId: number): BoardHub {
     setBackground: useCallback((next: Background) => (
       call('SetBackground', next.background, next.gridStyle, next.gridColor)
     ), [call]),
-    moveItems: useCallback(
-      (ids: number[], dx: number, dy: number) => call('MoveItems', ids, page(), dx, dy), [call],
-    ),
+    moveItems: (ids: number[], dx: number, dy: number) => {
+      // Применяем сразу, а ответ сервера на свой сдвиг пропускаем.
+      if (connection.current?.state === HubConnectionState.Connected) {
+        ownMoves.current += 1;
+        shift(ids, dx, dy);
+      }
+      call('MoveItems', ids, page(), dx, dy);
+    },
     updateItem,
     reorder: useCallback((ids: number[], toFront: boolean) => call('Reorder', ids, page(), toFront), [call]),
     deleteItems: useCallback((ids: number[]) => call('DeleteItems', ids, page()), [call]),

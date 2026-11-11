@@ -9651,6 +9651,16 @@ function useBoardHub(boardId) {
   const [draftVersion, setDraftVersion] = useState(0);
   const draftSeq = useRef(0);
   itemsRef.current = items;
+  const ownMoves = useRef(0);
+  const shift = (ids, dx, dy) => {
+    for (const id of ids) {
+      const entry = pending.current.get(id);
+      if (!entry) continue;
+      entry.data = translate(entry.data, dx, dy);
+      entry.passed = entry.passed.map((earlier) => translate(earlier, dx, dy));
+    }
+    setItems((current2) => current2.map((item) => ids.includes(item.id) ? { ...item, data: translate(item.data, dx, dy) } : item));
+  };
   const settle = (id, data) => {
     const entry = pending.current.get(id);
     if (!entry) return;
@@ -9666,6 +9676,7 @@ function useBoardHub(boardId) {
   canManageRef.current = canManage;
   const queued = useRef([]);
   const apply = useCallback((name, payload) => {
+    var _a;
     switch (name) {
       case "ItemBegan":
         if (payload.pageId !== current.current) break;
@@ -9708,13 +9719,11 @@ function useBoardHub(boardId) {
         }].slice(-500));
         break;
       case "ItemsMoved":
-        for (const id of payload.itemIds) {
-          const entry = pending.current.get(id);
-          if (!entry) continue;
-          entry.data = translate(entry.data, payload.dx, payload.dy);
-          entry.passed = entry.passed.map((earlier) => translate(earlier, payload.dx, payload.dy));
+        if (payload.by === ((_a = connection.current) == null ? void 0 : _a.connectionId) && ownMoves.current > 0) {
+          ownMoves.current -= 1;
+          break;
         }
-        setItems((current2) => current2.map((item) => payload.itemIds.includes(item.id) ? { ...item, data: translate(item.data, payload.dx, payload.dy) } : item));
+        shift(payload.itemIds, payload.dx, payload.dy);
         break;
       case "ItemsReordered":
         setItems((current2) => {
@@ -9765,6 +9774,7 @@ function useBoardHub(boardId) {
     hub.keepAliveIntervalInMilliseconds = 15e3;
     connection.current = hub;
     const join = async () => {
+      ownMoves.current = 0;
       await hub.invoke("JoinBoard", boardId, readGuestToken(boardId), seq.current);
     };
     const handled = [
@@ -10018,10 +10028,14 @@ function useBoardHub(boardId) {
     commitItems,
     cancelItem: useCallback((id) => call("CancelItem", id, page()), [call]),
     setBackground: useCallback((next) => call("SetBackground", next.background, next.gridStyle, next.gridColor), [call]),
-    moveItems: useCallback(
-      (ids, dx, dy) => call("MoveItems", ids, page(), dx, dy),
-      [call]
-    ),
+    moveItems: (ids, dx, dy) => {
+      var _a;
+      if (((_a = connection.current) == null ? void 0 : _a.state) === HubConnectionState.Connected) {
+        ownMoves.current += 1;
+        shift(ids, dx, dy);
+      }
+      call("MoveItems", ids, page(), dx, dy);
+    },
     updateItem,
     reorder: useCallback((ids, toFront) => call("Reorder", ids, page(), toFront), [call]),
     deleteItems: useCallback((ids) => call("DeleteItems", ids, page()), [call]),
