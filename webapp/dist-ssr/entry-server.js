@@ -7724,21 +7724,9 @@ function SelectionPanel({
           ] })
         ] }) }) : null,
         /* @__PURE__ */ jsxs("div", { className: "selection-panel__actions", children: [
-          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onCopy, title: "Копировать (Ctrl+C)", children: [
-            /* @__PURE__ */ jsx(IconCopy, {}),
-            cap("Копия")
-          ] }),
           locked ? null : /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDuplicate, title: "Дублировать (Ctrl+D)", children: [
             /* @__PURE__ */ jsx(IconDuplicate, {}),
             cap("Дубль")
-          ] }),
-          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onReorder(true), title: "На передний план", children: [
-            /* @__PURE__ */ jsx(IconToFront, {}),
-            cap("Вперёд")
-          ] }),
-          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onReorder(false), title: "На задний план", children: [
-            /* @__PURE__ */ jsx(IconToBack, {}),
-            cap("Назад")
           ] }),
           canMirror ? /* @__PURE__ */ jsxs(Fragment, { children: [
             /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onMirror("x"), title: "Отразить слева направо", children: [
@@ -7758,23 +7746,6 @@ function SelectionPanel({
             /* @__PURE__ */ jsx(IconUngroup, {}),
             cap("Разбить")
           ] }) : null,
-          canKeep && keepable.length > 0 ? /* @__PURE__ */ jsxs(
-            "button",
-            {
-              className: "btn-tool",
-              type: "button",
-              onClick: () => setNaming(true),
-              title: "Сохранить как шаблон",
-              children: [
-                /* @__PURE__ */ jsx(IconLibrary, {}),
-                cap("Шаблон")
-              ]
-            }
-          ) : null,
-          text ? /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onCopyText(text), title: "Скопировать текст", children: [
-            /* @__PURE__ */ jsx(IconCopyText, {}),
-            cap("Текст")
-          ] }) : null,
           /* @__PURE__ */ jsxs(
             "button",
             {
@@ -7793,9 +7764,37 @@ function SelectionPanel({
             /* @__PURE__ */ jsx(IconTrash, {}),
             cap("Удалить")
           ] }),
-          /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDone, title: "Готово — снять выделение", children: [
-            /* @__PURE__ */ jsx(IconCheck, {}),
-            cap("Готово")
+          docked ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onCopy, title: "Копировать (Ctrl+C)", children: [
+              /* @__PURE__ */ jsx(IconCopy, {}),
+              cap("Копия")
+            ] }),
+            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onReorder(true), title: "На передний план", children: [
+              /* @__PURE__ */ jsx(IconToFront, {}),
+              cap("Вперёд")
+            ] }),
+            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onReorder(false), title: "На задний план", children: [
+              /* @__PURE__ */ jsx(IconToBack, {}),
+              cap("Назад")
+            ] }),
+            canKeep && keepable.length > 0 ? /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => setNaming(true), title: "Сохранить как шаблон", children: [
+              /* @__PURE__ */ jsx(IconLibrary, {}),
+              cap("Шаблон")
+            ] }) : null,
+            text ? /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: () => onCopyText(text), title: "Скопировать текст", children: [
+              /* @__PURE__ */ jsx(IconCopyText, {}),
+              cap("Текст")
+            ] }) : null,
+            /* @__PURE__ */ jsxs("button", { className: "btn-tool", type: "button", onClick: onDone, title: "Готово — снять выделение", children: [
+              /* @__PURE__ */ jsx(IconCheck, {}),
+              cap("Готово")
+            ] })
+          ] }) : /* @__PURE__ */ jsxs(Menu, { label: "Ещё", children: [
+            /* @__PURE__ */ jsx("button", { className: "menu__item", type: "button", onClick: onCopy, children: "Копировать" }),
+            /* @__PURE__ */ jsx("button", { className: "menu__item", type: "button", onClick: () => onReorder(true), children: "На передний план" }),
+            /* @__PURE__ */ jsx("button", { className: "menu__item", type: "button", onClick: () => onReorder(false), children: "На задний план" }),
+            canKeep && keepable.length > 0 ? /* @__PURE__ */ jsx("button", { className: "menu__item", type: "button", onClick: () => setNaming(true), children: "Сохранить как заготовку" }) : null,
+            text ? /* @__PURE__ */ jsx("button", { className: "menu__item", type: "button", onClick: () => onCopyText(text), children: "Скопировать текст" }) : null
           ] })
         ] }),
         naming ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__keep", children: [
@@ -10137,6 +10136,7 @@ function useMediaQuery(query) {
   }, [query]);
   return matches;
 }
+const CLIP_MARK = "schoolpi-board-clip";
 function recolored(type, data, color) {
   var _a;
   if (type !== "group") return { ...data, color };
@@ -10386,11 +10386,6 @@ function BoardPage() {
         event.preventDefault();
         copySelection();
         removeSelection();
-        return;
-      }
-      if (control && event.code === "KeyV") {
-        event.preventDefault();
-        pasteClip();
         return;
       }
       if (control && event.code === "KeyA") {
@@ -10680,8 +10675,10 @@ function BoardPage() {
     }
   };
   const copySelection = () => {
+    var _a2;
     if (selectedItems.length === 0) return;
     setHasClip(true);
+    void ((_a2 = navigator.clipboard) == null ? void 0 : _a2.writeText(CLIP_MARK).catch(() => void 0));
     writeClip({
       boardId: Number(id),
       items: selectedItems.map((item) => ({
@@ -10930,12 +10927,20 @@ function BoardPage() {
     history.push({ kind: "create", items: snapshots });
   }, [history, sendAll, selectInserted]);
   useEffect(() => {
-    if (!hub.canEdit || (state == null ? void 0 : state.me.isGuest) !== false) return;
+    if (!hub.canEdit) return;
+    const guest = (state == null ? void 0 : state.me.isGuest) !== false;
     const onPaste = (event) => {
-      var _a2, _b2, _c2;
+      var _a2, _b2, _c2, _d2, _e, _f;
       const target = event.target;
       if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
-      const items = (_a2 = event.clipboardData) == null ? void 0 : _a2.items;
+      const marked = ((_a2 = event.clipboardData) == null ? void 0 : _a2.getData("text/plain")) === CLIP_MARK;
+      if (marked || guest && !((_c2 = (_b2 = event.clipboardData) == null ? void 0 : _b2.files) == null ? void 0 : _c2.length)) {
+        event.preventDefault();
+        pasteClip();
+        return;
+      }
+      if (guest) return;
+      const items = (_d2 = event.clipboardData) == null ? void 0 : _d2.items;
       if (!items) return;
       for (const entry of items) {
         if (entry.kind === "file") {
@@ -10946,14 +10951,14 @@ function BoardPage() {
           return;
         }
       }
-      const text = (_c2 = (_b2 = event.clipboardData) == null ? void 0 : _b2.getData("text/plain")) == null ? void 0 : _c2.trim();
+      const text = (_f = (_e = event.clipboardData) == null ? void 0 : _e.getData("text/plain")) == null ? void 0 : _f.trim();
       if (!text) return;
       event.preventDefault();
       pasteText(text);
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [hub.canEdit, state == null ? void 0 : state.me.isGuest, insertFile, pasteText]);
+  }, [hub.canEdit, state == null ? void 0 : state.me.isGuest, insertFile, pasteText, pasteClip]);
   const zoomBy = (factor) => {
     setViewport((current) => zoomAt(current, canvasSize.width / 2, canvasSize.height / 2, factor));
   };

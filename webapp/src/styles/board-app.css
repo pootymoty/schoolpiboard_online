@@ -2075,9 +2075,10 @@ p.board-title__text { cursor: default; }
 .color-pick__head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: var(--sp-2);
-    width: 100%;
+    width: auto;
+    align-self: flex-start;
     min-height: 32px;
     padding: 2px 0;
     background: transparent;

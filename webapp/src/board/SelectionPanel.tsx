@@ -13,6 +13,7 @@ import {
   IconCheck, IconCopy, IconCopyText, IconDuplicate, IconGroup, IconLibrary, IconLockClosed, IconLockOpen,
   IconMirrorX, IconMirrorY, IconToBack, IconToFront, IconTrash, IconUngroup,
 } from '../components/Icons';
+import { Menu } from '../components/Menu';
 import { saveTemplate } from '../api/templates';
 import { mirrorable } from './transform';
 import { ApiError } from '../api/client';
@@ -399,26 +400,12 @@ export function SelectionPanel({
           текст и замок — перед удалением: они нужны реже, но прятать их
           под три точки значило бы снова искать их глазами. */}
       <div className="selection-panel__actions">
-        <button className="btn-tool" type="button" onClick={onCopy} title="Копировать (Ctrl+C)">
-          <IconCopy />
-          {cap('Копия')}
-        </button>
-
         {locked ? null : (
           <button className="btn-tool" type="button" onClick={onDuplicate} title="Дублировать (Ctrl+D)">
             <IconDuplicate />
             {cap('Дубль')}
           </button>
         )}
-
-        <button className="btn-tool" type="button" onClick={() => onReorder(true)} title="На передний план">
-          <IconToFront />
-          {cap('Вперёд')}
-        </button>
-        <button className="btn-tool" type="button" onClick={() => onReorder(false)} title="На задний план">
-          <IconToBack />
-          {cap('Назад')}
-        </button>
 
         {canMirror ? (
           <>
@@ -447,23 +434,6 @@ export function SelectionPanel({
           </button>
         ) : null}
 
-        {canKeep && keepable.length > 0 ? (
-          <button
-            className="btn-tool" type="button" onClick={() => setNaming(true)}
-            title="Сохранить как шаблон"
-          >
-            <IconLibrary />
-            {cap('Шаблон')}
-          </button>
-        ) : null}
-
-        {text ? (
-          <button className="btn-tool" type="button" onClick={() => onCopyText(text)} title="Скопировать текст">
-            <IconCopyText />
-            {cap('Текст')}
-          </button>
-        ) : null}
-
         <button
           className="btn-tool"
           type="button"
@@ -482,10 +452,52 @@ export function SelectionPanel({
           </button>
         )}
 
-        <button className="btn-tool" type="button" onClick={onDone} title="Готово — снять выделение">
-          <IconCheck />
-          {cap('Готово')}
-        </button>
+        {/* Редкое — под три точки, чтобы не загромождать панель на ПК;
+            на узком экране те же действия остаются кнопками с подписями. */}
+        {docked ? (
+          <>
+            <button className="btn-tool" type="button" onClick={onCopy} title="Копировать (Ctrl+C)">
+              <IconCopy />
+              {cap('Копия')}
+            </button>
+            <button className="btn-tool" type="button" onClick={() => onReorder(true)} title="На передний план">
+              <IconToFront />
+              {cap('Вперёд')}
+            </button>
+            <button className="btn-tool" type="button" onClick={() => onReorder(false)} title="На задний план">
+              <IconToBack />
+              {cap('Назад')}
+            </button>
+            {canKeep && keepable.length > 0 ? (
+              <button className="btn-tool" type="button" onClick={() => setNaming(true)} title="Сохранить как шаблон">
+                <IconLibrary />
+                {cap('Шаблон')}
+              </button>
+            ) : null}
+            {text ? (
+              <button className="btn-tool" type="button" onClick={() => onCopyText(text)} title="Скопировать текст">
+                <IconCopyText />
+                {cap('Текст')}
+              </button>
+            ) : null}
+            <button className="btn-tool" type="button" onClick={onDone} title="Готово — снять выделение">
+              <IconCheck />
+              {cap('Готово')}
+            </button>
+          </>
+        ) : (
+          <Menu label="Ещё">
+            <button className="menu__item" type="button" onClick={onCopy}>Копировать</button>
+            <button className="menu__item" type="button" onClick={() => onReorder(true)}>На передний план</button>
+            <button className="menu__item" type="button" onClick={() => onReorder(false)}>На задний план</button>
+            {canKeep && keepable.length > 0 ? (
+              <button className="menu__item" type="button" onClick={() => setNaming(true)}>Сохранить как заготовку</button>
+            ) : null}
+            {text ? (
+              <button className="menu__item" type="button" onClick={() => onCopyText(text)}>Скопировать текст</button>
+            ) : null}
+          </Menu>
+        )}
       </div>
 
       {naming ? (

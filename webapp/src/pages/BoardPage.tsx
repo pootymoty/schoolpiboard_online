@@ -18,6 +18,9 @@ import { BOOKMARK_COLOR, BOOKMARK_FONT_SIZE, DEFAULT_SETTINGS, TOOLS_WITH_SETTIN
 import type { Tool, ToolSettings } from '../board/tools';
 import type { ItemData, ItemType, Point } from '../board/protocol';
 import { readClip, writeClip } from '../board/clipboard';
+
+/** Текст-метка, которую копирование на доске кладёт в системный буфер. */
+const CLIP_MARK = 'schoolpi-board-clip';
 import { TextInput } from '../board/TextInput';
 import {
   cellAt, cellRect, cellText, resized as resizedTable, tableBox, withCell,
@@ -481,12 +484,8 @@ export function BoardPage(): ReactElement {
         return;
       }
 
-      if (control && event.code === 'KeyV') {
-        event.preventDefault();
-        pasteClip();
-        return;
-      }
-
+      // Ctrl+V не перехватываем: браузер сам пошлёт событие вставки, и там
+      // решается, что вставлять — объекты доски или то, что в системном буфере.
       if (control && event.code === 'KeyA') {
         event.preventDefault();
         setSelection(hub.items.map((item) => item.id));
@@ -964,6 +963,11 @@ export function BoardPage(): ReactElement {
     if (selectedItems.length === 0) return;
 
     setHasClip(true);
+
+    // Метка в системном буфере: по ней Ctrl+V отличает «скопировал на доске»
+    // от «скопировал картинку или текст в другом месте» — что новее, то и вставится.
+    void navigator.clipboard?.writeText(CLIP_MARK).catch(() => undefined);
+
     writeClip({
       boardId: Number(id),
       items: selectedItems.map((item) => ({
@@ -1365,11 +1369,21 @@ export function BoardPage(): ReactElement {
    * всей загрузкой файлов.
    */
   useEffect(() => {
-    if (!hub.canEdit || state?.me.isGuest !== false) return;
+    if (!hub.canEdit) return;
+    const guest = state?.me.isGuest !== false;
 
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+
+      const marked = event.clipboardData?.getData('text/plain') === CLIP_MARK;
+      if (marked || (guest && !event.clipboardData?.files?.length)) {
+        event.preventDefault();
+        pasteClip();
+        return;
+      }
+
+      if (guest) return;
 
       const items = event.clipboardData?.items;
       if (!items) return;
@@ -1394,7 +1408,7 @@ export function BoardPage(): ReactElement {
 
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
-  }, [hub.canEdit, state?.me.isGuest, insertFile, pasteText]);
+  }, [hub.canEdit, state?.me.isGuest, insertFile, pasteText, pasteClip]);
 
 
   const zoomBy = (factor: number) => {
