@@ -1544,6 +1544,24 @@ export function BoardPage(): ReactElement {
     return () => window.clearTimeout(timer);
   }, [shownError, state, dismissError]);
 
+  // Щелчок мимо поля названия заканчивает правку — как у панелей
+  // инструментов. Сам по себе фокус с поля не уходит: холст отменяет
+  // обычное поведение нажатия, чтобы не выделялся текст страницы.
+  const saveTitleRef = useRef(saveTitle);
+  saveTitleRef.current = saveTitle;
+
+  useEffect(() => {
+    if (!editingTitle) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if ((event.target as HTMLElement).closest('.board-title')) return;
+      void saveTitleRef.current();
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [editingTitle]);
+
   if (error && !state) {
     return (
       <BoardShell>

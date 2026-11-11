@@ -228,7 +228,9 @@ export function SelectionPanel({
   const width = bounds.width * viewport.scale;
 
   /** Зазор между панелью и объектом: впритык они читаются как одно целое. */
-  const GAP = 10;
+  // Над рамкой стоит ручка поворота (28 единиц холста над верхним краем,
+  // см. ROTATE_REACH в handles.ts) — панель встаёт выше неё, а не поверх.
+  const GAP = locked ? 10 : 28 * viewport.scale + 26;
 
   // Над выделением, а если места сверху нет — под ним: иначе панель
   // уезжает за верхний край холста и становится недоступной.
@@ -244,7 +246,7 @@ export function SelectionPanel({
 
   // Снизу панель ставится ниже нижней границы объекта, а не «где-нибудь
   // под ним»: иначе у невысокого выделения она перекрывала его целиком.
-  const below = corner.y + bounds.height * viewport.scale + GAP;
+  const below = corner.y + bounds.height * viewport.scale + 10;
 
   const top = Math.max(
     8,

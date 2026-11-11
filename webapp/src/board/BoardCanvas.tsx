@@ -345,6 +345,9 @@ export function BoardCanvas({
     return null;
   };
 
+  /** Свежая `schedule` — для отложенных вызовов (таймеры живут дольше одного рендера). */
+  const scheduleRef = useRef<(fresh?: boolean) => void>(() => undefined);
+
   const hold = (item: BoardItem, data: ItemData) => {
     // Сам объект — как он есть у нас от сервера: `item` может оказаться
     // уже подменённым на ещё не подтверждённый итог прошлой правки.
@@ -362,7 +365,11 @@ export function BoardCanvas({
       until: performance.now() + HOLD_MS,
     });
     // Проверить, не истекло ли ожидание, — кадр сам по себе никто не попросит.
-    window.setTimeout(() => schedule(), HOLD_MS + 50);
+    // Через ссылку, а не напрямую: таймер сработает через десять секунд,
+    // и `schedule` из этого вызова к тому времени рисовал бы объекты
+    // такими, какими они были при отпускании, — объект, который водили в
+    // несколько приёмов, «проигрывал» свой путь заново.
+    window.setTimeout(() => scheduleRef.current(), HOLD_MS + 50);
   };
 
   /**
@@ -964,6 +971,8 @@ export function BoardCanvas({
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(redraw);
   }, [redraw]);
+
+  scheduleRef.current = schedule;
 
   // Перерисовываем в такт кадрам экрана: подряд пришедшие точки от
   // нескольких человек иначе дали бы десятки лишних проходов за кадр.

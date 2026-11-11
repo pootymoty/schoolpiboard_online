@@ -5105,6 +5105,7 @@ function BoardCanvas({
     }
     return null;
   };
+  const scheduleRef = useRef(() => void 0);
   const hold = (item, data) => {
     var _a;
     const saved = ((_a = latest.current.items.find((candidate) => candidate.id === item.id)) == null ? void 0 : _a.data) ?? item.data;
@@ -5117,7 +5118,7 @@ function BoardCanvas({
       passed: before ? [...before.passed, JSON.stringify(before.data)] : [JSON.stringify(saved)],
       until: performance.now() + HOLD_MS
     });
-    window.setTimeout(() => schedule(), HOLD_MS + 50);
+    window.setTimeout(() => scheduleRef.current(), HOLD_MS + 50);
   };
   const vanishing = useRef(/* @__PURE__ */ new Map());
   const touchCursor = useRef(null);
@@ -5432,6 +5433,7 @@ function BoardCanvas({
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(redraw);
   }, [redraw]);
+  scheduleRef.current = schedule;
   useEffect(() => {
     schedule();
     return () => cancelAnimationFrame(frame.current);
@@ -7614,13 +7616,13 @@ function SelectionPanel({
   const bounds = useLiveBounds(liveBounds) ?? saved;
   const corner = toScreen(viewport, bounds.x, bounds.y);
   const width = bounds.width * viewport.scale;
-  const GAP2 = 10;
+  const GAP2 = locked ? 10 : 28 * viewport.scale + 26;
   const above = corner.y - GAP2 - height >= 8;
   const left = Math.max(
     LEFT_GUTTER + WIDTH / 2,
     Math.min(corner.x + width / 2, canvas.width - WIDTH / 2 - 8)
   );
-  const below = corner.y + bounds.height * viewport.scale + GAP2;
+  const below = corner.y + bounds.height * viewport.scale + 10;
   const top = Math.max(
     8,
     Math.min(above ? corner.y - GAP2 - height : below, canvas.height - BOTTOM_GUTTER - height)
@@ -11094,6 +11096,17 @@ function BoardPage() {
     const timer2 = window.setTimeout(dismissError, 1e4);
     return () => window.clearTimeout(timer2);
   }, [shownError, state, dismissError]);
+  const saveTitleRef = useRef(saveTitle);
+  saveTitleRef.current = saveTitle;
+  useEffect(() => {
+    if (!editingTitle) return;
+    const onPointerDown = (event) => {
+      if (event.target.closest(".board-title")) return;
+      void saveTitleRef.current();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [editingTitle]);
   if (error && !state) {
     return /* @__PURE__ */ jsx(BoardShell, { children: /* @__PURE__ */ jsxs("div", { className: "card", children: [
       /* @__PURE__ */ jsx("h1", { children: "Доска" }),
