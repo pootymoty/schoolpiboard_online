@@ -714,6 +714,8 @@ export function BoardCanvas({
    * Размер ограничен: курсор крупнее сотни точек браузеры не показывают
    * вовсе, и вместо кружка человек получил бы стрелку.
    */
+  const [hovered, setHovered] = useState<string | null>(null);
+
   const cursor = useMemo(() => {
     if (tool === 'hand' || spaceHeld || !hub.canEdit || tool === 'select'
       || tool === 'text' || tool === 'bookmark') {
@@ -1631,8 +1633,40 @@ export function BoardCanvas({
     }
   };
 
+  /**
+   * Вид курсора над ручкой выделения: стрелки растяжения, «рука» у
+   * поворота. Только для мыши без нажатой кнопки — у касания курсора нет.
+   */
+  const hoverGrip = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    let next: string | null = null;
+
+    if (event.pointerType === 'mouse' && event.buttons === 0 && latest.current.tool === 'select') {
+      const point = worldPoint(event);
+      const near = HANDLE_SIZE / latest.current.viewport.scale;
+      const chosen = latest.current.selection;
+      const picked = visible(latest.current.items).filter((item) => chosen.includes(item.id));
+
+      if (picked.length > 0 && picked.every((item) => !item.data.locked)) {
+        const box = boundsOf(picked);
+        const grips = box
+          ? [
+            ...(picked.length === 1 && !framed(picked) ? handlesFor(picked[0], box) : []),
+            ...(framed(picked) ? frameHandles(picked, box) : []),
+          ]
+          : [];
+
+        next = grips.find((grip) => (
+          Math.abs(grip.x - point.x) <= near && Math.abs(grip.y - point.y) <= near
+        ))?.cursor ?? null;
+      }
+    }
+
+    if (next !== hovered) setHovered(next);
+  };
+
   const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     trackTouchCursor(event);
+    hoverGrip(event);
 
     // Записываем указатель даже если его нажатие до нас не дошло: так
     // второй палец опознаётся по одному движению, а не только по касанию.
@@ -2010,7 +2044,7 @@ export function BoardCanvas({
         ref={canvas}
         width={Math.max(1, Math.round(size.width * ratio))}
         height={Math.max(1, Math.round(size.height * ratio))}
-        style={{ width: size.width, height: size.height, cursor }}
+        style={{ width: size.width, height: size.height, cursor: hovered ?? cursor }}
         className={`canvas-host__surface canvas-host__surface--${panMode ? 'hand' : tool}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

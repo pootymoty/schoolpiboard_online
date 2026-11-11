@@ -5276,6 +5276,7 @@ function BoardCanvas({
     baseStale.current = false;
     return sheet;
   }, [hub.items]);
+  const [hovered, setHovered] = useState(null);
   const cursor = useMemo(() => {
     if (tool === "hand" || spaceHeld || !hub.canEdit || tool === "select" || tool === "text" || tool === "bookmark") {
       return void 0;
@@ -5856,9 +5857,29 @@ function BoardCanvas({
       hub.beginItem(tempId, brush.type, { ...brush.data, points: [point] });
     }
   };
+  const hoverGrip = (event) => {
+    var _a;
+    let next = null;
+    if (event.pointerType === "mouse" && event.buttons === 0 && latest.current.tool === "select") {
+      const point = worldPoint(event);
+      const near = HANDLE_SIZE / latest.current.viewport.scale;
+      const chosen = latest.current.selection;
+      const picked = visible(latest.current.items).filter((item) => chosen.includes(item.id));
+      if (picked.length > 0 && picked.every((item) => !item.data.locked)) {
+        const box2 = boundsOf(picked);
+        const grips = box2 ? [
+          ...picked.length === 1 && !framed(picked) ? handlesFor(picked[0], box2) : [],
+          ...framed(picked) ? frameHandles(picked, box2) : []
+        ] : [];
+        next = ((_a = grips.find((grip) => Math.abs(grip.x - point.x) <= near && Math.abs(grip.y - point.y) <= near)) == null ? void 0 : _a.cursor) ?? null;
+      }
+    }
+    if (next !== hovered) setHovered(next);
+  };
   const onPointerMove = (event) => {
     var _a;
     trackTouchCursor(event);
+    hoverGrip(event);
     pointers.current.set(event.pointerId, { ...screenPoint(event), type: event.pointerType });
     if (!pinch.current && touches().length >= 2) {
       cancelStroke();
@@ -6124,7 +6145,7 @@ function BoardCanvas({
         ref: canvas,
         width: Math.max(1, Math.round(size.width * ratio)),
         height: Math.max(1, Math.round(size.height * ratio)),
-        style: { width: size.width, height: size.height, cursor },
+        style: { width: size.width, height: size.height, cursor: hovered ?? cursor },
         className: `canvas-host__surface canvas-host__surface--${panMode ? "hand" : tool}`,
         onPointerDown,
         onPointerMove,
