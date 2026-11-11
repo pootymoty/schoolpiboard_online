@@ -7613,7 +7613,7 @@ function SelectionPanel({
       role: "toolbar",
       "aria-label": "Действия с выделенным",
       children: [
-        /* @__PURE__ */ jsx(ColorPick, { label: "Цвет", value: color, onChange: onColor, commitOnClose: true, small: true }),
+        kind === "image" ? null : /* @__PURE__ */ jsx(ColorPick, { label: "Цвет", value: color, onChange: onColor, commitOnClose: true, small: true }),
         kind === "stroke" || kind === "shape" || kind === "group" ? /* @__PURE__ */ jsxs("div", { className: "selection-panel__section", children: [
           /* @__PURE__ */ jsx("span", { className: "selection-panel__label", children: "Толщина" }),
           /* @__PURE__ */ jsx("div", { className: "selection-panel__options", children: SIZES.map((value) => /* @__PURE__ */ jsx(
@@ -9740,6 +9740,8 @@ function useBoardHub(boardId) {
   useEffect(() => {
     if (!Number.isFinite(boardId)) return;
     const hub = new HubConnectionBuilder().withUrl(`${API_URL}/hub/board`, { accessTokenFactory: () => readToken() ?? "" }).withAutomaticReconnect([0, 1e3, 2e3, 5e3, 1e4, 15e3]).configureLogging(LogLevel.Warning).build();
+    hub.serverTimeoutInMilliseconds = 12e4;
+    hub.keepAliveIntervalInMilliseconds = 15e3;
     connection.current = hub;
     const join = async () => {
       await hub.invoke("JoinBoard", boardId, readGuestToken(boardId), seq.current);
@@ -9854,12 +9856,12 @@ function useBoardHub(boardId) {
     hub.onreconnecting(() => setStatus("reconnecting"));
     hub.onreconnected(async () => {
       await join();
-      if (current.current !== null) await hub.invoke("Sync", current.current).catch(() => void 0);
       const backlog = queued.current;
       queued.current = [];
       for (const { method, args } of backlog) {
         await hub.invoke(method, ...args).catch(() => void 0);
       }
+      if (current.current !== null) await hub.invoke("Sync", current.current).catch(() => void 0);
     });
     hub.onclose(() => setStatus("failed"));
     const onVisible = () => {

@@ -417,6 +417,13 @@ export function useBoardHub(boardId: number): BoardHub {
       .configureLogging(LogLevel.Warning)
       .build();
 
+    // По умолчанию клиент считает сервер пропавшим через 30 секунд тишины.
+    // Когда страница занята тяжёлой отрисовкой (долгая прокрутка по доске с
+    // картинками), таймер keep-alive запаздывает, и соединение рвалось само
+    // по себе — а после обрыва всё, что человек делал, прокручивалось заново.
+    hub.serverTimeoutInMilliseconds = 120000;
+    hub.keepAliveIntervalInMilliseconds = 15000;
+
     connection.current = hub;
 
     const join = async () => {
@@ -575,18 +582,20 @@ export function useBoardHub(boardId: number): BoardHub {
 
     hub.onreconnected(async () => {
       await join();
-      // Догон по журналу мог не покрыть разрыв целиком — доспрашиваем
-      // состояние: лишний запрос дешевле пропавшего рисунка.
-      if (current.current !== null) await hub.invoke('Sync', current.current).catch(() => undefined);
 
       // То, что нарисовали без связи, всё это время лежало в queued
-      // (см. call ниже) — теперь можно досылать, в том же порядке, в
-      // каком это рисовалось.
+      // (см. call ниже) — досылаем, в том же порядке, в каком это рисовалось.
       const backlog = queued.current;
       queued.current = [];
       for (const { method, args } of backlog) {
         await hub.invoke(method, ...args).catch(() => undefined);
       }
+
+      // Состояние запрашиваем уже после досылки: иначе доска сначала
+      // показывала бы состояние без этих правок, а потом на глазах
+      // проигрывала их заново, одну за другой. Лишний запрос дешевле
+      // пропавшего рисунка.
+      if (current.current !== null) await hub.invoke('Sync', current.current).catch(() => undefined);
     });
 
     hub.onclose(() => setStatus('failed'));

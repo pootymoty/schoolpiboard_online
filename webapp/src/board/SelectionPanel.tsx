@@ -267,7 +267,9 @@ export function SelectionPanel({
       {/* Палитра свёрнута в один кружок текущего цвета: развёрнутые
           сразу цвет и заливка — это три десятка кружков, и на телефоне
           кнопки действий уезжали далеко вниз. */}
-      <ColorPick label="Цвет" value={color} onChange={onColor} commitOnClose small />
+      {kind === 'image' ? null : (
+        <ColorPick label="Цвет" value={color} onChange={onColor} commitOnClose small />
+      )}
 
       {kind === 'stroke' || kind === 'shape' || kind === 'group' ? (
         <div className="selection-panel__section">
