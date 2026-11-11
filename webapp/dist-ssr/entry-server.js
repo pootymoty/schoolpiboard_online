@@ -8860,6 +8860,9 @@ function LibraryPanel({
     ] }) }) : null
   ] });
 }
+function getSummaryAudience(boardId) {
+  return api(`/boards/${boardId}/summary/audience`);
+}
 function askSummary(boardId, email, guestToken) {
   return api(`/boards/${boardId}/summary/request`, {
     method: "POST",
@@ -8873,9 +8876,10 @@ function listSummaryRequests(boardId) {
 function declineSummaryRequest(boardId, requestId) {
   return api(`/boards/${boardId}/summary/requests/${requestId}/decline`, { method: "POST" });
 }
-async function sendSummary(boardId, requestId, pages, pageCount = pages.length) {
+async function sendSummary(boardId, requestId, pages, pageCount = pages.length, audience = null) {
   const form = new FormData();
   if (requestId !== null) form.append("requestId", String(requestId));
+  if (audience) form.append("audience", audience);
   form.append("pageCount", String(pageCount));
   for (const page of pages) form.append("pages", page.blob, page.name);
   const headers = {};
@@ -8938,6 +8942,13 @@ function SummaryPanel({
   const [busy, setBusy] = useState(null);
   const [note, setNote] = useState(null);
   const [done, setDone] = useState(false);
+  const [audience, setAudience] = useState(null);
+  const [whom, setWhom] = useState("online");
+  useEffect(() => {
+    if (!canManage) return;
+    getSummaryAudience(boardId).then(setAudience).catch(() => setAudience(null));
+  }, [boardId, canManage]);
+  const audienceCount = audience ? audience[whom] : 0;
   const fail = (reason, fallback) => {
     setNote(reason instanceof ApiError ? reason.message : fallback);
     setBusy(null);
@@ -8969,7 +8980,7 @@ function SummaryPanel({
       fail(reason, "Не удалось попросить конспект.");
     }
   };
-  const send2 = async (requestId) => {
+  const send2 = async (requestId, members = null) => {
     setNote(null);
     setBusy("Собираем листы…");
     try {
@@ -8987,9 +8998,15 @@ function SummaryPanel({
           setNote("Отправлять нечего: на страницах пусто.");
           return;
         }
-        await sendSummary(boardId, requestId, [{ name: `${title || "Конспект"}.pdf`, blob: pdf }], sheets.length);
+        await sendSummary(
+          boardId,
+          requestId,
+          [{ name: `${title || "Конспект"}.pdf`, blob: pdf }],
+          sheets.length,
+          members
+        );
       } else {
-        await sendSummary(boardId, requestId, sheets);
+        await sendSummary(boardId, requestId, sheets, sheets.length, members);
       }
       if (requestId !== null) onResolved(requestId);
       setBusy(null);
@@ -9048,6 +9065,49 @@ function SummaryPanel({
           children: "Скачать PDF"
         }
       ),
+      /* @__PURE__ */ jsx("p", { className: "params__label", children: "Участникам доски" }),
+      /* @__PURE__ */ jsxs("div", { className: "summary__whom", role: "radiogroup", "aria-label": "Кому отправить", children: [
+        /* @__PURE__ */ jsxs("label", { className: "library__toggle", children: [
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              type: "radio",
+              name: "summary-whom",
+              checked: whom === "online",
+              onChange: () => setWhom("online")
+            }
+          ),
+          "Тем, кто сейчас на доске",
+          audience ? ` — ${audience.online}` : ""
+        ] }),
+        /* @__PURE__ */ jsxs("label", { className: "library__toggle", children: [
+          /* @__PURE__ */ jsx(
+            "input",
+            {
+              type: "radio",
+              name: "summary-whom",
+              checked: whom === "all",
+              onChange: () => setWhom("all")
+            }
+          ),
+          "Всем участникам доски",
+          audience ? ` — ${audience.all}` : ""
+        ] })
+      ] }),
+      /* @__PURE__ */ jsx(
+        "button",
+        {
+          className: "btn btn-sm btn-block",
+          type: "button",
+          disabled: busy !== null || audienceCount === 0,
+          onClick: () => void send2(null, whom),
+          children: "Отправить участникам"
+        }
+      ),
+      /* @__PURE__ */ jsxs("p", { className: "library__hint", children: [
+        "Получат те, кто вошёл под учётной записью и подтвердил почту. Адреса друг друга они не увидят.",
+        audience && audience.guestsOnline > 0 ? ` Гостей на доске: ${audience.guestsOnline} — им конспект уйдёт только по их просьбе ниже.` : ""
+      ] }),
       /* @__PURE__ */ jsx("p", { className: "params__label", children: "Просят конспект" }),
       requests.length === 0 ? /* @__PURE__ */ jsx("p", { className: "library__hint", children: "Пока никто не просил." }) : /* @__PURE__ */ jsx("div", { className: "library__list", children: requests.map((request) => /* @__PURE__ */ jsxs("div", { className: "summary__row", children: [
         /* @__PURE__ */ jsxs("span", { className: "summary__who", children: [

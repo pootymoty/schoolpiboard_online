@@ -75,11 +75,33 @@ public static class SummaryEndpoints
                 : Results.NotFound(new { message = "Просьба не найдена." });
         });
 
+        // Сколько участников получит рассылку: тех, кто сейчас на доске, и всех.
+        app.MapGet("/api/boards/{boardId:long}/summary/audience", async (
+            long boardId, ClaimsPrincipal principal, AppDbContext db, BoardService boards,
+            BoardPresence presence, SummaryService summaries, CancellationToken ct) =>
+        {
+            var user = await AuthEndpoints.CurrentUser(principal, db, ct);
+            if (user is null) return Results.Unauthorized();
+
+            var actor = await boards.ResolveActorAsync(boardId, user.Id, null, ct);
+            if (actor is null || !actor.CanManage) return Forbidden();
+
+            var board = await db.Boards.FindAsync(new object[] { boardId }, ct);
+            if (board is null || board.DeletedAt is not null)
+                return Results.NotFound(new { message = "Доска не найдена." });
+
+            var online = presence.OnBoard(boardId);
+            var guests = online.Where(p => p.IsGuest).Select(p => p.GuestId).Distinct().Count();
+
+            return Results.Ok(await summaries.AudienceAsync(board, OnlineUsers(online), guests, ct));
+        }).RequireAuthorization();
+
         // Отправка: листы приезжают многочастной формой, как и всякая
         // загрузка файлов. Гостю сюда нельзя — отправляет только владелец.
         app.MapPost("/api/boards/{boardId:long}/summary", async (
             long boardId, HttpRequest http, ClaimsPrincipal principal,
-            AppDbContext db, BoardService boards, SummaryService summaries, CancellationToken ct) =>
+            AppDbContext db, BoardService boards, BoardPresence presence, SummaryService summaries,
+            CancellationToken ct) =>
         {
             var user = await AuthEndpoints.CurrentUser(principal, db, ct);
             if (user is null) return Results.Unauthorized();
@@ -124,8 +146,16 @@ public static class SummaryEndpoints
                     isPdf ? "application/pdf" : "image/png"));
             }
 
-            var outcome = await summaries.SendAsync(
-                board, requestId, BoardPageViewer.ForUser(user.Id), user.Email, pages, pageCount, ct);
+            // «audience»: online — тем, кто сейчас на доске, all — всем
+            // участникам. Без него — себе или по просьбе, как раньше.
+            var audience = form["audience"].ToString();
+            var ownerKey = BoardPageViewer.ForUser(user.Id);
+
+            var outcome = audience is "online" or "all"
+                ? await summaries.SendToMembersAsync(
+                    board, audience == "online", OnlineUsers(presence.OnBoard(boardId)),
+                    ownerKey, user.Email, pages, pageCount, ct)
+                : await summaries.SendAsync(board, requestId, ownerKey, user.Email, pages, pageCount, ct);
 
             return outcome == SummaryOutcome.Ok
                 ? Results.NoContent()
@@ -149,6 +179,9 @@ public static class SummaryEndpoints
             ? BoardPageViewer.ForUser(actor.UserId.Value)
             : BoardPageViewer.ForGuest(actor.GuestId ?? string.Empty);
 
+    private static HashSet<long> OnlineUsers(IEnumerable<Presence> online)
+        => online.Where(p => p.UserId is not null).Select(p => p.UserId!.Value).ToHashSet();
+
     private static IResult Forbidden()
         => Results.Json(new { message = "Нет доступа к этой доске." }, statusCode: 403);
 
@@ -159,6 +192,8 @@ public static class SummaryEndpoints
         SummaryOutcome.TooManySent => "С этой доски за час уже ушло много конспектов. Попробуйте позже.",
         SummaryOutcome.NothingToSend => "Отправлять нечего: на страницах пусто.",
         SummaryOutcome.TooBig => $"Конспект не больше {SummaryService.MaxPages} листов.",
+        SummaryOutcome.NoRecipients => "Некому отправить: нет участников с подтверждённой почтой. Гостям без учётной записи конспект уходит только по их просьбе.",
+        SummaryOutcome.TooManyRecipients => $"Рассылка — не больше {SummaryService.MaxMembers} участников за раз.",
         SummaryOutcome.NotFound => "Просьба не найдена — возможно, её уже разобрали.",
         _ => "Письмо не ушло. Попробуйте ещё раз.",
     };

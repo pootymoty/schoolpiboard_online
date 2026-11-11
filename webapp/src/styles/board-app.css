@@ -1996,6 +1996,11 @@ p.board-title__text { cursor: default; }
 }
 
 /* Просьба о конспекте: кто просит, куда слать и две кнопки решения. */
+.summary__whom {
+    display: grid;
+    gap: var(--sp-1);
+}
+
 .summary__row {
     display: flex;
     align-items: center;

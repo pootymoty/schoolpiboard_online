@@ -15,6 +15,23 @@ export interface SummaryRequest {
   createdAt: string;
 }
 
+/** Сколько участников с подтверждённой почтой получат рассылку. */
+export interface SummaryAudience {
+  /** Сейчас на доске. */
+  online: number;
+  /** Все участники доски, кроме владельца. */
+  all: number;
+  /** Гостей на доске сейчас — у них почты нет, рассылка до них не дойдёт. */
+  guestsOnline: number;
+}
+
+/** Кому разослать: тем, кто сейчас на доске, или всем участникам. */
+export type SummaryAudienceKind = 'online' | 'all';
+
+export function getSummaryAudience(boardId: number): Promise<SummaryAudience> {
+  return api<SummaryAudience>(`/boards/${boardId}/summary/audience`);
+}
+
 export function askSummary(boardId: number, email: string, guestToken?: string | null): Promise<void> {
   return api<void>(`/boards/${boardId}/summary/request`, {
     method: 'POST',
@@ -42,9 +59,11 @@ export function declineSummaryRequest(boardId: number, requestId: number): Promi
 export async function sendSummary(
   boardId: number, requestId: number | null, pages: { name: string; blob: Blob }[],
   pageCount = pages.length,
+  audience: SummaryAudienceKind | null = null,
 ): Promise<void> {
   const form = new FormData();
   if (requestId !== null) form.append('requestId', String(requestId));
+  if (audience) form.append('audience', audience);
   form.append('pageCount', String(pageCount));
   for (const page of pages) form.append('pages', page.blob, page.name);
 

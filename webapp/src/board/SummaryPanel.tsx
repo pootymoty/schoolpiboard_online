@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
-import { askSummary, declineSummaryRequest, sendSummary } from '../api/summary';
-import type { SummaryRequest } from '../api/summary';
+import { askSummary, declineSummaryRequest, getSummaryAudience, sendSummary } from '../api/summary';
+import type { SummaryAudience, SummaryAudienceKind, SummaryRequest } from '../api/summary';
 import { ApiError } from '../api/client';
 import { readGuestToken } from '../api/guest';
 import { sheetsToPdf, sheetsToPdfBlob } from './exportPdf';
@@ -41,6 +41,17 @@ export function SummaryPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [audience, setAudience] = useState<SummaryAudience | null>(null);
+  const [whom, setWhom] = useState<SummaryAudienceKind>('online');
+
+  // Сколько участников получит рассылку — спрашиваем при открытии окна:
+  // кто на доске, меняется по ходу занятия.
+  useEffect(() => {
+    if (!canManage) return;
+    getSummaryAudience(boardId).then(setAudience).catch(() => setAudience(null));
+  }, [boardId, canManage]);
+
+  const audienceCount = audience ? audience[whom] : 0;
 
   const fail = (reason: unknown, fallback: string) => {
     setNote(reason instanceof ApiError ? reason.message : fallback);
@@ -80,7 +91,7 @@ export function SummaryPanel({
     }
   };
 
-  const send = async (requestId: number | null) => {
+  const send = async (requestId: number | null, members: SummaryAudienceKind | null = null) => {
     setNote(null);
     setBusy('Собираем листы…');
 
@@ -103,9 +114,11 @@ export function SummaryPanel({
           return;
         }
 
-        await sendSummary(boardId, requestId, [{ name: `${title || 'Конспект'}.pdf`, blob: pdf }], sheets.length);
+        await sendSummary(
+          boardId, requestId, [{ name: `${title || 'Конспект'}.pdf`, blob: pdf }], sheets.length, members,
+        );
       } else {
-        await sendSummary(boardId, requestId, sheets);
+        await sendSummary(boardId, requestId, sheets, sheets.length, members);
       }
 
       if (requestId !== null) onResolved(requestId);
@@ -165,6 +178,47 @@ export function SummaryPanel({
           >
             Скачать PDF
           </button>
+
+          <p className="params__label">Участникам доски</p>
+
+          <div className="summary__whom" role="radiogroup" aria-label="Кому отправить">
+            <label className="library__toggle">
+              <input
+                type="radio"
+                name="summary-whom"
+                checked={whom === 'online'}
+                onChange={() => setWhom('online')}
+              />
+              Тем, кто сейчас на доске{audience ? ` — ${audience.online}` : ''}
+            </label>
+
+            <label className="library__toggle">
+              <input
+                type="radio"
+                name="summary-whom"
+                checked={whom === 'all'}
+                onChange={() => setWhom('all')}
+              />
+              Всем участникам доски{audience ? ` — ${audience.all}` : ''}
+            </label>
+          </div>
+
+          <button
+            className="btn btn-sm btn-block"
+            type="button"
+            disabled={busy !== null || audienceCount === 0}
+            onClick={() => void send(null, whom)}
+          >
+            Отправить участникам
+          </button>
+
+          <p className="library__hint">
+            Получат те, кто вошёл под учётной записью и подтвердил почту. Адреса друг друга
+            они не увидят.
+            {audience && audience.guestsOnline > 0
+              ? ` Гостей на доске: ${audience.guestsOnline} — им конспект уйдёт только по их просьбе ниже.`
+              : ''}
+          </p>
 
           <p className="params__label">Просят конспект</p>
 

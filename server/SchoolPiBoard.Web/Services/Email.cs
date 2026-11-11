@@ -17,6 +17,21 @@ public interface IEmailSender
     Task<bool> SendAsync(
         string to, string subject, string html, string text,
         IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Одно письмо многим — адресаты в скрытой копии и не видят друг друга.
+    /// По умолчанию — по письму каждому: так ведут себя заглушки в тестах;
+    /// настоящая отправка (SMTP) шлёт одно письмо.
+    /// </summary>
+    async Task<bool> SendHiddenAsync(
+        IReadOnlyList<string> recipients, string subject, string html, string text,
+        IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken)
+    {
+        var any = false;
+        foreach (var address in recipients)
+            any |= await SendAsync(address, subject, html, text, attachments, cancellationToken);
+        return any;
+    }
 }
 
 /// <summary>Адреса, на которые письма не уходят никогда.</summary>
@@ -88,6 +103,26 @@ public sealed class GuardedEmailSender : IEmailSender
         return await _inner.SendAsync(to, subject, html, text, attachments, cancellationToken);
     }
 
+    public async Task<bool> SendHiddenAsync(
+        IReadOnlyList<string> recipients, string subject, string html, string text,
+        IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken)
+    {
+        var allowed = new List<string>();
+
+        foreach (var address in recipients)
+        {
+            if (MailAddresses.IsDeliverable(address) && !await BelongsToDeletedAsync(address, cancellationToken))
+                allowed.Add(address);
+        }
+
+        if (allowed.Count < recipients.Count)
+            _logger.LogWarning("Письмо «{Subject}»: {Count} адрес(ов) удалённых учётных записей пропущено.",
+                subject, recipients.Count - allowed.Count);
+
+        return allowed.Count > 0
+            && await _inner.SendHiddenAsync(allowed, subject, html, text, attachments, cancellationToken);
+    }
+
     /// <summary>
     /// Числится ли адрес только за удалёнными учётными записями. Адрес, по
     /// которому учётной записи нет вовсе (участник, которому шлют конспект),
@@ -128,13 +163,37 @@ public sealed class SmtpEmailSender : IEmailSender
     public Task<bool> SendAsync(string to, string subject, string html, string text, CancellationToken cancellationToken)
         => SendAsync(to, subject, html, text, Array.Empty<EmailAttachment>(), cancellationToken);
 
-    public async Task<bool> SendAsync(
+    public Task<bool> SendAsync(
         string to, string subject, string html, string text,
+        IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken)
+        => DeliverAsync(new[] { to }, hidden: false, subject, html, text, attachments, cancellationToken);
+
+    /// <summary>
+    /// В «Кому» — сам отправитель, получатели — в скрытой копии: адреса
+    /// участников не видны друг другу.
+    /// </summary>
+    public Task<bool> SendHiddenAsync(
+        IReadOnlyList<string> recipients, string subject, string html, string text,
+        IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken)
+        => DeliverAsync(recipients, hidden: true, subject, html, text, attachments, cancellationToken);
+
+    private async Task<bool> DeliverAsync(
+        IReadOnlyList<string> recipients, bool hidden, string subject, string html, string text,
         IReadOnlyList<EmailAttachment> attachments, CancellationToken cancellationToken)
     {
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress("Доска Пи", _options.From));
-        message.To.Add(MailboxAddress.Parse(to));
+
+        if (hidden)
+        {
+            message.To.Add(new MailboxAddress("Доска Пи", _options.From));
+            foreach (var address in recipients) message.Bcc.Add(MailboxAddress.Parse(address));
+        }
+        else
+        {
+            foreach (var address in recipients) message.To.Add(MailboxAddress.Parse(address));
+        }
+
         message.Subject = subject;
 
         var body = new BodyBuilder { HtmlBody = html, TextBody = text };
@@ -165,7 +224,7 @@ public sealed class SmtpEmailSender : IEmailSender
         {
             // Текст письма в лог не пишем: там ссылка подтверждения, которая
             // равносильна доступу к учётной записи.
-            _logger.LogError(ex, "Не удалось отправить письмо на {Address}.", to);
+            _logger.LogError(ex, "Не удалось отправить письмо на {Address}.", hidden ? $"{recipients.Count} адрес(ов)" : recipients[0]);
             return false;
         }
     }

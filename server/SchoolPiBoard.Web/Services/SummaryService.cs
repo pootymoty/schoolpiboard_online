@@ -14,7 +14,12 @@ public enum SummaryOutcome
     TooBig,
     NotFound,
     NotSent,
+    NoRecipients,
+    TooManyRecipients,
 }
+
+/// <summary>Кому конспект может уйти рассылкой: сколько участников с почтой на доске сейчас и всего.</summary>
+public sealed record SummaryAudience(int Online, int All, int GuestsOnline);
 
 /// <summary>
 /// Конспект занятия по почте.
@@ -35,6 +40,15 @@ public sealed class SummaryService
 
     /// <summary>Общий вес вложений. Больше почта на той стороне просто не примет.</summary>
     public const int MaxTotalBytes = 15 * 1024 * 1024;
+
+    /// <summary>Сколько участников получают конспект одной рассылкой.</summary>
+    public const int MaxMembers = 100;
+
+    /// <summary>
+    /// Адресатов в одном письме. У Яндекса предел на получателей письма —
+    /// около трёх десятков; больше — несколько писем подряд.
+    /// </summary>
+    private const int RecipientsPerLetter = 30;
 
     private readonly AppDbContext _db;
     private readonly IEmailSender _email;
@@ -115,16 +129,8 @@ public sealed class SummaryService
         Board board, long? requestId, string ownerKey, string ownerEmail,
         IReadOnlyList<EmailAttachment> pages, int pageCount, CancellationToken cancellationToken)
     {
-        if (pages.Count == 0) return SummaryOutcome.NothingToSend;
-        if (pageCount <= 0 || pageCount > MaxPages) return SummaryOutcome.TooBig;
-        if (pages.Sum(x => (long)x.Content.Length) > MaxTotalBytes) return SummaryOutcome.TooBig;
-
-        var hour = DateTime.UtcNow.AddHours(-1);
-        var sent = await _db.SummaryRequests.CountAsync(
-            x => x.BoardId == board.Id && x.Status == SummaryRequest.StatusSent && x.ResolvedAt >= hour,
-            cancellationToken);
-
-        if (sent >= SummaryRequest.MaxSentPerHour) return SummaryOutcome.TooManySent;
+        var check = await CheckAsync(board, pages, pageCount, cancellationToken);
+        if (check != SummaryOutcome.Ok) return check;
 
         SummaryRequest? request = null;
         string address;
@@ -174,6 +180,107 @@ public sealed class SummaryService
 
         await _db.SaveChangesAsync(cancellationToken);
         return SummaryOutcome.Ok;
+    }
+
+    /// <summary>
+    /// Участники доски, которым можно разослать конспект: вошли под
+    /// учётной записью, подтвердили почту, не заблокированы, не удалены.
+    /// Владельца здесь нет — себе он отправляет отдельной кнопкой. Гостей
+    /// тоже: почты у них нет, им остаётся просьба.
+    /// </summary>
+    private async Task<List<(long UserId, string Email)>> MembersAsync(Board board, CancellationToken cancellationToken)
+    {
+        var rows = await _db.BoardMembers
+            .Where(m => m.BoardId == board.Id && m.BannedAt == null && m.UserId != board.OwnerId)
+            .Join(_db.Users, m => m.UserId, u => u.Id, (m, u) => u)
+            .Where(u => u.DeletedAt == null && u.EmailConfirmed)
+            .Select(u => new { u.Id, u.Email })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Where(x => MailAddresses.IsDeliverable(x.Email))
+            .Select(x => (x.Id, x.Email))
+            .ToList();
+    }
+
+    public async Task<SummaryAudience> AudienceAsync(
+        Board board, IReadOnlyCollection<long> onlineUsers, int guestsOnline, CancellationToken cancellationToken)
+    {
+        var members = await MembersAsync(board, cancellationToken);
+        return new SummaryAudience(
+            members.Count(x => onlineUsers.Contains(x.UserId)),
+            members.Count,
+            guestsOnline);
+    }
+
+    /// <summary>
+    /// Конспект участникам доски: тем, кто сейчас на ней, или всем.
+    ///
+    /// Адреса берутся из учётных записей участников, а не из запроса:
+    /// владелец выбирает только «кому из своих», чужой адрес сюда не
+    /// подставить. Уходит в скрытой копии — участники не видят почту
+    /// друг друга.
+    /// </summary>
+    public async Task<SummaryOutcome> SendToMembersAsync(
+        Board board, bool onlineOnly, IReadOnlyCollection<long> onlineUsers, string ownerKey, string ownerEmail,
+        IReadOnlyList<EmailAttachment> pages, int pageCount, CancellationToken cancellationToken)
+    {
+        var check = await CheckAsync(board, pages, pageCount, cancellationToken);
+        if (check != SummaryOutcome.Ok) return check;
+
+        var members = await MembersAsync(board, cancellationToken);
+        var addresses = members
+            .Where(x => !onlineOnly || onlineUsers.Contains(x.UserId))
+            .Select(x => x.Email)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (addresses.Count == 0) return SummaryOutcome.NoRecipients;
+        if (addresses.Count > MaxMembers) return SummaryOutcome.TooManyRecipients;
+
+        var asPdf = pages.Count == 1 && pages[0].ContentType == "application/pdf";
+        var letter = EmailTemplates.Summary(board.Title, pageCount, asPdf);
+        var delivered = false;
+
+        foreach (var chunk in addresses.Chunk(RecipientsPerLetter))
+        {
+            delivered |= await _email.SendHiddenAsync(
+                chunk, letter.Subject, letter.Html, letter.Text, pages, cancellationToken);
+        }
+
+        if (!delivered) return SummaryOutcome.NotSent;
+
+        // Рассылка — одна строка: предел в час считает отправки владельца,
+        // а не число учеников в классе.
+        _db.SummaryRequests.Add(new SummaryRequest
+        {
+            BoardId = board.Id,
+            Email = Normalize(ownerEmail) ?? string.Empty,
+            AskedBy = ownerKey,
+            AskedName = onlineOnly ? $"Тем, кто на доске: {addresses.Count}" : $"Всем участникам: {addresses.Count}",
+            Status = SummaryRequest.StatusSent,
+            CreatedAt = DateTime.UtcNow,
+            ResolvedAt = DateTime.UtcNow,
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return SummaryOutcome.Ok;
+    }
+
+    /// <summary>Общие для всех отправок проверки: вес, число листов, предел в час.</summary>
+    private async Task<SummaryOutcome> CheckAsync(
+        Board board, IReadOnlyList<EmailAttachment> pages, int pageCount, CancellationToken cancellationToken)
+    {
+        if (pages.Count == 0) return SummaryOutcome.NothingToSend;
+        if (pageCount <= 0 || pageCount > MaxPages) return SummaryOutcome.TooBig;
+        if (pages.Sum(x => (long)x.Content.Length) > MaxTotalBytes) return SummaryOutcome.TooBig;
+
+        var hour = DateTime.UtcNow.AddHours(-1);
+        var sent = await _db.SummaryRequests.CountAsync(
+            x => x.BoardId == board.Id && x.Status == SummaryRequest.StatusSent && x.ResolvedAt >= hour,
+            cancellationToken);
+
+        return sent >= SummaryRequest.MaxSentPerHour ? SummaryOutcome.TooManySent : SummaryOutcome.Ok;
     }
 
     /// <summary>
