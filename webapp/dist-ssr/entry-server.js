@@ -6825,10 +6825,10 @@ function DrawToolbar({
           /* @__PURE__ */ jsx("span", { className: "toolbar__divider", "aria-hidden": "true" }),
           pick("select", /* @__PURE__ */ jsx(IconCursor, {}), "Выделять и перемещать"),
           pick("hand", /* @__PURE__ */ jsx(IconHand, {}), "Двигать холст. То же — пробел или средняя кнопка", false),
-          pick("pen1", /* @__PURE__ */ jsx(IconEditor, {}), "Перо 1"),
-          pick("pen2", /* @__PURE__ */ jsx(IconEditor, {}), "Перо 2"),
-          pick("marker", /* @__PURE__ */ jsx(IconMarker, {}), "Маркер"),
-          pick("eraser", /* @__PURE__ */ jsx(IconEraser, {}), "Ластик"),
+          pick("pen1", /* @__PURE__ */ jsx(IconEditor, {}), "Перо 1 (P)"),
+          pick("pen2", /* @__PURE__ */ jsx(IconEditor, {}), "Перо 2 (P ещё раз)"),
+          pick("marker", /* @__PURE__ */ jsx(IconMarker, {}), "Маркер (M)"),
+          pick("eraser", /* @__PURE__ */ jsx(IconEraser, {}), "Ластик (E)"),
           pick("text", /* @__PURE__ */ jsx(IconText, {}), "Текст"),
           pick("shapes", /* @__PURE__ */ jsx(IconShapes, {}), "Фигуры"),
           pick("table", /* @__PURE__ */ jsx(IconTable, {}), "Таблица"),
@@ -9432,6 +9432,7 @@ const TIPS = [
   { keys: "Shift при рисовании фигуры", what: "правильная фигура, угол кратный 15°" },
   { keys: "Курсор + протяжка по пустому", what: "выделить рамкой" },
   { keys: "Ctrl + клик", what: "добавить объект к выделению или убрать" },
+  { keys: "P, M, E", what: "перо, маркер, ластик; повторное P — перо 2" },
   { keys: "Ctrl + Z, Ctrl + Y", what: "отменить, повторить" },
   { keys: "Ctrl + D", what: "дублировать выделенное" },
   { keys: "Ctrl + A", what: "выделить всё" },
@@ -10292,7 +10293,7 @@ function BoardPage() {
   useEffect(() => {
     const onKey = (event) => {
       const target = event.target;
-      if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
+      if (target && (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable)) return;
       const control = event.ctrlKey || event.metaKey;
       if (control && event.code === "KeyZ") {
         event.preventDefault();
@@ -10331,6 +10332,15 @@ function BoardPage() {
         setSelection(hub.items.map((item) => item.id));
         return;
       }
+      if (!control && !event.altKey && !event.shiftKey && !event.repeat && hub.canEdit) {
+        const next = event.code === "KeyP" ? tool === "pen1" ? "pen2" : "pen1" : event.code === "KeyM" ? "marker" : event.code === "KeyE" ? "eraser" : null;
+        if (next) {
+          event.preventDefault();
+          setShowParams(false);
+          setToolRaw(next);
+          return;
+        }
+      }
       if (event.code === "Delete" || event.code === "Backspace") {
         event.preventDefault();
         removeSelection();
@@ -10344,7 +10354,7 @@ function BoardPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [history, hub.items, removeSelection]);
+  }, [history, hub.items, hub.canEdit, removeSelection, tool]);
   useEffect(() => {
     if (!hub.canEdit && tool !== "hand") setToolRaw("hand");
   }, [hub.canEdit, tool]);

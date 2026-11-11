@@ -441,7 +441,7 @@ export function BoardPage(): ReactElement {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+      if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) return;
 
       const control = event.ctrlKey || event.metaKey;
 
@@ -493,6 +493,23 @@ export function BoardPage(): ReactElement {
         return;
       }
 
+      // Выбор инструмента одной клавишей, без модификаторов — как в
+      // других досках: P — перо (повторное P переключает перо 1 ↔ перо 2),
+      // M — маркер, E — ластик. Тоже по коду клавиши, поэтому на русской
+      // раскладке работают З, Ь и У на тех же местах.
+      if (!control && !event.altKey && !event.shiftKey && !event.repeat && hub.canEdit) {
+        const next: Tool | null = event.code === 'KeyP' ? (tool === 'pen1' ? 'pen2' : 'pen1')
+          : event.code === 'KeyM' ? 'marker'
+            : event.code === 'KeyE' ? 'eraser'
+              : null;
+        if (next) {
+          event.preventDefault();
+          setShowParams(false);
+          setToolRaw(next);
+          return;
+        }
+      }
+
       if (event.code === 'Delete' || event.code === 'Backspace') {
         event.preventDefault();
         removeSelection();
@@ -512,7 +529,7 @@ export function BoardPage(): ReactElement {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [history, hub.items, removeSelection]);
+  }, [history, hub.items, hub.canEdit, removeSelection, tool]);
 
   // Наблюдателю рисующие инструменты недоступны — оставляем ему руку,
   // иначе выбранное «перо» просто ничего не делало бы (пункт про роли).

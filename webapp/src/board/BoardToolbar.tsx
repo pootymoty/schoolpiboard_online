@@ -95,10 +95,10 @@ export function DrawToolbar({
 
       {pick('select', <IconCursor />, 'Выделять и перемещать')}
       {pick('hand', <IconHand />, 'Двигать холст. То же — пробел или средняя кнопка', false)}
-      {pick('pen1', <IconEditor />, 'Перо 1')}
-      {pick('pen2', <IconEditor />, 'Перо 2')}
-      {pick('marker', <IconMarker />, 'Маркер')}
-      {pick('eraser', <IconEraser />, 'Ластик')}
+      {pick('pen1', <IconEditor />, 'Перо 1 (P)')}
+      {pick('pen2', <IconEditor />, 'Перо 2 (P ещё раз)')}
+      {pick('marker', <IconMarker />, 'Маркер (M)')}
+      {pick('eraser', <IconEraser />, 'Ластик (E)')}
       {pick('text', <IconText />, 'Текст')}
       {pick('shapes', <IconShapes />, 'Фигуры')}
       {pick('table', <IconTable />, 'Таблица')}
