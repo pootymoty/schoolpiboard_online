@@ -4989,7 +4989,8 @@ const STRAIGHTEN_MAX_BOW_PX = 28;
 const STRAIGHTEN_MIN_LENGTH_PX = 16;
 const POINTER_FADE_MS = 2200;
 const POINTER_STYLE = { color: "#FF2222", width: 6, opacity: 0.9 };
-const AUTO_PAN_MARGIN = 56;
+const AUTO_PAN_MARGIN = 72;
+const AUTO_PAN_RAMP_MS = 400;
 const AUTO_PAN_MAX_SPEED = 18;
 const AUTO_PAN_ARM = 12;
 function drawRotateGrip(context, x, y, scale) {
@@ -5188,6 +5189,7 @@ function BoardCanvas({
   const pannedTo = useRef(null);
   const panFlushed = useRef(false);
   const lastPanSent = useRef(0);
+  const panClock = useRef(null);
   if (panFlushed.current) {
     pannedTo.current = null;
     panFlushed.current = false;
@@ -5526,13 +5528,21 @@ function BoardCanvas({
     };
     const panX = panOf(screen.x, drag.start.x, width);
     const panY = panOf(screen.y, drag.start.y, height);
-    if (panX !== 0 || panY !== 0) {
+    if (panX === 0 && panY === 0) {
+      panClock.current = null;
+      return;
+    }
+    {
+      const now = performance.now();
+      const clock = panClock.current ?? { since: now, last: now - 16 };
+      const frames = Math.min(3, (now - clock.last) / 16.7);
+      const ease = Math.min(1, 0.25 + (now - clock.since) / AUTO_PAN_RAMP_MS);
+      panClock.current = { since: clock.since, last: now };
       const view = latest.current.viewport;
-      const next = { ...view, x: view.x + panX, y: view.y + panY };
+      const next = { ...view, x: view.x + panX * frames * ease, y: view.y + panY * frames * ease };
       pannedTo.current = next;
       latest.current.viewport = next;
-      const now = performance.now();
-      if (now - lastPanSent.current >= 150) {
+      if (now - lastPanSent.current >= 350) {
         lastPanSent.current = now;
         onViewport(next);
       }
@@ -6106,6 +6116,7 @@ function BoardCanvas({
         cancelAnimationFrame(autoPanFrame.current);
         autoPanFrame.current = null;
       }
+      panClock.current = null;
       if (pannedTo.current) {
         onViewport(pannedTo.current);
         panFlushed.current = true;
