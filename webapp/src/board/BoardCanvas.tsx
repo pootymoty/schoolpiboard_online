@@ -118,6 +118,13 @@ const AUTO_PAN_MARGIN = 56;
 const AUTO_PAN_MAX_SPEED = 18;
 
 /**
+ * На сколько пикселей нужно сдвинуть объект в сторону края, чтобы у этого
+ * края включилась автопрокрутка. Без порога доска уезжала от одного
+ * выбора объекта у края: рука при нажатии дрожит на пиксель-другой.
+ */
+const AUTO_PAN_ARM = 12;
+
+/**
  * Холст доски.
  *
  * Объекты хранятся в мировых координатах, а окно смотрит на них через
@@ -412,7 +419,11 @@ export function BoardCanvas({
    * на экране, это с равным успехом может оказаться перетаскиванием.
    */
   const moving = useRef<
-    { pointerId: number; from: Point; dx: number; dy: number; edit: number | null } | null
+    {
+      pointerId: number; from: Point; dx: number; dy: number; edit: number | null;
+      /** Где на экране взяли объект: автопрокрутка — только к краю, к которому от этой точки повели. */
+      start: { x: number; y: number };
+    } | null
   >(null);
 
   /** Кадр автопрокрутки при перетаскивании объекта к краю холста. */
@@ -1086,14 +1097,20 @@ export function BoardCanvas({
 
     const { width, height } = latest.current.size;
 
-    const panOf = (pos: number, limit: number) => {
-      if (pos < AUTO_PAN_MARGIN) return AUTO_PAN_MAX_SPEED * (1 - pos / AUTO_PAN_MARGIN);
-      if (pos > limit - AUTO_PAN_MARGIN) return -AUTO_PAN_MAX_SPEED * (1 - (limit - pos) / AUTO_PAN_MARGIN);
+    // Край включается, только если объект к нему повели: просто взять
+    // объект у края — не повод уводить доску, и тащить вдоль края тоже.
+    const panOf = (pos: number, start: number, limit: number) => {
+      if (pos < AUTO_PAN_MARGIN && pos <= start - AUTO_PAN_ARM) {
+        return AUTO_PAN_MAX_SPEED * (1 - Math.max(0, pos) / AUTO_PAN_MARGIN);
+      }
+      if (pos > limit - AUTO_PAN_MARGIN && pos >= start + AUTO_PAN_ARM) {
+        return -AUTO_PAN_MAX_SPEED * (1 - Math.max(0, limit - pos) / AUTO_PAN_MARGIN);
+      }
       return 0;
     };
 
-    const panX = panOf(screen.x, width);
-    const panY = panOf(screen.y, height);
+    const panX = panOf(screen.x, drag.start.x, width);
+    const panY = panOf(screen.y, drag.start.y, height);
 
     if (panX !== 0 || panY !== 0) {
       const view = latest.current.viewport;
@@ -1507,7 +1524,7 @@ export function BoardCanvas({
           // Запертое с места не двигается — если заперто всё, тащить нечего.
           if (picked.every((item) => item.data.locked)) return;
 
-          moving.current = { pointerId: event.pointerId, from: point, dx: 0, dy: 0, edit: null };
+          moving.current = { pointerId: event.pointerId, from: point, dx: 0, dy: 0, edit: null, start: screenPoint(event) };
           return;
         }
       }
@@ -1551,6 +1568,7 @@ export function BoardCanvas({
         dx: 0,
         dy: 0,
         edit: repeat && (hit.type === 'table' || hit.type === 'shape') ? hit.id : null,
+        start: screenPoint(event),
       };
       return;
     }

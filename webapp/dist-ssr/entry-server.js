@@ -4991,6 +4991,7 @@ const POINTER_FADE_MS = 2200;
 const POINTER_STYLE = { color: "#FF2222", width: 6, opacity: 0.9 };
 const AUTO_PAN_MARGIN = 56;
 const AUTO_PAN_MAX_SPEED = 18;
+const AUTO_PAN_ARM = 12;
 function drawRotateGrip(context, x, y, scale) {
   const radius = 10 / scale;
   const arc = 5.5 / scale;
@@ -5511,13 +5512,17 @@ function BoardCanvas({
     const screen = pointers.current.get(drag.pointerId);
     if (!screen) return;
     const { width, height } = latest.current.size;
-    const panOf = (pos, limit) => {
-      if (pos < AUTO_PAN_MARGIN) return AUTO_PAN_MAX_SPEED * (1 - pos / AUTO_PAN_MARGIN);
-      if (pos > limit - AUTO_PAN_MARGIN) return -AUTO_PAN_MAX_SPEED * (1 - (limit - pos) / AUTO_PAN_MARGIN);
+    const panOf = (pos, start, limit) => {
+      if (pos < AUTO_PAN_MARGIN && pos <= start - AUTO_PAN_ARM) {
+        return AUTO_PAN_MAX_SPEED * (1 - Math.max(0, pos) / AUTO_PAN_MARGIN);
+      }
+      if (pos > limit - AUTO_PAN_MARGIN && pos >= start + AUTO_PAN_ARM) {
+        return -AUTO_PAN_MAX_SPEED * (1 - Math.max(0, limit - pos) / AUTO_PAN_MARGIN);
+      }
       return 0;
     };
-    const panX = panOf(screen.x, width);
-    const panY = panOf(screen.y, height);
+    const panX = panOf(screen.x, drag.start.x, width);
+    const panY = panOf(screen.y, drag.start.y, height);
     if (panX !== 0 || panY !== 0) {
       const view = latest.current.viewport;
       const next = { ...view, x: view.x + panX, y: view.y + panY };
@@ -5779,7 +5784,7 @@ function BoardCanvas({
         const inFrame = frame2 !== null && point.x >= frame2.x - reach && point.x <= frame2.x + frame2.width + reach && point.y >= frame2.y - reach && point.y <= frame2.y + frame2.height + reach;
         if (inFrame) {
           if (picked.every((item) => item.data.locked)) return;
-          moving.current = { pointerId: event.pointerId, from: point, dx: 0, dy: 0, edit: null };
+          moving.current = { pointerId: event.pointerId, from: point, dx: 0, dy: 0, edit: null, start: screenPoint(event) };
           return;
         }
       }
@@ -5806,7 +5811,8 @@ function BoardCanvas({
         from: point,
         dx: 0,
         dy: 0,
-        edit: repeat && (hit.type === "table" || hit.type === "shape") ? hit.id : null
+        edit: repeat && (hit.type === "table" || hit.type === "shape") ? hit.id : null,
+        start: screenPoint(event)
       };
       return;
     }
