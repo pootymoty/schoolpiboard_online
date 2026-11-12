@@ -16,6 +16,7 @@ import { DrawToolbar, ViewToolbar } from '../board/BoardToolbar';
 import { ToolSettingsPanel } from '../board/ToolSettingsPanel';
 import { BOOKMARK_COLOR, BOOKMARK_FONT_SIZE, DEFAULT_SETTINGS, TOOLS_WITH_SETTINGS } from '../board/tools';
 import type { Tool, ToolSettings } from '../board/tools';
+import { isDelete, isEscape, letterOf } from '../board/keys';
 import { DRAWING_TOOLS } from '../board/tools';
 import type { ItemData, ItemType, Point } from '../board/protocol';
 import { readClip, writeClip } from '../board/clipboard';
@@ -455,37 +456,38 @@ export function BoardPage(): ReactElement {
       if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) return;
 
       const control = event.ctrlKey || event.metaKey;
+      const letter = letterOf(event);
 
       // По коду физической клавиши, а не по символу: «event.key» зависит
       // от раскладки, и на русской, например, Ctrl+я вместо Ctrl+Z не
       // совпал бы ни с одним условием ниже — сочетание просто не работало.
       // «event.code» называет клавишу по месту на клавиатуре, раскладке
       // не касается.
-      if (control && event.code === 'KeyZ') {
+      if (control && letter === 'Z') {
         event.preventDefault();
         if (event.shiftKey) history.redo(); else history.undo();
         return;
       }
 
-      if (control && event.code === 'KeyY') {
+      if (control && letter === 'Y') {
         event.preventDefault();
         history.redo();
         return;
       }
 
-      if (control && event.code === 'KeyD') {
+      if (control && letter === 'D') {
         event.preventDefault();
         duplicateSelection();
         return;
       }
 
-      if (control && event.code === 'KeyC') {
+      if (control && letter === 'C') {
         event.preventDefault();
         copySelection();
         return;
       }
 
-      if (control && event.code === 'KeyX') {
+      if (control && letter === 'X') {
         event.preventDefault();
         copySelection();
         removeSelection();
@@ -494,7 +496,7 @@ export function BoardPage(): ReactElement {
 
       // Ctrl+V не перехватываем: браузер сам пошлёт событие вставки, и там
       // решается, что вставлять — объекты доски или то, что в системном буфере.
-      if (control && event.code === 'KeyA') {
+      if (control && letter === 'A') {
         event.preventDefault();
         setSelection(hub.items.map((item) => item.id));
         return;
@@ -505,9 +507,9 @@ export function BoardPage(): ReactElement {
       // M — маркер, E — ластик. Тоже по коду клавиши, поэтому на русской
       // раскладке работают З, Ь и У на тех же местах.
       if (!control && !event.altKey && !event.shiftKey && !event.repeat && hub.canEdit) {
-        const next: Tool | null = event.code === 'KeyP' ? (tool === 'pen1' ? 'pen2' : 'pen1')
-          : event.code === 'KeyM' ? 'marker'
-            : event.code === 'KeyE' ? 'eraser'
+        const next: Tool | null = letter === 'P' ? (tool === 'pen1' ? 'pen2' : 'pen1')
+          : letter === 'M' ? 'marker'
+            : letter === 'E' ? 'eraser'
               : null;
         if (next) {
           event.preventDefault();
@@ -517,7 +519,7 @@ export function BoardPage(): ReactElement {
         }
       }
 
-      if (event.code === 'Delete' || event.code === 'Backspace') {
+      if (isDelete(event)) {
         event.preventDefault();
         removeSelection();
         return;
@@ -527,7 +529,7 @@ export function BoardPage(): ReactElement {
       // версии: из любого инструмента одним нажатием обратно в «ничего не
       // рисую». В поле ввода Esc сюда не доходит (см. начало обработчика)
       // — там он отменяет ввод.
-      if (event.code === 'Escape') {
+      if (isEscape(event)) {
         setSelection([]);
         setToolRaw('select');
         setShowParams(false);

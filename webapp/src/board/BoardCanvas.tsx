@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react';
 import type { BoardHub } from './useBoardHub';
 import type { Background, BoardItem, ItemData, ItemType, Point } from './protocol';
 import { cursorColor } from './cursorColors';
+import { isSpace } from './keys';
 import { boundsOf, distanceToSegment, rectFrom, topmostAt, translate, within } from './geometry';
 import { boxOf, centerOf, rotated } from './rotate';
 import { snapPoint, snapValue } from './snap';
@@ -617,7 +618,7 @@ export function BoardCanvas({
   // отпускают, возвращаясь к рисованию.
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
-      if (event.code !== 'Space' || event.repeat) return;
+      if (!isSpace(event) || event.repeat) return;
       const target = event.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
 
@@ -626,7 +627,7 @@ export function BoardCanvas({
     };
 
     const up = (event: KeyboardEvent) => {
-      if (event.code === 'Space') setSpaceHeld(false);
+      if (isSpace(event)) setSpaceHeld(false);
     };
 
     window.addEventListener('keydown', down);

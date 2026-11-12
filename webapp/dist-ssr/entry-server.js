@@ -4622,6 +4622,20 @@ function cursorColor(connectionId) {
   }
   return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length];
 }
+const RU = "йцукенгшщзфывапролдячсмить";
+const EN = "qwertyuiopasdfghjklzxcvbnm";
+function letterOf(event) {
+  if (/^Key[A-Z]$/.test(event.code)) return event.code.slice(3);
+  if (event.keyCode >= 65 && event.keyCode <= 90) return String.fromCharCode(event.keyCode);
+  const key = (event.key ?? "").toLowerCase();
+  if (key.length !== 1) return null;
+  if (key >= "a" && key <= "z") return key.toUpperCase();
+  const index = RU.indexOf(key);
+  return index >= 0 ? EN[index].toUpperCase() : null;
+}
+const isSpace = (event) => event.code === "Space" || event.key === " ";
+const isDelete = (event) => event.code === "Delete" || event.code === "Backspace" || event.key === "Delete" || event.key === "Backspace";
+const isEscape = (event) => event.code === "Escape" || event.key === "Escape";
 const GRID_STEP = 32;
 function snapValue(value, on) {
   return on ? Math.round(value / GRID_STEP) * GRID_STEP : value;
@@ -5210,14 +5224,14 @@ function BoardCanvas({
   }, [onSize]);
   useEffect(() => {
     const down = (event) => {
-      if (event.code !== "Space" || event.repeat) return;
+      if (!isSpace(event) || event.repeat) return;
       const target = event.target;
       if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
       event.preventDefault();
       setSpaceHeld(true);
     };
     const up = (event) => {
-      if (event.code === "Space") setSpaceHeld(false);
+      if (isSpace(event)) setSpaceHeld(false);
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
@@ -10454,40 +10468,41 @@ function BoardPage() {
       const target = event.target;
       if (target && (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable)) return;
       const control = event.ctrlKey || event.metaKey;
-      if (control && event.code === "KeyZ") {
+      const letter = letterOf(event);
+      if (control && letter === "Z") {
         event.preventDefault();
         if (event.shiftKey) history.redo();
         else history.undo();
         return;
       }
-      if (control && event.code === "KeyY") {
+      if (control && letter === "Y") {
         event.preventDefault();
         history.redo();
         return;
       }
-      if (control && event.code === "KeyD") {
+      if (control && letter === "D") {
         event.preventDefault();
         duplicateSelection();
         return;
       }
-      if (control && event.code === "KeyC") {
+      if (control && letter === "C") {
         event.preventDefault();
         copySelection();
         return;
       }
-      if (control && event.code === "KeyX") {
+      if (control && letter === "X") {
         event.preventDefault();
         copySelection();
         removeSelection();
         return;
       }
-      if (control && event.code === "KeyA") {
+      if (control && letter === "A") {
         event.preventDefault();
         setSelection(hub.items.map((item) => item.id));
         return;
       }
       if (!control && !event.altKey && !event.shiftKey && !event.repeat && hub.canEdit) {
-        const next = event.code === "KeyP" ? tool === "pen1" ? "pen2" : "pen1" : event.code === "KeyM" ? "marker" : event.code === "KeyE" ? "eraser" : null;
+        const next = letter === "P" ? tool === "pen1" ? "pen2" : "pen1" : letter === "M" ? "marker" : letter === "E" ? "eraser" : null;
         if (next) {
           event.preventDefault();
           setShowParams(false);
@@ -10495,12 +10510,12 @@ function BoardPage() {
           return;
         }
       }
-      if (event.code === "Delete" || event.code === "Backspace") {
+      if (isDelete(event)) {
         event.preventDefault();
         removeSelection();
         return;
       }
-      if (event.code === "Escape") {
+      if (isEscape(event)) {
         setSelection([]);
         setToolRaw("select");
         setShowParams(false);
