@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
-import { askSummary, declineSummaryRequest, getSummaryAudience, sendSummary } from '../api/summary';
-import type { SummaryAudience, SummaryAudienceKind, SummaryRequest } from '../api/summary';
+import {
+  askSummary, declineSummaryRequest, getSummaryAudience, getSummaryGroups, sendSummary,
+} from '../api/summary';
+import type { SummaryAudience, SummaryAudienceKind, SummaryRequest, SummarySheet } from '../api/summary';
 import { ApiError } from '../api/client';
 import { readGuestToken } from '../api/guest';
 import { sheetsToPdf, sheetsToPdfBlob } from './exportPdf';
@@ -19,7 +21,7 @@ interface Props {
   /** Убрать разобранную просьбу, не дожидаясь следующего опроса. */
   onResolved: (requestId: number) => void;
   /** Собирает листы занятия — это умеет только доска. */
-  collect: () => Promise<{ name: string; blob: Blob }[]>;
+  collect: () => Promise<SummarySheet[]>;
   onClose: () => void;
 }
 
@@ -91,12 +93,37 @@ export function SummaryPanel({
     }
   };
 
-  const send = async (requestId: number | null, members: SummaryAudienceKind | null = null) => {
+  /** Одно письмо: листы — картинками или одним PDF-файлом. */
+  const upload = async (
+    sheets: SummarySheet[], requestId: number | null,
+    members: SummaryAudienceKind | null = null, group: number[] = [],
+  ) => {
+    const pageIds = sheets.map((sheet) => sheet.pageId);
+
+    if (asPdf) {
+      const pdf = await sheetsToPdfBlob(sheets);
+      if (!pdf) return;
+      await sendSummary(
+        boardId, requestId, [{ name: `${title || 'Конспект'}.pdf`, blob: pdf }], sheets.length, members, pageIds, group,
+      );
+    } else {
+      await sendSummary(boardId, requestId, sheets, sheets.length, members, pageIds, group);
+    }
+  };
+
+  /**
+   * Отправка. Себе — все страницы. Попросившему и участникам — только
+   * открытые им: страницы «только мне» не уходит никому, а «для
+   * выбранных» — только приглашённым. Участникам с разным доступом
+   * уходят разные письма.
+   */
+  const send = async (request: SummaryRequest | null, members: SummaryAudienceKind | null = null) => {
     setNote(null);
     setBusy('Собираем листы…');
 
     try {
       const sheets = await collect();
+      const pick = (open: number[]) => sheets.filter((sheet) => open.includes(sheet.pageId)).slice(0, MAX_SHEETS);
 
       if (sheets.length === 0) {
         setBusy(null);
@@ -104,24 +131,47 @@ export function SummaryPanel({
         return;
       }
 
-      setBusy(`Отправляем ${sheets.length} л.…`);
+      if (members) {
+        const groups = await getSummaryGroups(boardId, members);
+        let sent = 0;
+        let empty = 0;
 
-      if (asPdf) {
-        const pdf = await sheetsToPdfBlob(sheets);
-        if (!pdf) {
-          setBusy(null);
-          setNote('Отправлять нечего: на страницах пусто.');
-          return;
+        for (const group of groups) {
+          const part = pick(group.pageIds);
+          if (part.length === 0) {
+            empty += group.count;
+            continue;
+          }
+
+          setBusy(`Отправляем: ${sent + group.count} из ${groups.reduce((sum, one) => sum + one.count, 0)}…`);
+          await upload(part, null, members, group.pageIds);
+          sent += group.count;
         }
 
-        await sendSummary(
-          boardId, requestId, [{ name: `${title || 'Конспект'}.pdf`, blob: pdf }], sheets.length, members,
-        );
-      } else {
-        await sendSummary(boardId, requestId, sheets, sheets.length, members);
+        setBusy(null);
+        if (sent === 0) {
+          setNote('Отправлять нечего: на открытых участникам страницах пусто.');
+          return;
+        }
+        if (empty > 0) {
+          setNote(`Ушло ${sent} участникам. Ещё ${empty} — нет: на открытых им страницах пусто.`);
+        } else {
+          setDone(true);
+        }
+        return;
       }
 
-      if (requestId !== null) onResolved(requestId);
+      const part = request ? pick(request.pageIds) : sheets.slice(0, MAX_SHEETS);
+      if (part.length === 0) {
+        setBusy(null);
+        setNote('Отправлять нечего: на открытых этому участнику страницах пусто.');
+        return;
+      }
+
+      setBusy(`Отправляем ${part.length} л.…`);
+      await upload(part, request ? request.id : null);
+
+      if (request) onResolved(request.id);
 
       setBusy(null);
       setDone(true);
@@ -150,6 +200,8 @@ export function SummaryPanel({
         <>
           <p className="library__hint">
             Каждая страница — отдельным листом, не больше {MAX_SHEETS}. Пустые пропускаются.
+            Участникам уходят только открытые им страницы: «Только мне» — никому,
+            «Выбранным» — только выбранным.
           </p>
 
           <label className="library__toggle">
@@ -237,7 +289,7 @@ export function SummaryPanel({
                     className="btn btn-sm"
                     type="button"
                     disabled={busy !== null}
-                    onClick={() => void send(request.id)}
+                    onClick={() => void send(request)}
                   >
                     Отправить
                   </button>

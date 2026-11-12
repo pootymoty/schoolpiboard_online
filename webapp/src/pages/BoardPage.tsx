@@ -36,7 +36,7 @@ import { PagesPanel } from '../board/PagesPanel';
 import { BookmarksPanel } from '../board/BookmarksPanel';
 import type { Bookmark } from '../api/bookmarks';
 import { LibraryPanel } from '../board/LibraryPanel';
-import { MAX_SHEETS, SummaryPanel } from '../board/SummaryPanel';
+import { SummaryPanel } from '../board/SummaryPanel';
 import { RecordingsPanel } from '../board/RecordingsPanel';
 import { RecordingPlayer } from '../board/RecordingPlayer';
 import { RecordingControls } from '../board/RecordingControls';
@@ -1210,18 +1210,18 @@ export function BoardPage(): ReactElement {
    * это лист, который получатель откроет и закроет.
    */
   const collectSummary = useCallback(async () => {
-    const sheets: { name: string; blob: Blob }[] = [];
+    // Все страницы, а не первые двенадцать непустых: кому что уйдёт,
+    // решается по доступу получателей, и у каждого свои двенадцать.
+    const sheets: { pageId: number; name: string; blob: Blob }[] = [];
 
     for (const page of hub.pages) {
-      if (sheets.length >= MAX_SHEETS) break;
-
       const items = page.id === hub.pageId ? hub.items : await hub.pageItems(page.id);
       const canvas = await renderBoard(items, hub.background);
       if (!canvas) continue;
 
       // Косая черта в названии страницы превратила бы имя вложения в путь.
       const name = page.title.replace(/[\\/]/g, '-').trim() || `Лист ${sheets.length + 1}`;
-      sheets.push({ name: `${name}.png`, blob: await toPng(canvas) });
+      sheets.push({ pageId: page.id, name: `${name}.png`, blob: await toPng(canvas) });
     }
 
     return sheets;

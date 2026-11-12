@@ -40,11 +40,13 @@ public sealed class SummaryMembersTests : IDisposable
     {
         var board = await SeedAsync();
 
-        var outcome = await Send(board, onlineOnly: false, online: Array.Empty<long>());
+        // Общая страница — обоим, но письмами по группам доступа: у «a»
+        // открыта ещё и страница для выбранных.
+        Assert.Equal(SummaryOutcome.Ok, await Send(board, false, Array.Empty<long>(), new long[] { 100, 101 }, new long[] { 100, 101 }));
+        Assert.Equal(SummaryOutcome.Ok, await Send(board, false, Array.Empty<long>(), new long[] { 100 }, new long[] { 100 }));
 
-        Assert.Equal(SummaryOutcome.Ok, outcome);
-        Assert.Single(_smtp.Letters);
-        Assert.Equal(new[] { "a@example.com", "b@example.com" }, _smtp.Letters[0].OrderBy(x => x));
+        Assert.Equal(new[] { "a@example.com" }, _smtp.Letters[0]);
+        Assert.Equal(new[] { "b@example.com" }, _smtp.Letters[1]);
     }
 
     [Fact]
@@ -52,7 +54,7 @@ public sealed class SummaryMembersTests : IDisposable
     {
         var board = await SeedAsync();
 
-        var outcome = await Send(board, onlineOnly: true, online: new long[] { 2, 4 });
+        var outcome = await Send(board, true, new long[] { 2, 4 }, new long[] { 100, 101 }, new long[] { 100 });
 
         Assert.Equal(SummaryOutcome.Ok, outcome);
         Assert.Equal(new[] { "a@example.com" }, _smtp.Letters.Single());
@@ -63,10 +65,29 @@ public sealed class SummaryMembersTests : IDisposable
     {
         var board = await SeedAsync();
 
-        var outcome = await Send(board, onlineOnly: true, online: new long[] { 1 });
+        var outcome = await Send(board, true, new long[] { 1 }, new long[] { 100 }, new long[] { 100 });
 
         Assert.Equal(SummaryOutcome.NoRecipients, outcome);
         Assert.Empty(_smtp.Letters);
+    }
+
+    [Fact]
+    public async Task ClosedPageNeverReachesOthers()
+    {
+        var board = await SeedAsync();
+
+        // Страница «только мне» (102) и чужая «для выбранных» (101) — не для «b».
+        Assert.Equal(SummaryOutcome.WrongPages,
+            await Send(board, false, Array.Empty<long>(), new long[] { 100 }, new long[] { 100, 102 }));
+        Assert.Empty(_smtp.Letters);
+
+        using var scope = _services.CreateScope();
+        var groups = await scope.ServiceProvider.GetRequiredService<SummaryService>()
+            .GroupsAsync(board, false, Array.Empty<long>(), CancellationToken.None);
+
+        Assert.Equal(2, groups.Count);
+        Assert.Contains(groups, g => g.PageIds.SequenceEqual(new long[] { 100, 101 }) && g.Count == 1);
+        Assert.Contains(groups, g => g.PageIds.SequenceEqual(new long[] { 100 }) && g.Count == 1);
     }
 
     [Fact]
@@ -81,11 +102,12 @@ public sealed class SummaryMembersTests : IDisposable
         Assert.Equal(new SummaryAudience(1, 2, 3), audience);
     }
 
-    private async Task<SummaryOutcome> Send(Board board, bool onlineOnly, IReadOnlyCollection<long> online)
+    private async Task<SummaryOutcome> Send(
+        Board board, bool onlineOnly, IReadOnlyCollection<long> online, long[] group, long[] sheetPages)
     {
         using var scope = _services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<SummaryService>().SendToMembersAsync(
-            board, onlineOnly, online, "u1", "owner@example.com", Page, 1, CancellationToken.None);
+            board, onlineOnly, online, "u1", "owner@example.com", group, sheetPages, Page, 1, CancellationToken.None);
     }
 
     /// <summary>
@@ -128,6 +150,12 @@ public sealed class SummaryMembersTests : IDisposable
         Member(4, "banned@example.com", banned: true);
         Member(5, "gone@example.com", deleted: true);
         Member(6, "new@example.com", confirmed: false);
+
+        // 100 — всем, 101 — только участнику 2, 102 — только владельцу.
+        db.BoardPages.Add(new BoardPage { Id = 100, BoardId = board.Id, Title = "1", Sort = 1, Visibility = BoardPage.VisibilityAll });
+        db.BoardPages.Add(new BoardPage { Id = 101, BoardId = board.Id, Title = "2", Sort = 2, Visibility = BoardPage.VisibilitySelected });
+        db.BoardPages.Add(new BoardPage { Id = 102, BoardId = board.Id, Title = "3", Sort = 3, Visibility = BoardPage.VisibilityOwner });
+        db.BoardPageViewers.Add(new BoardPageViewer { PageId = 101, ParticipantKey = BoardPageViewer.ForUser(2) });
 
         await db.SaveChangesAsync();
         return board;

@@ -8893,6 +8893,9 @@ function LibraryPanel({
     ] }) }) : null
   ] });
 }
+function getSummaryGroups(boardId, audience) {
+  return api(`/boards/${boardId}/summary/groups?audience=${audience}`);
+}
 function getSummaryAudience(boardId) {
   return api(`/boards/${boardId}/summary/audience`);
 }
@@ -8909,10 +8912,12 @@ function listSummaryRequests(boardId) {
 function declineSummaryRequest(boardId, requestId) {
   return api(`/boards/${boardId}/summary/requests/${requestId}/decline`, { method: "POST" });
 }
-async function sendSummary(boardId, requestId, pages, pageCount = pages.length, audience = null) {
+async function sendSummary(boardId, requestId, pages, pageCount = pages.length, audience = null, sheetPages = [], group = []) {
   const form = new FormData();
   if (requestId !== null) form.append("requestId", String(requestId));
   if (audience) form.append("audience", audience);
+  form.append("sheetPages", sheetPages.join(","));
+  form.append("group", group.join(","));
   form.append("pageCount", String(pageCount));
   for (const page of pages) form.append("pages", page.blob, page.name);
   const headers = {};
@@ -9013,35 +9018,70 @@ function SummaryPanel({
       fail(reason, "Не удалось попросить конспект.");
     }
   };
-  const send2 = async (requestId, members = null) => {
+  const upload = async (sheets, requestId, members = null, group = []) => {
+    const pageIds = sheets.map((sheet) => sheet.pageId);
+    if (asPdf) {
+      const pdf = await sheetsToPdfBlob(sheets);
+      if (!pdf) return;
+      await sendSummary(
+        boardId,
+        requestId,
+        [{ name: `${title || "Конспект"}.pdf`, blob: pdf }],
+        sheets.length,
+        members,
+        pageIds,
+        group
+      );
+    } else {
+      await sendSummary(boardId, requestId, sheets, sheets.length, members, pageIds, group);
+    }
+  };
+  const send2 = async (request, members = null) => {
     setNote(null);
     setBusy("Собираем листы…");
     try {
       const sheets = await collect();
+      const pick = (open) => sheets.filter((sheet) => open.includes(sheet.pageId)).slice(0, MAX_SHEETS);
       if (sheets.length === 0) {
         setBusy(null);
         setNote("Отправлять нечего: на страницах пусто.");
         return;
       }
-      setBusy(`Отправляем ${sheets.length} л.…`);
-      if (asPdf) {
-        const pdf = await sheetsToPdfBlob(sheets);
-        if (!pdf) {
-          setBusy(null);
-          setNote("Отправлять нечего: на страницах пусто.");
+      if (members) {
+        const groups = await getSummaryGroups(boardId, members);
+        let sent = 0;
+        let empty = 0;
+        for (const group of groups) {
+          const part2 = pick(group.pageIds);
+          if (part2.length === 0) {
+            empty += group.count;
+            continue;
+          }
+          setBusy(`Отправляем: ${sent + group.count} из ${groups.reduce((sum, one) => sum + one.count, 0)}…`);
+          await upload(part2, null, members, group.pageIds);
+          sent += group.count;
+        }
+        setBusy(null);
+        if (sent === 0) {
+          setNote("Отправлять нечего: на открытых участникам страницах пусто.");
           return;
         }
-        await sendSummary(
-          boardId,
-          requestId,
-          [{ name: `${title || "Конспект"}.pdf`, blob: pdf }],
-          sheets.length,
-          members
-        );
-      } else {
-        await sendSummary(boardId, requestId, sheets, sheets.length, members);
+        if (empty > 0) {
+          setNote(`Ушло ${sent} участникам. Ещё ${empty} — нет: на открытых им страницах пусто.`);
+        } else {
+          setDone(true);
+        }
+        return;
       }
-      if (requestId !== null) onResolved(requestId);
+      const part = request ? pick(request.pageIds) : sheets.slice(0, MAX_SHEETS);
+      if (part.length === 0) {
+        setBusy(null);
+        setNote("Отправлять нечего: на открытых этому участнику страницах пусто.");
+        return;
+      }
+      setBusy(`Отправляем ${part.length} л.…`);
+      await upload(part, request ? request.id : null);
+      if (request) onResolved(request.id);
       setBusy(null);
       setDone(true);
     } catch (reason) {
@@ -9065,7 +9105,7 @@ function SummaryPanel({
       /* @__PURE__ */ jsxs("p", { className: "library__hint", children: [
         "Каждая страница — отдельным листом, не больше ",
         MAX_SHEETS,
-        ". Пустые пропускаются."
+        ". Пустые пропускаются. Участникам уходят только открытые им страницы: «Только мне» — никому, «Выбранным» — только выбранным."
       ] }),
       /* @__PURE__ */ jsxs("label", { className: "library__toggle", children: [
         /* @__PURE__ */ jsx(
@@ -9153,7 +9193,7 @@ function SummaryPanel({
             className: "btn btn-sm",
             type: "button",
             disabled: busy !== null,
-            onClick: () => void send2(request.id),
+            onClick: () => void send2(request),
             children: "Отправить"
           }
         ),
@@ -10873,12 +10913,11 @@ function BoardPage() {
   const collectSummary = useCallback(async () => {
     const sheets = [];
     for (const page of hub.pages) {
-      if (sheets.length >= MAX_SHEETS) break;
       const items = page.id === hub.pageId ? hub.items : await hub.pageItems(page.id);
       const canvas = await renderBoard(items, hub.background);
       if (!canvas) continue;
       const name = page.title.replace(/[\\/]/g, "-").trim() || `Лист ${sheets.length + 1}`;
-      sheets.push({ name: `${name}.png`, blob: await toPng(canvas) });
+      sheets.push({ pageId: page.id, name: `${name}.png`, blob: await toPng(canvas) });
     }
     return sheets;
   }, [hub]);

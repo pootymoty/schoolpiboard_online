@@ -5,7 +5,7 @@ using SchoolPiBoard.Web.Services;
 
 namespace SchoolPiBoard.Web.Endpoints;
 
-public sealed record SummaryRequestDto(long Id, string Email, string AskedName, DateTime CreatedAt);
+public sealed record SummaryRequestDto(long Id, string Email, string AskedName, DateTime CreatedAt, long[] PageIds);
 
 public sealed record AskSummaryRequest(string? Email);
 
@@ -59,8 +59,15 @@ public static class SummaryEndpoints
             if (actor is null || !actor.CanManage) return Forbidden();
 
             var rows = await summaries.PendingAsync(boardId, ct);
+            var result = new List<SummaryRequestDto>();
 
-            return Results.Ok(rows.Select(x => new SummaryRequestDto(x.Id, x.Email, x.AskedName, x.CreatedAt)));
+            // Каждой просьбе — страницы, открытые попросившему: только их
+            // браузер владельца и положит в письмо.
+            foreach (var row in rows)
+                result.Add(new SummaryRequestDto(
+                    row.Id, row.Email, row.AskedName, row.CreatedAt, await summaries.RequestPagesAsync(row, ct)));
+
+            return Results.Ok(result);
         });
 
         app.MapPost("/api/boards/{boardId:long}/summary/requests/{requestId:long}/decline", async (
@@ -94,6 +101,25 @@ public static class SummaryEndpoints
             var guests = online.Where(p => p.IsGuest).Select(p => p.GuestId).Distinct().Count();
 
             return Results.Ok(await summaries.AudienceAsync(board, OnlineUsers(online), guests, ct));
+        }).RequireAuthorization();
+
+        // Группы рассылки: участники с одинаковым доступом к страницам.
+        app.MapGet("/api/boards/{boardId:long}/summary/groups", async (
+            long boardId, string? audience, ClaimsPrincipal principal, AppDbContext db, BoardService boards,
+            BoardPresence presence, SummaryService summaries, CancellationToken ct) =>
+        {
+            var user = await AuthEndpoints.CurrentUser(principal, db, ct);
+            if (user is null) return Results.Unauthorized();
+
+            var actor = await boards.ResolveActorAsync(boardId, user.Id, null, ct);
+            if (actor is null || !actor.CanManage) return Forbidden();
+
+            var board = await db.Boards.FindAsync(new object[] { boardId }, ct);
+            if (board is null || board.DeletedAt is not null)
+                return Results.NotFound(new { message = "Доска не найдена." });
+
+            return Results.Ok(await summaries.GroupsAsync(
+                board, audience != "all", OnlineUsers(presence.OnBoard(boardId)), ct));
         }).RequireAuthorization();
 
         // Отправка: листы приезжают многочастной формой, как и всякая
@@ -151,11 +177,15 @@ public static class SummaryEndpoints
             var audience = form["audience"].ToString();
             var ownerKey = BoardPageViewer.ForUser(user.Id);
 
+            // Какие страницы в письме (sheetPages) и для какой группы доступа
+            // оно (group) — номера через запятую.
+            var sheetPages = Ids(form["sheetPages"].ToString());
+
             var outcome = audience is "online" or "all"
                 ? await summaries.SendToMembersAsync(
                     board, audience == "online", OnlineUsers(presence.OnBoard(boardId)),
-                    ownerKey, user.Email, pages, pageCount, ct)
-                : await summaries.SendAsync(board, requestId, ownerKey, user.Email, pages, pageCount, ct);
+                    ownerKey, user.Email, Ids(form["group"].ToString()), sheetPages, pages, pageCount, ct)
+                : await summaries.SendAsync(board, requestId, ownerKey, user.Email, pages, pageCount, ct, sheetPages);
 
             return outcome == SummaryOutcome.Ok
                 ? Results.NoContent()
@@ -179,6 +209,12 @@ public static class SummaryEndpoints
             ? BoardPageViewer.ForUser(actor.UserId.Value)
             : BoardPageViewer.ForGuest(actor.GuestId ?? string.Empty);
 
+    private static long[] Ids(string text)
+        => text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => long.TryParse(x, out var id) ? id : 0)
+            .Where(x => x > 0)
+            .ToArray();
+
     private static HashSet<long> OnlineUsers(IEnumerable<Presence> online)
         => online.Where(p => p.UserId is not null).Select(p => p.UserId!.Value).ToHashSet();
 
@@ -194,6 +230,7 @@ public static class SummaryEndpoints
         SummaryOutcome.TooBig => $"Конспект не больше {SummaryService.MaxPages} листов.",
         SummaryOutcome.NoRecipients => "Некому отправить: нет участников с подтверждённой почтой. Гостям без учётной записи конспект уходит только по их просьбе.",
         SummaryOutcome.TooManyRecipients => $"Рассылка — не больше {SummaryService.MaxMembers} участников за раз.",
+        SummaryOutcome.WrongPages => "В письмо попала страница, закрытая для получателя. Обновите доску и отправьте ещё раз.",
         SummaryOutcome.NotFound => "Просьба не найдена — возможно, её уже разобрали.",
         _ => "Письмо не ушло. Попробуйте ещё раз.",
     };

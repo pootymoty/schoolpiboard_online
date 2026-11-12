@@ -16,10 +16,17 @@ public enum SummaryOutcome
     NotSent,
     NoRecipients,
     TooManyRecipients,
+    WrongPages,
 }
 
 /// <summary>Кому конспект может уйти рассылкой: сколько участников с почтой на доске сейчас и всего.</summary>
 public sealed record SummaryAudience(int Online, int All, int GuestsOnline);
+
+/// <summary>
+/// Участники рассылки с одинаковым набором открытых им страниц: им уходит
+/// одно и то же письмо. Страницы — в порядке полосы.
+/// </summary>
+public sealed record SummaryGroup(long[] PageIds, int Count);
 
 /// <summary>
 /// Конспект занятия по почте.
@@ -127,7 +134,8 @@ public sealed class SummaryService
     /// </summary>
     public async Task<SummaryOutcome> SendAsync(
         Board board, long? requestId, string ownerKey, string ownerEmail,
-        IReadOnlyList<EmailAttachment> pages, int pageCount, CancellationToken cancellationToken)
+        IReadOnlyList<EmailAttachment> pages, int pageCount, CancellationToken cancellationToken,
+        IReadOnlyCollection<long>? sheetPages = null)
     {
         var check = await CheckAsync(board, pages, pageCount, cancellationToken);
         if (check != SummaryOutcome.Ok) return check;
@@ -147,6 +155,13 @@ public sealed class SummaryService
                 cancellationToken);
 
             if (request is null) return SummaryOutcome.NotFound;
+
+            // Попросившему — только открытые ему страницы. Без списка
+            // страниц письмо не уходит: проверить его было бы не по чему.
+            var open = await RequestPagesAsync(request, cancellationToken);
+            if (sheetPages is null || sheetPages.Count == 0 || sheetPages.Any(id => !open.Contains(id)))
+                return SummaryOutcome.WrongPages;
+
             address = request.Email;
         }
 
@@ -203,6 +218,67 @@ public sealed class SummaryService
             .ToList();
     }
 
+    /// <summary>
+    /// Какие страницы открыты каждому из участников — по ключу участника
+    /// (u:… или g:…). Те же правила, что у <see cref="PageService.VisibleAsync"/>:
+    /// «всем» — всем, «выбранным» — приглашённым, «только мне» — никому,
+    /// кроме владельца.
+    /// </summary>
+    private async Task<Dictionary<string, long[]>> VisiblePagesAsync(
+        long boardId, IReadOnlyCollection<string> keys, CancellationToken cancellationToken)
+    {
+        var pages = await _db.BoardPages
+            .Where(x => x.BoardId == boardId)
+            .OrderBy(x => x.Sort).ThenBy(x => x.Id)
+            .Select(x => new { x.Id, x.Visibility })
+            .ToListAsync(cancellationToken);
+
+        var ids = pages.Select(x => x.Id).ToList();
+        var invites = await _db.BoardPageViewers
+            .Where(x => ids.Contains(x.PageId) && keys.Contains(x.ParticipantKey))
+            .Select(x => new { x.PageId, x.ParticipantKey })
+            .ToListAsync(cancellationToken);
+
+        return keys.Distinct().ToDictionary(
+            key => key,
+            key => pages
+                .Where(page => page.Visibility == BoardPage.VisibilityAll
+                    || (page.Visibility == BoardPage.VisibilitySelected
+                        && invites.Any(x => x.PageId == page.Id && x.ParticipantKey == key)))
+                .Select(page => page.Id)
+                .ToArray());
+    }
+
+    /// <summary>Страницы, открытые тому, кто попросил конспект.</summary>
+    public async Task<long[]> RequestPagesAsync(SummaryRequest request, CancellationToken cancellationToken)
+        => (await VisiblePagesAsync(request.BoardId, new[] { request.AskedBy }, cancellationToken))[request.AskedBy];
+
+    /// <summary>Получатели рассылки с их открытыми страницами.</summary>
+    private async Task<List<(string Email, long[] Pages)>> RecipientsAsync(
+        Board board, bool onlineOnly, IReadOnlyCollection<long> onlineUsers, CancellationToken cancellationToken)
+    {
+        var members = (await MembersAsync(board, cancellationToken))
+            .Where(x => !onlineOnly || onlineUsers.Contains(x.UserId))
+            .ToList();
+
+        var visible = await VisiblePagesAsync(
+            board.Id, members.Select(x => BoardPageViewer.ForUser(x.UserId)).ToList(), cancellationToken);
+
+        return members
+            .Select(x => (x.Email, visible[BoardPageViewer.ForUser(x.UserId)]))
+            .ToList();
+    }
+
+    private static string GroupKey(IEnumerable<long> pages) => string.Join(',', pages);
+
+    /// <summary>Участники рассылки, разложенные по наборам открытых им страниц.</summary>
+    public async Task<List<SummaryGroup>> GroupsAsync(
+        Board board, bool onlineOnly, IReadOnlyCollection<long> onlineUsers, CancellationToken cancellationToken)
+        => (await RecipientsAsync(board, onlineOnly, onlineUsers, cancellationToken))
+            .GroupBy(x => GroupKey(x.Pages))
+            .Select(g => new SummaryGroup(g.First().Pages, g.Select(x => x.Email).Distinct(StringComparer.OrdinalIgnoreCase).Count()))
+            .ToList();
+
     public async Task<SummaryAudience> AudienceAsync(
         Board board, IReadOnlyCollection<long> onlineUsers, int guestsOnline, CancellationToken cancellationToken)
     {
@@ -221,16 +297,27 @@ public sealed class SummaryService
     /// подставить. Уходит в скрытой копии — участники не видят почту
     /// друг друга.
     /// </summary>
+    ///
+    /// Страницы с ограниченным доступом получают только те, кому они
+    /// открыты. Браузер присылает письмо для одной группы участников с
+    /// одинаковым доступом (<see cref="GroupsAsync"/>): <paramref name="group"/> —
+    /// какие страницы этой группе открыты, <paramref name="sheetPages"/> —
+    /// какие из них в письме. Письмо уходит только участникам, чей доступ
+    /// совпадает с группой в точности, и только если в нём нет чужих страниц.
     public async Task<SummaryOutcome> SendToMembersAsync(
         Board board, bool onlineOnly, IReadOnlyCollection<long> onlineUsers, string ownerKey, string ownerEmail,
+        IReadOnlyCollection<long> group, IReadOnlyCollection<long> sheetPages,
         IReadOnlyList<EmailAttachment> pages, int pageCount, CancellationToken cancellationToken)
     {
+        if (sheetPages.Count == 0 || sheetPages.Any(id => !group.Contains(id))) return SummaryOutcome.WrongPages;
+
         var check = await CheckAsync(board, pages, pageCount, cancellationToken);
         if (check != SummaryOutcome.Ok) return check;
 
-        var members = await MembersAsync(board, cancellationToken);
-        var addresses = members
-            .Where(x => !onlineOnly || onlineUsers.Contains(x.UserId))
+        var key = GroupKey(group);
+        var recipients = await RecipientsAsync(board, onlineOnly, onlineUsers, cancellationToken);
+        var addresses = recipients
+            .Where(x => GroupKey(x.Pages) == key)
             .Select(x => x.Email)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();

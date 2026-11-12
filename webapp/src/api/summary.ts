@@ -13,6 +13,25 @@ export interface SummaryRequest {
   email: string;
   askedName: string;
   createdAt: string;
+  /** Страницы, открытые попросившему: в письмо идут только они. */
+  pageIds: number[];
+}
+
+/** Участники с одинаковым доступом к страницам — им уходит одно письмо. */
+export interface SummaryGroup {
+  pageIds: number[];
+  count: number;
+}
+
+/** Один лист конспекта — картинка страницы и номер этой страницы. */
+export interface SummarySheet {
+  pageId: number;
+  name: string;
+  blob: Blob;
+}
+
+export function getSummaryGroups(boardId: number, audience: SummaryAudienceKind): Promise<SummaryGroup[]> {
+  return api<SummaryGroup[]>(`/boards/${boardId}/summary/groups?audience=${audience}`);
 }
 
 /** Сколько участников с подтверждённой почтой получат рассылку. */
@@ -60,10 +79,14 @@ export async function sendSummary(
   boardId: number, requestId: number | null, pages: { name: string; blob: Blob }[],
   pageCount = pages.length,
   audience: SummaryAudienceKind | null = null,
+  sheetPages: number[] = [],
+  group: number[] = [],
 ): Promise<void> {
   const form = new FormData();
   if (requestId !== null) form.append('requestId', String(requestId));
   if (audience) form.append('audience', audience);
+  form.append('sheetPages', sheetPages.join(','));
+  form.append('group', group.join(','));
   form.append('pageCount', String(pageCount));
   for (const page of pages) form.append('pages', page.blob, page.name);
 
