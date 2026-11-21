@@ -45,7 +45,7 @@ export function ForgotPasswordPage(): ReactElement {
           <input id="email" type="email" required autoComplete="email"
                  value={email} onChange={(event) => setEmail(event.target.value)} />
 
-          <button className="btn-primary" type="submit" disabled={busy}>
+          <button className="btn-primary btn-amber" type="submit" disabled={busy}>
             {busy ? 'Отправляем…' : 'Прислать ссылку'}
           </button>
 

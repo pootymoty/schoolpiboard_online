@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Тема «Переплёт и бумага» — Доска Пи Web
+   Тема «Круг и число» — Доска Пи Web
 
    Перенесена из school-pi.online, чтобы доска выглядела частью того же
    продукта. Здесь только то, что переносимо: токены, основа, кнопки,
@@ -88,47 +88,47 @@
    2. ТОКЕНЫ
    ========================================================================== */
 :root {
-    /* --- Светлая тема: кремовая бумага и кирпичный корешок учебника ---- */
-    --background: #F5F0E6;      /* фон страницы */
-    --surface: #FFFBF2;         /* карточки, панели, поля ввода */
-    --surface-2: #EDE5D6;       /* приглушённые блоки, вторичные кнопки */
-    --surface-3: #E3D9C6;       /* наведение на приглушённое */
-    --line: #E0D8C9;            /* границы и разделители */
+    /* --- Светлая тема: бумага, чернила и бирюза ---- */
+    --background: #F3F7F9;      /* фон страницы */
+    --surface: #FFFFFF;         /* карточки, панели, поля ввода */
+    --surface-2: #E8EFF4;       /* приглушённые блоки, вторичные кнопки */
+    --surface-3: #DAE5EC;       /* наведение на приглушённое */
+    --line: #DDE5EB;            /* границы и разделители */
     /* Граница поля ввода. Контраст к поверхности не ниже 3:1 по WCAG
        1.4.11, иначе не видно, где начинается поле. Прежнее значение
        давало 1.69 — рамка сливалась с карточкой. */
-    --line-strong: #8E7E67;
+    --line-strong: #6F8498;
 
-    --text: #2A211C;
-    --text-muted: #5E5148;
+    --text: #0C1E33;
+    --text-muted: #4F6278;
     --text-on-accent: #FFFFFF;
-    --text-on-dark: #F7F0E8;
+    --text-on-dark: #F1F6FA;
 
-    --accent: #7A2E1E;
-    --accent-hover: #632518;
-    --accent-soft: #F2E4DC;
+    --accent: #0A6F8A;
+    --accent-hover: #075268;
+    --accent-soft: #E1F2F7;
 
-    --danger: #A32118;
+    --danger: #B3261E;
     --danger-hover: #871B14;
-    --danger-soft: #F8E3E0;
-    --success: #3A6B3C;
-    --success-soft: #E4EDDF;
-    --warning: #8A5209;
-    --warning-soft: #F7EBD8;
+    --danger-soft: #FBE7E5;
+    --success: #1E7A4C;
+    --success-soft: #E2F4EA;
+    --warning: #8A5A00;
+    --warning-soft: #FFF4D9;
     --info: #2A4E8F;
     --info-soft: #E2E8F5;
 
-    --header-bg: #4A2018;       /* шапка и подвал */
+    --header-bg: #0C1E33;       /* шапка и подвал */
 
     /* Холст доски. Намеренно светлее фона страницы и почти без оттенка:
        на нём рисуют, и кремовый подмешивался бы в каждый цвет. */
     --canvas: #FFFFFF;
     --canvas-grid: #E8E2D6;
 
-    --shadow-color: rgba(42, 33, 28, .12);
-    --shadow-sm: 0 1px 2px rgba(42, 33, 28, .06);
-    --shadow: 0 1px 2px rgba(42, 33, 28, .06), 0 4px 12px rgba(42, 33, 28, .08);
-    --shadow-lg: 0 8px 32px rgba(42, 33, 28, .16);
+    --shadow-color: rgba(12, 30, 51, .12);
+    --shadow-sm: 0 1px 2px rgba(12, 30, 51, .06);
+    --shadow: 0 1px 2px rgba(12, 30, 51, .06), 0 4px 12px rgba(12, 30, 51, .08);
+    --shadow-lg: 0 8px 32px rgba(12, 30, 51, .16);
 
     /* --- Отступы: шаг 4 пикселя ---------------------------------------- */
     --sp-1: 4px;
@@ -145,6 +145,13 @@
     --radius: 8px;
     --radius-lg: 12px;
     --radius-pill: 999px;
+
+    --pi: #1295B3;
+    --pi-deep: #0A6680;
+    --amber: #F5B93F;
+    --amber-strong: #C98F1E;
+    --amber-ink: #3B2A00;
+    --grid-light: rgba(255, 255, 255, .09);
 
     --header-h: 84px;
     --content-max: 1200px;
@@ -186,33 +193,33 @@
    строк того не стоит. */
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-        --background: #1A1512;
-        --surface: #241D18;
-        --surface-2: #322820;
-        --surface-3: #3E3228;
-        --line: #3B2F27;
-        --line-strong: #877162;
+        --background: #0B1622;
+        --surface: #132233;
+        --surface-2: #1B2E43;
+        --surface-3: #243A52;
+        --line: #24384D;
+        --line-strong: #7088A0;
 
-        --text: #F2E9E0;
-        --text-muted: #B5A597;
-        --text-on-accent: #1A1512;
-        --text-on-dark: #F2E9E0;
+        --text: #EAF1F7;
+        --text-muted: #A3B5C6;
+        --text-on-accent: #06202A;
+        --text-on-dark: #F1F6FA;
 
-        --accent: #E39C86;
-        --accent-hover: #EDB39F;
-        --accent-soft: #33241E;
+        --accent: #5CC3DC;
+        --accent-hover: #7FD3E7;
+        --accent-soft: #12303D;
 
         --danger: #F08A7C;
         --danger-hover: #F5A296;
-        --danger-soft: #3A241F;
-        --success: #8FC490;
-        --success-soft: #23301F;
-        --warning: #E0A951;
-        --warning-soft: #332818;
+        --danger-soft: #392525;
+        --success: #7FCB9B;
+        --success-soft: #193229;
+        --warning: #F0BD5A;
+        --warning-soft: #362C1D;
         --info: #93A4F2;
         --info-soft: #22253A;
 
-        --header-bg: #241D18;
+        --header-bg: #132233;
 
         /* Холст в тёмной теме не чёрный: рисуют обычно тёмным по
            светлому, и чёрный холст заставил бы менять все цвета пера.
@@ -228,33 +235,33 @@
 }
 
 :root[data-theme="dark"] {
-    --background: #1A1512;
-    --surface: #241D18;
-    --surface-2: #322820;
-    --surface-3: #3E3228;
-    --line: #3B2F27;
-    --line-strong: #877162;
+    --background: #0B1622;
+    --surface: #132233;
+    --surface-2: #1B2E43;
+    --surface-3: #243A52;
+    --line: #24384D;
+    --line-strong: #7088A0;
 
-    --text: #F2E9E0;
-    --text-muted: #B5A597;
-    --text-on-accent: #1A1512;
-    --text-on-dark: #F2E9E0;
+    --text: #EAF1F7;
+    --text-muted: #A3B5C6;
+    --text-on-accent: #06202A;
+    --text-on-dark: #F1F6FA;
 
-    --accent: #E39C86;
-    --accent-hover: #EDB39F;
-    --accent-soft: #33241E;
+    --accent: #5CC3DC;
+    --accent-hover: #7FD3E7;
+    --accent-soft: #12303D;
 
     --danger: #F08A7C;
     --danger-hover: #F5A296;
-    --danger-soft: #3A241F;
-    --success: #8FC490;
-    --success-soft: #23301F;
-    --warning: #E0A951;
-    --warning-soft: #332818;
+    --danger-soft: #392525;
+    --success: #7FCB9B;
+    --success-soft: #193229;
+    --warning: #F0BD5A;
+    --warning-soft: #362C1D;
     --info: #93A4F2;
     --info-soft: #22253A;
 
-    --header-bg: #241D18;
+    --header-bg: #132233;
 
     --canvas: #2E2A26;
     --canvas-grid: #3E3830;

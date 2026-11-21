@@ -174,7 +174,7 @@ export function BoardsPage(): ReactElement {
     <Page>
       <div className="page-header">
         <h1>Мои доски</h1>
-        <button className="btn-primary" type="button" onClick={openCreate}>Создать доску</button>
+        <button className="btn-primary btn-amber" type="button" onClick={openCreate}>Создать доску</button>
       </div>
 
       {error ? <p className="note note-danger">{error}</p> : null}
@@ -191,7 +191,7 @@ export function BoardsPage(): ReactElement {
       ) : null}
 
       {loading ? null : boards.length === 0 ? (
-        <p className="empty">
+        <p className="empty pi-field">
           Досок пока нет.
         </p>
       ) : found.length === 0 ? (
@@ -317,7 +317,7 @@ export function BoardsPage(): ReactElement {
             {createError ? <p className="note note-danger">{createError}</p> : null}
 
             <div className="row modal__actions">
-              <button className="btn-primary" type="submit" disabled={busy}>Создать</button>
+              <button className="btn-primary btn-amber" type="submit" disabled={busy}>Создать</button>
               <button className="btn" type="button" onClick={() => setCreating(false)}>Отмена</button>
             </div>
           </form>
@@ -334,7 +334,7 @@ export function BoardsPage(): ReactElement {
                      value={newTitle} onChange={(event) => setNewTitle(cleanBoardTitle(event.target.value))} />
               <p className="field__hint" id="newTitleHint">{BOARD_TITLE_HINT}</p>
             </div>
-            <button className="btn-primary btn-block" type="submit">Сохранить</button>
+            <button className="btn-primary btn-amber btn-block" type="submit">Сохранить</button>
           </form>
         </Modal>
       ) : null}

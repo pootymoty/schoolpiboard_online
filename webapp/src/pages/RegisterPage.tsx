@@ -71,7 +71,7 @@ export function RegisterPage(): ReactElement {
     <Page>
       <div className="auth-split">
         <NoOrphans>
-        <div className="auth-split__pitch">
+        <div className="auth-split__pitch pi-field">
           <h2>Учётная запись — только вам</h2>
           <p>Регистрируется тот, кто создаёт доски. Участнику она не нужна вовсе.</p>
           <ul>
@@ -111,7 +111,7 @@ export function RegisterPage(): ReactElement {
 
           {error ? <p className="note note-danger">{error}</p> : null}
 
-          <button className="btn-primary" type="submit" disabled={busy}>
+          <button className="btn-primary btn-amber" type="submit" disabled={busy}>
             {busy ? 'Отправляем…' : 'Зарегистрироваться'}
           </button>
 

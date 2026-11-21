@@ -58,7 +58,7 @@ export function LandingPage(): ReactElement {
   return (
     <Page>
       <NoOrphans>
-      <section className="card hero">
+      <section className="card hero pi-field">
         <h1>Доска для совместной работы в браузере</h1>
         <p className="reading hero__lead">
           Пишете пером, вставляете документы и работаете с кем угодно в
@@ -68,10 +68,10 @@ export function LandingPage(): ReactElement {
 
         <div className="row hero__actions">
           {user ? (
-            <Link className="btn btn-primary btn-lg" to="/boards">Мои доски</Link>
+            <Link className="btn btn-primary btn-amber btn-lg" to="/boards">Мои доски</Link>
           ) : (
             <>
-              <Link className="btn btn-primary btn-lg" to="/register">Начать бесплатно</Link>
+              <Link className="btn btn-primary btn-amber btn-lg" to="/register">Начать бесплатно</Link>
               <Link className="btn btn-outline btn-lg" to="/pricing">Тарифы</Link>
             </>
           )}
@@ -86,7 +86,6 @@ export function LandingPage(): ReactElement {
             Тому, кто вошёл и аккаунт школы уже привязал, показывать нечего. */}
         {user?.schoolPiLinked ? null : (
           <div className="hero__bonus">
-            <img className="hero__bonus-mark" src="/pi-mark.png" alt="" aria-hidden="true" />
             <p>
               <strong>7 дней тарифа «Расширенный» бесплатно</strong> — для аккаунтов <span className="no-wrap">Школы π</span>.{' '}
               {user ? (
@@ -102,6 +101,8 @@ export function LandingPage(): ReactElement {
           </div>
         )}
       </section>
+
+      <div className="pi-digits" aria-hidden="true">3,14159265358979323846…</div>
 
       <div className="feature-grid" ref={cards}>
         {TILES.map((tile) => (

@@ -138,7 +138,7 @@ export function JoinPage(): ReactElement {
   if (result?.status === 'waiting') {
     return (
       <Page narrow>
-        <div className="card waiting">
+        <div className="card waiting pi-field">
           <h1>Ждём владельца доски</h1>
           <p>
             Вы попросились на доску «{result.boardTitle}». Как только вас
@@ -161,7 +161,7 @@ export function JoinPage(): ReactElement {
         <div className="card">
           <h1>{result.status === 'locked' ? 'Доска закрыта' : 'Вас не впустили'}</h1>
           <p className="note note-warning">{result.message}</p>
-          <button className="btn-primary" type="button" onClick={() => { setResult(null); }}>
+          <button className="btn-primary btn-amber" type="button" onClick={() => { setResult(null); }}>
             Попроситься ещё раз
           </button>
         </div>
@@ -184,7 +184,7 @@ export function JoinPage(): ReactElement {
               Вы вошли как {user.displayName}. Доска останется в вашем списке —
               и роль сохранится, второй раз проситься не придётся.
             </p>
-            <button className="btn-primary" type="button" onClick={() => request()} disabled={busy}>
+            <button className="btn-primary btn-amber" type="button" onClick={() => request()} disabled={busy}>
               {busy ? 'Отправляем…' : 'Попроситься на доску'}
             </button>
           </>
@@ -198,7 +198,7 @@ export function JoinPage(): ReactElement {
                        value={name} onChange={(event) => setName(event.target.value)} />
               </div>
 
-              <button className="btn-primary btn-block" type="submit" disabled={busy}>
+              <button className="btn-primary btn-amber btn-block" type="submit" disabled={busy}>
                 {busy ? 'Отправляем…' : 'Войти на доску'}
               </button>
             </form>

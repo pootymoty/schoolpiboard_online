@@ -67,7 +67,7 @@ export function LoginPage(): ReactElement {
     <Page>
       <div className="auth-split">
         <NoOrphans>
-        <div className="auth-split__pitch">
+        <div className="auth-split__pitch pi-field">
           <h2>С возвращением</h2>
           <p>Все ваши доски и участники, которых вы впустили, остаются на месте.</p>
           <ul>
@@ -100,7 +100,7 @@ export function LoginPage(): ReactElement {
             </button>
           ) : null}
 
-          <button className="btn-primary" type="submit" disabled={busy}>
+          <button className="btn-primary btn-amber" type="submit" disabled={busy}>
             {busy ? 'Входим…' : 'Войти'}
           </button>
 

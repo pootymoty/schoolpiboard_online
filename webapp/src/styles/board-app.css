@@ -4251,3 +4251,64 @@ html[data-theme-sweep="ccw"]::view-transition-new(root) {
 /* Пункты выпадающего меню — в одну строку: «Тарифы пользователей» иначе
    переносилось и выглядело двумя пунктами. */
 .dropdown-menu a { white-space: nowrap; }
+
+/* Геометрия публичных страниц и кабинета. Редактор использует свои размеры. */
+.app__main:not(.app__main--board) {
+    --radius-sm: 8px;
+    --radius: 14px;
+    --radius-lg: 22px;
+}
+
+.app__main:not(.app__main--board) :is(.btn, .btn-primary, .btn-danger) {
+    border-radius: var(--radius-pill);
+    word-break: normal;
+}
+
+.btn-amber,
+.btn-amber:hover {
+    background-color: var(--amber);
+    border-color: var(--amber-strong);
+    color: var(--amber-ink);
+    box-shadow: 0 3px 0 var(--amber-strong);
+}
+.btn-amber:hover { background-color: var(--amber-strong); }
+
+.pi-field {
+    background-color: var(--pi-deep);
+    background-image:
+        linear-gradient(var(--grid-light) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-light) 1px, transparent 1px),
+        linear-gradient(125deg, var(--pi-deep) 65%, color-mix(in srgb, var(--pi-deep) 85%, var(--pi)));
+    background-size: 24px 24px, 24px 24px, 100% 100%;
+    color: var(--text-on-dark);
+}
+.pi-field::before {
+    content: "";
+    display: block;
+    width: 88px;
+    height: 88px;
+    margin: 0 auto var(--sp-4);
+    border: 6px solid var(--amber);
+    border-radius: 50%;
+    background: var(--surface) url('/pi-mark.png') center / 68% auto no-repeat;
+    pointer-events: none;
+}
+.pi-field :is(h1, h2, .hero__lead, .hero__note, .text-muted) { color: var(--text-on-dark); }
+.pi-field.auth-split__pitch :is(p, ul) { opacity: 1; }
+.pi-field .btn-outline { background-color: var(--surface); color: var(--accent); }
+.hero__bonus { color: var(--text); }
+.empty.pi-field { padding: var(--sp-5); border-radius: var(--radius-lg); }
+.pi-digits {
+    margin: var(--sp-5) auto;
+    padding: var(--sp-2) 0;
+    border-block: 1px dashed var(--line-strong);
+    color: var(--text-muted);
+    font: var(--fs-sm)/1.6 var(--font-mono);
+    letter-spacing: .3em;
+    text-align: center;
+}
+.board-item:is(:hover, :focus-within) { border-color: var(--accent); }
+
+@media (max-width: 640px) {
+    .app__main:not(.app__main--board) :is(.btn, .btn-primary, .btn-danger) { min-height: 44px; }
+}

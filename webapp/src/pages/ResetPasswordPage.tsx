@@ -79,7 +79,7 @@ export function ResetPasswordPage(): ReactElement {
 
         {error ? <p className="note note-danger">{error}</p> : null}
 
-        <button className="btn-primary" type="submit" disabled={busy}>
+        <button className="btn-primary btn-amber" type="submit" disabled={busy}>
           {busy ? 'Сохраняем…' : 'Задать пароль'}
         </button>
       </form>

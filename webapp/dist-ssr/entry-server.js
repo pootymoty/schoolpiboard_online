@@ -1050,41 +1050,39 @@ function LandingPage() {
   const cards = useEqualHeights();
   const { user } = useAuth();
   return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs(NoOrphans, { children: [
-    /* @__PURE__ */ jsxs("section", { className: "card hero", children: [
+    /* @__PURE__ */ jsxs("section", { className: "card hero pi-field", children: [
       /* @__PURE__ */ jsx("h1", { children: "Доска для совместной работы в браузере" }),
       /* @__PURE__ */ jsx("p", { className: "reading hero__lead", children: "Пишете пером, вставляете документы и работаете с кем угодно в реальном времени. Участнику достаточно открыть присланную ссылку — ни регистрации, ни установки." }),
-      /* @__PURE__ */ jsx("div", { className: "row hero__actions", children: user ? /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-lg", to: "/boards", children: "Мои доски" }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-lg", to: "/register", children: "Начать бесплатно" }),
+      /* @__PURE__ */ jsx("div", { className: "row hero__actions", children: user ? /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-amber btn-lg", to: "/boards", children: "Мои доски" }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx(Link, { className: "btn btn-primary btn-amber btn-lg", to: "/register", children: "Начать бесплатно" }),
         /* @__PURE__ */ jsx(Link, { className: "btn btn-outline btn-lg", to: "/pricing", children: "Тарифы" })
       ] }) }),
       /* @__PURE__ */ jsx("p", { className: "text-muted small hero__note", children: "Бесплатный тариф без срока и без карты. Первые семь дней — тариф «Стандартный»." }),
-      (user == null ? void 0 : user.schoolPiLinked) ? null : /* @__PURE__ */ jsxs("div", { className: "hero__bonus", children: [
-        /* @__PURE__ */ jsx("img", { className: "hero__bonus-mark", src: "/pi-mark.png", alt: "", "aria-hidden": "true" }),
-        /* @__PURE__ */ jsxs("p", { children: [
-          /* @__PURE__ */ jsx("strong", { children: "7 дней тарифа «Расширенный» бесплатно" }),
-          " — для аккаунтов ",
-          /* @__PURE__ */ jsx("span", { className: "no-wrap", children: "Школы π" }),
-          ".",
+      (user == null ? void 0 : user.schoolPiLinked) ? null : /* @__PURE__ */ jsx("div", { className: "hero__bonus", children: /* @__PURE__ */ jsxs("p", { children: [
+        /* @__PURE__ */ jsx("strong", { children: "7 дней тарифа «Расширенный» бесплатно" }),
+        " — для аккаунтов ",
+        /* @__PURE__ */ jsx("span", { className: "no-wrap", children: "Школы π" }),
+        ".",
+        " ",
+        user ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          "Привяжите аккаунт Школы π в ",
+          /* @__PURE__ */ jsx(Link, { to: "/profile", children: "профиле" }),
+          "."
+        ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+          "Зарегистрируйтесь на",
           " ",
-          user ? /* @__PURE__ */ jsxs(Fragment, { children: [
-            "Привяжите аккаунт Школы π в ",
-            /* @__PURE__ */ jsx(Link, { to: "/profile", children: "профиле" }),
-            "."
-          ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-            "Зарегистрируйтесь на",
-            " ",
-            /* @__PURE__ */ jsx("a", { className: "no-wrap", href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: "school-pi.online" }),
-            " ",
-            "и войдите на доску кнопкой ",
-            /* @__PURE__ */ jsxs(Link, { to: "/login", children: [
-              "«Войти через ",
-              /* @__PURE__ */ jsx("span", { className: "no-wrap", children: "Школу π»" })
-            ] }),
-            "."
-          ] })
+          /* @__PURE__ */ jsx("a", { className: "no-wrap", href: MAIN_SITE.url, target: "_blank", rel: "noopener noreferrer", children: "school-pi.online" }),
+          " ",
+          "и войдите на доску кнопкой ",
+          /* @__PURE__ */ jsxs(Link, { to: "/login", children: [
+            "«Войти через ",
+            /* @__PURE__ */ jsx("span", { className: "no-wrap", children: "Школу π»" })
+          ] }),
+          "."
         ] })
-      ] })
+      ] }) })
     ] }),
+    /* @__PURE__ */ jsx("div", { className: "pi-digits", "aria-hidden": "true", children: "3,14159265358979323846…" }),
     /* @__PURE__ */ jsx("div", { className: "feature-grid", ref: cards, children: TILES.map((tile) => /* @__PURE__ */ jsxs("article", { className: "feature-tile", children: [
       /* @__PURE__ */ jsx("span", { className: "feature-tile__icon", children: tile.icon }),
       /* @__PURE__ */ jsx("h3", { children: tile.title }),
@@ -1973,7 +1971,7 @@ function LoginPage() {
     }
   };
   return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split", children: [
-    /* @__PURE__ */ jsx(NoOrphans, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split__pitch", children: [
+    /* @__PURE__ */ jsx(NoOrphans, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split__pitch pi-field", children: [
       /* @__PURE__ */ jsx("h2", { children: "С возвращением" }),
       /* @__PURE__ */ jsx("p", { children: "Все ваши доски и участники, которых вы впустили, остаются на месте." }),
       /* @__PURE__ */ jsxs("ul", { children: [
@@ -2012,7 +2010,7 @@ function LoginPage() {
       error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
       notice ? /* @__PURE__ */ jsx("p", { className: "text-muted", children: notice }) : null,
       needsConfirmation ? /* @__PURE__ */ jsx("button", { className: "btn-quiet", type: "button", onClick: resend, disabled: busy, children: "Выслать письмо ещё раз" }) : null,
-      /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Входим…" : "Войти" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-primary btn-amber", type: "submit", disabled: busy, children: busy ? "Входим…" : "Войти" }),
       /* @__PURE__ */ jsx("p", { className: "text-muted small", children: /* @__PURE__ */ jsx(Link, { to: "/forgot-password", children: "Забыли пароль?" }) }),
       /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
         "Нет учётной записи? ",
@@ -2064,7 +2062,7 @@ function RegisterPage() {
     ] }) });
   }
   return /* @__PURE__ */ jsx(Page, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split", children: [
-    /* @__PURE__ */ jsx(NoOrphans, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split__pitch", children: [
+    /* @__PURE__ */ jsx(NoOrphans, { children: /* @__PURE__ */ jsxs("div", { className: "auth-split__pitch pi-field", children: [
       /* @__PURE__ */ jsx("h2", { children: "Учётная запись — только вам" }),
       /* @__PURE__ */ jsx("p", { children: "Регистрируется тот, кто создаёт доски. Участнику она не нужна вовсе." }),
       /* @__PURE__ */ jsxs("ul", { children: [
@@ -2131,7 +2129,7 @@ function RegisterPage() {
         }
       ),
       error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-      /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Зарегистрироваться" }),
+      /* @__PURE__ */ jsx("button", { className: "btn-primary btn-amber", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Зарегистрироваться" }),
       /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
         "Уже есть учётная запись? ",
         /* @__PURE__ */ jsx(Link, { to: "/login", children: "Войти" })
@@ -2210,7 +2208,7 @@ function ForgotPasswordPage() {
         onChange: (event) => setEmail(event.target.value)
       }
     ),
-    /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Прислать ссылку" }),
+    /* @__PURE__ */ jsx("button", { className: "btn-primary btn-amber", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Прислать ссылку" }),
     /* @__PURE__ */ jsx("p", { className: "text-muted small", children: /* @__PURE__ */ jsx(Link, { to: "/login", children: "Вернуться ко входу" }) })
   ] }) });
 }
@@ -2285,7 +2283,7 @@ function ResetPasswordPage() {
       }
     ),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
-    /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: busy ? "Сохраняем…" : "Задать пароль" })
+    /* @__PURE__ */ jsx("button", { className: "btn-primary btn-amber", type: "submit", disabled: busy, children: busy ? "Сохраняем…" : "Задать пароль" })
   ] }) });
 }
 function parseBonus(raw) {
@@ -2686,7 +2684,7 @@ function BoardsPage() {
   return /* @__PURE__ */ jsxs(Page, { children: [
     /* @__PURE__ */ jsxs("div", { className: "page-header", children: [
       /* @__PURE__ */ jsx("h1", { children: "Мои доски" }),
-      /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: openCreate, children: "Создать доску" })
+      /* @__PURE__ */ jsx("button", { className: "btn-primary btn-amber", type: "button", onClick: openCreate, children: "Создать доску" })
     ] }),
     error ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: error }) : null,
     !loading2 && boards.length > 0 ? /* @__PURE__ */ jsx(
@@ -2700,7 +2698,7 @@ function BoardsPage() {
         "aria-label": "Найти доску по названию, странице или закладке"
       }
     ) : null,
-    loading2 ? null : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty", children: "Досок пока нет." }) : found.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "empty", children: [
+    loading2 ? null : boards.length === 0 ? /* @__PURE__ */ jsx("p", { className: "empty pi-field", children: "Досок пока нет." }) : found.length === 0 ? /* @__PURE__ */ jsxs("p", { className: "empty", children: [
       "Ничего не найдено по «",
       query.trim(),
       "»."
@@ -2807,7 +2805,7 @@ function BoardsPage() {
       ] }),
       createError ? /* @__PURE__ */ jsx("p", { className: "note note-danger", children: createError }) : null,
       /* @__PURE__ */ jsxs("div", { className: "row modal__actions", children: [
-        /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "submit", disabled: busy, children: "Создать" }),
+        /* @__PURE__ */ jsx("button", { className: "btn-primary btn-amber", type: "submit", disabled: busy, children: "Создать" }),
         /* @__PURE__ */ jsx("button", { className: "btn", type: "button", onClick: () => setCreating(false), children: "Отмена" })
       ] })
     ] }) }) : null,
@@ -2829,7 +2827,7 @@ function BoardsPage() {
         ),
         /* @__PURE__ */ jsx("p", { className: "field__hint", id: "newTitleHint", children: BOARD_TITLE_HINT })
       ] }),
-      /* @__PURE__ */ jsx("button", { className: "btn-primary btn-block", type: "submit", children: "Сохранить" })
+      /* @__PURE__ */ jsx("button", { className: "btn-primary btn-amber btn-block", type: "submit", children: "Сохранить" })
     ] }) }) : null
   ] });
 }
@@ -11747,7 +11745,7 @@ function JoinPage() {
     ] }) });
   }
   if ((result == null ? void 0 : result.status) === "waiting") {
-    return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("div", { className: "card waiting", children: [
+    return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("div", { className: "card waiting pi-field", children: [
       /* @__PURE__ */ jsx("h1", { children: "Ждём владельца доски" }),
       /* @__PURE__ */ jsxs("p", { children: [
         "Вы попросились на доску «",
@@ -11766,7 +11764,7 @@ function JoinPage() {
     return /* @__PURE__ */ jsx(Page, { narrow: true, children: /* @__PURE__ */ jsxs("div", { className: "card", children: [
       /* @__PURE__ */ jsx("h1", { children: result.status === "locked" ? "Доска закрыта" : "Вас не впустили" }),
       /* @__PURE__ */ jsx("p", { className: "note note-warning", children: result.message }),
-      /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: () => {
+      /* @__PURE__ */ jsx("button", { className: "btn-primary btn-amber", type: "button", onClick: () => {
         setResult(null);
       }, children: "Попроситься ещё раз" })
     ] }) });
@@ -11785,7 +11783,7 @@ function JoinPage() {
         user.displayName,
         ". Доска останется в вашем списке — и роль сохранится, второй раз проситься не придётся."
       ] }),
-      /* @__PURE__ */ jsx("button", { className: "btn-primary", type: "button", onClick: () => request(), disabled: busy, children: busy ? "Отправляем…" : "Попроситься на доску" })
+      /* @__PURE__ */ jsx("button", { className: "btn-primary btn-amber", type: "button", onClick: () => request(), disabled: busy, children: busy ? "Отправляем…" : "Попроситься на доску" })
     ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
       /* @__PURE__ */ jsxs("form", { onSubmit: request, children: [
         /* @__PURE__ */ jsxs("div", { className: "field", children: [
@@ -11804,7 +11802,7 @@ function JoinPage() {
             }
           )
         ] }),
-        /* @__PURE__ */ jsx("button", { className: "btn-primary btn-block", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Войти на доску" })
+        /* @__PURE__ */ jsx("button", { className: "btn-primary btn-amber btn-block", type: "submit", disabled: busy, children: busy ? "Отправляем…" : "Войти на доску" })
       ] }),
       /* @__PURE__ */ jsx("p", { className: "text-muted small", children: "Регистрация не нужна. Имя видно на доске и нигде не сохраняется." }),
       /* @__PURE__ */ jsxs("p", { className: "text-muted small", children: [
