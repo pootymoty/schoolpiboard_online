@@ -101,7 +101,7 @@ public sealed class AutoRenewService : BackgroundService
             }
 
             var charged = await keys.ChargeRecurringAsync(
-                due.UserId, plan.Code, plan.Name, days, price.Value, due.InvoiceId, cancellationToken);
+                due.UserId, plan.Code, plan.Name, days, price.Value, due.InvoiceId, due.EndsAt, cancellationToken);
 
             if (charged is null)
             {
