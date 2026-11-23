@@ -95,7 +95,7 @@ public sealed class KeyServerClient
     /// у Робокассы — доска её не видела и не увидит.
     /// </summary>
     public Task<Invoice?> ChargeRecurringAsync(
-        long userId, string planCode, string planName, int days, int amount, string previousInvoiceId,
+        long userId, string planCode, string planName, int days, int amount, string previousInvoiceId, DateTime endsAt,
         CancellationToken cancellationToken)
         => SendAsync<Invoice>("/board/recurring", new
         {
@@ -104,6 +104,7 @@ public sealed class KeyServerClient
             planName,
             days,
             amount,
+            endsAt,
             previousInvoiceId = long.TryParse(previousInvoiceId, out var number) ? number : 0
         }, cancellationToken);
 
